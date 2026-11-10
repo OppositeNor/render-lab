@@ -14,6 +14,7 @@ pub fn shadow_camera(
     camera: &lab::layout::CameraData,
 ) -> super::super::cascades::Observer {
     let view = glam::Mat4::from_cols_array_2d(&camera.world_to_view);
+    // The view matrix's third row is the camera's back axis in the world, so forward is its negative.
     let forward = -Vec3::new(view.x_axis.z, view.y_axis.z, view.z_axis.z).normalize();
     let aspect = camera.viewport_size[0] / camera.viewport_size[1].max(1.0);
     super::super::cascades::Observer {
@@ -121,16 +122,19 @@ pub(super) fn cascade_overlay(
         .clamp(0.0, cascades::CASCADES as f32);
     let near = observer.corners(observer.near);
     for (i, c) in set.cascades.iter().enumerate() {
+        // A cascade grows in as `cascadesShown` passes its index; the first one not started ends the loop.
         let grown = (shown - i as f32).clamp(0.0, 1.0);
         if grown <= 0.0 {
             break;
         }
         let color = CASCADE_COLORS[i];
+        // A growing cascade's far end eases out from its near end.
         let far = c.near + (c.far - c.near) * Ease::Smooth.apply(grown);
         let (a, b) = (observer.corners(c.near), observer.corners(far));
         let ring: Vec<Vec3> = b.iter().chain(std::iter::once(&b[0])).copied().collect();
         draw.polyline(&ring, color, alpha, 3.0);
         for k in 0..4 {
+            // The side edges join the near corners to the far ones (the camera's near plane, for the first cascade).
             draw.segment(
                 if i == 0 {
                     near[k]
@@ -153,6 +157,7 @@ pub(super) fn cascade_overlay(
         }
         let spheres = state.p("cascadeSpheres") * grown;
         if spheres > 0.0 {
+            // The bounding sphere is drawn as three great circles in the light's frame.
             for (u, v) in [
                 (set.frame.x, set.frame.y),
                 (set.frame.y, set.frame.z),
@@ -183,6 +188,7 @@ pub(super) fn cascade_overlay(
     });
     // The inspected point's cascade.
     draw.point(p, 9.0, palette::SELECTED, alpha);
+    // The point's cascade is named once that cascade is shown, and a point outside them all says so.
     let text = match set.select(p, n) {
         Some(i) if (i as f32) < shown => format!("{} {i}", tr("demos-cascade")),
         Some(_) => String::new(),
@@ -241,6 +247,7 @@ pub(super) fn snapped_box(
         (0, 1, 0, 0, 1, 1),
         (1, 1, 0, 1, 1, 1),
     ] {
+        // Each edge joins two corners: four run along x, four along y, and four along z.
         draw.segment(
             corner(x0 == 1, y0 == 1, z0 == 1),
             corner(x1 == 1, y1 == 1, z1 == 1),

@@ -131,7 +131,7 @@ impl Reading<'_> {
         self.rows.push((name.to_string(), value, color));
     }
 
-    /// The rows of Room if state.p("readoutMode") >= 1.5's readout.
+    /// The rows of Room's readout in its encoding mode (`readoutMode` 2).
     fn room_encoding(&mut self) {
         let px = self.px;
         let s = &px.surface;
@@ -166,7 +166,7 @@ impl Reading<'_> {
         );
     }
 
-    /// The rows of Room if state.p("readoutMode") >= 0.5's readout.
+    /// The rows of Room's readout in its targets mode (`readoutMode` 1).
     fn room_targets(&mut self) {
         let shading = self.shading;
         let px = self.px;
@@ -314,12 +314,14 @@ impl Reading<'_> {
             self.row("decals", tr("demos-off").into(), palette::text_dim());
         }
         let sorted = super::super::decals::sorted(&shading.decals);
+        // The decal on top is the last one, in sort order, whose box holds the point.
         let top = sorted
             .iter()
             .rev()
             .copied()
             .find(|&i| super::super::decals::sample(&shading.decals[i], p, n).is_some());
         for i in sorted {
+            // Each decal shows where the point falls in its box and how opaque it is there, or that it misses.
             let d = &shading.decals[i];
             let name = format!("{} (key {})", decal_name(d.texture), d.sort_key);
             let color = [palette::accent(), palette::REFLECTED][d.texture.min(1)];
@@ -455,6 +457,7 @@ impl Reading<'_> {
         self.row("o_transmission_mode", mode.into(), palette::accent());
         match (s.transmission, shading.sphere_lights.first()) {
             (Some(tm), Some(light)) => {
+                // A transmissive surface lit by a sphere light: the rows follow the light that comes from behind.
                 let to_light = (light.position - s.position).normalize();
                 self.row(
                     tr("demos-thickness_no_shadow_data"),
@@ -462,6 +465,7 @@ impl Reading<'_> {
                     palette::accent(),
                 );
                 if tm.mode == super::super::transmission::TransmissionMode::ThickObject {
+                    // A thick object turns the light toward the view and fades it with thickness (no shadow data: 0).
                     let k = super::super::transmission::thick_terms(
                         &tm,
                         n,
@@ -481,6 +485,7 @@ impl Reading<'_> {
                         palette::accent(),
                     );
                 } else {
+                    // A thin object lets the light through by how much its back faces the light, offset by the bias.
                     let e = s.albedo * brdf::saturate(tm.params.y + (-n).dot(to_light));
                     self.row(tr("demos-e_albedo_sat_bias_n"), f3(e), DIFFUSE);
                     self.row(
@@ -632,6 +637,7 @@ impl Reading<'_> {
         let s = &px.surface;
         let r = &px.ibl.reflection;
         let masked = r.stencil & super::super::reflections::STENCIL_REFLECTION_MASK;
+        // 3 marks a pixel the IBL specular pass lights; each inner box that holds the point counts it up by 1.
         let region = match masked {
             0..=2 => tr("demos-no_passes"),
             3 => tr("demos-outside_the_inners"),
@@ -639,6 +645,7 @@ impl Reading<'_> {
         };
         self.row("stencil", format!("{masked} · {region}"), palette::accent());
         for probe in &shading.probes {
+            // Each probe weighs the point: 1 inside its inner box, a falloff between its boxes, nothing outside.
             let name = format!("{} {}", tr("demos-probe"), probe.cubemap + 1);
             let color = [palette::accent(), palette::REFLECTED][probe.cubemap.min(1)];
             let value = if probe.contains(probe.inner_half, s.position) {
@@ -697,6 +704,7 @@ impl Reading<'_> {
         let settings = super::super::ssao::Settings::from_records(&ssao_records(state));
         match projector.project(p) {
             Some((pixel, _)) => {
+                // The point is on screen: the rows follow its pixel through SSAO's passes, to the upsampled AO.
                 let (x, y) = (pixel.x.floor() as i32, pixel.y.floor() as i32);
                 let k = super::super::ssao::at_pixel(&linear_depth, size, &settings, tan, x, y);
                 self.row(
@@ -726,6 +734,7 @@ impl Reading<'_> {
                 );
                 self.row(tr("demos-blur_horizontal"), f1(k.blurred), palette::text());
                 self.row(tr("demos-upsampled_ao"), f1(k.upsampled), palette::text());
+                // The light AO darkens is the diffuse light: the direct light's, plus the IBL's when IBL is on.
                 let diffuse = px.diffuse()
                     + px.ibl.diffuse
                         * if shading.ibl {
@@ -792,12 +801,14 @@ impl Reading<'_> {
             palette::accent(),
         );
         for (i, c) in set.cascades.iter().enumerate() {
+            // Each cascade covers a band of view depth, inside a sphere of radius R.
             self.row(
                 &format!("{} {i}", tr("demos-cascade")),
                 format!("{:.2}–{:.2} m · R {:.2}", c.near, c.far, c.radius),
                 CASCADE_COLORS[i],
             );
         }
+        // A texel's width in each cascade's map, in millimetres.
         let texels: Vec<String> = set
             .cascades
             .iter()
@@ -806,6 +817,7 @@ impl Reading<'_> {
         self.row(tr("demos-texel_mm"), texels.join(" · "), palette::accent());
         match set.select(p, n) {
             Some(i) => {
+                // The point falls in cascade i: the row names it and the texel of its map the point reads.
                 let t = set.texel_of(i, p, n);
                 self.row(
                     tr("demos-point_s_cascade"),

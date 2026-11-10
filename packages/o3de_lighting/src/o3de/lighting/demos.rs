@@ -94,6 +94,7 @@ pub fn posed_objects(state: &ShotState, statics: &Statics) -> Vec<ObjectData> {
 pub fn pose_objects(mut objects: Vec<ObjectData>, state: &ShotState) -> Vec<ObjectData> {
     for (i, o) in objects.iter_mut().enumerate() {
         if let Some((roughness, _)) = material_params(i) {
+            // Each object takes its own roughness value.
             o.albedo_roughness[3] = state.p(roughness);
         }
         if i == ids::FLOOR {
@@ -103,6 +104,7 @@ pub fn pose_objects(mut objects: Vec<ObjectData>, state: &ShotState) -> Vec<Obje
             }
         }
         if i == ids::PANEL {
+            // The light panel does not glow in this investigation's room.
             o.emissive = [0.0; 4];
         }
     }
@@ -138,6 +140,7 @@ pub fn extra_lights(state: &ShotState) -> Vec<PointLight> {
     let motion = state.p("extraLightMotion").to_radians();
     (0..count)
         .map(|i| {
+            // The extra lights on a golden-angle spiral, at three heights, turning with the motion value.
             let r = 2.5 * ((i as f32 + 0.5) / 48.0).sqrt();
             let a = i as f32 * 2.399_963 + motion * [1.0, -0.6, 0.35][i % 3];
             let position = Vec3::new(r * a.cos(), [0.2, 0.9, 1.7][i % 3], -0.3 + r * a.sin());
@@ -277,6 +280,7 @@ pub fn transmission(state: &ShotState) -> Option<Transmission> {
     let mode = match state.p("teapotTransmission").round() as i32 {
         1 => TransmissionMode::ThickObject,
         2 => TransmissionMode::ThinObject,
+        // 0 is None: the teapot has no transmission.
         _ => return None,
     };
     let scale = state.p("transmissionScale");
@@ -368,6 +372,7 @@ fn f3(v: Vec3) -> String {
 }
 
 fn f1(v: f32) -> String {
+    // Fewer decimals as the value grows.
     if v.abs() >= 1000.0 {
         format!("{v:.0}")
     } else if v.abs() >= 10.0 {
@@ -392,6 +397,7 @@ pub fn normal_derivatives(
     };
     let eye = Vec3::from(camera.position);
     let normal_at = |offset: glam::Vec2| -> Option<Vec3> {
+        // The normal under a pixel near the point (on the same object), turned toward the eye.
         let (origin, dir) = projector.ray(pixel.floor() + glam::Vec2::splat(0.5) + offset);
         let hit = lab::scene::trace_scene(objects, origin, dir, 100.0, ids::PANEL as u32);
         (hit.is_hit() && hit.object == object).then(|| {
@@ -405,6 +411,7 @@ pub fn normal_derivatives(
     let Some(here) = normal_at(glam::Vec2::ZERO) else {
         return [Vec3::ZERO; 2];
     };
+    // How the normal changes one pixel across and one down: the screen derivatives specular AA reads.
     let across = normal_at(glam::Vec2::X).map_or(Vec3::ZERO, |n| n - here);
     let down = normal_at(glam::Vec2::Y).map_or(Vec3::ZERO, |n| n - here);
     [across, down]
@@ -420,6 +427,7 @@ fn cubemap_cross_labels(
 ) {
     let projector = lab::camera::Projector::new(camera);
     let size = projector.viewport;
+    // The cross's 4 x 3 cells, centred, each face named in its cell.
     let cell = (size.x / 4.0).min(size.y / 3.0) * 0.94;
     let origin = (size - Vec2::new(4.0, 3.0) * cell) * 0.5;
     let at = |x: f32, y: f32| {
@@ -706,6 +714,7 @@ fn pack_shading_frame(
     content.shading_frame.extend(shading.frame_materials());
     content.shading_frame.extend(shading.frame_lights());
     content.shading_frame.resize(FRAME_DECALS, [0.0; 4]);
+    // Each record group at its fixed offset in gShadingFrame, padded up to it.
     content
         .shading_frame
         .extend(super::decals::frame_records(&shading.decals));
@@ -759,6 +768,7 @@ fn scene_marks(
             FLAG_ARROW,
         );
         for (k, (o, cosine, weight)) in samples.iter().enumerate() {
+            // Each occluder fades in in turn, coloured by its cosine, sized by its weight.
             let fade = (shown_samples - k as f32).clamp(0.0, 1.0);
             let color = mix_color(palette::rgb(0x3f9e6a), palette::rgb(0xd8ff8a), *cosine);
             draw.point(*o, 2.5 + 5.0 * (weight / (1.0 / 0.07)).sqrt(), color, fade);
@@ -801,7 +811,9 @@ fn scene_marks(
 /// The reflection probes' boxes (outer and inner), at `alpha`, each with its centre and name.
 fn probe_boxes(content: &mut FrameContent, shading: &Shading, alpha: f32) {
     for probe in &shading.probes {
+        // The first probe takes the accent colour, every later probe the reflected colour.
         let color = [palette::accent(), palette::REFLECTED][probe.cubemap.min(1)];
+        // The outer box, where the probe's cubemap starts to blend in, is drawn faint and thin.
         obb_edges(
             &mut content.draw,
             probe.position,
@@ -811,6 +823,7 @@ fn probe_boxes(content: &mut FrameContent, shading: &Shading, alpha: f32) {
             alpha * 0.6,
             2.0,
         );
+        // The inner box, inside which the probe's cubemap is used alone, is drawn solid.
         obb_edges(
             &mut content.draw,
             probe.position,
@@ -839,6 +852,7 @@ pub fn panes(state: &ShotState) -> Vec<lab::investigation::Pane> {
     use lab::values::Choice;
     let options = brdf::ViewMode::choices().options;
     let title = |mode: f32| {
+        // A mode rounds to its option; the title is that option's text, else its label, else its name.
         let option = &options[(mode.round().max(0.0) as usize).min(options.len() - 1)];
         option
             .text
@@ -847,6 +861,7 @@ pub fn panes(state: &ShotState) -> Vec<lab::investigation::Pane> {
             .unwrap_or(option.name)
             .to_string()
     };
+    // The left pane is the same frame, shown in the split view's own mode.
     let mut left = state.clone();
     left.set("viewMode", state.p("splitViewMode"));
     vec![
@@ -943,6 +958,7 @@ fn notes(demo: Demo, shading: &Shading) -> Vec<(String, Color32)> {
         && shading.material(shading.inspected).metallic > 0.5
         && demo != Demo::PointLight
     {
+        // A metal lit only by direct light shows its highlight and nothing else; these notes say why.
         notes.push((
             tr("demos-metals_have_no_diffuse_term").to_string(),
             palette::text_faint(),
@@ -985,11 +1001,13 @@ fn ssao_samples(
             camera.far_plane
         }
     };
+    // `tan` holds the view's half-width and half-height at unit depth, read from the projection.
     let projection = glam::Mat4::from_cols_array_2d(&camera.view_to_clip);
     let tan = Vec2::new(1.0 / projection.x_axis.x, 1.0 / projection.y_axis.y);
     let settings = super::ssao::Settings::from_records(&ssao_records(state));
     let (pixel, _) = projector.project(p)?;
     let half_size = [size[0].div_ceil(2), size[1].div_ceil(2)];
+    // SSAO runs at half resolution: each half-size pixel reads the depth of the top-left pixel of its 2×2 block.
     let half = |x: i32, y: i32| linear_depth(2 * x, 2 * y);
     let k = super::ssao::samples_at(
         &half,

@@ -67,6 +67,7 @@ pub fn scene_decals(state: &ShotState) -> Vec<Decal> {
         max_draw_distance: 0.0,
     };
     vec![
+        // The splat, tilted, its sort key the demonstration's; and the panel grid, turned.
         Decal {
             position: Vec3::new(-0.35, 0.0, 0.45),
             rotation: tilt * down,
@@ -99,6 +100,7 @@ pub const MAX_DECALS: usize = 8;
 pub fn frame_records(decals: &[Decal]) -> Vec<[f32; 4]> {
     assert!(decals.len() <= MAX_DECALS);
     let order = sorted(decals);
+    // The count, the sorted order in two vec4s, then five vec4s a decal.
     let at = |k: usize| order.get(k).map_or(0.0, |&i| i as f32);
     let mut out = vec![
         [decals.len() as f32, 0.0, 0.0, 0.0],
@@ -123,6 +125,7 @@ pub fn frame_records(decals: &[Decal]) -> Vec<[f32; 4]> {
 /// GetDecalAttenuation: none facing the decal's axis, fading out to 0.55.
 pub fn decal_attenuation(surface_normal: Vec3, decal_up: Vec3, angle_attenuation: f32) -> f32 {
     let clamp_angle = 0.55;
+    // Facing away from the decal's axis fades it, smoothly from cos 0.55 up, as far as angle_attenuation says.
     let d = surface_normal.dot(decal_up).clamp(clamp_angle, 1.0);
     let t = (d - clamp_angle) / (1.0 - clamp_angle);
     let smooth = t * t * (3.0 - 2.0 * t);
@@ -147,6 +150,7 @@ pub struct DecalSample {
 pub fn sample(d: &Decal, position: Vec3, vertex_normal: Vec3) -> Option<DecalSample> {
     let [x, y, z] = d.axes();
     let local = position - d.position;
+    // The point in the decal's box, in [-1, 1]; outside it, the decal does not reach it.
     let uvw = Vec3::new(x.dot(local), y.dot(local), z.dot(local)) / d.half_size;
     if uvw.abs().max_element() > 1.0 {
         return None;

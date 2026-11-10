@@ -73,6 +73,7 @@ pub fn scene_probes(state: &ShotState) -> Vec<Probe> {
         })
         .collect();
     probes.sort_by(|a, b| {
+        // Largest inner box first, so smaller probes inside it are drawn after it.
         let volume = |p: &Probe| p.inner_half.x * p.inner_half.z * p.inner_half.y;
         volume(b).total_cmp(&volume(a))
     });
@@ -115,6 +116,7 @@ impl Probe {
 
     /// ComputeLerpBetweenInnerOuterOBBs: 1 on the inner box, 0 on the outer one.
     pub fn lerp_inner_outer(&self, position: Vec3) -> f32 {
+        // From the inner box's nearest point, along the way out: how far the outer box is, as a share of the gap.
         let p = self.local_point(position).abs();
         let closest = p.clamp(-self.inner_half, self.inner_half);
         let dir = (p - closest).normalize();
@@ -142,6 +144,7 @@ impl Probe {
         let rotation = Mat3::from_quat(self.rotation);
         let p = rotation.transpose() * (position - self.position);
         let r = rotation.transpose() * reflect_dir;
+        // Where the reflection ray leaves the outer box, from the probe's centre: the direction to sample.
         let a = (self.outer_half - p) / r;
         let b = (-self.outer_half - p) / r;
         let distance = a.max(b).min_element();
@@ -182,6 +185,7 @@ fn probe_specular(
     map: &BrdfMap,
 ) -> Option<Vec3> {
     if !probe.contains(half, input.position) || !input.enable_ibl {
+        // Only a point inside the box (with IBL on) takes this probe.
         return None;
     }
     let dir_to_camera = (eye - input.position).normalize();
@@ -209,6 +213,7 @@ pub fn reflection_sample(
 ) -> ReflectionSample {
     let mut stencil = input.stencil;
     if stencil & STENCIL_REFLECTION_MASK > 0 {
+        // Each probe whose inner box holds the point counts up the stencil, as the stencil pass does.
         for probe in probes {
             if probe.contains(probe.inner_half - Vec3::splat(0.05), input.position) {
                 stencil = (stencil & !STENCIL_REFLECTION_MASK)
@@ -217,6 +222,7 @@ pub fn reflection_sample(
         }
     }
     let masked = stencil & STENCIL_REFLECTION_MASK;
+    // No inner box holds the point: the outer boxes' blend weights add up, the global map takes the rest.
     let outside_inner = masked == STENCIL_USE_IBL_SPECULAR_PASS;
     let total: f32 = if outside_inner {
         probes
@@ -232,6 +238,7 @@ pub fn reflection_sample(
     if outside_inner {
         reflection = Vec3::ZERO;
         if input.enable_ibl {
+            // The global map takes what the probes' weights leave.
             let dir_to_camera = (eye - input.position).normalize();
             let reflect_dir = lab::scene::reflect(-dir_to_camera, input.normal);
             let global = super::ibl::Ibl::get().sample_specular(reflect_dir, input.roughness * 5.0);
@@ -248,6 +255,7 @@ pub fn reflection_sample(
                 * input.specular_occlusion;
         }
         for probe in probes {
+            // Each probe whose outer box holds the point adds its share, normalised when the weights pass 1.
             if let Some(specular) = probe_specular(probe, probe.outer_half, input, eye, map) {
                 reflection +=
                     specular * 2.0f32.powf(probe.exposure) * probe.blend_weight(input.position)
@@ -257,6 +265,7 @@ pub fn reflection_sample(
     }
     if masked >= STENCIL_USE_IBL_SPECULAR_PASS {
         for probe in probes {
+            // Inside an inner box, the last probe that holds the point replaces the result.
             if let Some(specular) = probe_specular(probe, probe.inner_half, input, eye, map) {
                 reflection = specular * 2.0f32.powf(probe.exposure);
             }
@@ -293,6 +302,7 @@ pub fn sample_probe(probe: &Probe, dir: Vec3, mip: f32) -> Vec3 {
 /// feature processor's order, which is the smallest.
 pub fn forward_probe(probes: &[Probe], center: Vec3, extent: Vec3) -> Option<usize> {
     probes.iter().rposition(|p| {
+        // The last probe whose (rotated) outer box overlaps the object's box.
         let rotation = Mat3::from_quat(p.rotation);
         let half = rotation.x_axis.abs() * p.outer_half.x
             + rotation.y_axis.abs() * p.outer_half.y
@@ -331,6 +341,7 @@ fn bake_radiance(
 ) -> Vec3 {
     let hit = lab::scene::trace_scene(objects, center, dir, 100.0, lab::scene::ids::PANEL as u32);
     if !hit.is_hit() {
+        // A ray that leaves the room sees the sky.
         return super::ibl::environment(dir);
     }
     let p = center + dir * hit.t;
@@ -386,6 +397,7 @@ pub fn bake_check(count: usize) -> Vec<(f32, f32)> {
         .map(|(&(center, _, _), mips)| {
             let mut errors: Vec<f32> = (0..count)
                 .map(|i| {
+                    // A Fibonacci sphere of directions: the baked cubemap against a fresh trace in each.
                     let z = 1.0 - 2.0 * (i as f32 + 0.5) / count as f32;
                     let a = i as f32 * 2.399_963;
                     let r = (1.0 - z * z).max(0.0).sqrt();

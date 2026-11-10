@@ -73,6 +73,7 @@ pub fn frame_lights(lights: &[SphereLight]) -> Vec<[f32; 4]> {
 /// TransmissionKernel.
 pub fn transmission_kernel(t: f32, s: Vec3) -> Vec3 {
     let exponent = s * t;
+    // Two exponentials of the scattered distance, the slower one weighted three to one.
     0.25 * (Vec3::ONE / exponent.exp() + 3.0 / (exponent / 3.0).exp())
 }
 
@@ -93,6 +94,7 @@ pub fn thick_terms(
     transmission_distance: f32,
 ) -> ThickTerms {
     let thickness = transmission_distance.max(t.thickness);
+    // How much the view looks into the light through the surface (its normal bent by distortion), to a power, scaled.
     let v_dot =
         saturate(dir_to_camera.dot(-(dir_to_light + vertex_normal * t.params.z).normalize()));
     ThickTerms {
@@ -116,6 +118,7 @@ pub fn back_lighting(
     };
     match t.mode {
         TransmissionMode::ThickObject => {
+            // Thick: the light through the object, attenuated by its thickness.
             let k = thick_terms(
                 t,
                 s.vertex_normal,
@@ -130,6 +133,7 @@ pub fn back_lighting(
             if transmission_distance < 0.0 {
                 return Vec3::ZERO;
             }
+            // Thin: the light behind the surface, its albedo tinting it, scattered through the thickness.
             let e = s.albedo * saturate(t.params.y + (-s.vertex_normal).dot(dir_to_light));
             let distance = transmission_distance * 300.0 * t.thickness;
             let inv_scattering = Vec3::ONE / t.scatter_distance.max(Vec3::splat(0.00001));
@@ -161,6 +165,7 @@ pub fn apply_sphere_light(
     model: DiffuseModel,
 ) {
     if light.lighting_channel_mask & surface_channels == 0 {
+        // Another lighting channel: this light does not reach the surface.
         return;
     }
     let surface_to_light = light.position - s.position;
@@ -168,6 +173,7 @@ pub fn apply_sphere_light(
     let mut distance_squared = surface_to_light.dot(surface_to_light);
     let falloff = distance_squared * light.inv_attenuation_radius_squared;
     if falloff >= 1.0 {
+        // Beyond the light's radius.
         return;
     }
     let mut radius_attenuation = 1.0 - falloff * falloff;
@@ -178,9 +184,11 @@ pub fn apply_sphere_light(
     l.translucent_back_lighting +=
         back_lighting(s, l, intensity, dir, 0.0, surface_to_light.length());
     let reflection = lab::scene::reflect(-l.dir_to_camera, s.normal);
+    // The representative point: the point of the bulb's sphere nearest the reflection ray.
     let reflection_to_light = surface_to_light - surface_to_light.dot(reflection) * reflection;
     let adjusted = surface_to_light
         - reflection_to_light * saturate(light.bulb_radius / reflection_to_light.length());
+    // Widening the lobe for the bulb's size keeps its energy by this normalisation.
     let normalization = intensity_adjusted_by_radius_and_roughness(
         s.roughness_a,
         light.bulb_radius,

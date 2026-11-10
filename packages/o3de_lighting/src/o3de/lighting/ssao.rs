@@ -85,12 +85,14 @@ const OUTER_SAMPLE_ANGLE: f32 = 2.0 * 3.14159265 / 10.0;
 
 /// GetViewSpacePosition with m_unprojectionConstants from the tangents of half the fields of view.
 fn view_position(uv: Vec2, depth: f32, tan: Vec2) -> Vec3 {
+    // The view ray through the pixel at unit depth, scaled by the linear depth.
     let ray = uv * Vec2::new(2.0 * tan.x, -2.0 * tan.y) + Vec2::new(-tan.x, tan.y);
     (ray * depth).extend(depth)
 }
 
 /// AccumulateOcclusion, option 4.
 fn accumulate(position: Vec3, normal: Vec3, occluder: Vec3, occlusion: &mut f32, total: &mut f32) {
+    // An occluder darkens by how much it lies above the surface (its cosine to the normal), weighed by closeness.
     let diff = occluder - position;
     let distance_sq = diff.dot(diff);
     let direction = diff * (1.0 / distance_sq.sqrt());
@@ -128,6 +130,7 @@ pub fn compute_at(
             &mut total,
         );
     }
+    // The weighted mean occlusion, scaled by strength, as a gamma-2.2 factor in 8 bits.
     let ao = occlusion / f32::max(total, 10e-5);
     unorm8((1.0 - ao * s.strength).powf(2.2))
 }
@@ -183,12 +186,14 @@ pub fn samples_at(
             tan,
         )
     };
+    // The pixel's place in its 16 x 16 workgroup, as the shader's thread index sees it.
     let (group, local) = (
         [x as u32 / 16, y as u32 / 16],
         [x as u32 % 16, y as u32 % 16],
     );
     let subgroup = [local[0] / 4, local[1] / 4];
     let sub = [local[0] % 4, local[1] % 4];
+    // The thread's index in the group's own order: 2 x 2 quads within 4 x 4 subgroups.
     let linear = (sub[0] & 1)
         | ((sub[1] & 1) << 1)
         | ((sub[0] >> 1) << 2)
@@ -202,6 +207,7 @@ pub fn samples_at(
         position_at(x, y - 1),
         position_at(x, y + 1),
     );
+    // The normal from depth: on each axis the neighbour difference with the smaller depth step.
     let (dl, dr) = (p - l, r - p);
     let dx = if dl.z.abs() < dr.z.abs() {
         dl
@@ -216,12 +222,14 @@ pub fn samples_at(
     };
     let n = dx.cross(dy).normalize();
     let mut occluders = Vec::with_capacity(52);
+    // Twelve fixed samples around the pixel, then ten rings of outer samples.
     for [ox, oy] in LOCAL_SAMPLES {
         occluders.push(position_at(x + ox, y + oy));
     }
     let group_offset = Vec2::new(group[0] as f32, group[1] as f32) * 16.0 + 2.0;
     let subgroup_offset = Vec2::new(subgroup[0] as f32, subgroup[1] as f32) * 4.0 + group_offset;
     let outer = |id: u32, i: u32| {
+        // An outer sample on a spiral: its angle and radius from the thread's index, around its subgroup.
         let angle_offset =
             ((id >> 4) & 0x0F) as f32 * (OUTER_SAMPLE_ANGLE / 16.0) + i as f32 * OUTER_SAMPLE_ANGLE;
         let factor = ((id & 0x0F) as f32 + 1.0) / 16.0;
@@ -233,6 +241,7 @@ pub fn samples_at(
         view_position(uv, at(texel.x as i32, texel.y as i32), tan)
     };
     for i in 0..10 {
+        // Each ring takes four samples, from this thread and three others of its subgroup.
         let mut other = linear;
         occluders.push(outer(other, i));
         for _ in 1..4 {
@@ -272,9 +281,11 @@ pub fn blur_at(
     y: i32,
 ) -> f32 {
     if !s.blur {
+        // Blur off: the value passes through.
         return values(x, y);
     }
     let falloff = |previous: f32, current: f32| {
+        // How much a depth slope change cuts the blur: past the threshold, by the strength.
         ((previous - current).abs() - s.depth_falloff_threshold)
             .mul_add(-s.depth_falloff_strength, 1.0)
             .clamp(0.0, 1.0)
@@ -285,6 +296,7 @@ pub fn blur_at(
         [0, 1]
     };
     let chain = |start: [i32; 2], dir: [i32; 2], steps: i32| {
+        // A chain of samples toward the pixel, each blended into the next unless the depth's slope breaks.
         let mut p = start;
         let mut previous_depth = half(p[0], p[1]);
         let mut previous_value = values(p[0], p[1]);
@@ -308,6 +320,7 @@ pub fn blur_at(
         current_value
     };
     {
+        // Two chains, from 8 texels before the pixel's group of three and 10 after it, meet at the pixel.
         let coordinate = if horizontal {
             x
         } else {
@@ -345,6 +358,7 @@ pub fn upsample_at(
     y: i32,
 ) -> f32 {
     {
+        // The half-size texel under the pixel and its neighbour on each axis toward the pixel's side.
         let near = [x / 2, y / 2];
         let far = [
             if x & 1 == 1 {
@@ -366,6 +380,7 @@ pub fn upsample_at(
         ];
         let (mut value, mut total) = (0.0, 0.0);
         for (t, w) in taps {
+            // Bilinear weights, each divided by its squared depth difference, so edges do not bleed.
             let d = (depth - half(t[0], t[1])).abs() + 0.00001;
             let weight = w / (d * d);
             value += values(t[0], t[1]) * weight;
@@ -397,6 +412,7 @@ pub fn at_pixel(
     use std::cell::RefCell;
     use std::collections::HashMap;
     let half_size = [full_size[0].div_ceil(2), full_size[1].div_ceil(2)];
+    // Each stage on demand from the one before, its values kept, for one pixel's readout.
     let clamp_half = |x: i32, y: i32| {
         (
             x.clamp(0, half_size[0] as i32 - 1),

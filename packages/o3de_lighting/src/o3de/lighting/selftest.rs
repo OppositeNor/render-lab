@@ -120,6 +120,7 @@ fn check_layouts(report: &mut Report, renderer: &mut Renderer) -> Result<()> {
     {
         let mut detail = Vec::new();
         for demo in Demo::ALL {
+            // A demonstration's values must survive the round trip, and each field must read as its value in the state.
             let state = shot::for_demo(demo);
             let typed = state.view::<super::values::LightingValues>();
             let fields = serde_json::to_value(&typed)?;
@@ -160,6 +161,7 @@ fn check_pick(report: &mut Report, renderer: &mut Renderer) {
         (0.70, 0.80),
         (0.50, 0.40),
     ] {
+        // Each click picks the pixel under it; one that picks nothing is skipped, and the count shows it.
         let shown = shot::for_demo(Demo::Room);
         let mut state = shot::for_demo(Demo::Room);
         let mut frame = lab::actions::ClickFrame {
@@ -210,15 +212,18 @@ fn check_animations(report: &mut Report) {
         ),
     ];
     for (demo, motions) in cases {
+        // Each demonstration's script and its waves are sampled at the same 400 times.
         let clip = Clip(motions);
         for k in 0..400 {
             let t = k as f32 * 0.137;
             let mut state = shot::for_demo(demo);
             let keys = lab::script::runtime::animate(state.demo, t, &mut state).unwrap_or_default();
             for (param, value) in clip.sample(t, |_| 0.0) {
+                // Every key a wave moves must match it, and be among the keys the script says it set.
                 samples += 1;
                 worst = worst.max((state.p(&param) - value).abs());
                 if !keys.contains(&param) {
+                    // A key the script moves without saying so fails the check.
                     worst = f32::MAX;
                 }
             }
@@ -236,6 +241,7 @@ fn brdf_cases(rng: &mut Rng, count: usize) -> (Vec<[f32; 4]>, Vec<BrdfCase>) {
     let mut tests: Vec<[f32; 4]> = Vec::new();
     let mut cases = Vec::new();
     for k in 0..count {
+        // A third of the surfaces are partly metal, the rest fully metal or not; every eighth is perfectly smooth.
         let n = rng.unit();
         let v = rng.above(n);
         let l = rng.above(n);
@@ -342,6 +348,7 @@ fn check_brdf_terms(report: &mut Report, renderer: &mut Renderer, rng: &mut Rng)
         let lambert = brdf::diffuse_lambertian(s.albedo, n, l, ld.diffuse_response);
         let disney =
             brdf::normalized_disney_diffuse(s.albedo, n, ld.dir_to_camera, l, s.roughness_linear);
+        // The kernel writes 32 words per case, the terms in the order of `cpu` below.
         let base_word = 32 * k;
         let cpu: [Vec<f32>; 12] = [
             vec![t.d],
@@ -359,6 +366,7 @@ fn check_brdf_terms(report: &mut Report, renderer: &mut Renderer, rng: &mut Rng)
         ];
         let mut at = base_word;
         for (i, values) in cpu.iter().enumerate() {
+            // Each term keeps its worst relative difference over every case and component.
             for value in values {
                 worst[i].1 = worst[i].1.max(rel(f(&words, at), *value));
                 at += 1;
@@ -385,6 +393,7 @@ fn check_brdf_texture(report: &mut Report, renderer: &mut Renderer, rng: &mut Rn
         (size - 1, size - 1),
         (size / 2, size / 2),
     ];
+    // Then the last column's first eight texels, at the lowest roughness, and random texels up to 64.
     texels.extend((0..8).map(|y| (size - 1, y)));
     while texels.len() < 64 {
         texels.push((
@@ -420,12 +429,14 @@ fn check_brdf_texture(report: &mut Report, renderer: &mut Renderer, rng: &mut Rn
     let mut worst_texel = (0, 0);
     let mut lost: Vec<Value> = Vec::new();
     for (i, &(x, y)) in texels.iter().enumerate() {
+        // The CPU texture's rows run the other way: texel y sits on row size - 1 - y.
         let cpu = map.texel(x as usize, (size - 1 - y) as usize);
         let gpu = Vec2::new(f(&guarded, 2 * i), f(&guarded, 2 * i + 1));
         let d = (gpu - cpu).abs().max_element();
         if d > worst_map {
             (worst_map, worst_texel) = (d, (x, y));
         }
+        // Without the guard, the GPU's A + B falls short of the CPU's where it drops samples.
         let raw = Vec2::new(f(&unguarded, 2 * i), f(&unguarded, 2 * i + 1));
         let loss = (cpu.x + cpu.y) - (raw.x + raw.y);
         if loss > 2e-3 {
@@ -462,6 +473,7 @@ fn check_ggx_integral(report: &mut Report) {
         let steps = 400_000;
         let mut sum = 0.0f64;
         for i in 0..steps {
+            // A midpoint sum over mu = cos(theta), from 0 to 1.
             let mu = (i as f64 + 0.5) / steps as f64;
             sum += brdf::normal_distribution_ggx(mu as f32, a2) as f64 * mu;
         }
@@ -497,6 +509,7 @@ fn check_ibl(report: &mut Report, renderer: &mut Renderer, rng: &mut Rng) {
         } else {
             rng.unit()
         };
+        // Every third case reads whole mip 0 or 3; the others read a random fractional mip up to 5.
         tests.push(
             dir.extend(if k % 3 == 0 {
                 (k % 6) as f32
@@ -510,6 +523,7 @@ fn check_ibl(report: &mut Report, renderer: &mut Renderer, rng: &mut Rng) {
         renderer.run_shading_verify("o3deIblTests", tests.len() as u32, &tests, 8 * tests.len());
     let mut worst_ibl = 0.0f32;
     for (k, t) in tests.iter().enumerate() {
+        // Each case's words hold the specular lookup at 8k, and the diffuse one at 8k + 3.
         let dir = Vec3::new(t[0], t[1], t[2]);
         let rel3 = |a: Vec3, b: Vec3| (a - b).abs().max_element() / b.max_element().max(0.05);
         worst_ibl = worst_ibl
@@ -530,6 +544,7 @@ fn check_resolve(report: &mut Report, renderer: &mut Renderer, rng: &mut Rng) {
     let mut tests: Vec<[f32; 4]> = Vec::new();
     let mut cases = Vec::new();
     for k in 0..64 {
+        // Four random samples per pixel, every fourth pixel eight times brighter; half resolve 2 samples, half 4.
         let samples: Vec<Vec3> = (0..4)
             .map(|_| {
                 Vec3::new(rng.next(), rng.next(), rng.next())
@@ -560,6 +575,7 @@ fn check_resolve(report: &mut Report, renderer: &mut Renderer, rng: &mut Rng) {
         let gpu = f3(&words, 4 * k);
         worst_resolve =
             worst_resolve.max((gpu - cpu).abs().max_element() / cpu.max_element().max(0.05));
+        // The samples brighter than 1.5 times the brightest neighbour are counted, so the clamp is known to be tested.
         clamped += samples[..*count]
             .iter()
             .filter(|s| brdf::resolve_luminance(**s) > 1.5 * brightest)
@@ -574,6 +590,7 @@ fn check_cascades(report: &mut Report) {
     // §6's worked example, boxes floored to whole texels, and the first cascade
     // holding a point at the camera's focus.
     use super::cascades;
+    // Ratio 0.9 makes the splits mostly logarithmic; ratio 0 spaces them evenly (quarters of 0.1 to 100 m).
     let splits = cascades::split_depths(0.1, 100.0, 0.9);
     let splits_ok = splits
         .iter()
@@ -592,11 +609,13 @@ fn check_cascades(report: &mut Report) {
         far: 12.0,
     };
     let set = cascades::cascades(observer, Vec3::new(0.3, -1.0, 0.2), 0.9);
+    // A snapped box starts on a whole texel, and a texel spans the sphere's diameter over the map's size.
     let snapped = set.cascades.iter().all(|k| {
         let cells = k.snapped_min / k.snap;
         (cells - cells.round()).abs().max_element() < 1e-3
             && (k.texel() - 2.0 * k.radius / cascades::SHADOWMAP_SIZE).abs() < 1e-6
     });
+    // A point just ahead of the camera falls in the first cascade.
     let first = set.select(observer.position + observer.forward * 0.3, Vec3::Y);
     report.check(
         "the directional light's cascades follow DirectionalLightFeatureProcessor: log/uniform splits, snapped boxes, selection by bounds",
@@ -647,6 +666,7 @@ fn check_demos(
     let mut demo_detail = Vec::new();
     let mut demos_ok = true;
     for demo in Demo::ALL {
+        // Each demonstration renders once with its readout, then once per listing style with its Code tab open.
         let mut state = shot::for_demo(demo);
         let result = renderer.render_frame(request(&state, still), None);
         let values = result
@@ -699,6 +719,7 @@ fn check_free_camera(report: &mut Report, renderer: &mut Renderer, still: &Timel
     let mut detail = Vec::new();
     let mut ok = true;
     for demo in [Demo::Room, Demo::Ssao, Demo::Specular] {
+        // Each demonstration renders twice with the free camera off (to see it repeat), then with it on, turned 70°.
         let off = shot::for_demo(demo);
         let mut on = off.clone();
         on.free_camera.on = true;
@@ -731,6 +752,7 @@ fn check_free_camera(report: &mut Report, renderer: &mut Renderer, still: &Timel
                 .collect();
             seen.push((rows, linear, buffers, renderer.read_frame()));
         }
+        // The render with the free camera on must match the second one off in all but the frame on screen.
         let (rows, image, buffers) = (
             seen[2].0 == seen[1].0,
             seen[2].1 == seen[1].1,
@@ -760,6 +782,7 @@ fn check_numbers(report: &mut Report, renderer: &mut Renderer, still: &Timeline)
             .rows
             .into_iter()
             .find(|(name, _, _)| name.starts_with(prefix))?;
+        // A row's value may be a vector; its first number is read.
         value
             .trim_start_matches('(')
             .split([',', ' '])
@@ -801,6 +824,7 @@ fn check_formulas(report: &mut Report) {
             ),
             Err(_) => (false, [0, 0], 0.0, 0),
         };
+        // `formula` -1 hides the formula, and the term count lights the last term at full strength.
         let hidden = super::formulas::readout(demo, -1.0).0.is_none()
             && super::formulas::readout(demo, terms as f32).1 == Some((terms, 1.0));
         formulas_ok &= ok && hidden && terms > 0;
@@ -814,6 +838,7 @@ fn check_listings(report: &mut Report) {
     // ---- 8. Listings and the source index ---------------------------------
     let index = super::sources::INDEX.get();
     let listings = super::pseudocode::all();
+    // A listing must cite an indexed source and a demonstration that exists.
     let listing_problems: Vec<String> = listings
         .iter()
         .filter(|l| {
@@ -854,6 +879,7 @@ fn check_timeline(
             .iter()
             .filter(|b| b.kind == SceneType::ThreeD)
         {
+            // Each 3D beat is checked at its middle frame, as the recording draws it.
             let frame = beat.start_frame + beat.frames / 2;
             let state = timeline.state_at(frame);
             let mut req = request(&state, &timeline);

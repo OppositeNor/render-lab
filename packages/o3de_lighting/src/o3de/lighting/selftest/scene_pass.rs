@@ -37,6 +37,7 @@ pub(super) fn check_scene_pass(
         let mut compared = 0;
         for j in 0..24 {
             for i in 0..32 {
+                // A grid cell's centre pixel is compared, unless it is near the light, under an overlay, or not flat.
                 let pixel = Vec2::new(
                     ((i as f32 + 0.5) / 32.0 * vp[2] as f32).floor() + 0.5,
                     ((j as f32 + 0.5) / 24.0 * vp[3] as f32).floor() + 0.5,
@@ -73,6 +74,7 @@ pub(super) fn check_scene_pass(
                         } else {
                             0.0
                         };
+                // The expected colour is the CPU's, its diffuse light darkened by the GPU's AO.
                 let expected =
                     scene::display_rgb(px.color - diffuse + diffuse * ao, state.p("exposure"));
                 let (x, y) = (vp[0] + pixel.x as u32, vp[1] + pixel.y as u32);
@@ -117,6 +119,7 @@ pub(super) fn flat_hit(
         .iter()
         .any(|step| hit_at(pixel + *step * 3.0).2.object != hit.object)
     {
+        // A neighbour 3 px away sees another object, so the pixel is too near an edge.
         return None;
     }
     let p = o + d * hit.t;
@@ -149,6 +152,7 @@ pub(super) fn check_ssao(
         let tan = Vec2::new(1.0 / projection.x_axis.x, 1.0 / projection.y_axis.y);
         let read = |name: &str, half: bool| -> Result<Image> {
             let (words, size) = renderer.read_chain_buffer(name).context("ssao buffer")?;
+            // A half-resolution stage holds half the buffer's width and height, packed at its start.
             let size = if half {
                 [size[0].div_ceil(2), size[1].div_ceil(2)]
             } else {
@@ -194,6 +198,7 @@ pub(super) fn check_ssao(
         let (mut probed, mut close) = (0usize, 0usize);
         for j in 0..4 {
             for i in 0..6 {
+                // 24 pixels, at the cell centres of a 6 × 4 grid.
                 let (x, y) = (
                     (full.size[0] as i32) * (2 * i + 1) / 12,
                     (full.size[1] as i32) * (2 * j + 1) / 8,
@@ -204,6 +209,7 @@ pub(super) fn check_ssao(
             }
         }
         ssao_ok &= close * 5 >= probed * 4;
+        // Some pixels must be darkened, so SSAO is known to be at work.
         let darkened = full.data.iter().filter(|v| **v < 0.9).count();
         ssao_ok &= stage_ok && darkened > 100;
         detail.push(json!({"blur": blur, "stages": stages.iter().map(|(name, w, n)| json!({"stage": name, "worstDifference": w, "pixelsOffByMoreThanOneLevel": n})).collect::<Vec<_>>(), "pixelsDarkenedBelow0.9": darkened, "readoutPixels": probed, "readoutWithin2Levels": close}));
@@ -300,6 +306,7 @@ pub(super) fn check_tiled_lights(
         (0usize, 0usize, 0usize, 0usize);
     for ty in 0..grid[1] {
         for tx in 0..grid[0] {
+            // Each tile's list on the GPU must match the CPU's cull of the same tile data.
             let t = (ty * grid[0] + tx) as usize;
             let data = TileLightData::unpack(&tile_words[4 * t..4 * t + 4]);
             let cpu = culling::cull_tile(
@@ -310,6 +317,7 @@ pub(super) fn check_tiled_lights(
                 &shading.decals,
                 &shading.sphere_lights,
             );
+            // A tile's list has 256 words; the CPU's length says how many to compare.
             let gpu = &list_words[t * 256..t * 256 + cpu.len()];
             tiles += 1;
             listed += cpu.len() - culling::LIGHT_GROUPS as usize;
@@ -330,6 +338,7 @@ pub(super) fn check_tiled_lights(
     let (mut points, mut missing) = (0usize, 0usize);
     for y in (4..size[1]).step_by(8) {
         for x in (4..size[0]).step_by(8) {
+            // A surface point every 8 pixels: each light that reaches it must be in its bin.
             let (o, d) = projector.ray(Vec2::new(x as f32 + 0.5, y as f32 + 0.5));
             let hit = scene::trace_scene(&content.objects, o, d, 100.0, ids::PANEL as u32);
             if !hit.is_hit() {
@@ -393,6 +402,7 @@ pub(super) fn missing_from_bin(
         .next()
         .unwrap_or(&[]);
     for (i, decal) in shading.decals.iter().enumerate() {
+        // A decal whose box holds the point must be in the bin's decal group, the first.
         if super::super::decals::sample(decal, p, normal).is_some()
             && !decal_group.contains(&(i as u32))
         {
@@ -400,6 +410,7 @@ pub(super) fn missing_from_bin(
         }
     }
     for (i, light) in lights.iter().enumerate() {
+        // A light whose attenuation radius reaches the point must be in the simple point lights' group.
         let reaches =
             (light.position - p).length_squared() * light.inv_attenuation_radius_squared < 1.0;
         if reaches && !group.contains(&(i as u32)) {

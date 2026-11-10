@@ -22,6 +22,7 @@ pub(super) fn obb_edges(
         rotation * Vec3::Y * half.y,
         rotation * Vec3::Z * half.z,
     ];
+    // Bits 1, 2, and 4 of a corner's index pick its side along x, y, and z.
     let corner = |i: u32| {
         center
             + x * if i & 1 != 0 {
@@ -41,6 +42,7 @@ pub(super) fn obb_edges(
             }
     };
     for i in 0..8u32 {
+        // Each edge joins a corner to the one across a single bit, drawn once, from the corner with it clear.
         for bit in [1, 2, 4] {
             if i & bit == 0 {
                 draw.segment(corner(i), corner(i | bit), color, alpha, width, 0);
@@ -58,8 +60,10 @@ pub(super) fn decal_boxes(
     alpha: f32,
 ) {
     for d in decals {
+        // Each decal draws its box, an arrow along the axis it projects down, and its name.
         let color = [palette::accent(), palette::REFLECTED][d.texture.min(1)];
         let [x, y, z] = d.axes();
+        // Bits 1, 2, and 4 of a corner's index pick its side along x, y, and z.
         let corner = |i: u32| {
             d.position
                 + x * d.half_size.x
@@ -82,6 +86,7 @@ pub(super) fn decal_boxes(
                     }
         };
         for i in 0..8u32 {
+            // Each edge joins a corner to the one across a single bit, drawn once, from the corner with it clear.
             for bit in [1, 2, 4] {
                 if i & bit == 0 {
                     draw.segment(corner(i), corner(i | bit), color, alpha * 0.8, 2.0, 0);
@@ -128,6 +133,7 @@ pub fn culling_view(
     let (p, _) = inspected_point(state);
     let projector = lab::camera::Projector::new(camera);
     let pixel = projector.project(p).map_or(Vec2::ZERO, |(px, _)| px);
+    // The point's tile is the TILE_DIM-pixel square of the screen that holds its pixel.
     let tile = [
         (pixel.x.max(0.0) as u32) / culling::TILE_DIM,
         (pixel.y.max(0.0) as u32) / culling::TILE_DIM,
@@ -142,17 +148,21 @@ pub fn culling_view(
         &shading.decals,
         &shading.sphere_lights,
     );
+    // The point's view distance picks its depth bin.
     let distance = -glam::Mat4::from_cols_array_2d(&camera.world_to_view)
         .transform_point3(p)
         .z;
     let bin = data.bin(distance);
     let bins = culling::remap(&list);
+    // A bin's list holds the light groups one after another; the point's bin keeps the simple point lights' group.
     let kept: Vec<u32> = bins[bin as usize]
         .split(|&v| v == culling::END_OF_GROUP)
         .nth(culling::GROUP_SIMPLE_POINT as usize)
         .unwrap_or(&[])
         .to_vec();
+    // The tile's list holds every group's lights, each group ended by a marker the count leaves out.
     let in_tile = list.len() - culling::LIGHT_GROUPS as usize;
+    // Each list entry keeps a light's index in its top 16 bits.
     let listed: Vec<u32> = list
         .split(|&e| e >> 16 == culling::END_OF_GROUP)
         .nth(culling::GROUP_SIMPLE_POINT as usize)
@@ -160,6 +170,7 @@ pub fn culling_view(
         .iter()
         .map(|e| e >> 16)
         .collect();
+    // The lights whose attenuation radius reaches the point.
     let reach = lights
         .iter()
         .filter(|l| (l.position - p).length_squared() * l.inv_attenuation_radius_squared < 1.0)
@@ -236,6 +247,7 @@ pub(super) fn tile_overlay(
     let to_world = glam::Mat4::from_cols_array_2d(&camera.world_to_view).inverse();
     let projection = glam::Mat4::from_cols_array_2d(&camera.view_to_clip);
     let grid = Vec2::splat(culling::TILE_DIM as f32) / Vec2::from(camera.viewport_size);
+    // A screen position (uv) at a view distance, carried back into the world.
     let corner = |uv: Vec2, distance: f32| {
         let ndc = Vec2::new(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
         to_world.transform_point3(Vec3::new(
@@ -253,6 +265,7 @@ pub(super) fn tile_overlay(
     ];
     let bins = 1u32 << tile.data.log_max_bins;
     for k in 0..=bins {
+        // Each bin boundary is a ring around the tile at its depth; the two that bound the point's bin are lit.
         let z = tile.data.z_near + (tile.data.z_far - tile.data.z_near) * k as f32 / bins as f32;
         let ring: Vec<Vec3> = uvs
             .iter()
@@ -267,6 +280,7 @@ pub(super) fn tile_overlay(
         draw.polyline(&ring, color, alpha, 2.0);
     }
     for uv in uvs {
+        // The tile's four corner edges run from its nearest depth to its farthest.
         draw.segment(
             corner(uv, tile.data.z_near),
             corner(uv, tile.data.z_far),
@@ -291,6 +305,7 @@ pub(super) fn light_markers(
     alpha: f32,
 ) {
     if let Some(t) = tile.filter(|t| shading.light_on && t.kept.contains(&0)) {
+        // The room's light is index 0: lit, ringed, and joined to the point when the point's bin keeps it.
         draw.point(shading.light.position, 17.0, palette::text(), alpha);
         draw.point(shading.light.position, 11.0, LIGHT, alpha);
         draw.segment(
@@ -303,12 +318,14 @@ pub(super) fn light_markers(
         );
     }
     for (i, light) in shading.extra_lights.iter().enumerate() {
+        // The extra lights take list indices from 1, after the room's light.
         let index = i as u32 + 1;
         let [r, g, b] = (EXTRA_LIGHT_COLORS[i % 4] * 255.0).round().to_array();
         let color = Color32::from_rgb(r as u8, g as u8, b as u8);
         let kept = tile.is_some_and(|t| t.kept.contains(&index));
         let listed = tile.is_some_and(|t| t.listed.contains(&index));
         if kept {
+            // Kept by the point's bin: lit, ringed, and joined to the point.
             draw.point(light.position, 16.0, palette::text(), alpha);
             draw.point(light.position, 11.0, color, alpha);
             if let Some(t) = tile {
@@ -322,6 +339,7 @@ pub(super) fn light_markers(
                 );
             }
         } else {
+            // Not kept: larger and brighter when the tile lists it for another bin, faint when not listed at all.
             draw.point(
                 light.position,
                 if listed {

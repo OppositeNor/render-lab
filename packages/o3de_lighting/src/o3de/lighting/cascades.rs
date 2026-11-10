@@ -54,10 +54,13 @@ impl Observer {
     /// (GetWorldCenterPosition, GetRadius): its centre depth and radius.
     pub fn slice_sphere(&self, dn: f32, df: f32) -> (f32, f32) {
         let k = self.depth_center_ratio();
+        // The bounding sphere of the slice's frustum: its centre along the view, unless that passes the far plane.
         let dc = (dn + df) / 2.0 * k;
         if dc < df {
+            // The centre inside the slice: the sphere through its far corners.
             (dc, ((df - dc) * (df - dc) + df * df * (k - 1.0)).sqrt())
         } else {
+            // Otherwise the centre sits at the far plane, the sphere through its corners.
             (
                 df,
                 df * (self.fov_y / 2.0).tan() * (1.0 + self.aspect * self.aspect).sqrt(),
@@ -84,6 +87,7 @@ impl Observer {
 pub fn split_depths(near: f32, far: f32, ratio: f32) -> [f32; CASCADES] {
     let mut depths = [far; CASCADES];
     for (i, d) in depths.iter_mut().enumerate().take(CASCADES - 1) {
+        // Each split blends the logarithmic and uniform splits by the ratio.
         let t = (i + 1) as f32 / CASCADES as f32;
         let uni = near + (far - near) * t;
         let log = near * (far / near).powf(t);
@@ -173,6 +177,7 @@ pub fn cascades(observer: Observer, direction: Vec3, ratio: f32) -> Cascades {
         .y;
     let behind_y = frame.to_light(observer.position).y - observer.far;
     let cascades = std::array::from_fn(|i| {
+        // Each cascade's slice of the frustum, its bounding sphere as a box in the light's frame.
         let near = if i == 0 {
             observer.near
         } else {
@@ -183,7 +188,9 @@ pub fn cascades(observer: Observer, direction: Vec3, ratio: f32) -> Cascades {
         let c = frame.to_light(center);
         let mut min = c - Vec3::splat(radius);
         let max = c + Vec3::splat(radius);
+        // The box reaches back toward the light, past the whole frustum and the camera, for the casters.
         min.y = min.y.min(entire_y - entire_radius).min(behind_y);
+        // Snapped to whole texels, so the map does not shimmer as the camera moves.
         let texel = (max - min) / SHADOWMAP_SIZE;
         let snapped_min = (min / texel).floor() * texel;
         let snapped_max = (max / texel).floor() * texel;
@@ -228,6 +235,7 @@ impl Cascades {
     /// by PIXEL_MARGIN on both axes (by bounds, not by depth); None outside
     /// every cascade (lit).
     pub fn select(&self, p: Vec3, n: Vec3) -> Option<usize> {
+        // The first cascade whose map holds the (normal-offset) point, a margin inside its edge.
         let q = self.frame.to_light(p + n * NORMAL_OFFSET);
         self.cascades.iter().position(|c| {
             let t = c.texel_coord(q);

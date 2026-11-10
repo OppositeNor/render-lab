@@ -83,6 +83,7 @@ pub struct Cubemap {
 
 /// TexelCoordToVect: the direction through texel coordinate (u, v) of a face.
 pub fn texel_dir(face: usize, u: f32, v: f32, size: usize) -> Vec3 {
+    // The texel's centre in [-1, 1] on the face, along its u and v axes off its normal.
     let nvc_u = 2.0 * (u + 0.5) / size as f32 - 1.0;
     let nvc_v = 2.0 * (v + 0.5) / size as f32 - 1.0;
     (FACES[face][0] * nvc_u + FACES[face][1] * nvc_v + FACES[face][2]).normalize()
@@ -91,6 +92,7 @@ pub fn texel_dir(face: usize, u: f32, v: f32, size: usize) -> Vec3 {
 /// TexelCoordSolidAngle: the two triangles between the texel's corner directions.
 pub fn texel_solid_angle(face: usize, u: f32, v: f32, size: usize) -> f32 {
     let c = |du: f32, dv: f32| texel_dir(face, u + du, v + dv, size).as_dvec3().normalize();
+    // The texel's corners on the unit sphere, its solid angle the area of the two triangles between them.
     let (c0, c1, c2, c3) = (c(-0.5, -0.5), c(-0.5, 0.5), c(0.5, -0.5), c(0.5, 0.5));
     let area = |a: DVec3, b: DVec3, o: DVec3| 0.5 * (a - o).cross(b - o).length();
     (area(c1, c2, c0) + area(c2, c3, c1)) as f32
@@ -99,6 +101,7 @@ pub fn texel_solid_angle(face: usize, u: f32, v: f32, size: usize) -> f32 {
 /// The face of a direction (its largest component) and the direction on that face.
 fn face_of(dir: Vec3) -> (usize, Vec3) {
     let a = dir.abs();
+    // The face of the direction's major axis, and the direction scaled onto it.
     let (face, max) = if a.x >= a.y && a.x >= a.z {
         (
             if dir.x >= 0.0 {
@@ -154,6 +157,7 @@ impl Cubemap {
     pub fn box_down(&self, size: usize) -> Cubemap {
         let k = self.size / size;
         let texels = parallel(6 * size * size, |i| {
+            // Each smaller texel is the mean of the k x k texels it covers.
             let (face, u, v) = (i / (size * size), i % size, (i / size) % size);
             let mut sum = Vec3::ZERO;
             for dv in 0..k {
@@ -172,6 +176,7 @@ impl Cubemap {
     pub fn bilinear_cubemapgen(&self, dir: Vec3) -> Vec3 {
         let (face, on_face) = face_of(dir);
         let s = self.size as f32;
+        // CubeMapGen's mapping: the face's [-1, 1] over the texel centres from 0 to size - 1.
         let u = (s - 1.0) * 0.5 * (FACES[face][0].dot(on_face) + 1.0);
         let v = (s - 1.0) * 0.5 * (FACES[face][1].dot(on_face) + 1.0);
         let (u0, v0) = (u as usize, v as usize);
@@ -188,6 +193,7 @@ impl Cubemap {
     pub fn sample(&self, dir: Vec3) -> Vec3 {
         let (face, on_face) = face_of(dir);
         let s = self.size as f32;
+        // The texel coordinate, half a texel back from the face's edges, then bilinear on the face.
         let p =
             (Vec2::new(FACES[face][0].dot(on_face), FACES[face][1].dot(on_face)) + 1.0) * 0.5 * s
                 - 0.5;
@@ -257,6 +263,7 @@ impl Ibl {
     ) -> Ibl {
         let specular = Ibl::build_specular(env, size, samples);
         let top = &specular[0];
+        // The diffuse map is the cosine filter of the base mip, shrunk first.
         let small = if diffuse_size == size {
             top.clone()
         } else {
@@ -278,6 +285,7 @@ impl Ibl {
         // The box-filtered mips of the source, which the GGX filter reads.
         let source: Vec<Cubemap> = (0..SPECULAR_MIPS)
             .map(|m| {
+                // Each mip is the base box-filtered down, which the GGX filter reads from.
                 if m == 0 {
                     top.clone()
                 } else {
@@ -325,6 +333,7 @@ fn prefilter_ggx(source: &[Cubemap], mip: usize, samples: u32) -> Cubemap {
     let a2 = alpha * alpha;
     let w0 = source[0].size as f32;
     let texels = parallel(6 * size * size, |i| {
+        // Each texel: GGX samples around its direction, as the view, each read from the source mip its footprint fits.
         let (face, u, v) = (i / (size * size), i % size, (i / size) % size);
         let center = texel_dir(face, u as f32, v as f32, size);
         let mut color = Vec3::ZERO;
@@ -336,6 +345,7 @@ fn prefilter_ggx(source: &[Cubemap], mip: usize, samples: u32) -> Cubemap {
             let l = 2.0 * v_dot_h * h - center;
             let n_dot_l = center.dot(l);
             if n_dot_l > 0.0 {
+                // A sample's pdf against a texel's solid angle gives the mip whose texels match it.
                 let dh = a2 / (PI * (v_dot_h * v_dot_h * (a2 - 1.0) + 1.0).powf(2.0));
                 let pdf = dh * v_dot_h / (4.0 * v_dot_h);
                 let solid_angle_texel = 4.0 * PI / (6.0 * w0 * w0);
@@ -346,6 +356,7 @@ fn prefilter_ggx(source: &[Cubemap], mip: usize, samples: u32) -> Cubemap {
                 let mut mip_b = mip_a + 1;
                 let mut t = (mip_f - mip_a as f32).clamp(0.0, 1.0);
                 if mip_a >= max_mip {
+                    // Past the last mip, read the last.
                     mip_a = max_mip;
                     mip_b = max_mip;
                     t = 0.0;
@@ -385,6 +396,7 @@ fn cosine_filter(source: &Cubemap) -> Cubemap {
         let mut color = Vec3::ZERO;
         let mut total = 0.0f32;
         for (j, &(dir, solid_angle)) in taps.iter().enumerate() {
+            // Every texel in the hemisphere weighs in by its solid angle times its cosine.
             let tap_dot = dir.dot(center);
             if tap_dot > 0.0 {
                 let weight = solid_angle * tap_dot;
@@ -413,6 +425,7 @@ pub fn diffuse_offset() -> usize {
 pub fn shading_data() -> Vec<[f32; 4]> {
     let mut data = super::brdf::BrdfMap::shading_data();
     let ibl = Ibl::get();
+    // The BRDF table, the specular mips, the diffuse map, then the material maps and the probes.
     for cube in ibl.specular.iter().chain(std::iter::once(&ibl.diffuse)) {
         data.extend(cube.texels.iter().map(|t| [t.x, t.y, t.z, 0.0]));
     }

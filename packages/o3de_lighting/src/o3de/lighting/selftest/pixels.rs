@@ -38,6 +38,7 @@ pub(super) fn check_pixels(
         let mut points = Vec::new();
         for j in 0..12 {
             for i in 0..16 {
+                // Each ray through a grid cell's centre finds the surface the kernel shades there.
                 let pixel = Vec2::new((i as f32 + 0.5) / 16.0, (j as f32 + 0.5) / 12.0)
                     * projector.viewport;
                 let (o, d) = projector.ray(pixel);
@@ -46,6 +47,7 @@ pub(super) fn check_pixels(
                     continue;
                 }
                 let p = o + d * hit.t;
+                // A back face's normal is flipped to face the ray.
                 let n = if hit.normal.dot(d) > 0.0 {
                     -hit.normal
                 } else {
@@ -76,6 +78,7 @@ pub(super) fn check_pixels(
                 map,
             );
             let gpu = f3(&words, 8 * k);
+            // The difference relative to the CPU's brightest channel, floored at 0.05 for dark pixels.
             let d = (gpu - cpu.color).abs().max_element() / cpu.color.max_element().max(0.05);
             worst = worst.max(d);
         }
@@ -160,6 +163,7 @@ pub(super) fn check_decals(
         let (mut tests, mut points) = (Vec::new(), Vec::new());
         for j in 0..24 {
             for i in 0..32 {
+                // Each ray through a grid cell's centre finds the surface the kernel shades there.
                 let (o, d) = projector.ray(
                     Vec2::new((i as f32 + 0.5) / 32.0, (j as f32 + 0.5) / 24.0)
                         * projector.viewport,
@@ -172,8 +176,10 @@ pub(super) fn check_decals(
                         .iter()
                         .any(|dc| super::super::decals::sample(dc, p, hit.normal).is_some())
                 {
+                    // Only points inside a decal's box are tested.
                     continue;
                 }
+                // A back face's normal is flipped to face the ray.
                 let n = if hit.normal.dot(d) > 0.0 {
                     -hit.normal
                 } else {
@@ -278,6 +284,7 @@ pub(super) fn check_transmission(
         let mut lit = 0usize;
         for j in 0..24 {
             for i in 0..32 {
+                // Each ray through a grid cell's centre finds the surface the kernel shades there.
                 let (o, d) = projector.ray(
                     Vec2::new((i as f32 + 0.5) / 32.0, (j as f32 + 0.5) / 24.0)
                         * projector.viewport,
@@ -287,6 +294,7 @@ pub(super) fn check_transmission(
                     continue;
                 }
                 let p = o + d * hit.t;
+                // A back face's normal is flipped to face the ray.
                 let n = if hit.normal.dot(d) > 0.0 {
                     -hit.normal
                 } else {
@@ -315,6 +323,7 @@ pub(super) fn check_transmission(
                 state.p("exposure"),
                 map,
             );
+            // Back-lit points are counted, so the test is known to reach the transmission.
             lit += usize::from(cpu.lighting.translucent_back_lighting.max_element() > 1e-3);
             worst = worst.max(
                 (f3(&words, 8 * k) - cpu.color).abs().max_element()
@@ -378,6 +387,7 @@ pub(super) fn check_probes(
         let (mut tests, mut points) = (Vec::new(), Vec::new());
         for j in 0..36 {
             for i in 0..48 {
+                // Each ray through a grid cell's centre finds the surface the kernel shades there.
                 let (o, d) = projector.ray(
                     Vec2::new((i as f32 + 0.5) / 48.0, (j as f32 + 0.5) / 36.0)
                         * projector.viewport,
@@ -387,6 +397,7 @@ pub(super) fn check_probes(
                     continue;
                 }
                 let p = o + d * hit.t;
+                // A back face's normal is flipped to face the ray.
                 let n = if hit.normal.dot(d) > 0.0 {
                     -hit.normal
                 } else {
@@ -417,6 +428,7 @@ pub(super) fn check_probes(
             );
             let r = cpu.ibl.reflection;
             let masked = r.stencil & super::super::reflections::STENCIL_REFLECTION_MASK;
+            // Points inside an inner box, and points blending between boxes, are counted: both must be tested.
             inner += usize::from(masked > 3);
             blended += usize::from(masked == 3 && r.blend_weight > 0.0 && r.blend_weight < 1.0);
             // The IBL flag off: inside an inner volume the target's 0.4 grey reaches the composite.
@@ -472,6 +484,7 @@ pub(super) fn check_sun_shadows(report: &mut Report, renderer: &mut Renderer, st
     let mut there = here.clone();
     there.camera.yaw -= 70.0;
     let frame_after = |renderer: &mut Renderer, before: &lab::shot::ShotState| {
+        // A changed shading value redraws the maps for `before`; then the frame here is drawn after `before`'s.
         let mut nudged = before.clone();
         nudged.set("specularAA", 1.0 - before.p("specularAA"));
         renderer.render_frame(request(&nudged, still), None);
@@ -482,6 +495,7 @@ pub(super) fn check_sun_shadows(report: &mut Report, renderer: &mut Renderer, st
     let settled = frame_after(renderer, &here);
     let after_move = frame_after(renderer, &there);
     let pixels = settled.len() / 4;
+    // Pixels whose colour differs by more than 8 of 255 in any channel.
     let differing = (0..pixels)
         .filter(|&i| (0..3).any(|c| settled[4 * i + c].abs_diff(after_move[4 * i + c]) > 8))
         .count();

@@ -118,6 +118,7 @@ pub struct ClearCoat {
 
 /// ApplyClearCoatToSpecularF0 (MaterialUtils.azsli; Filament's base-layer change).
 pub fn apply_clear_coat_to_specular_f0(specular_f0: Vec3, factor: f32) -> Vec3 {
+    // The F0 seen through a coat of IOR 1.5: from F0 to the index ratio and back, blended in by the coat.
     let root = specular_f0.map(f32::sqrt);
     let f0 = (Vec3::ONE - 5.0 * root) / (Vec3::splat(5.0) - root);
     mix(specular_f0, f0 * f0, factor)
@@ -126,6 +127,7 @@ pub fn apply_clear_coat_to_specular_f0(specular_f0: Vec3, factor: f32) -> Vec3 {
 /// ClearCoatGGX (Brdf.azsli), with Kelemen's visibility 0.25 / HdotL^2.
 pub fn clear_coat_ggx(n_dot_h: f32, h_dot_l: f32, n_dot_l: f32, roughness_a: f32, f: Vec3) -> Vec3 {
     let d = normal_distribution_ggx(n_dot_h, roughness_a * roughness_a).max(0.0);
+    // Kelemen's visibility, 1 / (4 (h.l)^2), for the coat.
     let g = (0.25 / (h_dot_l * h_dot_l).max(1e-4)).max(0.0);
     d * g * f * n_dot_l
 }
@@ -143,6 +145,7 @@ pub fn clear_coat_specular(
     let h_dot_l = saturate(half_vector.dot(dir_to_light));
     let clear_coat_f = fresnel_schlick(h_dot_l, Vec3::splat(0.04)) * coat.factor;
     let roughness = (coat.roughness * coat.roughness).max(0.0005);
+    // The base's specular, less what the coat reflects, plus the coat's own lobe.
     specular * (Vec3::ONE - clear_coat_f)
         + clear_coat_ggx(n_dot_h, h_dot_l, n_dot_l, roughness, clear_coat_f)
 }
@@ -152,6 +155,7 @@ pub fn clear_coat_specular(
 pub fn calculate_specular_aa(dndx: Vec3, dndy: Vec3, roughness_a2: f32) -> f32 {
     let screen_variance = 0.25;
     let variance_thresh = 0.18;
+    // How fast the normal changes across the pixel widens the GGX lobe, up to a threshold.
     let variance = screen_variance * (dndx.dot(dndx) + dndy.dot(dndy));
     let kernel_roughness_a2 = (2.0 * variance).min(variance_thresh);
     saturate(roughness_a2 + kernel_roughness_a2)
@@ -214,6 +218,7 @@ pub fn fresnel_schlick_with_roughness(n_dot_v: f32, specular_f0: Vec3, roughness
 }
 
 pub fn normal_distribution_ggx(n_dot_h: f32, roughness_a2: f32) -> f32 {
+    // b = (n.h)^2 (a^2 - 1) + 1.
     let b = (n_dot_h * roughness_a2 - n_dot_h) * n_dot_h + 1.0;
     roughness_a2 / (PI * b * b)
 }
@@ -223,6 +228,7 @@ pub fn geometric_shadowing_masking_ggx_correlated(
     n_dot_l: f32,
     roughness_a2: f32,
 ) -> f32 {
+    // Height-correlated Smith: each direction's term weighted by the other's cosine.
     let ggx_v = n_dot_l * ((-n_dot_v * roughness_a2 + n_dot_v) * n_dot_v + roughness_a2).sqrt();
     let ggx_l = n_dot_v * ((-n_dot_l * roughness_a2 + n_dot_l) * n_dot_l + roughness_a2).sqrt();
     0.5 / (ggx_v + ggx_l).max(GGX_EPSILON)
@@ -230,6 +236,7 @@ pub fn geometric_shadowing_masking_ggx_correlated(
 
 pub fn importance_sample_ggx(xi: Vec2, roughness_a: f32, normal_ws: Vec3) -> Vec3 {
     let roughness_a2 = roughness_a * roughness_a;
+    // A microfacet normal from the GGX distribution, in tangent space, then into the world.
     let phi = 2.0 * PI * xi.x;
     let cos_theta = ((1.0 - xi.y) / (1.0 + (roughness_a2 - 1.0) * xi.y)).sqrt();
     let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
@@ -248,6 +255,7 @@ pub fn importance_sample_ggx(xi: Vec2, roughness_a: f32, normal_ws: Vec3) -> Vec
 pub fn hammersley(point_index: u32, total_point_count: u32) -> Vec2 {
     Vec2::new(
         point_index as f32 / total_point_count as f32,
+        // The radical inverse in base 2: the index's bits mirrored, over 2^32.
         point_index.reverse_bits() as f32 * 2.328_306_4e-10,
     )
 }
@@ -273,6 +281,7 @@ pub fn normalized_disney_diffuse(
     let n_dot_v = saturate(normal.dot(dir_to_camera));
     let n_dot_l = saturate(normal.dot(dir_to_light));
     let h_dot_v = saturate(half_vector.dot(dir_to_camera));
+    // Burley's diffuse, renormalised so it does not add energy.
     let energy_bias = 0.5 * roughness_linear;
     let energy_factor = 1.0 + (1.0 / 1.51 - 1.0) * roughness_linear;
     let fd90 = energy_bias + 2.0 * h_dot_v * h_dot_v * roughness_linear;
@@ -351,6 +360,7 @@ pub fn brdf_texel(x: u32, y: u32, texture_size: u32) -> Vec2 {
     let roughness_a = roughness * roughness;
     let roughness_a2 = roughness_a * roughness_a;
     let n_dot_v = (x as f32 + 0.5) / texture_size as f32;
+    // A view at this n.v, and GGX samples of this roughness around the normal.
     let v = Vec3::new((1.0 - n_dot_v * n_dot_v).sqrt(), 0.0, n_dot_v);
     let n = Vec3::Z;
     let (mut a, mut b) = (0.0f32, 0.0f32);
@@ -362,6 +372,7 @@ pub fn brdf_texel(x: u32, y: u32, texture_size: u32) -> Vec2 {
         let n_dot_h = h.z.max(0.0);
         let v_dot_h = v.dot(h).max(0.0);
         if n_dot_l > 0.0 {
+            // Each sample splits into the scale (a) and bias (b) of F0 by its Fresnel weight.
             let g = geometric_shadowing_masking_ggx_correlated(n_dot_v, n_dot_l, roughness_a2);
             let g_vis = (g * 4.0 * v_dot_h * n_dot_l) / n_dot_h;
             let fc = (1.0 - v_dot_h).powf(5.0);
@@ -383,6 +394,7 @@ impl BrdfMap {
             for (chunk, rows) in texels.chunks_mut(rows_per * size).enumerate() {
                 scope.spawn(move || {
                     for (i, texel) in rows.iter_mut().enumerate() {
+                        // Each thread fills a run of rows; row 0 is the highest y (smoothness grows downwards).
                         let row = chunk * rows_per + i / size;
                         let x = (i % size) as u32;
                         let y = (size - 1 - row) as u32;
@@ -407,6 +419,7 @@ impl BrdfMap {
     /// SampleBrdfMap: bilinear, clamped (the shader's sampleBrdfMap).
     pub fn sample(&self, uv: Vec2) -> Vec2 {
         let size = BRDF_MAP_SIZE as f32;
+        // Bilinear between the four texels around the point, clamped to the edge.
         let p = (uv * size - 0.5).clamp(Vec2::ZERO, Vec2::splat(size - 1.0));
         let (x0, y0) = (p.x.floor() as usize, p.y.floor() as usize);
         let (x1, y1) = (
@@ -436,6 +449,7 @@ pub fn multi_scatter_compensation(specular_f0: Vec3, brdf: Vec2, enabled: bool) 
     if !enabled {
         return Vec3::ONE;
     }
+    // The energy single scattering loses, given back in proportion to F0.
     let compensation = specular_f0 * ((1.0 / (brdf.x + brdf.y)) - 1.0);
     compensation + 1.0
 }
@@ -522,6 +536,7 @@ pub struct PointLightSample {
 pub fn simple_point_light(light: &PointLight, surface_position: Vec3) -> PointLightSample {
     let pos_to_light = light.position - surface_position;
     let distance_squared = pos_to_light.dot(pos_to_light);
+    // A smooth window to zero at the radius, times inverse-square (never closer than a millimetre).
     let falloff = distance_squared * light.inv_attenuation_radius_squared;
     let mut radius_attenuation = 1.0 - falloff * falloff;
     radius_attenuation *= radius_attenuation;
@@ -605,6 +620,7 @@ pub fn specular_light(s: &Surface, l: &LightingData, intensity: Vec3, dir_to_lig
         l.multi_scatter_compensation,
     );
     if let Some(c) = &s.clear_coat {
+        // A coat dims the base's lobe by its Fresnel and adds its own.
         specular = clear_coat_specular(dir_to_light, l.dir_to_camera, c, specular);
     }
     specular * intensity
@@ -631,6 +647,7 @@ pub fn forward_ibl_specular(
         reflections,
     ) * l.multi_scatter_compensation;
     if let Some(c) = s.clear_coat.filter(|c| c.factor > 0.0) {
+        // A coat: the base's reflection passes through it twice, and the coat's own reflection is added.
         let n_dot_v = saturate(c.normal.dot(l.dir_to_camera)).max(0.01);
         let brdf = map.sample(Vec2::new(n_dot_v, 1.0 - c.roughness));
         let coat = ibl_specular(
@@ -671,9 +688,11 @@ pub fn ibl_specular(
 ) -> Vec3 {
     let Reflections { cubes, probe } = *reflections;
     let reflect_dir = lab::scene::reflect(-dir_to_camera, normal);
+    // The split sum: the prefiltered cubemap at the roughness's mip, times F0's scale and bias.
     let split = specular_f0 * brdf.x + Vec3::splat(brdf.y);
     let global = cubes.sample_specular(reflect_dir, roughness * 5.0) * split;
     let Some(p) = probe else { return global };
+    // Inside a probe: its cubemap along the (parallax-corrected) reflection, blended in toward its inner box.
     let dir = if p.parallax {
         p.parallax_correction(position, reflect_dir)
     } else {
@@ -745,6 +764,7 @@ impl Shading {
         self.materials
             .iter()
             .map(|m| {
+                // Each material's coat (factor -1 for none), lighting channels, and forward probe (-1 for none).
                 let (factor, roughness) = m.clear_coat.unwrap_or((-1.0, 0.0));
                 [
                     factor,
@@ -760,6 +780,7 @@ impl Shading {
     /// when `light_on` is false), then the extra ones.
     pub fn lights(&self) -> Vec<PointLight> {
         let main = PointLight {
+            // The main light, at zero when it is off, then the extra lights.
             rgb_intensity_candelas: self.light.rgb_intensity_candelas
                 * if self.light_on {
                     1.0
@@ -778,6 +799,7 @@ impl Shading {
     /// (m_rgbIntensityCandelas, m_lightingChannelMask) per light.
     pub fn frame_lights(&self) -> Vec<[f32; 4]> {
         let lights = self.lights();
+        // The count, then two vec4s a light: position and radius, intensity and channels.
         let mut out = vec![[lights.len() as f32, 0.0, 0.0, 0.0]];
         for l in &lights {
             out.push(
@@ -855,6 +877,7 @@ pub fn unorm8(x: f32) -> f32 {
 /// (onto the octahedron |x| + |y| + |z| = 1), its x and y turned 45 degrees
 /// and moved into 0..1, and z reduced to its sign (saturate(z * FLT_MAX)).
 pub fn encode_normal_signed_octahedron(normal: Vec3) -> Vec3 {
+    // Onto the octahedron, then x and y rotated 45 degrees into [0, 1], the hemisphere in z.
     let n = normal / (normal.x.abs() + normal.y.abs() + normal.z.abs());
     let y = n.y * 0.5 + 0.5;
     Vec3::new(
@@ -890,6 +913,7 @@ pub fn ibl(
     let mut specular_f0 = s.specular_f0;
     let mut roughness = s.roughness_linear;
     if shading.quantize {
+        // The targets are 8-bit: what the full-screen passes read is quantized.
         albedo = albedo.map(unorm8);
         specular_occlusion = unorm8(specular_occlusion);
         specular_f0 = specular_f0.map(unorm8);
@@ -948,6 +972,7 @@ pub fn ibl(
 /// The inverse of the lab's tonemapper (untonemap in the shader).
 pub fn untonemap(display: Vec3, exposure: f32) -> Vec3 {
     let channel = |c: f32| {
+        // From sRGB to linear, then the ACES fit solved backwards for its input.
         let lin = if c <= 0.04045 {
             c / 12.92
         } else {
@@ -968,6 +993,7 @@ pub fn heat(v: f32) -> Vec3 {
         Vec3::new(0.10, 0.55, 0.65),
         Vec3::new(0.98, 0.90, 0.35),
     );
+    // Dark blue to teal over the lower half, teal to yellow over the upper.
     if t < 0.5 {
         mix(c0, c1, t * 2.0)
     } else {
@@ -1098,6 +1124,7 @@ pub fn pixel(
         super::decals::apply_decal(&shading.decals[i], &mut s, n);
     }
     apply_pixel_lights(shading, material.lighting_channels, (&s, &mut l), p);
+    // The main light's terms, for the views that show them.
     let sample = simple_point_light(&shading.lights()[0], p);
     // Image-based lighting in the forward pass, for clear coat.
     if s.clear_coat.is_some() && shading.ibl {
@@ -1140,6 +1167,7 @@ pub fn pixel(
     let color = match shading.view {
         ViewMode::Diffuse => l.diffuse_lighting,
         ViewMode::Specular => l.specular_lighting,
+        // Term views map their value onto the heat ramp, undoing the tone map so it shows as drawn.
         ViewMode::D => untonemap(heat(terms.d / (terms.d + 1.0)), exposure),
         ViewMode::G => untonemap(heat(terms.g * 4.0 * terms.n_dot_l * l.n_dot_v), exposure),
         ViewMode::F => shown(terms.f),

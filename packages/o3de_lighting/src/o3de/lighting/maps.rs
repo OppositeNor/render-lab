@@ -31,6 +31,7 @@ pub fn occlusion() -> &'static [f32] {
                 })
             })
             .map(|(u, v)| {
+                // A 16 x 8 grid of tiles, darker along their edges, in 8 bits.
                 let (gu, gv) = ((u * 16.0).fract(), (v * 8.0).fract());
                 let edge = gu.min(1.0 - gu).min(gv.min(1.0 - gv));
                 let value = 1.0 - 0.8 * (1.0 - smoothstep(0.0, 0.08, edge));
@@ -44,6 +45,7 @@ pub fn occlusion() -> &'static [f32] {
 pub fn sample_occlusion(uv: Vec2) -> f32 {
     let map = occlusion();
     let (w, h) = (OCCLUSION_WIDTH as i32, OCCLUSION_HEIGHT as i32);
+    // Bilinear, wrapping round both ways.
     let p = uv * Vec2::new(w as f32, h as f32) - 0.5;
     let base = p.floor();
     let t = p - base;
@@ -91,6 +93,7 @@ pub fn decals() -> &'static [[f32; 4]] {
         // 0: the splat.
         for y in 0..DECAL_SIZE {
             for x in 0..DECAL_SIZE {
+                // A blob with a wavy edge, its alpha falling off over the edge.
                 let p = texel(x, y) * 2.0 - Vec2::ONE;
                 let angle = p.y.atan2(p.x);
                 let edge = 0.72 + 0.12 * (5.0 * angle).sin() + 0.06 * (13.0 * angle).cos();
@@ -99,6 +102,7 @@ pub fn decals() -> &'static [[f32; 4]] {
             }
         }
         for _ in 0..DECAL_SIZE * DECAL_SIZE {
+            // The splat has no normal map.
             out.push([0.0, 0.0, 0.0, 0.0]);
         }
         // 1: the panel grid, 4 x 4 panels.
@@ -108,6 +112,7 @@ pub fn decals() -> &'static [[f32; 4]] {
         };
         for y in 0..DECAL_SIZE {
             for x in 0..DECAL_SIZE {
+                // Dark lines at the panels' edges.
                 let uv = texel(x, y);
                 let d = line(uv.x).min(line(uv.y));
                 let alpha = 1.0 - smooth(0.02, 0.06, d);

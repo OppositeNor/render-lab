@@ -36,6 +36,7 @@ impl TileLightData {
     pub fn unpack(words: &[u32]) -> TileLightData {
         TileLightData {
             z_near: f32::from_bits(words[0]),
+            // zFar's low three bits hold the bin count's log; they read back as ones.
             z_far: f32::from_bits(words[1] | BINS_MASK),
             mask: words[2],
             log_max_bins: words[1] & BINS_MASK,
@@ -44,6 +45,7 @@ impl TileLightData {
 
     /// NVLC_GetBin for a view distance.
     pub fn bin(&self, distance: f32) -> u32 {
+        // The depth's place between the tile's near and far, as one of 2^log bins.
         let f = ((distance - self.z_near) / (self.z_far - self.z_near)).clamp(0.0, 1.0);
         (f.min(0.999_999) * (1u32 << self.log_max_bins) as f32) as u32
     }
@@ -51,6 +53,7 @@ impl TileLightData {
 
 /// NVLC.azsli: Tile_UnitValueToBit.
 fn unit_value_to_bit(x: f32) -> u32 {
+    // [0, 1] onto bit 0 to 31: times the float just below 32.
     (x.clamp(0.0, 1.0) * f32::from_bits(32.0f32.to_bits() - 1)) as u32
 }
 
@@ -58,6 +61,7 @@ fn unit_value_to_bit(x: f32) -> u32 {
 fn bin_mask(log_max_bins: u32, bin: u32) -> u32 {
     match log_max_bins {
         0 => {
+            // One bin: all 32 bits are its.
             if bin == 0 {
                 u32::MAX
             } else {
@@ -65,6 +69,7 @@ fn bin_mask(log_max_bins: u32, bin: u32) -> u32 {
             }
         }
         1 => {
+            // Two bins: 16 bits each.
             if bin < 2 {
                 0xFFFF << (16 * bin)
             } else {
@@ -73,28 +78,33 @@ fn bin_mask(log_max_bins: u32, bin: u32) -> u32 {
         }
         2 => {
             if bin < 4 {
+                // Four bins: 8 bits each.
                 0xFF << (8 * bin)
             } else {
                 0
             }
         }
+        // Eight bins: 4 bits each.
         _ => 0xF << (4 * bin),
     }
 }
 
 /// NVLC.azsli: IsObjectInsideTile for a distance range; the bins it touches.
 pub fn object_bins(data: &TileLightData, min_max: Vec2) -> Option<u32> {
+    // The bits from the object's near depth to its far one, against the tile's surface bits.
     let normalized = (min_max - Vec2::splat(data.z_near)) / (data.z_far - data.z_near);
     let (ex, ey) = (
         1u32 << unit_value_to_bit(normalized.x),
         1u32 << unit_value_to_bit(normalized.y),
     );
     let object_mask = ((ey - 1) | ey) & !(ex - 1);
+    // An object wholly before or behind the tile's depths overlaps nothing.
     let overlap = if normalized.x <= 1.0 && normalized.y >= 0.0 {
         data.mask & object_mask
     } else {
         0
     };
+    // The bins whose bits the overlap touches.
     let bins = (0..MAX_BINS)
         .filter(|&b| overlap & bin_mask(data.log_max_bins, b) != 0)
         .fold(0, |acc, b| acc | 1 << b);
@@ -107,6 +117,7 @@ pub fn tile_aabb(camera: &CameraData, data: &TileLightData, tile: [u32; 2]) -> (
     let projection = Mat4::from_cols_array_2d(&camera.view_to_clip);
     let grid = Vec2::splat(TILE_DIM as f32) / Vec2::from(camera.viewport_size);
     let corner = |uv: Vec2, distance: f32| {
+        // A view-space point on the tile's frustum at a depth.
         let ndc = Vec2::new(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
         Vec3::new(
             ndc.x * distance / projection.x_axis.x,
@@ -144,6 +155,7 @@ pub fn cull_tile(
     let mut list = Vec::new();
     for group in 0..LIGHT_GROUPS {
         if group == GROUP_DECALS {
+            // Decals come first, in their sorted order, each tested by a sphere around its box.
             for i in super::decals::sorted(decals) {
                 let d = &decals[i];
                 let c = view.transform_point3(d.position);
@@ -175,6 +187,7 @@ pub fn cull_tile(
             _ => Vec::new(),
         };
         for (i, &(position, inv_attenuation_radius_squared)) in spheres.iter().enumerate() {
+            // Each light whose sphere reaches the tile's box joins with the bins its depth range touches.
             let c = view.transform_point3(position);
             // TestSphereVsAabbInvSqrt.
             let delta = ((center - c).abs() - half).max(Vec3::ZERO);
@@ -214,6 +227,7 @@ pub fn cpu_tile(
     let mut samples: Vec<Option<f32>> = Vec::new();
     for y in 0..TILE_DIM {
         for x in 0..TILE_DIM {
+            // Each pixel's four MSAA samples, traced for their depth (None for the sky).
             let pixel = Vec2::new(
                 (tile[0] * TILE_DIM + x) as f32,
                 (tile[1] * TILE_DIM + y) as f32,
@@ -233,6 +247,7 @@ pub fn cpu_tile(
         }
     }
     let near_plane = camera.near_plane;
+    // The tile's nearest and farthest depth (zFar a step past the farthest), and a bit per surface.
     let z_near = samples
         .iter()
         .map(|z| z.unwrap_or(camera.far_plane))
@@ -261,6 +276,7 @@ pub fn cpu_tile(
 /// LightCullingRemap for one tile: per bin, the indices of the entries that
 /// touch it, in list order, ending with END_OF_LIST.
 pub fn remap(list: &[u32]) -> Vec<Vec<u32>> {
+    // Each bin's list: the entries whose bin bit is set, their indices, then END_OF_LIST.
     let total = list.len().min(MAX_LIGHTS_PER_BIN as usize - 1);
     (0..MAX_BINS)
         .map(|bin| {
