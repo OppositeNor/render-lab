@@ -66,9 +66,11 @@ def _gpu_problem(env: Environment) -> str | None:
         return 'no NVIDIA driver (libcuda.so.1)'
     count = ctypes.c_int(0)
     if driver.cuInit(0) != 0 or driver.cuDeviceGetCount(ctypes.byref(count)) != 0 or count.value == 0:
+        # The driver loads, but it starts no device.
         return 'no CUDA device'
     try:
         for name in CUDA_RUNTIME:
+            # Load the CUDA runtime from the system, then cuDNN from the GPU package, each globally for ONNX Runtime.
             ctypes.CDLL(name, mode=ctypes.RTLD_GLOBAL)
         for name in CUDNN:
             ctypes.CDLL(str(env.tts_gpu / 'nvidia' / 'cudnn' / 'lib' / name), mode=ctypes.RTLD_GLOBAL)
@@ -83,9 +85,11 @@ def select_device(env: Environment, requested: str = 'auto') -> tuple[str, str]:
         return 'cpu', 'requested with --tts-device cpu'
     problem = _gpu_problem(env)
     if problem:
+        # Without a usable GPU, fall back to the CPU, unless CUDA was asked for by name.
         if requested == 'cuda':
             raise RuntimeError(f'--tts-device cuda: {problem}')
         return 'cpu', problem
+    # The GPU package's onnxruntime must win over any other on the path.
     sys.path.insert(0, str(env.tts_gpu))
     return 'cuda', 'CUDA'
 
@@ -98,12 +102,15 @@ def durations_model(env: Environment) -> Path:
     stamp = target.with_suffix('.source-sha256')
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
     if target.exists() and stamp.exists() and stamp.read_text() == digest:
+        # The durations model is made from this exact voice, so it is reused while the voice's hash matches.
         return target
     import onnx
     model = onnx.load(str(source))
     if not any(node.output and node.output[0] == DURATIONS_TENSOR for node in model.graph.node):
+        # Without the tensor in the voice, there is nothing for the copy to expose.
         raise RuntimeError(f'{source.name} has no {DURATIONS_TENSOR} tensor: word timings need the per-phoneme durations')
     model.graph.output.append(onnx.helper.make_tensor_value_info(DURATIONS_TENSOR, onnx.TensorProto.FLOAT, None))
+    # Save beside the target and rename, so a crash never leaves half a model.
     tmp = target.with_suffix('.tmp')
     onnx.save(model, str(tmp))
     tmp.rename(target)
@@ -150,6 +157,7 @@ def create_voice(env: Environment, device: str, workdir: Path) -> Any:
 def pronounce(cfg: Config, text: str) -> str:
     """`text` with the words of video.json's `pronunciations` replaced by how they are said."""
     for word, said in sorted(cfg.spec.get('pronunciations', {}).items(), key=lambda p: -len(p[0])):
+        # Longest words first, so a word is never replaced inside a longer one being replaced.
         text = re.sub(r'(?<![\w])' + re.escape(word) + r'(?![\w])', said, text)
     return text
 
@@ -186,6 +194,7 @@ def marks(cfg: Config, phonemizer: Any, parsed: markup.Sentence, spoken_words: i
         return len(phoneme_words(phonemizer, pronounce(cfg, text))) if text.strip() else 0
     out: list[int] = []
     for tag in parsed.tags:
+        # Count back from the end: the tag stands before the words that remain after it.
         mark = max(0, spoken_words - words_after(tag.piece))
         if out and mark < out[-1]:
             raise markup.MarkupError(f'{where}: its tags fall out of order on the spoken words')
@@ -200,6 +209,7 @@ def phoneme_words(voice: Any, text: str) -> list[list[str]]:
     for phonemes in voice.phonemize(text):
         current: list[str] = []
         for p in phonemes:
+            # Spaces end a word; the phonemes between them are its sounds.
             if p == ' ':
                 if current:
                     words.append(current)
@@ -229,6 +239,7 @@ def speak(voice: Any, text: str, syn_config: Any) -> tuple[bytes, int, list[floa
         ids: list[int] = [*id_map[BOS], *id_map[PAD]]
         at: list[int | None] = []
         for p in phonemes:
+            # A phoneme without an id is dropped, as Piper drops it; the rest note where their id lands.
             if p not in id_map:
                 at.append(None)
                 continue
@@ -247,10 +258,13 @@ def speak(voice: Any, text: str, syn_config: Any) -> tuple[bytes, int, list[floa
         audio = audio.squeeze()
         frames = frames.reshape(-1)
         if int(frames.sum()) * HOP != audio.shape[0]:
+            # The durations must account for every sample, or the word starts would drift.
             raise RuntimeError(f'phoneme durations ({int(frames.sum())} x {HOP}) do not add up to the audio ({audio.shape[0]} samples)')
+        # Each id's first sample: the sum of the durations before it.
         before = np.concatenate([[0], np.cumsum(frames)[:-1]]) * HOP
         word_start = True
         for p, index in zip(phonemes, at):
+            # A word starts at its first phoneme after a space; its start is that phoneme's first sample.
             if p == ' ':
                 word_start = True
             elif word_start and index is not None:
@@ -279,7 +293,9 @@ def synthesize(cfg: Config, env: Environment, device: str, sentences: list[dict[
     os.chdir(audio)
     try:
         for i, sentence in enumerate(sentences):
+            # For each sentence, its wav and word starts from the cache, made first on a miss.
             text = spoken(cfg, sentence)
+            # The cache key is the spoken text, the speed, and the voice.
             digest = hashlib.sha256((text + str(VOICE_SPEED) + VOICE_ID).encode()).hexdigest()[:24]
             target = audio / f'{digest}.wav'
             sidecar = audio / f'{digest}.json'
@@ -300,6 +316,7 @@ def synthesize(cfg: Config, env: Environment, device: str, sentences: list[dict[
                 sidecar.write_text(json.dumps({'text': text, 'words': starts}))
                 tmp.rename(target)
             with wave.open(str(target), 'rb') as stream:
+                # Then its length, its word starts, and the spoken word each of its tags stands before.
                 seconds, rate = stream.getnframes() / stream.getframerate(), stream.getframerate()
             words = json.loads(sidecar.read_text())['words']
             parsed = markup.sentence(sentence)
@@ -309,6 +326,7 @@ def synthesize(cfg: Config, env: Environment, device: str, sentences: list[dict[
                 tag_words = marks(cfg, phonemizer, parsed, len(words), repr(sentence['text'][:60]))
             measured = Narration(target, seconds, rate, words, tag_words)
             if sentence['text'] in durations and durations[sentence['text']][:3] != measured[:3]:
+                # The same text twice must give the same narration, since timings are keyed by text.
                 raise RuntimeError(f'two sentences share the text {sentence["text"]!r} but not their narration')
             durations[sentence['text']] = measured
             if (i + 1) % 25 == 0 or i + 1 == len(sentences):

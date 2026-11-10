@@ -66,6 +66,7 @@ class Fields:
     def of(keys: list[Json]) -> Fields:
         def attr(k: Json) -> str:
             return k.get('key', k['name'])
+        # The keys the vocabulary marks as fields; of those, the text ones this does not type are kept as written.
         fields = [k for k in keys if k.get('field')]
         # render_lab's typed keys are `any` in the list; those this does not type itself (callouts, text keys) are kept too.
         return Fields(text=frozenset(attr(k) for k in fields if k['kind'] in ('text', 'any') and not k.get('prefix') and attr(k) not in TYPED and '.' not in attr(k)))
@@ -154,6 +155,7 @@ def integer(value: str | int | float, where: str, minimum: int = 0, maximum: int
     # fractional chapter number or index into an integer.
     exact = Decimal(str(value))
     if not n.is_integer() or exact != exact.to_integral_value():
+        # A float that is whole is not enough: the decimal as written must be whole too.
         raise MarkupError(f'{where}: {value!r} must be a whole number')
     result = int(exact)
     if result < minimum or (maximum is not None and result > maximum):
@@ -184,9 +186,11 @@ def action_attr(key: Json, name: str, value: Any, where: str) -> bool:
     if name == 'run':
         key.setdefault('run', {'name': '', 'args': {}})['name'] = value
     elif name.startswith('run.'):
+        # An argument may come before the `run=` that names its action, so either one makes the entry.
         key.setdefault('run', {'name': '', 'args': {}})['args'][name[4:]] = param_value(value, where)
     elif name == 'stop':
         if not isinstance(value, list) or any(not isinstance(v, str) or not v for v in value):
+            # `stop` names the actions to stop, so it must be a list of nonempty names.
             raise MarkupError(f'{where}: stop is a list of action names, not {value!r}')
         key['stop'] = list(value)
     else:
@@ -219,6 +223,7 @@ def image_attr(key: Json, name: str, value: Any, where: str) -> bool:
     `unmark`), `imageHide` hides images (a list of names), and the hide lists and
     points of arrows and labels. False for any other attribute."""
     if name.startswith('image.'):
+        # A parameter of the image kind's instance, under its name without the `image.` prefix.
         key.setdefault('imageParams', {})[name[6:]] = param_value(value, where)
     elif name == 'imageMark':
         # u0,v0,u1,v1 (fractions of the picture), or none to fade the mark out.
@@ -245,8 +250,10 @@ def image_attr(key: Json, name: str, value: Any, where: str) -> bool:
 def check_action(key: Json, where: str) -> None:
     run = key.get('run')
     if run is not None and not run['name']:
+        # Arguments with no action to give them to are an error at the storyboard.
         raise MarkupError(f'{where}: run.{next(iter(run["args"]), "…")} gives an argument, but no run=… names the action')
     if run is not None and not run['args']:
+        # An action without arguments keeps no empty `args` in its key.
         del run['args']
 
 
@@ -260,11 +267,13 @@ def value(data: Any, where: str) -> float | bool | str | list[float] | Range:
 def highlight_targets(name: str, data: Any, where: str) -> list[Json]:
     """Canonical scoped highlights from the typed Data helpers or raw JSON."""
     if isinstance(data, str):
+        # An attribute written as a JSON string is read the way typed Data would be.
         try:
             data = json.loads(data)
         except ValueError:
             raise MarkupError(f'{where}: {name} needs typed Data or JSON') from None
     if name == 'highlightPasses':
+        # Passes are a plain list of names, with no listing or record around them.
         names, prefix = data, {'kind': 'pass'}
         member = 'name'
     else:
@@ -275,6 +284,7 @@ def highlight_targets(name: str, data: Any, where: str) -> list[Json]:
         names, prefix = data[group], {'kind': 'code' if name == 'highlightCode' else 'field', field: data[field]}
     if not isinstance(names, list) or any(not isinstance(item, str) or not item for item in names):
         raise MarkupError(f'{where}: {name} needs a list of nonempty names')
+    # Every form ends as a list of names, each one highlight with its scope.
     return [{**prefix, member: item} for item in names]
 
 
@@ -310,10 +320,12 @@ def cue_key(tag: Tag, where: str, fields: Fields) -> Json:
         elif name == 'camera':
             key.setdefault('camera', {})
         elif name.startswith('camera.'):
+            # One part of the camera (`camera.yaw`, `camera.target`, …): the target is a point, the rest numbers.
             part = name.split('.', 1)[1]
             key.setdefault('camera', {})[part] = [number(x, where) for x in v] if part == 'target' and isinstance(v, list) else number(v, where)
         elif name == 'animate':
             if isinstance(v, str):
+                # An `animate` written as JSON is taken as it is.
                 try:
                     key['animate'] = json.loads(v)
                 except ValueError as e:
@@ -325,17 +337,20 @@ def cue_key(tag: Tag, where: str, fields: Fields) -> Json:
         elif name == 'ease':
             key['ease'] = v
         elif action_attr(key, name, v, where) or image_attr(key, name, v, where):
+            # Actions and images read their own attributes; each returns True when it took one.
             continue
         elif name in fields.text:
             key[name] = v
         elif name in ('highlightPasses', 'highlightCode', 'highlightFields'):
             key['highlight'] = highlight_targets(name, v, where)
             if name == 'highlightCode':
+                # A code highlight also opens its listing in the code panel.
                 data = json.loads(v) if isinstance(v, str) else v
                 key['code'] = data['listing']
         elif name == 'record':
             kind, index = variant(v, where, name)
             if kind in ('none', 'camera') and index is None:
+                # `recordNone` and `recordCamera` carry nothing more.
                 key['record'] = {'type': kind}
             elif kind == 'object' and isinstance(index, int) and not isinstance(index, bool):
                 key['record'] = {'type': kind, 'index': integer(index, where)}
@@ -346,10 +361,13 @@ def cue_key(tag: Tag, where: str, fields: Fields) -> Json:
         elif name == 'formula':
             key['formula'] = '' if v == 'off' else formula_tag(tag)
         elif name in FORMULA_ATTRS:
+            # The formula's other attributes were read by `formula_tag` with the formula itself.
             continue
         else:
+            # Anything else is a shot parameter of the investigation's.
             params[name] = value(v, where)
     if tag.kind == 'formula' and tag.attr('card') == 'no':
+        # A formula with `card=no` shows in the caption only, so it opens no card.
         key.pop('formula', None)
     check_action(key, where)
     if params:
@@ -363,6 +381,7 @@ def range_values(key: Json, where: str) -> tuple[Json, Json]:
     to: Json = {}
     rest = dict(key)
     for name, value in rest.pop('params', {}).items():
+        # For each parameter, a range jumps to its start and ends on its end; a plain number is only an end.
         if isinstance(value, Range):
             jump[name] = value.start
             to[name] = value.end
@@ -383,14 +402,17 @@ def unlit(latex: str) -> str:
     """LaTeX without its term markers: `\\lit{n}{body}` becomes `body`."""
     out = ''
     while (i := latex.find('\\lit{')) >= 0:
+        # Keep the text before the marker, then skip `\lit{n}` to the body's opening brace.
         out += latex[:i]
         j = latex.index('}', i) + 1
+        # Walk the braces from the body's opening one to the brace that closes it.
         depth, k = 0, j
         while True:
             depth += {'{': 1, '}': -1}.get(latex[k], 0)
             if depth == 0:
                 break
             k += 1
+        # The body may hold markers of its own, so it is unlit in turn.
         out += unlit(latex[j + 1:k])
         latex = latex[k + 1:]
     return out + latex
@@ -410,6 +432,7 @@ def protect(caption: str) -> tuple[str, list[str]]:
     tags: list[str] = []
 
     def hold(m: re.Match[str]) -> str:
+        # Keep the call, and stand a placeholder in for it as wide as the text it draws.
         tags.append(m.group(0))
         body = unquote(m.group(2))
         visible = body if m.group(1) == 'CODE' else re.sub(r'\\[a-zA-Z]+|[{}^_&]|\\\\', '', body)

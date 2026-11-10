@@ -24,16 +24,19 @@ def normalized(board: Json) -> Json:
         for beat in chapter['beats']:
             context = {'chapter': chapter['id'], 'beat': beat['id']}
             for i, key in enumerate(beat.get('keys', [])):
+                # A beat's own keys open it, before any sentence.
                 sources = beat.get('keySources', [])
                 source = sources[i] if i < len(sources) else beat.get('source', {})
                 cues.append({**context, 'kind': 'opening', 'paragraph': None, 'piece': None, 'source': source, 'key': key})
             for i, sentence in enumerate(beat.get('narration', [])):
                 for tag in markup.sentence(sentence).tags:
+                    # Then each sentence's tags; a range's close sets nothing, so it has no key.
                     if tag.key is None:
                         continue
                     source = tag.source or sentence.get('source', beat.get('source', {}))
                     entry = {**context, 'kind': tag.kind, 'paragraph': i + 1, 'piece': tag.piece, 'source': source}
                     if tag.kind == 'open':
+                        # A range is checked as its jump (a cue of its own) and its blend's end values.
                         try:
                             jump, key = markup.range_values(tag.key, describe(source))
                         except markup.MarkupError as error:
@@ -57,6 +60,7 @@ def host_check(cfg: Config, data: Json, *, timeline: bool = False) -> Json:
     except ValueError:
         raise RuntimeError(f'story check host failed ({proc.returncode}): {proc.stderr.strip() or proc.stdout.strip()}') from None
     if report.get('renderLabStoryCheck') != 1 or bool(report.get('ok')) != (proc.returncode == 0):
+        # The host's report must be the version this reads, and agree with its exit status.
         raise RuntimeError('inconsistent or unsupported story check response from host')
     if not report['ok']:
         raise CheckError(report)
@@ -75,6 +79,7 @@ def check(cfg: Config, board: Json) -> Json:
 
 def check_timeline(cfg: Config, timeline: Json) -> Json:
     """Validate real frames before writing prepared outputs; retain a separate sidecar."""
+    # Where each key came from moves to a sidecar; the timeline keeps only what the lab reads.
     provenance = [{**key.get('_provenance', {}), 'beat': key.get('source')} for key in timeline['keys']]
     clean = {**timeline, 'keys': [{k: v for k, v in key.items() if k != '_provenance'} for key in timeline['keys']]}
     host_check(cfg, {'timeline': clean, 'provenance': provenance}, timeline=True)

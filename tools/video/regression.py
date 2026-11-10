@@ -40,6 +40,7 @@ def configurations(investigations: list[str]) -> list[list[Config]]:
     for investigation in investigations:
         package = LAB / 'packages' / CORPUS[investigation]
         english = Config.load(investigation, 'en', package)
+        # English first, then each translation its video.json names.
         languages = ['en', *english.spec.get('translations', {})]
         if any(lang not in LANGS for lang in languages):
             raise RuntimeError(f'{investigation}: unsupported corpus language {languages}')
@@ -48,6 +49,7 @@ def configurations(investigations: list[str]) -> list[list[Config]]:
 
 
 def execute(command: list[str], log: Path) -> str:
+    # Run against this checkout's content, never a package directory set in the environment.
     env = dict(os.environ, RENDER_LAB_ROOT=str(LAB))
     env.pop('RENDER_LAB_PACKAGES', None)
     result = subprocess.run(command, cwd=LAB, env=env, capture_output=True, text=True)
@@ -78,6 +80,7 @@ def capture(out: Path, binary: Path, investigations: list[str]) -> None:
     artifacts.mkdir()
     logs.mkdir()
     for editions in cases:
+        # For each package: its scripts' hook check, then each edition prepared and saved with its document IR.
         english = editions[0]
         package = english.package.name
         package_out = artifacts / package
@@ -92,6 +95,7 @@ def capture(out: Path, binary: Path, investigations: list[str]) -> None:
                      '--prepare-dir', str(cfg.prepared_root),
                      '--binary', str(binary)], logs / f'{package}-{cfg.lang}.log')
             dest = compare.save_edition(cfg, artifacts, required=True)
+            # The English storyboard imports the package's vocabulary and story library; a translation imports none.
             packages = [] if cfg.zh() else ['--package', f'{package}={cfg.package / "build" / (package + ".lam")}']
             if not cfg.zh() and cfg.story_library.exists():
                 packages += ['--package', f'{package}_story={cfg.story_library}']
@@ -102,6 +106,7 @@ def capture(out: Path, binary: Path, investigations: list[str]) -> None:
         # Unlike the historical filename-only check, detect changed audio and word timings under the same name.
         write_json(package_out / 'audio-sha256.json',
                    {p.name: compare.digest(p) for p in sorted(english.audio_cache.iterdir()) if p.is_file()})
+    # The inputs must be the same as before the capture, or the outputs could mix two states.
     after = input_hashes(investigations)
     if before != after:
         raise RuntimeError('corpus inputs changed during capture; retry with unchanged content')
@@ -129,6 +134,7 @@ def checked_manifest(snapshot: Path) -> dict[str, Any]:
         raise RuntimeError(f'{snapshot}: unsupported or empty corpus manifest')
     required = {'inputs.json'}
     for case in manifest['cases']:
+        # Every case must be a corpus package with English first, and have all its artifacts.
         package = case['package']
         languages = case['languages']
         if CORPUS.get(case['investigation']) != package or not languages or languages[0] != 'en':
@@ -138,6 +144,7 @@ def checked_manifest(snapshot: Path) -> dict[str, Any]:
             required.update(f'{package}/{lang}/{name}' for name in ('timeline.json', 'document.json', *compare.PREPARED))
     if not required <= set(manifest['files']):
         raise RuntimeError(f'{snapshot}: missing required artifacts {sorted(required - set(manifest["files"]))}')
+    # The files on disk must still be the ones the manifest hashed.
     artifacts = snapshot / 'outputs'
     actual = {p.relative_to(artifacts).as_posix(): compare.digest(p) for p in artifacts.rglob('*') if p.is_file()}
     if actual != manifest['files']:

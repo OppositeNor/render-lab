@@ -17,6 +17,7 @@ def main(folder: Path) -> None:
     for name in FILES:
         path = folder / name
         if not path.exists():
+            # Download to a partial file and rename it, so an interrupted download is never taken for the voice.
             print(f'Downloading voice asset: {name}', flush=True)
             partial = path.with_name(name + '.download')
             with urllib.request.urlopen(BASE + name, timeout=120) as response, partial.open('wb') as output:

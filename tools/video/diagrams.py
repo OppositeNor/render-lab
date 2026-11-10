@@ -51,6 +51,7 @@ def load(cfg: Config, name: str) -> Json:
         return text[key]
     nodes: list[Json] = []
     for n in spec.get('node', []):
+        # Each box: its title's lines, its rows, and its optional dash and picture.
         node: Json = {'id': n['id'], 'title': say(n['title-text'], n['id']).split('\n')}
         if n.get('row'):
             node['rows'] = [{'id': r['id'], 'label': say(r['label-text'], r['id'])} for r in n['row']]
@@ -62,6 +63,7 @@ def load(cfg: Config, name: str) -> Json:
     ids = {n['id'] for n in nodes}
     edges: list[Json] = []
     for e in spec.get('edge', []):
+        # Each edge must join two boxes; its label is translated like the boxes' text.
         for end in (e['from'], e['to']):
             if end not in ids:
                 raise RuntimeError(f'{where}: an edge names `{end}`, which is no node')

@@ -51,6 +51,7 @@ WORDS: dict[str, dict[str, str]] = {
 
 def stamp(seconds: float, ms: bool = True) -> str:
     unit = 1000 if ms else 100
+    # Split the time into whole seconds and a fraction, in milliseconds or (without `ms`) hundredths.
     whole, fraction = divmod(round(seconds * unit), unit)
     hours, rest = divmod(whole, 3600)
     minutes, secs = divmod(rest, 60)
@@ -70,11 +71,13 @@ def relpath(path: Path, start: Path) -> str:
 
 def write_audio(cfg: Config, placements: list[Json], total_frames: int, fps: int) -> Path:
     rate = placements[0]['rate']
+    # A silent 16-bit mono track as long as the video, which each sentence's speech is copied into.
     samples = bytearray(int(round(total_frames / fps * rate)) * 2)
     for p in placements:
         with wave.open(p['path'], 'rb') as stream:
             assert stream.getframerate() == rate and stream.getnchannels() == 1 and stream.getsampwidth() == 2
             data = stream.readframes(stream.getnframes())
+        # The sentence starts at its frame's time; speech past the video's end is cut off.
         start = int(round(p['frame'] / fps * rate)) * 2
         end = min(len(samples), start + len(data))
         samples[start:end] = data[:end - start]
@@ -103,6 +106,7 @@ def write_chapters(cfg: Config, board: Json, timeline: Json) -> None:
     if cfg.zh():
         meta.append('language=chi')
     for c in timeline['chapters']:
+        # Each chapter is a span in milliseconds, titled with its number.
         meta += ['[CHAPTER]', 'TIMEBASE=1/1000', f'START={round(c["startFrame"] / fps * 1000)}', f'END={round(c["endFrame"] / fps * 1000)}', f'title={c["number"]:02d} {c["title"]}']
     (cfg.build() / 'chapters.ffmeta').write_text('\n'.join(meta) + '\n')
     write_chapter_list(cfg, timeline)
@@ -147,17 +151,20 @@ def render_video(cfg: Config, env: Environment, binary: Path, frames: str | None
     if jobs > 1 and frames:
         raise SystemExit('--jobs renders the whole timeline; it does not go with --frames')
     total = int(json.loads(cfg.timeline().read_text(encoding='utf-8'))['totalFrames'])
+    # No more ranges than the timeline has room for, each at least ten warm-ups long.
     jobs = max(1, min(jobs, total // (10 * WARMUP) or 1))
     bounds = [total * k // jobs for k in range(jobs + 1)]
     log('Rendering the timeline with render-lab (every frame streams to FFmpeg)' + (f', in {jobs} parallel ranges.' if jobs > 1 else '.'))
     started = time.time()
     parts: list[tuple[Path, Path, subprocess.Popen[str], list[str]]] = []
     for k in range(jobs):
+        # One render writes the video itself; parallel ranges each write a part, joined below.
         video = build / 'video.mp4' if jobs == 1 else build / f'video.part{k}.mp4'
         report = build / 'render-report.json' if jobs == 1 else build / f'render-report.part{k}.json'
         args = lab(binary, cfg, 'render', '--timeline', cfg.timeline(), '--resolution', f'{resolution[0]}x{resolution[1]}', '--output', video,
                    '--report', report, '--ffmpeg', env.ffmpeg, '--crf', '18', '--preset', 'medium')
         if frames:
+            # A requested range is rendered as it is; a parallel range below also renders a warm-up before its first frame.
             args += ['--frames', frames]
         elif jobs > 1:
             args += ['--frames', f'{bounds[k]}:{bounds[k + 1]}', '--warmup', str(WARMUP if k else 0)]
@@ -177,6 +184,7 @@ def render_video(cfg: Config, env: Environment, binary: Path, frames: str | None
         r.join()
     failed = []
     for k, (_, _, proc, lines) in enumerate(parts):
+        # Once every range has finished, keep each one's log, and the tail of any that failed.
         proc.wait()
         (build / 'logs' / ('render.log' if jobs == 1 else f'render.part{k}.log')).write_text(''.join(lines))
         if proc.returncode:
@@ -198,6 +206,7 @@ def render_video(cfg: Config, env: Environment, binary: Path, frames: str | None
         merged['output'] = str(build / 'video.mp4')
         merged['jobs'] = jobs
         (build / 'render-report.json').write_text(json.dumps(merged, indent=2))
+        # Join the parts in order with FFmpeg's concat demuxer, copying the streams, then drop the parts.
         listing = build / 'video.parts.txt'
         listing.write_text(''.join(f"file '{v.name}'\n" for v, _, _, _ in parts))
         run([env.ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-f', 'concat', '-safe', '0', '-i', listing, '-c', 'copy', build / 'video.mp4'],
@@ -241,10 +250,12 @@ def snapshots(cfg: Config, env: Environment, binary: Path, timeline: Json, resol
         build / 'logs' / 'snapshots.log')
     chosen: list[Path] = []
     for chapter in timeline['chapters']:
+        # The contact sheet holds one still per chapter: its middle 3D beat's.
         beats = [b for b in timeline['beats'] if b['chapter'] == chapter['number'] and b['kind'] == '3d']
         if beats:
             b = beats[len(beats) // 2]
             chosen.append(shots / f'frame-{b["startFrame"] + b["frames"] // 2:06d}.png')
+    # Scale each still to 480x270 and tile them four to a row.
     inputs: list[Any] = []
     for p in chosen:
         inputs += ['-i', p]
@@ -281,6 +292,7 @@ def listing_markdown(cfg: Config, name: str, doc_dir: Path, index: Json, shown: 
     """The listing as a Python code block the first time; later, a pointer back to it."""
     title, source, code = read_listing(cfg, name)
     if name in shown:
+        # A listing printed earlier in the document is pointed back to, not printed again.
         return [WORDS[cfg.lang]['seeAbove'].format(title=title), '']
     shown.add(name)
     link = source_link(cfg, doc_dir, index, source) if source else ''
@@ -300,12 +312,14 @@ def write_script(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
              w['engine'].format(engine=engine['name'], version=engine['version'], commit=engine['commit'], date=board['date']), '',
              '> ' + cfg.text('intro'), '', f'## {w["chapters"]}', '']
     for c in timeline['chapters']:
+        # The table of contents: each chapter's start and a link to its section.
         lines.append(f'- {clock(c["startFrame"] / fps)} [{c["number"]:02d} · {c["title"]}](#chapter-{c["number"]})')
     lines.append('')
     beat_frames = {b['id']: b for b in timeline['beats']}
     shown: set[str] = set()
     demos = cfg.text('demos')
     for chapter in board['chapters']:
+        # Then each chapter: its start and budget, and each beat's headline, kind, sentences, and listings.
         tc = next(c for c in timeline['chapters'] if c['number'] == chapter['number'])
         lines += [f'<a id="chapter-{chapter["number"]}"></a>', f'## {chapter["number"]:02d} · {chapter["title"]}', '',
                   w['starts'].format(when=clock(tc['startFrame'] / fps), seconds=(tc['endFrame'] - tc['startFrame']) / fps, budget=chapter['targetSeconds']) + ' ' + chapter['summary'], '']
@@ -313,6 +327,7 @@ def write_script(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
             when = clock(beat_frames[beat['id']]['startFrame'] / fps)
             lines += [f'### {beat["headline"]}', '']
             if 'graph' in beat:
+                # A beat says what it shows: the frame graph, a diagram, a demonstration, or a source card.
                 lines += [f'*{when} · {w["graph"]} `{beat["graph"]}.toml`*', ''] + frame_graph.markdown(frame_graph.load(cfg, beat['graph']))
             elif presentation.is_diagram(beat):
                 lines += [f'*{when} · {w["diagram"]} `{beat["diagram"]}.toml`*', ''] + diagrams.markdown(diagrams.load(cfg, beat['diagram']))
@@ -325,6 +340,7 @@ def write_script(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
             for name in beat_listings(beat):
                 lines += listing_markdown(cfg, name, doc_dir, index, shown)
             if presentation.is_card(beat):
+                # A source card's entries are listed with what to inspect in each.
                 for key in beat.get('sources', []):
                     entry = index['entries'][key]
                     inspect = source_text(cfg, f'entry-{key}-inspect', entry['inspect'])
@@ -338,6 +354,7 @@ def write_script(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
               f'- {repo_link(doc_dir, cfg.video(), cfg.video_name())} · {repo_link(doc_dir, build / "captions.srt", "captions.srt")} · {repo_link(doc_dir, build / "captions.vtt", "captions.vtt")} · {repo_link(doc_dir, build / "chapters.txt", "chapters.txt")}',
               f'- {repo_link(doc_dir, cfg.storyboard, cfg.storyboard.name)} · {repo_link(doc_dir, cfg.source_index, "source-index.json")}{diagram_dir} · {repo_link(doc_dir, cfg.pseudocode, "pseudocode/")}', '']
     (build / 'script.md').write_text('\n'.join(lines) + '\n')
+    # script.txt: the narration alone, chapter by chapter.
     plain: list[str] = []
     for chapter in board['chapters']:
         plain.append(f'{chapter["number"]:02d}. {chapter["title"]}\n')
@@ -358,6 +375,7 @@ def write_guide(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
              w['index'].format(index=repo_link(doc_dir, cfg.source_index, relpath(cfg.source_index, LAB))), '',
              f'## {w["readingOrder"]}', '']
     for i, key in enumerate(cfg.spec['readingPath'], 1):
+        # The reading order first, then a table per chapter of each entry to read.
         entry = index['entries'][key]
         lines.append(f'{i}. {source_link(cfg, doc_dir, index, key)} · `{entry["path"].rsplit("/", 1)[-1]}`')
     lines.append('')
@@ -369,11 +387,13 @@ def write_guide(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
             inspect = source_text(cfg, f'entry-{key}-inspect', entry['inspect'])
             notes = [(d['line'], source_text(cfg, f'entry-{key}-detail-{n}', d['note'])) for n, d in enumerate(entry.get('details', []), 1)]
             if notes:
+                # An entry's notes on particular lines follow what to inspect, each with its line.
                 inspect += ' (' + '; '.join(w['line'].format(line=line) + ': ' + note for line, note in notes) + ')'
             file_link = f'`{entry["path"]}`'
             lines.append(f'| {file_link} | `{entry["symbol"]}` | {entry["line"]} | {inspect} |')
         lines.append('')
     if index.get('mappings'):
+        # What the lab's data stands for in the engine, when the index says.
         lines += [f'## {w["mappings"]}', '', w['mappingTable'], '|---|---|---|---|---|']
         for m in index['mappings']:
             name, exact, lab = (source_text(cfg, f'mapping-{source_key(m["lab"])}-{field}', m[english]) for field, english in (('engine-name', 'engineName'), ('exact', 'exact'), ('lab-layout', 'labLayout')))
@@ -389,11 +409,13 @@ def write_notice(cfg: Config) -> None:
     notices = cfg.notices()
     out = cfg.build() / 'NOTICE.txt'
     if not notices:
+        # A package with no notices gets no NOTICE.txt (an old one is removed).
         out.unlink(missing_ok=True)
         return
     parts = [cfg.lab_text('ui-notices_title'), ''] + [text for text, _ in notices]
     for text, license in notices:
         if license is not None:
+            # Each notice with a license file is followed by that license's full text.
             parts += ['', '-' * 78, license.name, '-' * 78, '', license.read_text(encoding='utf-8').rstrip()]
     out.write_text('\n'.join(parts) + '\n', encoding='utf-8')
 

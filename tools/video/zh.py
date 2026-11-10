@@ -46,6 +46,7 @@ def localize(board: Board, translation: dict[str, Any]) -> Board:
     if 'captionWidth' in translation:
         out['captionWidthZh'] = translation['captionWidth']
     chapters = {c['id']: c for c in translation['chapters']}
+    # Every translated chapter must exist in English, and every English chapter must be translated.
     unknown = set(chapters) - {c['id'] for c in out['chapters']}
     if unknown:
         raise RuntimeError(f'translation: unknown chapters {sorted(unknown)}')
@@ -57,6 +58,7 @@ def localize(board: Board, translation: dict[str, Any]) -> Board:
             raise RuntimeError(f'translation: chapter {chapter["id"]} is number {chapter["number"]}, not {zh["number"]}')
         chapter['titleEn'], chapter['title'], chapter['summary'] = chapter['title'], zh['title'], zh['summary']
         for beat in chapter['beats']:
+            # Each beat must have as many translated sentences as English ones, since keys stay on their sentences.
             t = translation['beats'].get(beat['id'])
             if t is None:
                 raise RuntimeError(f'translation: no entry for beat {beat["id"]}')
@@ -67,6 +69,7 @@ def localize(board: Board, translation: dict[str, Any]) -> Board:
             beat['headlineEn'], beat['headline'] = beat['headline'], t['headline']
             narration = []
             for s, translated in zip(sentences, t['narration']):
+                # Each sentence keeps its English (it is spoken) and gains the Chinese it shows.
                 s = dict(s)
                 shown, text = translated['shown'], translated['text']
                 # Formulas are shown in both languages: the same LaTeX, as many times.
@@ -114,12 +117,15 @@ def tokens(text: str) -> list[Token]:
     for m in TOKEN.finditer(text):
         piece = m.group(0)
         if piece.isspace():
+            # A space is remembered as the separator before the next token, not kept as one.
             space = True
             continue
         if out and piece in NO_LINE_START and not space:
+            # Punctuation that may not start a line joins the token before it.
             out[-1][0] += piece
             continue
         if piece in NO_LINE_END:
+            # An opening bracket or quote may not end a line, so it joins the token after it.
             opening += piece
             continue
         if out:
@@ -144,6 +150,7 @@ def balanced_lines(toks: list[Token], width: int = CAPTION_UNITS) -> list[str] |
         return [text]
     best: tuple[float, list[str]] | None = None
     for i in range(1, len(toks)):
+        # Try every cut: lines close in width, and a cut where the text allows a break.
         a, b = join(toks[:i]), join(toks[i:])
         wa, wb = display_width(a), display_width(b)
         if wa <= width and wb <= width:
@@ -160,10 +167,12 @@ def caption_chunks(text: str, width: int = CAPTION_UNITS) -> list[str]:
     total = display_width(text)
     widths = [display_width(sep + t) for t, sep, _ in toks]
     starts = [sum(widths[:i]) for i in range(len(toks))]
+    # Start from the fewest chunks the text could fit in, and add one until every chunk fits a line.
     n = max(1, math.ceil(total / (CAPTION_LINES * width - 4)))
     while n <= len(toks):
         cuts = [0]
         for k in range(1, n):
+            # Each cut lands near the next k/n of the width, at the token that weighs distance against its penalty.
             target = total * k / n
             candidates = range(cuts[-1] + 1, len(toks))
             if not candidates:

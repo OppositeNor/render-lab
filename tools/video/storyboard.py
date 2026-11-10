@@ -18,6 +18,7 @@ def beat_listings(beat: Json) -> list[str]:
     import markup
     names: list[str] = []
     for k in beat.get('keys', []) + [k for s in beat.get('narration', []) for k in markup.text_keys(beat, s)]:
+        # The beat's own keys, then each sentence's, in order; a listing counts once, where it first shows.
         if k.get('code') and k['code'] not in names:
             names.append(k['code'])
     return names
@@ -33,12 +34,14 @@ def read_listing(cfg: Config, name: str) -> tuple[str, str | None, str]:
     header: dict[str, str] = {}
     code: list[str] = []
     for line in listing_path(cfg, name).read_text().splitlines():
+        # Header lines come first; after them every line is code, its `# @tag` marks stripped.
         m = re.match(r'# (title-text|source|demo|dispatch-text): (.*)$', line)
         if m and not code:
             header[m.group(1)] = m.group(2).strip()
             continue
         code.append(re.sub(r'\s*# @[^\n]*$', '', line).rstrip())
     while code and not code[-1]:
+        # Drop trailing blank lines.
         code.pop()
     title = config.text_table(cfg.package.name, cfg.lang)[header['title-text']] if 'title-text' in header else name
     return title, header.get('source'), '\n'.join(code)
@@ -54,6 +57,7 @@ def load_board(cfg: Config) -> Json:
     import presentation
     import zh
     name = cfg.package.name
+    # Generate the cue vocabulary from the investigation, then read which of its keys are fields.
     vocabulary = lamlet.vocabulary(cfg.investigation, name, cfg.package / 'build' / f'{name}.lam')
     keys = vocabulary.with_suffix('.keys.json')
     fields = markup.Fields.of(json.loads(keys.read_text()))
@@ -75,6 +79,7 @@ def validate(cfg: Config, board: Json, index: Json) -> None:
     keys = index['entries']
     ids: set[str] = set()
     for chapter in board['chapters']:
+        # For each chapter, its sources must be in the index; then each of its beats is checked.
         for key in chapter.get('sources', []):
             if key not in keys:
                 raise DiagnosticError('story.source', f'chapter {chapter["number"]}: unknown source key {key}', chapter.get('source'), field='sources')
@@ -86,6 +91,7 @@ def validate(cfg: Config, board: Json, index: Json) -> None:
                 fail('story.beat.duplicate', f'duplicate beat {beat["id"]}', 'id')
             ids.add(beat['id'])
             if 'graph' in beat:
+                # The nodes a beat focuses must exist in its frame graph or its diagram.
                 known = frame_graph.names(frame_graph.load(cfg, beat['graph']))
                 for node in beat.get('focus', []):
                     if node not in known:
@@ -102,6 +108,7 @@ def validate(cfg: Config, board: Json, index: Json) -> None:
                 fail('story.narration', f'{beat["id"]} has no narration', 'narration')
             width = board.get('captionWidthZh', zh.CAPTION_UNITS) if cfg.zh() else board['captionWidth']
             for sentence in beat.get('narration', []):
+                # Each caption's widest unbreakable token must fit a line, or no split could ever fit it.
                 shown = markup.shown(sentence, cfg.zh()).caption
                 held, _ = markup.protect(shown)
                 # No partition into two-line cues can fit a token larger
@@ -113,6 +120,7 @@ def validate(cfg: Config, board: Json, index: Json) -> None:
                     raise DiagnosticError('story.caption.width', f'captionWidth {width} cannot fit this caption; its longest token needs at least {needed}',
                                           source or beat.get('source'), beat=beat['id'], field='captionWidth')
             for name in beat_listings(beat):
+                # Each listing must exist, cite a known source, and be valid Python.
                 path = listing_path(cfg, name)
                 if not path.is_file():
                     fail('story.listing', f'unknown pseudo-code listing {name}', 'code')

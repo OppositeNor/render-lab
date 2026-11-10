@@ -67,6 +67,7 @@ def balanced_lines(text: str, width: int) -> list[str]:
     words = text.split()
     best: tuple[int, list[str]] | None = None
     for i in range(1, len(words)):
+        # Try every cut between two words, and keep the one whose two lines are closest in length.
         a, b = ' '.join(words[:i]), ' '.join(words[i:])
         if len(a) <= width and len(b) <= width:
             score = abs(len(a) - len(b))
@@ -79,18 +80,21 @@ def caption_chunks(text: str, width: int) -> list[str]:
     """The fewest cues of at most `CAPTION_LINES` balanced lines, cut at word
     boundaries near equal character positions."""
     words = text.split()
+    # Start from the fewest chunks the text could fit in, and add one until every chunk fits.
     n = max(1, math.ceil(len(text) / (CAPTION_LINES * width - 6)))
     while True:
         total = len(text)
         bounds: list[int] = []
         pos, k = 0, 1
         for i, w in enumerate(words[:-1]):
+            # Walk the words; when the text so far passes the next k/n of the whole, cut near it.
             pos += len(w) + 1
             if k < n and pos >= total * k / n:
                 prev = pos - len(w) - 1
                 if bounds and bounds[-1] == i:
                     pass
                 elif i > 0 and abs(prev - total * k / n) < abs(pos - total * k / n) and (not bounds or bounds[-1] < i):
+                    # Cut before this word or after it, whichever lands closer to the ideal position.
                     bounds.append(i)
                 else:
                     bounds.append(i + 1)
@@ -99,6 +103,7 @@ def caption_chunks(text: str, width: int) -> list[str]:
         chunks = [' '.join(words[a:b]) for a, b in zip(cuts, cuts[1:]) if b > a]
         lines = [balanced_lines(c, width) for c in chunks]
         if all(len(group) <= CAPTION_LINES and all(len(x) <= width for x in group) for group in lines):
+            # Every chunk fits its lines, so these cuts are the captions.
             return ['\n'.join(group) for group in lines]
         n += 1
 
@@ -108,10 +113,13 @@ def plan_chapter(chapter: Json, durations: Durations, pacing: Pacing) -> tuple[f
     natural = 0.0
     weights: list[float] = []
     for beat in chapter['beats']:
+        # The natural length: each beat's lead, tail, and hold, and each sentence's speech and gap.
         natural += pacing.lead + pacing.tail + beat.get('hold', 0.0)
         for s in sentences_of(beat):
             natural += durations[s['text']][1] + pacing.gap
+            # A sentence with cues gets a larger share of the extra pauses, for its cues to play.
             weights.append(pacing.taggedWeight if markup.tagged(s) else 1.0)
+    # The budget's shortfall is shared out as extra pauses, each capped; what the caps leave over is returned.
     deficit = max(0.0, chapter['targetSeconds'] - natural)
     total_weight = sum(weights) or 1.0
     extras = [min(pacing.maxExtraPause, deficit * w / total_weight) for w in weights]
@@ -130,6 +138,7 @@ def budget_rows(timeline: Json, board: Board, plans: dict[int, Json]) -> list[Js
     rows: list[Json] = []
     fps = timeline['fps']
     for c, b in zip(timeline['chapters'], board['chapters']):
+        # The notices card sits in the last chapter, but is not counted against its budget.
         notices = timeline.get('noticeFrames', 0) if c is timeline['chapters'][-1] else 0
         seconds = (c['endFrame'] - c['startFrame'] - notices) / fps
         target = b['targetSeconds']
@@ -150,6 +159,7 @@ def motion_seconds(motion: Json, frame: int, ends: dict[str, int], fps: int, sou
     kind, body = next(iter(motion.items()))
     seconds = body.get('seconds')
     if isinstance(seconds, str):
+        # A motion that runs to the end of its sentence or beat gets the seconds left until that end.
         if seconds not in ends:
             raise RuntimeError(f'{source}: a {kind} here can run for seconds, or until {" or ".join(repr(e) for e in ends)}, not {seconds!r}')
         body = {**body, 'seconds': round((ends[seconds] - frame) / fps, 3)}
@@ -163,6 +173,7 @@ def make_key(k: Json, base_frame: int, fps: int, source: str, ends: dict[str, in
     unknown = set(k) - KEY_FIELDS - {'delay', 'blend', 'ease', '_provenance'}
     if unknown:
         raise RuntimeError(f'{source}: unknown key fields {sorted(unknown)}')
+    # A key's delay and blend, in seconds in the storyboard, become frames.
     out: Json = {'frame': base_frame + int(round(k.get('delay', 0.0) * fps)), 'blend': int(round(k.get('blend', 0.0) * fps)), 'source': source}
     if '_provenance' in k:
         out['_provenance'] = k['_provenance']
@@ -192,11 +203,13 @@ def tag_keys(s: Json, beat: Json, narration: Narration, fps: int, start: int, wh
         if mark == 0:
             return 0
         if mark >= len(words):
+            # After the last word only a range's close may stand: it ends with the speech.
             if tag.kind != 'close':
                 raise DiagnosticError('story.timing.anchor', 'a tag after the last word cues nothing; move it before a word', tag.source, beat=beat['id'])
             return int(math.ceil(narration.seconds * fps))
         return int(round(words[mark] * fps))
 
+    # Each tag's frame from its word; a range's close is looked up by its name when the range opens.
     frames = [frame_of(m, t) for m, t in zip(narration.marks, parsed.tags)]
     closes = {t.name: f for t, f in zip(parsed.tags, frames) if t.kind == 'close'}
     keys: list[Json] = []
@@ -209,6 +222,7 @@ def tag_keys(s: Json, beat: Json, narration: Narration, fps: int, start: int, wh
         key = {**tag.key, '_provenance': provenance}
         delay = frame / fps
         if tag.kind == 'open':
+            # A range jumps to its start values where it opens, then blends to its end values until it closes.
             length = closes[tag.name] - frame
             if length <= 0:
                 raise DiagnosticError('story.timing.range', f'the range {tag.name!r} closes where it opens', tag.source, beat=beat['id'])
@@ -218,6 +232,7 @@ def tag_keys(s: Json, beat: Json, narration: Narration, fps: int, start: int, wh
             keys.append({**key, 'blend': length / fps, 'delay': delay})
             continue
         if 'term' in key and 'blend' not in key:
+            # A lit term fades in over the default time when its cue names no blend.
             key['blend'] = pacing.termFade
         if tag.key:
             keys.append({**key, 'delay': delay + key.get('delay', 0.0)})
@@ -233,6 +248,7 @@ def caption_cues(s: Json, narration: Narration, start: int, end: int, fps: int, 
     chunks = zh.caption_chunks(held, width) if cfg.zh() else caption_chunks(held, width)
     starts: list[int] = []
     if cfg.zh() or not narration.words:
+        # Without word timings (or for the translation), chunks share the sentence's time by their width.
         weights = [zh.display_width(c) if cfg.zh() else len(c) for c in chunks]
         t = start
         for w in weights:
@@ -254,11 +270,13 @@ def caption_cues(s: Json, narration: Narration, start: int, end: int, fps: int, 
         scale = len(words) / max(1, sum(weight(w) for c in chunks for w in c.split()))
         seen = 0
         for c in chunks:
+            # Each chunk starts at the spoken word that the written words before it stand for.
             index = min(len(words) - 1, int(round(seen * scale)))
             starts.append(start + int(round(words[index] * fps)) if starts else start)
             seen += sum(weight(w) for w in c.split())
     out: list[Json] = []
     for i, chunk in enumerate(chunks):
+        # A chunk stays up until the next one starts; the last stays until the sentence ends.
         stop = starts[i + 1] if i + 1 < len(chunks) else end
         out.append({'start': starts[i], 'end': max(starts[i] + 1, min(end, stop)), 'text': markup.restore(chunk, tags)})
     out[-1]['end'] = end
@@ -289,6 +307,7 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
         return int(round(seconds * fps))
 
     for chapter in board['chapters']:
+        # For each chapter, the extra pauses that fit it to its budget; what they leave over goes to its 3D beats.
         natural, extras, leftover = plan_chapter(chapter, durations, pacing)
         plans[chapter['number']] = {'natural': natural, 'extraPauses': sum(extras), 'leftover': leftover}
         chapter_start = frame
@@ -301,6 +320,7 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
             captions: list[Json] = []
             pending: list[tuple[list[tuple[Json, int]], int]] = []
             for s in sentences_of(beat):
+                # Each sentence is placed at the cursor: its speech, its captions, and its tags' keys.
                 narration = durations[s['text']]
                 path, seconds, rate = narration.path, narration.seconds, narration.rate
                 start = cursor
@@ -313,12 +333,15 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
                 sentence_keys = [(k, start) for k in tag_keys(s, beat, narration, fps, start, beat['id'], pacing)]
                 cursor = end + to_frames(pacing.gap + extra)
                 pending.append((sentence_keys, cursor))
+            # The beat ends after its last sentence, its tail, and its hold (with its share of the leftover).
             hold = beat.get('hold', 0.0) + (leftover_per_beat if beat in scene_beats else 0.0)
             beat_end = cursor - to_frames(pacing.gap) + to_frames(pacing.tail + hold)
             for i, (sentence_keys, sentence_end) in enumerate(pending):
+                # The sentences' keys are made now that the beat's end is known; a motion may run until it.
                 ends = {'sentence': beat_end if i == len(pending) - 1 else sentence_end, 'beat': beat_end}
                 keys_out.extend(make_key(k, base, fps, beat['id'], ends) for k, base in sentence_keys)
             for i, k in enumerate(beat.get('keys', [])):
+                # The beat's own keys take effect at its start.
                 sources = beat.get('keySources', [])
                 source = sources[i] if i < len(sources) else beat.get('source', {})
                 keys_out.append(make_key({**k, '_provenance': {'source': source, 'chapter': chapter['id']}}, beat_start, fps, beat['id'], {'beat': beat_end}))

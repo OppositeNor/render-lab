@@ -40,9 +40,11 @@ def check_links(cfg: Config, index: Json, generated: list[Path]) -> list[Json]:
             continue
         text = doc.read_text()
         if home in text:
+            # A path into the user's home directory is a leak, whether or not it resolves.
             results.append({'doc': doc.name, 'target': '(home directory path)', 'ok': False})
         for _, target in LINK.findall(text):
             if re.match(r'^[a-z]+://', target) or target.startswith(('#', 'mailto:')):
+                # Web links and in-page anchors are not files; the rest must exist, or be written later in this build.
                 continue
             path_part = target.partition('#')[0]
             resolved = (doc.parent / path_part).resolve()
@@ -70,6 +72,7 @@ def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Js
 
     fps = timeline['fps']
     video = cfg.video()
+    # The file's streams, format, and chapters, as FFmpeg reads them.
     info = json.loads(run([env.ffprobe, '-v', 'error', '-show_streams', '-show_format', '-show_chapters', '-of', 'json', video]))
     v = next(s for s in info['streams'] if s['codec_type'] == 'video')
     a = next((s for s in info['streams'] if s['codec_type'] == 'audio'), None)
@@ -95,11 +98,13 @@ def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Js
         errors = (build / 'logs' / 'decode.log').read_text().strip()
         check('complete audio and video decode without errors', not errors, {'decoderOutput': errors[:2000]})
     stats = run([env.ffmpeg, '-hide_banner', '-nostdin', '-i', video, '-map', '0:a:0', '-af', 'volumedetect', '-f', 'null', '-'], build / 'logs' / 'audio-levels.log')
+    # volumedetect's mean and peak levels: the narration must be heard and never clip.
     mean_match = re.search(r'mean_volume:\s*([-\d.]+)', stats)
     peak_match = re.search(r'max_volume:\s*([-\d.]+)', stats)
     mean_db = float(mean_match.group(1)) if mean_match else -99.0
     peak_db = float(peak_match.group(1)) if peak_match else 99.0
     check('narration audible and not clipped', mean_db > -45 and peak_db <= 0, {'meanDb': mean_db, 'peakDb': peak_db})
+    # The captions: how many cues, when the last ends, and the widest line, as drawn.
     srt = (build / 'captions.srt').read_text()
     cue_count = srt.count(' --> ')
     last = max(float(m.group(1)) * 3600 + float(m.group(2)) * 60 + float(m.group(3).replace(',', '.')) for m in re.finditer(r'--> (\d+):(\d+):([\d,]+)', srt))
@@ -118,10 +123,12 @@ def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Js
     links = check_links(cfg, index, [build / 'verification-report.md', build / 'verification-report.json', cfg.video()])
     check('every relative link resolves; no home-directory paths', all(link['ok'] for link in links),
           {'links': len(links), 'problems': [link for link in links if not link['ok']]})
+    # The engine checkout must be the commit the source index was made from.
     commit = run(['git', '-C', cfg.checkout(index), 'rev-parse', 'HEAD']).strip()
     check('engine checkout is the recorded commit', commit == index['engine']['commit'], {'checkout': commit, 'recorded': index['engine']['commit']})
     if cfg.zh():
         verify_zh(cfg, check)
+    # The selftest must have run with this timeline and passed.
     selftest = build / 'selftest-report.json'
     if selftest.exists():
         data = json.loads(selftest.read_text())
@@ -142,6 +149,7 @@ def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Js
 def verify_zh(cfg: Config, check: Callable[[str, bool, Any], None]) -> None:
     english = json.loads(cfg.timeline('en').read_text())
     timeline = json.loads(cfg.timeline().read_text())
+    # The zh-CN edition shares the English edition's sound and timing, and must leave its files untouched.
     same = sha256(cfg.build() / 'narration.wav') == sha256(cfg.build('en') / 'narration.wav')
     check('the narration is the English edition\'s track', same, {})
 
@@ -161,6 +169,7 @@ def write_markdown(cfg: Config, result: Json) -> None:
              f'Engine: {engine["name"]} {engine["version"]}, commit `{engine["commit"]}`.', '',
              'Toolchain: ' + ', '.join(f'{k} {v}' for k, v in result['toolchain'].items()), '', '| Check | Result |', '|---|---|']
     lines += [f'| {c["name"]} | {"pass" if c["passed"] else "**FAIL**"} |' for c in result['checks']]
+    # The chapter budgets' check carries a table of each chapter's timing.
     chapters = next((c for c in result['checks'] if ' chapters in the file' in c['name']), None)
     if chapters:
         lines += ['', '## Chapter timing', '', '| Chapter | Seconds | Budget | Deviation |', '|---|---:|---:|---:|']

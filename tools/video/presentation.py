@@ -81,6 +81,7 @@ def point_key(tag: markup.Tag, where: str, fields: markup.Fields) -> Json:
     """The key a point cue (or one of a beat's keys) sets: its values set at once, none blended over a range."""
     key = markup.cue_key(tag, where, fields)
     for name, v in key.get('params', {}).items():
+        # A point cue sets its values at once, so a `{. from a to b}` value belongs in a range instead.
         if isinstance(v, markup.Range):
             raise PresentationError(f'{where}: {name}={v.start}..{v.end} blends over a range; write it in a range, ${{during "name" …}}')
     return key
@@ -163,8 +164,10 @@ class Reader:
             kind = x['type']
             source = location(x, self.source)
             if self.formula is not None and kind != 'say':
+                # A formula cue waits for its `say`; anything else between them is an error.
                 self.fail('a formula cue stands right before its `say {math ...} "..."`', self.formula_source)
             if kind == 'text':
+                # Text is both shown and said, so it joins the caption and the piece being spoken.
                 self.caption.append(x['text'])
                 self.pieces[-1] += x['text']
             elif kind == 'break':
@@ -186,6 +189,7 @@ class Reader:
                 self.no_cues(f'the cue {x["name"]!r}', source)
                 attrs = pairs(x['attrs'])
                 if x['name'] == FORMULA:
+                    # A formula cue either closes the card at once, or waits for the `say` that shows its formula.
                     if dict(attrs).get('formula') == 'off':
                         self.tag(markup.Tag('formula', None, attrs, len(self.pieces), source=source))
                         self.pieces.append('')
@@ -193,6 +197,7 @@ class Reader:
                         self.formula = attrs
                         self.formula_source = source
                 elif x['name'] == KEY:
+                    # A point cue fires before the next word, so a new spoken piece starts after it.
                     self.tag(markup.Tag('cue', None, attrs, len(self.pieces), source=source))
                     self.pieces.append('')
                 else:
@@ -203,6 +208,7 @@ class Reader:
                 name = x['name'] or f'range-{sum(t.kind == "open" for t in self.tags) + 1}'
                 if any(t.kind == 'open' and t.name == name for t in self.tags):
                     self.fail(f'two ranges named {name!r} in one sentence', source)
+                # A range opens a piece, reads its own words into it, and closes in a piece of its own.
                 self.tag(markup.Tag('open', name, pairs(x['attrs']), len(self.pieces), source=source))
                 self.pieces.append('')
                 self.inlines(x['inlines'])
@@ -228,12 +234,14 @@ class Reader:
     def say(self, x: Json) -> None:
         shown, spoken = x['shown'], x['spoken']
         if len(shown) == 1 and shown[0]['type'] == 'code':
+            # A code name is shown as written but said in the words given.
             # A code name said another way, in the words around it.
             self.caption.append(markup.codespan_tag(shown[0]['text']))
             self.pieces[-1] += spoken
         elif len(shown) == 1 and shown[0]['type'] == 'math':
             if self.translation:
                 raise PresentationError(f'{self.at}: a translation\'s formula is shown, never said: write it ${{math "..."}}')
+            # A formula's `say` takes the waiting cue's attributes; the cue must show the same LaTeX.
             attrs, self.formula = self.formula, None
             tex = shown[0]['tex']
             if attrs is None or dict(attrs).get('formula') != tex:
@@ -264,6 +272,7 @@ def sections(doc: Json, path: Path, translation: bool = False) -> tuple[Json, he
     video: Json | None = None
     chapters: list[tuple[Json, list[tuple[Json, list[Json]]]]] = []
     for block in doc['blocks']:
+        # Walk the blocks in order: level 1 is the video, 2 a chapter, 3 a beat; a paragraph goes to the last beat.
         at = where(block, path)
         if block['type'] == 'heading':
             level = block['level']
@@ -297,6 +306,7 @@ def header(video: Json, path: Path) -> Json:
     attrs = pairs(video['attrs'])
     out: Json = {}
     if 'title' not in dict(attrs):
+        # The heading's text is the title, unless an attribute gives one.
         out['title'] = plain(video['inlines'], where(video, path))
     for name, value in attrs:
         out[name] = value_of(value) if name in headings.METADATA or headings.META_NAME.fullmatch(name) else value
@@ -312,6 +322,7 @@ def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, in
     board = header(video, path)
     board['chapters'] = []
     for chapter_heading, beats in chapters:
+        # For each chapter, its heading's attributes, then each of its beats.
         at = where(chapter_heading, path)
         attrs = dict(pairs(chapter_heading['attrs']))
         chapter_id = chapter_heading.get('id') or ''
@@ -343,6 +354,7 @@ def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, in
                 if name in props:
                     beat[name] = markup.number(props[name], at) if name == 'hold' else props[name]
             beat['source'] = location(beat_heading, {'file': str(path)})
+            # A beat's paragraphs: a leading paragraph of cues alone sets its keys; every other one is a sentence.
             keys: list[Json] = []
             key_sources: list[Json] = []
             narration: list[Json] = []
@@ -350,6 +362,7 @@ def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, in
                 at = where(paragraph, path)
                 inlines = paragraph['inlines']
                 if cues_only(inlines) and not narration:
+                    # Each cue of a keys paragraph becomes one of the beat's keys.
                     for x in inlines:
                         if x['type'] != 'anchor':
                             continue
@@ -365,6 +378,7 @@ def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, in
                             raise
                         key_sources.append(source)
                     continue
+                # Any other paragraph is a sentence of the narration, which must say something.
                 source = location(paragraph, {'file': str(path)})
                 sentence = parsed(inlines, at, fields, source=source)
                 if not any(char.isalnum() for char in sentence.spoken):
@@ -388,6 +402,7 @@ def load_translation(path: Path) -> Json:
     translation['chapters'] = []
     translation['beats'] = {}
     for chapter_heading, beats in chapters:
+        # A translation keeps the English's structure, with its own titles and one shown sentence per paragraph.
         at = where(chapter_heading, path)
         attrs = dict(pairs(chapter_heading['attrs']))
         # A chapter is the English one of the same id; its number is the English's (a `number` given must agree).

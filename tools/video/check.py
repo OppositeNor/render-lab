@@ -39,6 +39,7 @@ def main() -> None:
     except preflight.CheckError as error:
         report = error.report
     except (OSError, ValueError, RuntimeError, lamlet.LamletError) as error:
+        # A failure without a diagnostic of its own is reported against the storyboard file.
         diagnostic = error.diagnostic if isinstance(error, DiagnosticError) else {
             'code': 'story.load', 'severity': 'error', 'file': str(cfg.translation if cfg.zh() else cfg.storyboard),
             'line': None, 'column': None, 'beat': None, 'field': None, 'message': str(error),

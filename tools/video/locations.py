@@ -11,6 +11,7 @@ def location(node: Json, fallback: Json) -> Json:
     if node.get('at') is not None:
         return dict(node['at'])
     for child in node.get('inlines', []) + node.get('shown', []):
+        # A container without a location borrows its first child's, marked as approximate.
         found = location(child, {})
         if found:
             return {**found, 'fallback': 'IR container has no own location; using its first positioned descendant'}

@@ -45,6 +45,7 @@ def fail(code: str, message: str, node: Json, path: Path, field: str, first: Jso
 def attributes(node: Json, path: Path) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for name, value in node['attrs']:
+        # An attribute given twice is an error, pointing back at its first declaration.
         if name in out:
             fail('story.heading.duplicate', f'duplicate heading attribute {name!r}', node, path, name, node)
         out[name] = value
@@ -71,6 +72,7 @@ def check(video: Json, chapters: Sections, path: Path, translation: bool) -> Non
     attrs = attributes(video, path)
     fps = 1
     if not translation:
+        # Only the English heading sets the frame rate, size, and pacing; each time must fit the timeline's frames.
         fps = int(numeric(attrs, 'fps', video, path, whole=True, minimum=1, maximum=U32_MAX))
         width = numeric(attrs, 'width', video, path, whole=True, minimum=2, maximum=8192)
         height = numeric(attrs, 'height', video, path, whole=True, minimum=2, maximum=8192)
@@ -91,6 +93,7 @@ def check(video: Json, chapters: Sections, path: Path, translation: bool) -> Non
     beat_ids: dict[str, Json] = {}
     numbers: dict[int, Json] = {}
     for chapter, beats in chapters:
+        # For each chapter: a unique id and number, a budget that fits, and at least one beat with a unique id.
         unique_id(chapter, chapter_ids, path, 'chapter')
         attrs = attributes(chapter, path)
         if not translation or 'number' in attrs:

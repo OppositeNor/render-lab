@@ -31,12 +31,14 @@ def parse_resolution(value: str) -> tuple[int, int]:
     (even sizes, for FFmpeg's yuv420p)."""
     size = RESOLUTIONS.get(value.lower())
     if size is None:
+        # Not a preset: read it as WIDTHxHEIGHT.
         try:
             w, h = value.lower().split('x')
             size = (int(w), int(h))
         except ValueError:
             raise ValueError(f'{value}: expected WIDTHxHEIGHT or one of {", ".join(RESOLUTIONS)}') from None
     if any(n < 2 or n > 8192 or n % 2 for n in size):
+        # FFmpeg's yuv420p needs even sizes.
         raise ValueError(f'{size[0]}x{size[1]}: width and height are even, from 2 to 8192')
     return size
 
@@ -85,6 +87,7 @@ class Config:
         if lang not in LANGS:
             raise SystemExit(f'unknown language {lang}; use one of {", ".join(LANGS)}')
         if directory:
+            # A given directory names its video.json directly; otherwise exactly one package's names the investigation.
             path = directory.resolve() / 'video' / 'video.json'
             if not path.is_file():
                 raise SystemExit(f'{investigation}: no {path}')
@@ -185,6 +188,7 @@ class Config:
         the count, and the series' title in this edition's language (English when it has none); None for no series."""
         name = tomllib.loads((self.package / 'manifest.toml').read_text(encoding='utf-8'))['name']
         for manifest in sorted((LAB / 'packages').glob('*/manifest.toml')):
+            # Find the series that lists this package as a part, in any package's manifest.
             for entry in tomllib.loads(manifest.read_text(encoding='utf-8')).get('provides', []):
                 if entry.get('type') == 'series' and name in entry.get('parts', []):
                     title = entry['title'].get(self.lang, entry['title']['en'])
@@ -196,6 +200,7 @@ class Config:
         where the user says (asked once per run)."""
         env = self.spec.get('checkoutEnv', '')
         if env not in CHECKOUTS:
+            # Asked once per run: the variable's value, or failing that, the user's answer.
             given = os.environ.get(env, '') if env else ''
             if not given:
                 try:

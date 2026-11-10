@@ -37,6 +37,7 @@ def front_matter(text: str) -> dict[str, str] | None:
         return None
     fields: dict[str, str] = {}
     for line in lines[1:]:
+        # Read `key: value` lines until the closing `---`; without one, there is no front matter.
         if line.strip() == '---':
             return fields
         match = re.match(r'^([a-z][a-z0-9_-]*):\s*(.*)$', line)
@@ -50,6 +51,7 @@ def subcommands() -> set[str]:
     source = (ROOT / 'lab' / 'src' / 'cli.rs').read_text(encoding='utf-8')
     names: set[str] = set()
     for body in re.findall(r'#\[derive\(Subcommand\)\]\s*enum \w+ \{(.*?)\n\}', source, re.S):
+        # Each variant of a subcommand enum, from CamelCase to kebab-case.
         for variant in re.findall(r'^    ([A-Z][A-Za-z]+)\b', body, re.M):
             names.add(re.sub(r'(?<!^)(?=[A-Z])', '-', variant).lower())
     return names
@@ -62,9 +64,11 @@ def paragraphs(text: str) -> list[str]:
 def check_paths(source: Path, text: str, problems: list[str]) -> None:
     """Backticked repository paths that do not exist."""
     for span in re.findall(r'`([^`\n]+)`', text):
+        # A path is the span's first word, without trailing punctuation.
         candidate = span.split()[0].rstrip('.,;:)') if span.split() else ''
         if not (candidate.startswith(PATH_PREFIXES) or candidate in ROOT_FILES):
             continue
+        # A pattern or a generated output is cited, not expected to exist.
         if any(mark in candidate for mark in PATTERN_MARKS) or any(g in candidate for g in GENERATED):
             continue
         if not (ROOT / candidate).exists():
@@ -76,6 +80,7 @@ def check_commands(source: Path, text: str, known: set[str], problems: list[str]
     globals_with_value = {'--investigation', '--root', '--listing-style'}
     for line in text.split('\n'):
         for match in re.finditer(r'(?:render-lab|cargo run --release --)((?:\s+\S+)+)', line):
+            # Skip the global options (and the values some take); the next word is the subcommand.
             words = match.group(1).split()
             i = 0
             while i < len(words) and words[i].startswith('-'):
@@ -95,6 +100,7 @@ def main() -> int:
     skills = sorted(p for p in SKILLS.iterdir() if p.is_dir())
     names: dict[str, Path] = {}
     for skill in skills:
+        # For each skill: its front matter, its references, and the paths and commands it cites.
         main_file = skill / 'SKILL.md'
         if not main_file.is_file():
             problems.append(f'{skill.relative_to(ROOT)}: no SKILL.md')
@@ -127,6 +133,7 @@ def main() -> int:
         named_here: set[str] = set()
         for path in [main_file, *sorted(refs_dir.glob('*.md'))] if refs_dir.is_dir() else [main_file]:
             body = path.read_text(encoding='utf-8')
+            # A reference may live in this skill or in a skill named in the same paragraph.
             for paragraph in paragraphs(body):
                 others = set(re.findall(r'`([a-z0-9-]+)`', paragraph)) & {s.name for s in skills}
                 for ref in re.findall(r'references/([A-Za-z0-9_-]+\.md)', paragraph):
@@ -153,6 +160,7 @@ def main() -> int:
 
     # .claude/skills: one link per skill, to its directory.
     if LINKS.is_dir():
+        # Every entry must be a link to its own skill's directory.
         for link in sorted(LINKS.iterdir()):
             if not link.is_symlink():
                 problems.append(f'{link.relative_to(ROOT)}: not a link')

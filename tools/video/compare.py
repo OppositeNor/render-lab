@@ -41,6 +41,7 @@ def save_edition(cfg: Config, out: Path, *, required: bool = False) -> Path:
     """Copy one edition. A regression capture requires every prepared output, never a partial build."""
     sources = [(cfg.timeline(), 'timeline.json'), *((cfg.build() / name, name) for name in PREPARED)]
     if required:
+        # A regression capture fails on a missing output, where a plain save copies what there is.
         missing = [str(path) for path, _ in sources if not path.is_file()]
         if missing:
             raise RuntimeError('missing prepared outputs:\n' + '\n'.join(missing))
@@ -70,13 +71,16 @@ def save(out: Path, investigations: list[str]) -> None:
 def same(a: Any, b: Any, path: str, out: list[str]) -> None:
     """The differences between two JSON values, numbers compared as numbers."""
     if isinstance(a, bool) or isinstance(b, bool):
+        # Booleans first: Python counts them as numbers, but true is not 1 here.
         if a is not b:
             out.append(f'{path}: {a!r} != {b!r}')
     elif isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        # Numbers compare by value, so 18 and 18.0 are the same.
         if a != b:
             out.append(f'{path}: {a!r} != {b!r}')
     elif isinstance(a, dict) and isinstance(b, dict):
         for k in sorted(set(a) | set(b)):
+            # Objects compare key by key, whatever their order; a key on one side only is a difference.
             if k not in a:
                 out.append(f'{path}.{k}: only in new ({json.dumps(b[k])[:80]})')
             elif k not in b:
@@ -98,6 +102,7 @@ def digest(path: Path) -> str:
 
 def file_differences(old: Path, new: Path) -> list[str]:
     if old.suffix == '.json':
+        # JSON compares by value, numbers as numbers and objects in any order.
         out: list[str] = []
         same(json.loads(old.read_text()), json.loads(new.read_text()), '', out)
         return out
@@ -108,6 +113,7 @@ def file_differences(old: Path, new: Path) -> list[str]:
         return []
     if old.suffix == '.wav':
         return [f'sha256 {digest(old)[:16]} != {digest(new)[:16]}']
+    # Text that differs is shown line by line.
     a, b = old.read_text().splitlines(), new.read_text().splitlines()
     lines = [f'line {i + 1}: {x!r} != {y!r}' for i, (x, y) in enumerate(zip(a, b)) if x != y]
     if len(a) != len(b):

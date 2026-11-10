@@ -87,6 +87,7 @@ def load(directory: Path) -> Results:
     manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {}
     runs: list[RunResult] = []
     for r in data["runs"]:
+        # A metric the run could not measure has no mean, so it is left out of the run's summary.
         summary = {k: Stat(float(v["mean"]), float(v["sd"]), float(v["p95"])) for k, v in r["summary"].items() if v["mean"] is not None}
         runs.append(RunResult(r["name"], dict(r["varied"]), summary, r.get("image"), r.get("flip")))
     return Results(directory, data["experiment"], data.get("description", ""), data["investigation"], data.get("reference"), list(data["varied"]), list(data["metrics"]), list(data["passes"]), runs, manifest)
@@ -103,6 +104,7 @@ def number(value: object) -> float | None:
 
 def fmt(x: float) -> str:
     if math.isinf(x) or x >= 999.0:
+        # An infinite PSNR (an image identical to the reference) is written as ∞.
         return "∞"
     if math.isnan(x):
         return "–"
@@ -128,6 +130,7 @@ def summary_markdown(r: Results) -> str:
         "",
     ]
     columns = r.metrics
+    # The table: a row per run, its varied values, then each metric's mean ± standard deviation.
     lines.append("| run | " + " | ".join(r.varied + [LABELS.get(c, c) for c in columns]) + " |")
     lines.append("|" + "---|" * (1 + len(r.varied) + len(columns)))
     for run in r.runs:
@@ -139,6 +142,7 @@ def summary_markdown(r: Results) -> str:
     lines.append("")
     best: list[str] = []
     for c in [c for c in columns if c != "luminance"]:
+        # For each metric (luminance is no score), the run with the best mean, lowest or highest by the metric.
         scored = [(run.summary[c].mean, run.name) for run in r.runs if c in run.summary and not math.isnan(run.summary[c].mean)]
         if not scored:
             continue
@@ -154,6 +158,7 @@ def sweep_plots(r: Results, out: Path) -> list[Path]:
     """Each metric against each numeric swept value, for the runs varying that value alone."""
     written: list[Path] = []
     for key in r.varied:
+        # Only runs that vary this value and nothing else make a clean sweep of it.
         points = [(number(run.varied[key]), run) for run in r.runs if list(run.varied) == [key] and number(run.varied[key]) is not None]
         if len(points) < 2:
             continue
@@ -194,6 +199,7 @@ def pareto_plot(r: Results, out: Path) -> Path | None:
     pts = [(x, min(y, cap) if not lower else y, run) for x, y, run in pts]
     front: list[tuple[float, float, RunResult]] = []
     for p in sorted(pts, key=lambda p: (p[0], p[1] if lower else -p[1])):
+        # From the cheapest run up, a run joins the front when it beats the quality of every cheaper one.
         if not front or (p[1] < front[-1][1] if lower else p[1] > front[-1][1]):
             front.append(p)
     fig, ax = plt.subplots(figsize=(6.0, 4.2))
@@ -222,6 +228,7 @@ def passes_plot(r: Results, out: Path) -> Path | None:
     bottoms = [0.0] * len(r.runs)
     cmap = plt.get_cmap("tab20")
     for i, p in enumerate(passes):
+        # Each pass is a layer of bars, stacked on the passes below it.
         values = [run.summary[f"gpu:{p}"].mean if f"gpu:{p}" in run.summary else 0.0 for run in r.runs]
         ax.bar(range(len(r.runs)), values, bottom=bottoms, label=p, color=cmap(i % 20))
         bottoms = [b + v for b, v in zip(bottoms, values)]
@@ -250,6 +257,7 @@ def convergence_plot(r: Results, out: Path) -> Path | None:
     names = list(dict.fromkeys(row["run"] for row in rows))
     for ax, c in zip(axes[0], metrics):
         for name in names:
+            # Each run's metric frame by frame, capped like an infinite PSNR.
             pts = [(int(row["frame"]), float(row[c])) for row in rows if row["run"] == name and row[c]]
             ax.plot([p[0] for p in pts], [min(p[1], 999.0) for p in pts], label=name, lw=1)
         ax.set_xlabel("frame")
@@ -280,6 +288,7 @@ def grid_image(r: Results, out: Path) -> Path | None:
     for ax in axes.flat:
         ax.axis("off")
     for i, (name, image, flip) in enumerate(tiles):
+        # Each tile is a run's image, and with FLIP maps, its map on the row below.
         row, col = divmod(i, columns)
         top = axes[row * (2 if with_flip else 1)][col]
         top.imshow(plt.imread(image))
@@ -310,10 +319,12 @@ def markdown_table_html(md: str) -> str:
 
     for line in md.splitlines():
         if line.startswith("|"):
+            # A table row is collected (its `---` separator dropped) until the table ends.
             cells = [c.strip() for c in line.strip("|").split("|")]
             if not all(set(c) <= {"-"} for c in cells):
                 table.append(cells)
             continue
+        # Any other line ends the table, and becomes a heading, a list item, or a paragraph.
         flush()
         if line.startswith("# "):
             out.append(f"<h1>{html.escape(line[2:])}</h1>")

@@ -46,9 +46,11 @@ Json = dict[str, Any]
 def reexec_in_environment(env: Environment) -> None:
     """Run under the environment's Python, which has Piper."""
     if Path(sys.executable).resolve() == env.python.resolve() or os.environ.get('RENDER_LAB_VIDEO_REEXEC'):
+        # Already under the environment's Python (or re-run once): nothing to do.
         return
     if not env.python.exists():
         raise SystemExit(f'no video environment at {env.prefix}; run tools/video/setup.sh (or set RENDER_LAB_VIDEO_ENV)')
+    # Mark the re-run, put the environment's tools first on the path, and replace this process with it.
     os.environ['RENDER_LAB_VIDEO_REEXEC'] = '1'
     os.environ['PATH'] = f'{env.prefix / "bin"}{os.pathsep}{os.environ.get("PATH", "")}'
     os.execv(str(env.python), [str(env.python), '-I', __file__, *sys.argv[1:]])
@@ -76,9 +78,11 @@ def build_all(lang: str | None, passed: list[str]) -> None:
     results = []
     for investigation, langs in videos():
         for edition in [lang] if lang else langs:
+            # Each video in each of its languages, or only the language asked for when the video has it.
             if lang and lang not in langs:
                 continue
             log(f'== {investigation} ({edition})')
+            # A build of its own per edition, so one failure does not stop the rest.
             done = subprocess.run([sys.executable, str(Path(__file__).resolve()), '--investigation', investigation, '--lang', edition, *passed]).returncode
             results.append((investigation, edition, done))
     for investigation, edition, done in results:
@@ -121,6 +125,7 @@ def build_every_video(parser: argparse.ArgumentParser, args: argparse.Namespace)
         parser.error('--investigation-dir names one video; it does not go with --all')
     passed, skip = [], False
     for a in sys.argv[1:]:
+        # Pass every option on, but `--all` and `--lang` (with its value), which each build gets its own of.
         if skip:
             skip = False
         elif a == '--all':
@@ -171,12 +176,14 @@ def main() -> None:
     for d in (build, build / 'logs'):
         d.mkdir(parents=True, exist_ok=True)
     if cfg.zh() and not args.verify_only:
+        # The zh-CN edition speaks the English narration, so it needs the English timeline built first.
         if not cfg.timeline('en').exists():
             raise SystemExit('build the English edition first: the zh-CN edition uses its narration and timing')
         (build / 'english-checksums.json').write_text(json.dumps(checks.english_checksums(cfg), indent=1) + '\n')
     # The storyboard's Lamlet regions are expanded by the lab's own interpreter (lamlet.py), so build it first.
     import lamlet
     if args.binary:
+        # A prebuilt binary is used as it is, instead of building this checkout's.
         lamlet.BINARY = args.binary.resolve()
         binary = lamlet.command()
     else:
@@ -189,10 +196,12 @@ def main() -> None:
     index = json.loads(cfg.source_index.read_text())
     validate(cfg, board, index)
     if args.verify_only:
+        # `--verify-only` checks the outputs a previous build left, and stops there.
         tl = json.loads(cfg.timeline().read_text())
         plans = {int(k): v for k, v in json.loads((build / 'chapter-plans.json').read_text()).items()}
         sys.exit(0 if checks.verify(cfg, env, board, index, tl, plans, args.resolution) else 1)
 
+    # Speak and measure every sentence, then place them on the timeline.
     device, reason = narration.select_device(env, args.tts_device)
     log(f'Narration device: {device} ({reason}).')
     durations = narration.synthesize(cfg, env, device, timing.all_sentences(board), cached_only=args.cached_audio_only)
@@ -225,6 +234,7 @@ def main() -> None:
     outputs.write_preview(cfg, board, tl)
     outputs.write_notice(cfg)
     if args.prepare_only:
+        # `--prepare-only` stops once the outputs are written.
         return
     if args.preview:
         render_preview(cfg, env, binary, (tl, provenance), args)
@@ -238,6 +248,7 @@ def main() -> None:
     if args.frames:
         log('Partial render finished; skipping the mux and the verification.')
         return
+    # A whole render: mux the video, take the stills, run the selftest on the timeline, and verify.
     outputs.mux(cfg, env)
     outputs.snapshots(cfg, env, binary, tl, args.resolution)
     log('Running render-lab selftest with the timeline.')

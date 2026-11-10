@@ -25,8 +25,10 @@ def covered(x: float, y: float) -> bool:
     half = STROKE / 2.0
     r = math.hypot(x, y)
     if abs(r - RADIUS) <= half:
+        # On the outline.
         return True
     if r > RADIUS:
+        # Outside the globe, nothing is drawn.
         return False
     # The equator, two parallels, and the central meridian.
     if any(abs(y - level) <= half for level in (0.0, -RADIUS * 0.5, RADIUS * 0.5)) or abs(x) <= half:
@@ -42,8 +44,10 @@ def pixels() -> bytes:
     rows = bytearray()
     centre = SIZE / 2.0
     for py in range(SIZE):
+        # Each row starts with its PNG filter byte.
         rows.append(0)  # PNG filter: none.
         for px in range(SIZE):
+            # A pixel's alpha is the share of its 4x4 samples that land on a stroke.
             hits = sum(
                 covered(px + (sx + 0.5) / SAMPLES - centre, py + (sy + 0.5) / SAMPLES - centre)
                 for sx in range(SAMPLES)

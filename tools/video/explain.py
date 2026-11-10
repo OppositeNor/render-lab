@@ -38,6 +38,7 @@ def writes(key: Json) -> list[Json]:
     for field, value in (key.get('freeCamera') or {}).items():
         out.append({'channel': f'freeCamera.{field}', 'how': 'set', 'value': value})
     for motion in key.get('animate') or []:
+        # A motion writes every parameter it drives, for as long as it runs.
         kind, body = next(iter(motion.items()))
         channels = body.get('params') or [body.get('param')]
         for c in channels:
@@ -81,6 +82,7 @@ def explain(cfg: Config, board: Json, cues: list[Json], beat_id: str) -> Json:
     history: dict[str, list[int]] = {}
     warnings: list[str] = []
     for n, cue in enumerate(c for c in cues if c['beat'] == beat_id):
+        # For each of the beat's cues, in source order: what it writes and names, and its frames once measured.
         entry: Json = {'index': n, 'kind': cue['kind'], 'paragraph': cue['paragraph'], 'piece': cue['piece'], 'at': _at(cue['source']), 'key': cue['key'],
                        'writes': writes(cue['key']), 'names': names(cue['key'])}
         if timed:
@@ -88,6 +90,7 @@ def explain(cfg: Config, board: Json, cues: list[Json], beat_id: str) -> Json:
             entry['frames'] = frames
             entry['seconds'] = [round(f / fps, 3) for f in frames]
         for w in entry['writes']:
+            # A channel written before is taken over from the last cue that wrote it.
             before = history.setdefault(w['channel'], [])
             if before:
                 w['takesOverFrom'] = before[-1]
@@ -141,6 +144,7 @@ def preview_frames(timeline: Json, provenance: list[Json], beat_id: str) -> list
     fps = timeline['fps']
     out: dict[int, str] = {start: 'beat start', end: 'beat end', (start + end) // 2: 'midpoint'}
     for key, p in zip(timeline['keys'], provenance):
+        # For each of the beat's keys: its frame, the frame before it, and where its blend and motions end.
         if p.get('beat') != beat_id or not start <= key['frame'] <= end:
             continue
         at = _at(p.get('source') or {})

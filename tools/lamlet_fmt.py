@@ -62,6 +62,7 @@ def _string_end(s: str, i: int) -> int:
     """The index after the String that starts at `s[i] == '"'`."""
     i += 1
     while s[i] != '"':
+        # A backslash escapes the character after it, so skip both.
         i += 2 if s[i] == "\\" else 1
     return i + 1
 
@@ -72,6 +73,7 @@ def _template_end(s: str, i: int) -> int:
     i += 3
     while not s.startswith('}"', i):
         if s.startswith("$$", i):
+            # `$$` is a literal dollar; a hole (`${`, `$[`) is parsed whole, so its `}` cannot end the template.
             i += 2
         elif s.startswith("${", i) or s.startswith("$[", i):
             _, i = parse(s, i + 1)
@@ -88,6 +90,7 @@ def parse(s: str, i: int) -> tuple[Node, int]:
     while True:
         c = s[i]
         if c in " \t\n":
+            # Whitespace only records that the next token is not glued to the one before it.
             space = True
             i += 1
             continue
@@ -100,11 +103,13 @@ def parse(s: str, i: int) -> tuple[Node, int]:
         if c in "}]":
             raise Unsupported("unbalanced brackets")
         if c in CLOSE:
+            # A bracket opens a child expression, parsed to its own close.
             child, i = parse(s, i)
             child.glued = glued
             node.children.append(child)
             continue
         if c == '"':
+            # Anything else is an atom; a string runs to its closing quote.
             j = _string_end(s, i)
         elif s.startswith('f"{', i):
             j = _template_end(s, i)
@@ -157,6 +162,7 @@ def layout(x: Item, col: int, ind: int, tail: int = 0) -> str:
     its last line."""
     text = flat(x)
     if isinstance(x, Atom) or col + len(text) + tail <= WIDTH:
+        # An expression that fits on its line stays flat.
         return text
     groups = _groups(x)
     if len(groups) < 2:
@@ -165,6 +171,7 @@ def layout(x: Item, col: int, ind: int, tail: int = 0) -> str:
     first = x.open + head
     nl = "\n" + " " * ind
     if head == "'" and all(_plain(g) for g in rest):
+        # A list of plain values fills its lines, wrapping at the width.
         out, column = first, col + len(first)
         for g in rest:
             t = _gflat(g)
@@ -174,6 +181,7 @@ def layout(x: Item, col: int, ind: int, tail: int = 0) -> str:
                 out, column = out + " " + t, column + 1 + len(t)
         return out + x.close
     if head == "." and len(rest) % 2 == 0:
+        # A record puts each field and its value on a line of its own.
         out = first
         for k in range(0, len(rest), 2):
             key = _gflat(rest[k])
@@ -181,9 +189,11 @@ def layout(x: Item, col: int, ind: int, tail: int = 0) -> str:
             out += nl + key + " " + _layout_group(rest[k + 1], ind + len(key) + 1, ind + STEP, last)
         return out + x.close
     if head == ":" and len(rest) == 2 and len(_gflat(rest[1])) <= WIDTH // 2:
+        # A type annotation keeps its (short) type after the expression.
         end = " " + _gflat(rest[1]) + x.close
         return x.open + ": " + _layout_group(rest[0], col + 3, ind, tail + len(end)) + end
     if head in ("'", "."):
+        # A list or record keeps no argument on its first line; a form keeps one, a call its plain ones.
         header = 0
     elif head in HEADED:
         header = 1
@@ -198,6 +208,7 @@ def layout(x: Item, col: int, ind: int, tail: int = 0) -> str:
             hung = layout(rest[-1][0], col + len(before) + 1, ind, tail + 1)
             if "\n" in hung:
                 return before + " " + hung + x.close
+    # Otherwise the header arguments follow the head, and every other argument takes a line of its own.
     out, column = first, col + len(first)
     for g in rest[:header]:
         t = _layout_group(g, column + 1, ind + STEP, 0)
@@ -215,6 +226,7 @@ def _regions(s: str) -> list[tuple[int, int, Node | None]]:
     i = 0
     while i < len(s):
         if s.startswith("$$", i):
+            # `$$` is a dollar in the prose, not a region.
             i += 2
         elif s.startswith("$;", i):
             raise Unsupported("a disabled region")
@@ -235,12 +247,14 @@ def _split_cue_lines(s: str) -> str:
         end = s.find("\n", i)
         end = len(s) if end < 0 else end
         if not s.startswith("${", i):
+            # A line that does not start with a cue is kept as it is.
             out.append(s[i:end + 1])
             i = end + 1
             continue
         pieces: list[str] = []
         j = i
         while s.startswith("${", j):
+            # Collect the line's leading cues, each followed by one space.
             node, k = parse(s, j + 1)
             pieces.append(s[j:k])
             j = k + 1 if s.startswith(" ", k) else k
@@ -249,6 +263,7 @@ def _split_cue_lines(s: str) -> str:
         end = s.find("\n", j)
         end = len(s) if end < 0 else end
         prose = s[j:end]
+        # Split only a wide line whose cues are single-spaced, and never one whose prose starts a region.
         separated = all(s[i:j].count(p + " ") for p in pieces[:-1]) and (not prose or s[j - 1] == " ")
         wide = len(" ".join(flat(parse(p, 1)[0]) for p in pieces)) + 1 + len(prose) > WIDTH
         if separated and wide and len(pieces) + bool(prose) > 1 and not prose.startswith("$"):
@@ -270,6 +285,7 @@ def format_document(s: str) -> str:
     out: list[str] = []
     at = 0
     for start, end, node in _regions(s):
+        # Each region is laid out from the column it starts at, its broken parts one step in from its line's indent.
         out.append(s[at:start])
         done = "".join(out)
         line = done[done.rfind("\n") + 1:]
@@ -312,6 +328,7 @@ def main(argv: list[str]) -> int:
             print(f"{path}: left as it is ({e})", file=sys.stderr)
             continue
         if tokens(formatted) != tokens(source):
+            # Formatting may only move whitespace: refuse a result whose tokens differ.
             print(f"{path}: formatting would change a token; left as it is", file=sys.stderr)
             return 2
         if formatted != source:

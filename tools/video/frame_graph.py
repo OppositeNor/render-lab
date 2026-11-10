@@ -68,6 +68,7 @@ def load(cfg: Config, name: str) -> Json:
         return text[key]
     sections: list[Json] = []
     for s in spec.get('section', []):
+        # Each section as the timeline carries it: its title and note in the edition's language, and what it holds.
         out: Json = {'id': s['id'], 'title': say(s['title-text'], s['id'])}
         if 'note-text' in s:
             out['note'] = say(s['note-text'], s['id'])
@@ -79,6 +80,7 @@ def load(cfg: Config, name: str) -> Json:
         if s.get('outside'):
             out['outside'] = True
         sections.append(out)
+    # A section's declared edges must name other sections.
     ids = {s['id'] for s in sections}
     for s in sections:
         for other in s.get('to', []) + s.get('from', []):
