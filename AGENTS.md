@@ -56,6 +56,11 @@ present, read every `AGENTS.md` inside them before working on anything else.** I
 - On-screen text is a key (`group-name`: Fluent ids have no dots) in the package's `text/en.ftl` and `text/zh-CN.ftl` (Project Fluent, loaded at run time), read with `tr("key")` (or `tr_with("key", args!(name = value))` for a message with variables, `{ $name }` in both languages). Formulas and code names in text are Fluent function calls, `{ FORMULA("LaTeX") }` and `{ CODE("Name") }` (lab/src/rich_text.rs). The package's build.rs (the lab's, for render_lab) fails on a key missing from a language, variables that differ between languages, an unknown key, or an unused one.
 - Python: type-annotate parameters and returns, `X | None` unions, concrete generics. Rust: follow the surrounding code,
   formatted by rustfmt (`cargo fmt --all`, `rustfmt.toml`); no Rust lint or formatter of our own.
+- **Size limits.** A Rust or Python function holds at most 100 lines (blank and comment lines aside), a Rust or Python
+  file at most 1400. Clippy's `too_many_lines` checks Rust's functions (denied in every crate's lints, the local
+  packages' too; `clippy.toml`); `tools/check_sizes.py` checks the files and Python's functions. Split a long function
+  into named steps (a struct of what they share, when they share much), a long file into child modules (`foo.rs` and
+  `foo/<part>.rs`); never raise the limits or allow the lint.
 - Delegate investigation and research tasks (code surveys, source lookups, reading across files) to subagents when
   your environment has them, on a cheaper model when you can choose one (Sonnet; Haiku for simple lookups). Keep
   design, edits, and final checks with the main agent. Without subagents, do the same research yourself, one
@@ -103,6 +108,8 @@ From this directory (set `CARGO_HOME=$PWD/.cache/cargo`):
 cargo fmt --all                                             # format the Rust code with rustfmt (rustfmt.toml; --check in CI); a local package: --manifest-path packages/<name>/Cargo.toml
 cargo build --release --locked --offline                    # the binary, the lab, and the public packages' libraries
 cargo test --release --locked --offline --workspace         # the unit tests (the loader, its negotiation, text, formulas)
+cargo clippy --release --locked --offline --workspace --all-targets   # clippy, functions of at most 100 lines among its lints; a local package: --manifest-path packages/<name>/Cargo.toml
+python3 tools/check_sizes.py                                # files of at most 1400 lines, Python functions of at most 100
 cargo run --release -- home --autotest /path/to/home.json   # the homepage's controls, offscreen (its own settings file)
 cargo run --release -- home --snapshot /path/to/home.png    # the title screen as a PNG, offscreen; look at it
 cargo run --release -- home --snapshot /path/to/loading.png --page loading   # the viewer's loading page, offscreen, while a scene loads

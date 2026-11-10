@@ -499,6 +499,74 @@ mod tests {
         Ok(out)
     }
 
+    /// The `animate` attribute's Data (`data`) as the timeline's motions: what tools/video/markup.py's `motion_of`
+    /// makes of it, each motion its kind and fields (a `Length` variant is "beat", "sentence", or its seconds).
+    fn motion_values(data: &str) -> serde_json::Value {
+        fn plain(v: &serde_json::Value) -> serde_json::Value {
+            match v {
+                serde_json::Value::Object(o)
+                    if o.len() == 2 && o.contains_key("tag") && o.contains_key("value") =>
+                {
+                    if o["value"].is_null() {
+                        o["tag"].clone()
+                    } else {
+                        plain(&o["value"])
+                    }
+                }
+                serde_json::Value::Array(xs) => xs.iter().map(plain).collect(),
+                other => other.clone(),
+            }
+        }
+        let data: serde_json::Value = serde_json::from_str(data).unwrap();
+        data.as_array()
+            .unwrap()
+            .iter()
+            .map(|m| {
+                let fields: serde_json::Map<String, serde_json::Value> = m["fields"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|f| (f["name"].as_str().unwrap().to_string(), plain(&f["value"])))
+                    .collect();
+                let mut motion = serde_json::Map::new();
+                motion.insert(
+                    m["kind"].as_str().unwrap().to_string(),
+                    serde_json::Value::Object(fields),
+                );
+                serde_json::Value::Object(motion)
+            })
+            .collect()
+    }
+
+    /// The attributes a cue of points, marks, names, and records writes, as Data (tools/video/markup.py reads
+    /// them), but its callout.
+    fn expected_marks() -> [(&'static str, serde_json::Value); 7] {
+        [
+            (
+                "labelAt",
+                serde_json::json!({"tag": "at", "value": {"x": 1.8, "y": 2.4, "z": -2.95}}),
+            ),
+            (
+                "arrowTo",
+                serde_json::json!({"tag": "at", "value": {"x": 0.0, "y": 1.0, "z": 2.0}}),
+            ),
+            (
+                "imageMark",
+                serde_json::json!({"tag": "region", "value": {"u0": 0.28, "v0": 0.42, "u1": 0.62, "v1": 1.0}}),
+            ),
+            (
+                "imageMark",
+                serde_json::json!({"tag": "none", "value": null}),
+            ),
+            ("imageHide", serde_json::json!(["a,b"])),
+            (
+                "record",
+                serde_json::json!({"tag": "camera", "value": null}),
+            ),
+            ("record", serde_json::json!({"tag": "object", "value": 3})),
+        ]
+    }
+
     #[test]
     fn render_lab_writes_what_the_lab_reads() {
         let dir = scratch("typed");
@@ -534,41 +602,7 @@ mod tests {
         assert_eq!(attrs[0].0, "animate");
         // `animate` is Data, each motion its kind and fields; the timeline's motion is what tools/video/markup.py's
         // `motion_of` makes of it (a `Length` variant is "beat", "sentence", or its seconds).
-        fn plain(v: &serde_json::Value) -> serde_json::Value {
-            match v {
-                serde_json::Value::Object(o)
-                    if o.len() == 2 && o.contains_key("tag") && o.contains_key("value") =>
-                {
-                    if o["value"].is_null() {
-                        o["tag"].clone()
-                    } else {
-                        plain(&o["value"])
-                    }
-                }
-                serde_json::Value::Array(xs) => xs.iter().map(plain).collect(),
-                other => other.clone(),
-            }
-        }
-        let data: serde_json::Value = serde_json::from_str(&attrs[0].1).unwrap();
-        let value: serde_json::Value = data
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|m| {
-                let fields: serde_json::Map<String, serde_json::Value> = m["fields"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .map(|f| (f["name"].as_str().unwrap().to_string(), plain(&f["value"])))
-                    .collect();
-                let mut motion = serde_json::Map::new();
-                motion.insert(
-                    m["kind"].as_str().unwrap().to_string(),
-                    serde_json::Value::Object(fields),
-                );
-                serde_json::Value::Object(motion)
-            })
-            .collect();
+        let value = motion_values(&attrs[0].1);
         // A beat's or a sentence's length is `seconds` the video builder fills in; here, a number.
         let json = value
             .to_string()
@@ -586,30 +620,7 @@ mod tests {
         assert_eq!(value[4]["wave"]["param"], "camera.yaw");
         // Points, marks, names, and records, as Data, which tools/video/markup.py reads.
         let attrs = doc("${cue \"key\" {' {labelAt {at 1.8 2.4 -2.95}} {arrowTo {at 0.0 1.0 2.0}} {mark 0.28 0.42 0.62 1.0} unmark {imageHide {' \"a,b\"}} recordCamera {recordObject 3} {callout \"\"}}}").unwrap();
-        let expected = [
-            (
-                "labelAt",
-                serde_json::json!({"tag": "at", "value": {"x": 1.8, "y": 2.4, "z": -2.95}}),
-            ),
-            (
-                "arrowTo",
-                serde_json::json!({"tag": "at", "value": {"x": 0.0, "y": 1.0, "z": 2.0}}),
-            ),
-            (
-                "imageMark",
-                serde_json::json!({"tag": "region", "value": {"u0": 0.28, "v0": 0.42, "u1": 0.62, "v1": 1.0}}),
-            ),
-            (
-                "imageMark",
-                serde_json::json!({"tag": "none", "value": null}),
-            ),
-            ("imageHide", serde_json::json!(["a,b"])),
-            (
-                "record",
-                serde_json::json!({"tag": "camera", "value": null}),
-            ),
-            ("record", serde_json::json!({"tag": "object", "value": 3})),
-        ];
+        let expected = expected_marks();
         let n = expected.len();
         assert_eq!(attrs.len(), n + 1);
         for ((k, v), (name, data)) in attrs.iter().zip(expected) {

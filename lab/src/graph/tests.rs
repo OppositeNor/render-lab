@@ -61,11 +61,12 @@ fn shading(early: &'static [ShadingPass], after: &'static [ShadingPass]) -> &'st
     }))
 }
 
-#[test]
-fn a_program_places_its_passes_where_its_nodes_are() {
+/// A program of three passes (a pre-pass's, one between it and the scene pass, and one after) over a
+/// persistent volume and a buffer.
+fn test_program() -> &'static crate::investigation::ShadingProgram {
     use crate::investigation::{
-        Access, FrameNode, ImageKind, PassKind, ProgramBuffer, ProgramImage, ProgramPass,
-        ProgramUse, ShadingProgram, Which,
+        Access, ImageKind, PassKind, ProgramBuffer, ProgramImage, ProgramPass, ProgramUse,
+        ShadingProgram, Which,
     };
     static IMAGES: &[ProgramImage] = &[ProgramImage {
         name: "grid",
@@ -153,6 +154,13 @@ fn a_program_places_its_passes_where_its_nodes_are() {
         warmup: 0,
         record_history: false,
     };
+    &PROGRAM
+}
+
+#[test]
+fn a_program_places_its_passes_where_its_nodes_are() {
+    use crate::investigation::FrameNode;
+    let program = test_program();
     let s = shading(&[], &[]);
     // No chain (the scene pass writes the frame), as a program's investigation may have.
     // Its pre-pass does not run without a chain.
@@ -165,7 +173,7 @@ fn a_program_places_its_passes_where_its_nodes_are() {
     ];
     let with = |nodes: &'static [FrameNode]| -> &'static SceneShading {
         Box::leak(Box::new(SceneShading {
-            program: Some(&PROGRAM),
+            program: Some(program),
             outputs: &[],
             scene_reads: &[],
             nodes,
@@ -251,9 +259,9 @@ fn a_program_places_its_passes_where_its_nodes_are() {
     assert_eq!(default_show(&grid.shape), Show::Hash);
 }
 
-#[test]
-fn order_follows_accesses_and_keeps_declaration_order() {
-    let s = shading(
+/// A frame of a tile pass before the scene pass, and a blur and a merge after it.
+fn post_shading() -> &'static SceneShading {
+    shading(
         &[ShadingPass {
             entry: "tilesCS",
             reads: &["depth"],
@@ -274,7 +282,12 @@ fn order_follows_accesses_and_keeps_declaration_order() {
                 workgroup: [8, 8],
             },
         ],
-    );
+    )
+}
+
+#[test]
+fn order_follows_accesses_and_keeps_declaration_order() {
+    let s = post_shading();
     let g = FrameGraph::new(Some(s), &[]);
     assert!(g.errors.is_empty(), "{:?}", g.errors);
     let names: Vec<&str> = g.order.iter().map(|&i| g.nodes[i].name).collect();
@@ -316,6 +329,12 @@ fn order_follows_accesses_and_keeps_declaration_order() {
         source_of(Some(s), &g.nodes[g.node("composite").unwrap()]).0,
         crate::shaders::SCENE
     );
+}
+
+#[test]
+fn a_frame_graph_as_a_2d_scene_and_its_resources_views() {
+    let s = post_shading();
+    let g = FrameGraph::new(Some(s), &[]);
     // The frame graph as a 2D scene: its sections' boxes and the edges between them.
     let section = |id: &str, passes: &[&str]| Section {
         id: id.into(),

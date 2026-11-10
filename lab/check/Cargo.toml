@@ -21,3 +21,4 @@ toml_edit = { version = "=0.25.17", default-features = false, features = ["parse
 # (a local package's) also builds it, as the lab's build-dependency.
 [lints.clippy]
 needless_range_loop = "allow"
+too_many_lines = "deny"

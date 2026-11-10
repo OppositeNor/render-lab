@@ -1,0 +1,3 @@
+# A function holds at most 100 lines (blank and comment lines aside): clippy's
+# too_many_lines, denied in every crate's lints (Cargo.toml). Files: tools/check_sizes.py.
+too-many-lines-threshold = 100

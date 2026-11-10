@@ -17,3 +17,8 @@ proc-macro = true
 proc-macro2 = "1"
 quote = "1"
 syn = { version = "2", features = ["full"] }
+
+# The root workspace's limit on a function's length, here rather than inherited:
+# another workspace (a local package's) also builds it, through the lab.
+[lints.clippy]
+too_many_lines = "deny"

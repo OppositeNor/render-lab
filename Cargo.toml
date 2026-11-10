@@ -9,9 +9,11 @@ default-members = [".", "packages/o3de_lighting", "packages/godot_sdfgi", "packa
 resolver = "3"
 
 # The CPU mirrors keep the shape of the engine and shader code they port: its
-# index loops.
+# index loops. A function holds at most 100 lines (clippy.toml), a Rust or
+# Python file at most 1400 (tools/check_sizes.py).
 [workspace.lints.clippy]
 needless_range_loop = "allow"
+too_many_lines = "deny"
 
 [package]
 name = "render-lab"
