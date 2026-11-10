@@ -177,6 +177,7 @@ impl Investigation for VoxelGi {
     }
 
     fn backdrop(&self, t: f32) -> Option<ShotState> {
+        // The title screen's backdrop: the room without its panel, the camera turning slowly and drifting.
         let mut state = shot::for_demo(Demo::Room);
         state.panel = PanelMode::Hidden;
         state.camera.yaw += 3.0 * t;

@@ -93,6 +93,7 @@ pub fn cone_trace(
     let mut dist = bias;
     let mut color = Vec4::ZERO;
     while dist < max_distance && color.w < 1.0 {
+        // The cone's width here, at least a cell, picks the mip it samples.
         let diameter = (2.0 * tan_half_angle * dist).max(1.0);
         let uvw = (pos + dist * direction) * cell_size;
         let half_diameter = diameter * 0.5;
@@ -100,10 +101,12 @@ pub fn cone_trace(
             .max_element()
             > 0.0
         {
+            // The cone's footprint has left the texture.
             break;
         }
         let lod = diameter.log2();
         let scolor = tex.sample_lod(uvw, lod);
+        // Front to back: each sample fills what the samples before it left open.
         let a = 1.0 - color.w;
         color += a * scolor;
         if let Some(s) = steps.as_deref_mut() {
@@ -135,6 +138,7 @@ pub fn cone_trace_45(
     } = cone;
     let mut dist = bias;
     let mut color = Vec4::ZERO;
+    // A 45-degree cone: each step moves one radius and doubles it, and climbs one mip.
     let mut radius = dist.max(0.5);
     let mut lod_level = (radius * 2.0).log2();
     while dist < max_distance && color.w < 1.0 {
@@ -142,6 +146,7 @@ pub fn cone_trace_45(
         if ((uvw - Vec3::splat(0.5)).abs() - (Vec3::splat(0.5) + radius * cell_size)).max_element()
             > 0.0
         {
+            // The cone's footprint has left the texture.
             break;
         }
         let mut scolor = tex.sample_lod(uvw, lod_level);
@@ -231,9 +236,11 @@ pub fn voxel_gi_compute(
         t.inside = inside;
     }
     if !inside {
+        // Outside this instance's box: it adds nothing.
         return;
     }
     let [tangent, bitangent, n] = tangent_frame(normal);
+    // The edge fade: 1 at the box's centre, falling to 0 at its nearest face.
     let blendv = (position / inst.bounds * 2.0 - Vec3::ONE).abs();
     let blend = (1.0 - blendv.max_element()).clamp(0.0, 1.0);
     let max_distance = inst.bounds.length();
@@ -247,11 +254,13 @@ pub fn voxel_gi_compute(
     );
     let scale = inst.dynamic_range * inst.exposure_normalization;
     light = (light.truncate() * scale).extend(if inst.blend_ambient {
+        // With blend_ambient, the cones' coverage stays as alpha; otherwise the light is opaque.
         light.w
     } else {
         1.0
     });
     *out_diff += light * blend;
+    // One specular cone along the reflection, its width set by the roughness.
     let tan = (roughness * 0.5 * M_PI * 0.99).tan();
     let mut steps = Vec::new();
     let irr = cone_trace(
@@ -294,6 +303,7 @@ fn diffuse_cones(
     let mut light = Vec4::ZERO;
     let frame = |d: Vec3| (tangent * d.x + bitangent * d.y + n * d.z).normalize();
     if high_quality {
+        // High quality: six cones of half-angle 30 degrees around the normal, weighted.
         for (i, d) in HIGH_CONE_DIRS.iter().enumerate() {
             let dir = frame(*d);
             let mut steps = Vec::new();
@@ -315,6 +325,7 @@ fn diffuse_cones(
             }
         }
     } else {
+        // Low quality: four 45-degree cones, a quarter each.
         for d in LOW_CONE_DIRS {
             let dir = frame(d);
             let mut steps = Vec::new();
@@ -348,6 +359,7 @@ pub fn process(
     trace: Option<&mut Cones>,
 ) -> (Vec4, Vec4) {
     let sample = Sample {
+        // Roughness is squared first, as process_gi does.
         roughness: sample.roughness * sample.roughness,
         ..*sample
     };
@@ -359,6 +371,7 @@ pub fn process(
         blend,
     } = sums;
     if blend > 0.0 {
+        // Each instance's sums were weighted by its fade; dividing by the total fade normalises them.
         amb /= blend;
         spec /= blend;
     }

@@ -28,6 +28,7 @@ impl CellData {
     /// The shader's decode: `posu = (p & 0x7FF, (p >> 11) & 0x3FF, p >> 21)`.
     pub fn pos(&self) -> IVec3 {
         IVec3::new(
+            // x in 11 bits, y in 10, z in the top 11.
             (self.position & 0x7FF) as i32,
             ((self.position >> 11) & 0x3FF) as i32,
             (self.position >> 21) as i32,
@@ -53,6 +54,7 @@ pub fn to_rgbe9995(c: Vec3) -> u32 {
     let r = c.x.clamp(0.0, k_max);
     let g = c.y.clamp(0.0, k_max);
     let b = c.z.clamp(0.0, k_max);
+    // The shared exponent from the largest channel's float bits; adding it as a float rounds each channel into 9 bits.
     let max_channel = r.max(g).max(b.max(k_min));
     let mut e = max_channel.to_bits();
     e = e.wrapping_add(0x0780_4000);
@@ -61,6 +63,7 @@ pub fn to_rgbe9995(c: Vec3) -> u32 {
     let ri = (r + ef).to_bits();
     let gi = (g + ef).to_bits();
     let bi = (b + ef).to_bits();
+    // The exponent moves to the top 5 bits, rebiased.
     e <<= 4;
     e = e.wrapping_add(0x1000_0000);
     e | (bi << 18) | (gi << 9) | (ri & 511)
@@ -86,6 +89,7 @@ pub fn unpack_unorm4x8(v: u32) -> Vec4 {
 }
 
 pub fn unpack_snorm4x8(v: u32) -> Vec4 {
+    // Each byte as a signed value over 127; -128 clamps to -1.
     let s = |k: u32| (((v >> (8 * k)) & 0xFF) as u8 as i8 as f32 / 127.0).clamp(-1.0, 1.0);
     Vec4::new(s(0), s(1), s(2), s(3))
 }
@@ -101,6 +105,7 @@ pub fn data_cells(cells: &[Cell]) -> Vec<CellData> {
 }
 
 pub fn data_cell(c: &Cell) -> CellData {
+    // Albedo and alpha as bytes, emission as RGBE9995, the normal as three signed bytes.
     let q = |v: f32| (v * 255.0).clamp(0.0, 255.0) as u32;
     let position = c.x as u32 | ((c.y as u32) << 11) | ((c.z as u32) << 21);
     let albedo =
@@ -201,10 +206,12 @@ impl Probe {
         let depth = self.leaf_level() as i32;
         let mut idx = 0usize;
         for level in 0..depth {
+            // Each level down, the bit of the position at that level's half size picks the octant.
             let half = 1 << (depth - level - 1);
             let octant = ((p.x / half) & 1) | (((p.y / half) & 1) << 1) | (((p.z / half) & 1) << 2);
             let child = self.octree[idx][octant as usize];
             if child == super::bake::CHILD_EMPTY {
+                // No child there: the point is empty space.
                 return None;
             }
             idx = child as usize;
@@ -232,6 +239,7 @@ impl Probe {
     pub fn level_of(&self, cell: usize) -> usize {
         let mut o = 0usize;
         for (l, &c) in self.level_counts.iter().enumerate() {
+            // Cells are stored level by level, so the first level whose end passes the index holds it.
             o += c as usize;
             if cell < o {
                 return l;
@@ -284,6 +292,7 @@ impl LightTexture {
     /// `LINEAR_WITH_MIPMAPS`, repeat-disabled sampler).
     pub fn sample_mip(&self, mip: usize, uvw: Vec3) -> Vec4 {
         let s = self.sizes[mip].as_vec3();
+        // Trilinear: the eight texels around the point, each weighed by its fraction on each axis.
         let t = uvw * s - Vec3::splat(0.5);
         let b = t.floor();
         let f = t - b;
@@ -302,6 +311,7 @@ impl LightTexture {
     pub fn sample_lod(&self, uvw: Vec3, lod: f32) -> Vec4 {
         let max = (self.mips.len() - 1) as f32;
         let lod = lod.clamp(0.0, max);
+        // Between two mips: blend their trilinear samples by the fraction.
         let m0 = lod.floor() as usize;
         let m1 = (m0 + 1).min(self.mips.len() - 1);
         let f = lod - m0 as f32;

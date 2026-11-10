@@ -64,6 +64,7 @@ pub fn sample_sdf(probe: &Probe, uvw: Vec3) -> f32 {
     let bi = b.as_ivec3();
     let mut sum = 0.0;
     for i in 0..8 {
+        // Trilinear: each of the eight texels weighs its fraction on each axis.
         let o = IVec3::new(i & 1, (i >> 1) & 1, (i >> 2) & 1);
         let w = Vec3::select(o.cmpeq(IVec3::ONE), f, Vec3::ONE - f);
         sum += w.x * w.y * w.z * probe.sdf_at(bi + o) as f32 / 255.0;
@@ -94,14 +95,17 @@ pub fn raymarch(
     let cell_size = Vec3::ONE / probe.octree_size.as_vec3();
     let mut occlusion = 1.0f32;
     while distance > 0.5 {
+        // The field's distance (stored plus one); below zero the ray is inside a surface.
         let mut advance = sample_sdf(probe, from * cell_size) * 255.0 - 1.0;
         if advance < 0.0 {
+            // Inside: fully shadowed.
             occlusion = 0.0;
             if let Some(s) = steps.as_deref_mut() {
                 s.push(MarchStep { from, advance });
             }
             break;
         }
+        // The closest the ray came darkens it; the step is the distance, snapped down to whole advances.
         occlusion = advance.min(occlusion);
         if let Some(s) = steps.as_deref_mut() {
             s.push(MarchStep { from, advance });
@@ -133,6 +137,7 @@ pub fn omni_attenuation(distance: f32, inv_range: f32, decay: f32) -> f32 {
 pub fn light_vector(light: &Light, params: &Params, pos: Vec3) -> Option<(f32, Vec3)> {
     if light.kind == LIGHT_TYPE_DIRECTIONAL {
         return Some((
+            // A directional light comes from a point beyond the grid, against its direction.
             1.0,
             pos - light.direction * params.limits.as_vec3().length(),
         ));
@@ -140,6 +145,7 @@ pub fn light_vector(light: &Light, params: &Params, pos: Vec3) -> Option<(f32, V
     let light_pos = light.position;
     let distance = (pos - light_pos).length();
     if distance >= light.radius {
+        // Out of the light's range.
         return None;
     }
     let mut attenuation = omni_attenuation(
@@ -148,6 +154,7 @@ pub fn light_vector(light: &Light, params: &Params, pos: Vec3) -> Option<(f32, V
         light.attenuation,
     );
     if light.kind == LIGHT_TYPE_SPOT {
+        // A spot: nothing outside its cone, and its rim softened.
         let rel = (pos - light_pos).normalize();
         let cos_angle = rel.dot(light.direction);
         if cos_angle < light.cos_spot_angle {
@@ -163,6 +170,7 @@ pub fn light_vector(light: &Light, params: &Params, pos: Vec3) -> Option<(f32, V
 /// `get_normal_advance`: the path length of one cell along the dominant axis.
 pub fn normal_advance(normal: Vec3) -> f32 {
     let u = normal.abs();
+    // The direction's major axis: one step along it is one cell.
     let axis = if u.x >= u.y && u.x >= u.z {
         Vec3::new(normal.x.signum_or_plus(), 0.0, 0.0)
     } else if u.y > u.x && u.y >= u.z {
@@ -195,6 +203,7 @@ fn clip_segment(plane: Vec4, begin: Vec3, end: &mut Vec3) {
     let segment = begin - *end;
     let den = plane.truncate().dot(segment);
     if den < 0.0001 {
+        // The segment is parallel to the plane, or crosses it away from the end.
         return;
     }
     let dist = (plane.truncate().dot(begin) - plane.w) / den;
@@ -235,9 +244,11 @@ pub fn light_at_pos(
         t.occlusion = 1.0;
     }
     if attenuation < 0.01 || (normal.length() > 0.2 && normal.dot(light_dir) >= 0.0) {
+        // Too dim, or behind the cell's own surface.
         return None;
     }
     if light.has_shadow {
+        // The shadow ray: from just off the cell, to where the light's ray enters the grid.
         let distance_adv = normal_advance(light_dir);
         let mut to = pos;
         if normal.length() > 0.2 {
@@ -286,8 +297,10 @@ pub fn light_at_pos(
         );
         let mut distance = (to - light_pos).length();
         if distance < 0.1 {
+            // The light is right at the cell.
             return None;
         }
+        // A whole number of advances: the march starts at the grid's edge and lands on the cell.
         distance += distance_adv - glsl_mod(distance, distance_adv);
         light_pos = to - light_dir * distance;
         let mut steps = Vec::new();
@@ -306,6 +319,7 @@ pub fn light_at_pos(
             t.occlusion = occlusion;
         }
         if occlusion == 0.0 {
+            // Shadowed.
             return None;
         }
         attenuation *= occlusion;
@@ -337,15 +351,18 @@ pub fn area_light(params: &Params, light: &Light, pos: Vec3, normal_in: Vec3) ->
     let (w, h) = (light.area_width, light.area_height);
     let dir = light.direction;
     if w.dot(w) < epsilon || h.dot(h) < epsilon {
+        // An area light of no size.
         return None;
     }
     if dir.dot(pos - light.position) <= 0.0 {
+        // The cell is behind the light.
         return None;
     }
     let (a_len, b_len) = (w.length(), h.length());
     let (wn, hn) = (w.normalize(), h.normalize());
     let to_vert = pos - light.position;
     let local = Vec3::new(to_vert.dot(wn), to_vert.dot(hn), to_vert.dot(-dir));
+    // The light's nearest point, in its own plane, sets the falloff's distance (at least one cell).
     let closest_local = Vec3::new(
         local.x.clamp(-a_len / 2.0, a_len / 2.0),
         local.y.clamp(-b_len / 2.0, b_len / 2.0),
@@ -371,12 +388,14 @@ pub fn area_light(params: &Params, light: &Light, pos: Vec3, normal_in: Vec3) ->
     let (hw, hh) = (w / 2.0, h / 2.0);
     let c = params.cell_size;
     let points = [
+        // The light's corners relative to the cell, in world units for the area integral.
         (light.position - hw - hh - pos) * c,
         (light.position + hw - hh - pos) * c,
         (light.position + hw + hh - pos) * c,
         (light.position - hw + hh - pos) * c,
     ];
     let normal = if normal_in.dot(normal_in) < 0.04 {
+        // A cell with no normal faces the light.
         -dir
     } else {
         normal_in
@@ -390,6 +409,7 @@ pub fn area_light(params: &Params, light: &Light, pos: Vec3, normal_in: Vec3) ->
 /// cosine to `normal`, not divided by 2 pi ("no division by (2.0 * M_PI) for
 /// GI calculations").
 pub fn ltc_diffuse(normal: Vec3, points: [Vec3; 4]) -> f32 {
+    // An orthonormal frame around the normal, so the polygon can be clipped and integrated in it.
     let eye_vec = if normal.z.abs() < 0.7 {
         Vec3::new(0.0, 0.0, -1.0)
     } else {
@@ -407,6 +427,7 @@ pub fn ltc_diffuse(normal: Vec3, points: [Vec3; 4]) -> f32 {
     ];
     let n = clip_quad_to_horizon(&mut l);
     if n == 0 {
+        // The whole light is below the horizon.
         return 0.0;
     }
     let proj = l.map(|v| v.normalize_or_zero());
@@ -416,6 +437,7 @@ pub fn ltc_diffuse(normal: Vec3, points: [Vec3; 4]) -> f32 {
     if pnorm.dot(proj[0]).abs() < 1e-10 {
         return 0.0;
     }
+    // The integral over the clipped polygon is the sum over its edges.
     let mut i = integrate_edge(proj[0], proj[1], l[0], l[1]);
     i += integrate_edge(proj[1], proj[2], l[1], l[2]);
     i += integrate_edge(proj[2], proj[3], l[2], l[3]);
@@ -437,6 +459,7 @@ fn edge_hill(p0: Vec3, p1: Vec3) -> f32 {
     let b = 3.45068 + (4.18814 + y) * y;
     let mut theta_sintheta = a / b;
     if x < 0.0 {
+        // Past 90 degrees the fit is extended by symmetry.
         theta_sintheta = std::f32::consts::PI / (1.0 - x * x).sqrt() - theta_sintheta;
     }
     theta_sintheta * p0.cross(p1).y
@@ -445,6 +468,7 @@ fn edge_hill(p0: Vec3, p1: Vec3) -> f32 {
 fn integrate_edge(p_proj0: Vec3, p_proj1: Vec3, p0: Vec3, p1: Vec3) -> f32 {
     let epsilon = 0.00001;
     if p_proj0.dot(p_proj1) < -1.0 + epsilon {
+        // An edge between nearly opposite directions is split at its midpoint, as two edges.
         let half_point_t = p0 + (p1 - p0).normalize() * p0.dot((p0 - p1).normalize());
         let half_point = half_point_t.normalize();
         edge_hill(p_proj0, half_point) + edge_hill(half_point, p_proj1)
@@ -457,11 +481,13 @@ fn integrate_edge(p_proj0: Vec3, p_proj1: Vec3, p0: Vec3, p1: Vec3) -> f32 {
 fn clip_quad_to_horizon(l: &mut [Vec3; 5]) -> usize {
     let mut config = 0;
     for (k, bit) in [1, 2, 4, 8].iter().enumerate() {
+        // Which corners are above the horizon (y > 0), as four bits.
         if l[k].y > 0.0 {
             config += bit;
         }
     }
     let lerp = |a: Vec3, b: Vec3| -a.y * b + b.y * a;
+    // Each case keeps the corners above the horizon and moves the others to the edges' crossings.
     let n = match config {
         1 => {
             l[1] = lerp(l[1], l[0]);
@@ -531,6 +557,7 @@ fn clip_quad_to_horizon(l: &mut [Vec3; 5]) -> usize {
         _ => 0,
     };
     if n == 3 {
+        // Close the polygon by repeating its first corner.
         l[3] = l[0];
     }
     if n == 4 {
@@ -551,6 +578,7 @@ pub fn compute_light(probe: &Probe, params: &Params, lights: &[Light], cell: usi
     let mut accum = Vec3::ZERO;
     for l in lights {
         if l.kind != LIGHT_TYPE_AREA {
+            // A point light lights the cell by its normal's cosine (a cell with no normal, fully).
             let Some((light, light_dir)) = light_at_pos(probe, params, l, pos, normal, None) else {
                 continue;
             };
@@ -561,6 +589,7 @@ pub fn compute_light(probe: &Probe, params: &Params, lights: &[Light], cell: usi
                 light
             };
         } else {
+            // An area light's integral already holds the cosine.
             let Some(light) = area_light(params, l, pos, normal) else {
                 continue;
             };
@@ -619,6 +648,7 @@ pub fn bounce_cone(
     let max_distance = params.limits.as_vec3().length();
     let cell_size = Vec3::ONE / params.limits.as_vec3();
     while dist < max_distance && color.w < 0.95 {
+        // The cone's width here picks the mip; each sample is blended in front-to-back until nearly opaque.
         let diameter = (2.0 * BOUNCE_TAN_HALF_ANGLE * dist).max(1.0);
         let uvw = (pos + dist * direction) * cell_size;
         let half_diameter = diameter * 0.5;
@@ -654,6 +684,7 @@ pub fn second_bounce(
     let albedo = d.albedo();
     let mut accum = direct;
     if normal.length() > 0.2 {
+        // Six cones around the normal, each weighted and tinted by the cell's albedo.
         let [t, b, n] = tangent_frame(normal);
         for (i, dir) in BOUNCE_CONE_DIRS.iter().enumerate() {
             let direction = t * dir.x + b * dir.y + n * dir.z;
@@ -680,6 +711,7 @@ pub fn mip_cell(probe: &Probe, params: &Params, outputs: &[Vec3], cell: usize) -
         accum += outputs[child as usize];
         count += 1;
     }
+    // The children's sum over 8, or over their count as propagation rises to 1.
     let divisor = 8.0 + (count as f32 - 8.0) * params.propagation;
     (accum / divisor, count)
 }
@@ -744,6 +776,7 @@ pub fn par_map<T: Send + Sync + Copy + Default>(
 /// Pass 0's mips and write, or pass 1's, over `outputs` (leaves already set).
 fn mips_and_write(probe: &Probe, params: &Params, outputs: &mut [Vec3]) -> LightTexture {
     for mip in 1..probe.mip_count() {
+        // Each coarser level from the one below it, then every cell written into its mip.
         let level = probe.mip_level(mip);
         let range = probe.level_range(level);
         let values = par_map(range.clone(), |c| mip_cell(probe, params, outputs, c).0);
@@ -763,6 +796,7 @@ pub fn update(probe: &Probe, params: &Params, lights: &[Light], two_bounces: boo
     let lights = &lights[..lights.len().min(MAX_LIGHTS)];
     let mut outputs = vec![Vec3::ZERO; probe.data.len()];
     let leaves = probe.level_range(probe.leaf_level());
+    // The leaves' direct light, then the mips and the texture.
     let direct = par_map(leaves.clone(), |c| compute_light(probe, params, lights, c));
     outputs[leaves.clone()].copy_from_slice(&direct);
     let first_texture = mips_and_write(probe, params, &mut outputs);
@@ -776,6 +810,7 @@ pub fn update(probe: &Probe, params: &Params, lights: &[Light], two_bounces: boo
             passes: 1,
         };
     }
+    // A second bounce: the leaves gather the first texture through cones, then the mips again.
     let bounced = par_map(leaves.clone(), |c| {
         second_bounce(probe, params, &first_texture, c, pass0[c])
     });

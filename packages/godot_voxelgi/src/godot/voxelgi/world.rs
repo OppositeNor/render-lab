@@ -89,6 +89,7 @@ pub fn bake(scene: &Scene, extra: &[usize]) -> (Voxelizer, Vec<Cell>, Vec<BakeMe
     let bake_meshes = bake::room_meshes(scene, &meshes, node_transform(), &skip);
     let mut v = Voxelizer::begin_bake(SUBDIV, bounds());
     for m in &bake_meshes {
+        // Every mesh's triangles into the octree, then sorted; the sums are kept before end_bake averages them.
         v.plot_mesh(m);
     }
     v.sort();
@@ -113,6 +114,7 @@ pub fn params(probe: &Probe, s: &LightSettings) -> Params {
 /// panel (`radiance / pi` per unit area), a 10 m range, attenuation 2, in the
 /// probe's cell space.
 pub fn panel_light(scene: &Scene, probe: &Probe) -> Light {
+    // The room's panel as Godot's area light, in the probe's cells.
     let l = &scene.lighting.light;
     let width = l.axis_u * 2.0;
     let height = l.axis_v * 2.0;
@@ -225,6 +227,7 @@ pub fn lit_with(s: &LightSettings) -> Arc<Lit> {
         two_bounces: s.two_bounces,
     };
     let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    // Each setting, rounded to a hundredth, is lit once and kept.
     if let Some(l) = cache.lock().unwrap().get(&key) {
         return l.clone();
     }
@@ -249,6 +252,7 @@ pub fn direct_with_omni(at: Vec3) -> Arc<Vec<Vec3>> {
     /// By the light's position in centimetres.
     type Cache = HashMap<[i32; 3], Arc<Vec<Vec3>>>;
     static CACHE: OnceLock<Mutex<Cache>> = OnceLock::new();
+    // The leaves' direct light with an extra omni light, kept by the light's position to a centimetre.
     let key = (at * 100.0).round().as_ivec3().to_array();
     let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     if let Some(l) = cache.lock().unwrap().get(&key) {
@@ -300,6 +304,7 @@ pub fn data_layout() -> DataLayout {
 /// passes write (`SceneShading::volumes`).
 pub fn shading_data() -> Vec<[f32; 4]> {
     let w = world();
+    // The field four bytes a word (padded to a vec4), then each cell's record, its children, and the lights.
     let mut words: Vec<u32> = w
         .probe
         .sdf

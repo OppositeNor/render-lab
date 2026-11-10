@@ -28,6 +28,7 @@ pub fn edt(f: &mut [f32], start: usize, stride: usize, n: usize) {
     z[0] = -BIG_VAL;
     z[1] = BIG_VAL;
     for q in 1..n {
+        // Felzenszwalb's lower envelope: where this point's parabola meets the last one; hidden ones drop.
         let mut s = ((at(f, q) + sq(q as f32)) - (at(f, v[k]) + sq(v[k] as f32)))
             / (2.0 * q as f32 - 2.0 * v[k] as f32);
         while s <= z[k] {
@@ -42,6 +43,7 @@ pub fn edt(f: &mut [f32], start: usize, stride: usize, n: usize) {
     }
     k = 0;
     for q in 0..n {
+        // Each point reads the parabola whose interval holds it.
         while z[k + 1] < q as f32 {
             k += 1;
         }
@@ -64,9 +66,11 @@ pub fn squared_distances(v: &Voxelizer, passes: usize) -> Vec<f32> {
         .iter()
         .filter(|c: &&Cell| c.level as i32 == v.cell_subdiv)
     {
+        // Leaves are at distance 0; every other cell starts infinitely far.
         work[c.x as usize + c.y as usize * y_mult + c.z as usize * z_mult] = 0.0;
     }
     if passes >= 1 {
+        // Along z, then y, then x: each pass makes the squared distances exact in one more dimension.
         for i in 0..sx {
             for j in 0..sy {
                 edt(&mut work, i + j * y_mult, z_mult, sz);
@@ -93,9 +97,11 @@ pub fn squared_distances(v: &Voxelizer, passes: usize) -> Vec<f32> {
 /// The byte `get_sdf_3d_image` stores for a squared distance.
 pub fn encode(squared: f32) -> u8 {
     let d = squared.sqrt() as u32;
+    // A solid cell stores 0.
     if d == 0 {
         0
     } else {
+        // Any other stores its whole distance plus one, capped at 255.
         (d.min(254) + 1) as u8
     }
 }

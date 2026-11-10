@@ -16,6 +16,7 @@ pub fn steps_45(bias: f32, max_distance: f32) -> usize {
     let mut radius = dist.max(0.5);
     let mut n = 0;
     while dist < max_distance {
+        // The steps as cone_trace_45 takes them: each one radius, the radius growing with the distance.
         n += 1;
         dist += radius;
         radius = dist.max(0.5);
@@ -29,6 +30,7 @@ pub fn steps_cone(tan_half_angle: f32, bias: f32, max_distance: f32) -> usize {
     let mut dist = bias;
     let mut n = 0;
     while dist < max_distance {
+        // A cone's steps as cone_trace takes them: half its width at each distance, at least half a cell.
         n += 1;
         dist += (2.0 * tan_half_angle * dist).max(1.0) * 0.5;
     }

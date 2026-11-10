@@ -119,10 +119,12 @@ fn approx3(a: Vec3, b: Vec3) -> bool {
 /// `pos` (a vertex's own when `pos` is one).
 fn normal_at(pos: Vec3, vtx: &[Vec3; 3], normal: &[Vec3; 3]) -> Vec3 {
     for k in 0..3 {
+        // At a vertex, that vertex's normal exactly.
         if approx3(pos, vtx[k]) {
             return normal[k];
         }
     }
+    // Elsewhere, the barycentric coordinates of the point, which blend the three normals.
     let v0 = vtx[1] - vtx[0];
     let v1 = vtx[2] - vtx[0];
     let v2 = pos - vtx[0];
@@ -133,6 +135,7 @@ fn normal_at(pos: Vec3, vtx: &[Vec3; 3], normal: &[Vec3; 3]) -> Vec3 {
     let d21 = v2.dot(v1);
     let denom = d00 * d11 - d01 * d01;
     if denom == 0.0 {
+        // A degenerate triangle: its first normal.
         return normal[0];
     }
     let v = (d11 * d20 - d01 * d21) / denom;
@@ -156,6 +159,7 @@ fn plane_box_overlap(normal: Vec3, d: f32, maxbox: Vec3) -> bool {
     let mut vmin = Vec3::ZERO;
     let mut vmax = Vec3::ZERO;
     for q in 0..3 {
+        // The box's corners nearest and farthest along the plane's normal.
         if normal[q] > 0.0 {
             vmin[q] = -maxbox[q];
             vmax[q] = maxbox[q];
@@ -165,6 +169,7 @@ fn plane_box_overlap(normal: Vec3, d: f32, maxbox: Vec3) -> bool {
         }
     }
     if normal.dot(vmin) + d > 0.0 {
+        // Even the nearest corner is above the plane.
         return false;
     }
     normal.dot(vmax) + d >= 0.0
@@ -230,9 +235,11 @@ pub fn triangle_box_stage(boxcenter: Vec3, h: Vec3, triverts: &[Vec3; 3]) -> Sat
         [r0, r1, r2, r3, r4, r5, r6, r7, r8]
     };
     if let Some(k) = tests.iter().position(|&t| !t) {
+        // The first of the nine edge-cross axes that separates names the stage.
         return SatStage::EdgeAxis(k);
     }
     for axis in 0..3 {
+        // Then the box's own three axes: the triangle's extent against the box's.
         let (a, b, c) = (v0[axis], v1[axis], v2[axis]);
         let min = a.min(b).min(c);
         let max = a.max(b).max(c);
@@ -240,6 +247,7 @@ pub fn triangle_box_stage(boxcenter: Vec3, h: Vec3, triverts: &[Vec3; 3]) -> Sat
             return SatStage::BoxAxis(axis);
         }
     }
+    // Last, the triangle's plane against the box.
     let normal = e0.cross(e1);
     let d = -normal.dot(v0);
     if plane_box_overlap(normal, d, h) {
@@ -262,6 +270,7 @@ pub fn closest_point_on_triangle(vertex: &[Vec3; 3], p: Vec3) -> Vec3 {
     let det = a * c - b * b;
     let mut s = b * e - c * d;
     let mut t = b * d - a * e;
+    // Which region of the triangle's plane the projection falls in: inside, or past an edge or a corner.
     if s + t < det {
         if s < 0.0 {
             if t < 0.0 {
@@ -280,11 +289,13 @@ pub fn closest_point_on_triangle(vertex: &[Vec3; 3], p: Vec3) -> Vec3 {
             s = (-d / a).clamp(0.0, 1.0);
             t = 0.0;
         } else {
+            // Inside the triangle: the projection itself.
             let inv_det = 1.0 / det;
             s *= inv_det;
             t *= inv_det;
         }
     } else if s < 0.0 {
+        // Past the edge from vertex 0 to 1 or the opposite edge: the nearer of the two.
         let tmp0 = b + d;
         let tmp1 = c + e;
         if tmp1 > tmp0 {
@@ -307,6 +318,7 @@ pub fn closest_point_on_triangle(vertex: &[Vec3; 3], p: Vec3) -> Vec3 {
             t = 0.0;
         }
     } else {
+        // Past the edge from vertex 1 to 2: clamped onto it.
         let numer = c + e - b - d;
         let denom = a - 2.0 * b + c;
         s = (numer / denom).clamp(0.0, 1.0);
@@ -326,10 +338,12 @@ fn intersects_segment(n: Vec3, d: f32, begin: Vec3, end: Vec3) -> Option<Vec3> {
     let segment = begin - end;
     let den = n.dot(segment);
     if den.abs() < CMP_EPSILON {
+        // The segment runs along the plane.
         return None;
     }
     let dist = (n.dot(begin) - d) / den;
     if dist < -CMP_EPSILON || dist > 1.0 + CMP_EPSILON {
+        // The plane is crossed outside the segment.
         return None;
     }
     Some(begin + segment * -dist)
@@ -372,6 +386,7 @@ impl Voxelizer {
         let mut axis_cell_size = [0i32; 3];
         axis_cell_size[longest] = 1 << subdiv;
         for i in 0..3 {
+            // Each shorter axis halves its cells while the cube is twice its extent, then takes the cube's size.
             if i == longest {
                 continue;
             }
@@ -434,6 +449,7 @@ impl Voxelizer {
     ) {
         let tri = face.tri;
         if level == self.cell_subdiv {
+            // At the leaves, the face's sample is added to the cell's sums.
             let s = leaf_sample(face, aabb);
             let c = &mut self.cells[idx as usize];
             for k in 0..3 {
@@ -446,6 +462,7 @@ impl Voxelizer {
         }
         let half = (1 << self.cell_subdiv) >> (level + 1);
         for i in 0..8 {
+            // Each of the eight children: its box, and its position in leaf cells.
             let mut child = aabb;
             child.size *= 0.5;
             let mut n = p;
@@ -462,11 +479,13 @@ impl Voxelizer {
                 n[2] += half;
             }
             if (0..3).any(|k| n[k] < 0 || n[k] >= self.axis_cell_size[k]) {
+                // A child past the grid's cells on a short axis does not exist.
                 continue;
             }
             let qsize = child.size * 0.5;
             let overlaps = triangle_box_overlap(child.position + qsize, qsize, &tri.vtx);
             if !overlaps {
+                // A child the triangle misses is skipped (and recorded for the descent's picture).
                 if let Some(t) = trace.as_deref_mut() {
                     t.push(Descent {
                         level: level + 1,
@@ -477,6 +496,7 @@ impl Voxelizer {
                 continue;
             }
             if self.cells[idx as usize].children[i] == CHILD_EMPTY {
+                // A child the triangle reaches is made the first time it is reached.
                 let child_idx = self.cells.len() as u32;
                 self.cells[idx as usize].children[i] = child_idx;
                 self.cells.push(Cell {
@@ -503,6 +523,7 @@ impl Voxelizer {
     /// bits); children remapped.
     pub fn sort(&mut self) {
         let mut order: Vec<usize> = (0..self.cells.len()).collect();
+        // Order the cells by level, then x, y, z, the root first.
         let key = |c: &Cell| {
             ((c.level as u64) << 48) | ((c.x as u64) << 32) | ((c.y as u64) << 16) | c.z as u64
         };
@@ -513,6 +534,7 @@ impl Voxelizer {
         );
         let mut reverse = vec![0u32; self.cells.len()];
         for (new, &old) in order.iter().enumerate() {
+            // Where each old index went, so the children's indices can follow.
             reverse[old] = new as u32;
         }
         let mut sorted: Vec<Cell> = order.iter().map(|&i| self.cells[i]).collect();
@@ -530,6 +552,7 @@ impl Voxelizer {
     /// `_fixup_plot` from the root.
     pub fn fixup(&mut self, idx: usize, level: i32) {
         if level == self.cell_subdiv {
+            // A leaf's sums become averages over its samples' alpha, its normal unit length (or none).
             self.leaf_voxel_count += 1;
             let c = &mut self.cells[idx];
             let alpha = c.alpha;
@@ -548,6 +571,7 @@ impl Voxelizer {
             return;
         }
         {
+            // A parent keeps no colour of its own, only its children's mean coverage.
             let c = &mut self.cells[idx];
             c.emission = [0.0; 3];
             c.normal = [0.0; 3];
@@ -618,6 +642,7 @@ fn column_hit(
         std::mem::swap(&mut ray_from, &mut ray_to);
     }
     let intersection = intersects_segment(normal, d, ray_from, ray_to).unwrap_or_else(|| {
+        // No crossing: the nearer end, dropped onto the plane.
         let dist = |p: Vec3| normal.dot(p) - d;
         if dist(ray_from).abs() < dist(ray_to).abs() {
             ray_from - normal * dist(ray_from)
@@ -657,6 +682,7 @@ pub fn leaf_sample(face: &Face, aabb: Aabb) -> LeafSample {
     let mut closest_axis = 0;
     let mut closest_dot = 0.0;
     for i in 0..3 {
+        // The dominant axis: the one the plane's normal is most along.
         let dot = normal[i].abs();
         if i == 0 || dot > closest_dot {
             closest_axis = i;
@@ -678,6 +704,7 @@ pub fn leaf_sample(face: &Face, aabb: Aabb) -> LeafSample {
     let mut alpha = 0.0f32;
     let mut columns = Vec::with_capacity(16);
     for i in 0..COLOR_SCAN_CELL_WIDTH {
+        // A 4 x 4 grid of columns across the cell, each running the cell's length along that axis.
         let ofs_i = t1 * i as f32;
         for j in 0..COLOR_SCAN_CELL_WIDTH {
             let ofs_j = t2 * j as f32;
@@ -685,6 +712,7 @@ pub fn leaf_sample(face: &Face, aabb: Aabb) -> LeafSample {
             let to = from + t1 + t2 + axis * aabb.size[closest_axis];
             let half = (to - from) * 0.5;
             if !triangle_box_overlap(from + half, half, vtx) {
+                // A column the triangle misses adds nothing.
                 columns.push(Column {
                     from,
                     to,
@@ -708,6 +736,7 @@ pub fn leaf_sample(face: &Face, aabb: Aabb) -> LeafSample {
     }
     let accdiv = 1.0 / (w * w);
     if alpha == 0.0 {
+        // No column hit: one sample at the point nearest the cell's centre, weighed as one column.
         let inters = closest_point_on_triangle(vtx, aabb.center());
         // The engine passes `normal` as the output here, so the interpolated
         // normal at the closest point is what `lnormal` falls back to.
@@ -755,6 +784,7 @@ pub fn room_meshes(
         if skip.contains(&k) {
             continue;
         }
+        // Each object's triangles into the probe's space, with normals by the inverse transpose.
         let xf = to_local * o.local_to_world();
         let normal_xform = Mat3::from_mat4(xf).inverse().transpose();
         let range = meshes.ranges[k].clone();

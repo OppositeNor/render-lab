@@ -110,6 +110,7 @@ fn check_bake(report: &mut Report, rng: &mut Rng) {
     // Sampled: a triangle with a vertex inside the box always overlaps it.
     let mut vertex_inside_ok = true;
     for _ in 0..2000 {
+        // A random box and a triangle with one vertex inside it: the test must call that an overlap.
         let c = Vec3::new(rng.next(), rng.next(), rng.next()) * 2.0 - Vec3::ONE;
         let h = Vec3::new(rng.next(), rng.next(), rng.next()) * 0.5 + Vec3::splat(0.05);
         let a = c + (Vec3::new(rng.next(), rng.next(), rng.next()) * 2.0 - Vec3::ONE) * h * 0.99;
@@ -209,6 +210,7 @@ fn check_records(report: &mut Report) {
     let mut decode_ok = true;
     let mut worst_albedo = 0.0f32;
     for (i, c) in v.cells.iter().enumerate().step_by(31) {
+        // Every 31st cell: its packed record decodes back to the bake's position, albedo, and (at a leaf) normal.
         let d = probe.data[i];
         decode_ok &= d.pos() == IVec3::new(c.x as i32, c.y as i32, c.z as i32);
         worst_albedo = worst_albedo.max(
@@ -256,6 +258,7 @@ fn check_field(report: &mut Report, rng: &mut Rng) {
     let mut checked = 0;
     let s = probe.octree_size;
     for _ in 0..300 {
+        // At random texels: the stored byte against the exact distance to the nearest leaf.
         let p = IVec3::new(
             (rng.next() * s.x as f32) as i32,
             (rng.next() * s.y as f32) as i32,
@@ -290,6 +293,7 @@ fn check_light(report: &mut Report) {
     );
     let mut write_ok = true;
     for c in (0..probe.data.len()).step_by(53) {
+        // Every 53rd cell: the texel the write pass gave it in its mip.
         let d = probe.data[c];
         let mip = probe.mip_count() - 1 - probe.level_of(c);
         let t = lit.texture.mips[mip][lit.texture.index(mip, d.pos())];
@@ -532,6 +536,7 @@ fn check_scripts(report: &mut Report, renderer: &mut lab::renderer::Renderer) ->
         .filter(|k| k.run.as_ref().is_some_and(|r| r.name == "marchCone"))
     {
         for f in key.frame..(key.frame + 600).min(timeline.total_frames) {
+            // Each frame the action runs: the step the script set, against the step its seconds and start imply.
             let st = timeline.state_at(f);
             let Some(a) = st.actions.iter().find(|a| a.key == "marchCone") else {
                 continue;
@@ -553,6 +558,7 @@ fn check_scripts(report: &mut Report, renderer: &mut lab::renderer::Renderer) ->
     let s = w.probe.octree_size;
     let mut clicks = 0;
     for height in [0.0f32, 0.3, 1.27, 2.9] {
+        // At four slice heights and 41 x 41 points, the script's pick against the Rust one.
         let mut shown = shot::for_demo(Demo::Room);
         shown.set("sliceHeight", height);
         for i in 0..=40 {
@@ -601,6 +607,7 @@ fn check_scene_click(report: &mut Report, renderer: &mut lab::renderer::Renderer
     let viewport = glam::Vec2::from(content.uniforms.camera.viewport_size);
     for i in 0..=40 {
         for j in 0..=40 {
+            // Each point clicked: the script's cell against the Rust click's.
             let uv = glam::Vec2::new(i as f32 / 40.0, j as f32 / 40.0);
             let mut state = shown0.clone();
             let mut frame = lab::actions::ClickFrame {
@@ -652,6 +659,7 @@ fn light_on_gpu(
     let mut texels = 0usize;
     let mut sizes = true;
     for mip in 0..probe.mip_count() {
+        // Each mip read back: its size, and how far each texel is from the CPU's byte.
         let Some((bytes, size)) = renderer.read_volume("voxelgiLight", mip as u32) else {
             sizes = false;
             break;
@@ -695,6 +703,7 @@ fn check_sampler(
     // The 3D texture's sampler (trilinear, between mips, clamped) against storage.rs's sample_lod.
     let mut cases = Vec::new();
     for k in 0..64 {
+        // Random points at random levels, then the points a bounce cone samples.
         cases.push([rng.next(), rng.next(), rng.next(), (k % 16) as f32 * 0.5]);
     }
     // And where a bounce cone samples: along +x from a leaf at the room's -x wall.
@@ -744,6 +753,7 @@ fn check_screen_pass(
     // The screen pass at points on the room's surfaces, both qualities, inside and outside.
     let mut cases: Vec<(Vec3, Vec3, Vec3, f32, bool, bool)> = Vec::new();
     for k in 0..48 {
+        // The cases take turns: the floor, the left wall, the back wall, and a random point and normal in the room.
         let (p, n) = match k % 4 {
             0 => (
                 Vec3::new(rng.next() * 5.8 - 2.9, 0.0, rng.next() * 5.8 - 2.9),
@@ -789,6 +799,7 @@ fn check_screen_pass(
     let mut worst = 0.0f32;
     let mut worst_at = json!(null);
     for (k, &(p, n, r, rough, high, blend)) in cases.iter().enumerate() {
+        // Each case through cone.rs on the GPU's own texture, against the port's eight words.
         let inst = world::instance(probe, &LightSettings::default(), !blend);
         let (a, s) = cone::process(
             &inst,
@@ -841,6 +852,7 @@ fn check_light_pass(report: &mut Report, renderer: &mut lab::renderer::Renderer)
     let cells: Vec<usize> = leaves.clone().step_by(leaves.len() / 96 + 1).collect();
     let mut tests = Vec::new();
     for (k, &c) in cells.iter().enumerate() {
+        // Each sampled leaf takes a light type in turn.
         let l = lights[k % 4];
         let d = probe.data[c];
         tests.extend([
@@ -865,6 +877,7 @@ fn check_light_pass(report: &mut Report, renderer: &mut lab::renderer::Renderer)
     let mut worst = 0.0f32;
     let mut mismatched = 0;
     for (k, &c) in cells.iter().enumerate() {
+        // The GPU's term for the same leaf and light, against light.rs's.
         let l = lights[k % 4];
         let d = probe.data[c];
         let pos = d.pos().as_vec3() + Vec3::splat(0.5);
@@ -936,6 +949,7 @@ fn check_bounce(
     let mut worst = 0.0f32;
     let mut worst_at = json!(null);
     for (k, (p, d)) in cases.iter().enumerate() {
+        // The CPU's bounce cone on the GPU's own texture, against the port's.
         let c = light::bounce_cone(gpu_texture, &params, *p, *d, None);
         for i in 0..4 {
             let g = f32::from_bits(words[k * 4 + i]);

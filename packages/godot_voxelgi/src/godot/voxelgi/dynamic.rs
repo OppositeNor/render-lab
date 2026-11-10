@@ -138,6 +138,7 @@ impl ViewFrame {
         let x_dir = basis[0].abs().round().as_ivec3();
         let y_dir = basis[1].abs().round().as_ivec3();
         let z_dir = z_dir_f.round().as_ivec3();
+        // A view looking toward the axis's negative end counts its depth down from the near face.
         let z_flip = basis[2].x + basis[2].y + basis[2].z > 0.0;
         let z_base = eye[z_axis];
         let z_sign = if z_flip {
@@ -192,6 +193,7 @@ pub fn plot(
     let mut plotted = vec![Vec::new(); probe.mip_count()];
     let mut views = Vec::new();
     for j in 0..6 {
+        // Each of the six views: its first map rendered, then shrunk map by map, plotting from 1x on.
         let view = ViewFrame::new(j, begin, end);
         let (albedo, first) = ctx.render_view(&view, end - begin);
         let mut maps = vec![first];
@@ -212,6 +214,7 @@ pub fn plot(
         views.push(View { albedo, maps });
     }
     for p in &mut plotted {
+        // Each mip's plotted texels, once each, in order.
         p.sort_by_key(|v| (v.z, v.y, v.x));
         p.dedup();
     }
@@ -384,6 +387,7 @@ impl Plotting<'_> {
         } = chain;
         let mut prev_ofs = IVec2::ZERO;
         for a in 0..2 {
+            // Halving an odd rectangle: an odd start keeps the cell before it, an odd size rounds up.
             if rect_p[a] & 1 != 0 {
                 rect_s[a] += 1;
                 prev_ofs[a] = 1;
@@ -411,6 +415,7 @@ impl Plotting<'_> {
                 let mut accum_z = 0.0f32;
                 let mut count = 0.0f32;
                 for i in 0..4 {
+                    // The 2 x 2 texels of the bigger map under this one; uncovered ones count for nothing.
                     let ofs = IVec2::new(px * 2 + (i & 1), py * 2 + (i >> 1)) - prev_ofs;
                     if ofs.x < 0
                         || ofs.y < 0
@@ -428,12 +433,15 @@ impl Plotting<'_> {
                     count += 1.0;
                 }
                 if on_mipmap {
+                    // A mip divides as the light's mips do (by 8, or by the count with propagation).
                     let rgb = accum.truncate() / (8.0 + (count - 8.0) * params.propagation);
                     accum = rgb.extend(accum.w / 8.0);
                 } else {
+                    // An oversampled map averages its four texels.
                     accum /= 4.0;
                 }
                 accum_z = if count == 0.0 {
+                    // No covered texel: no depth.
                     0.0
                 } else {
                     accum_z / count
@@ -444,6 +452,7 @@ impl Plotting<'_> {
                     out_depth[i] = accum_z;
                 }
                 if do_plot && accum.w >= 0.001 {
+                    // The texel's voxel, from its place in the map and its depth along the view.
                     let [x_dir, y_dir, z_dir] = view.dirs;
                     let pos = x_dir * (rect_p.x + px)
                         + y_dir * (rect_p.y + py)
@@ -478,6 +487,7 @@ impl Plotting<'_> {
         let z_frac = accum_z.fract();
         for s in 0..2 {
             let pos3d = pos + step * s;
+            // The texel splits over the voxel at its depth and the next one, by the depth's fraction.
             if pos3d.cmplt(IVec3::ZERO).any() || pos3d.cmpge(limits).any() {
                 continue;
             }
@@ -488,6 +498,7 @@ impl Plotting<'_> {
                     z_frac
                 };
             let mut color = out.tex.texel(mipmap, pos3d);
+            // Blend over what is stored: back to light units, "over" by alpha, then back to the stored range.
             color = (color.truncate() * params.dynamic_range).extend(color.w);
             let sa = 1.0 - blit.w;
             let a = color.w * sa + blit.w;

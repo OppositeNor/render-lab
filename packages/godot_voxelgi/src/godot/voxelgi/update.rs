@@ -69,6 +69,7 @@ pub fn plan(state: &ShotState) -> UpdatePlan {
     } else {
         1
     } {
+        // Each bounce lights the leaves (the second from the first texture), builds the mips, writes every level.
         dispatches.push(dispatch(
             if pass == 0 {
                 "voxelgiLightCS"

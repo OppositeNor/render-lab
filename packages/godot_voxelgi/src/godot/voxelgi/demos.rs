@@ -37,6 +37,7 @@ fn balls(content: &mut FrameContent, points: &[(Vec3, f32, Color32)], alpha: f32
     let eye = eye(content);
     let objects = &content.objects;
     let seen = light::par_map(0..points.len(), |i| {
+        // A ball hidden behind the room's surfaces from the eye is drawn faint.
         let (p, r, _) = points[i];
         let d = p - eye;
         let dist = d.length();
@@ -72,6 +73,7 @@ fn lit_rows(
         .enumerate()
         .map(|(i, (a, b, c))| {
             if i as i32 == focus {
+                // The focus row is lit.
                 (a, b, palette::SELECTED)
             } else {
                 (a, b, c)
@@ -162,6 +164,7 @@ fn teapot_record(scene: &Scene) -> lab::layout::ObjectData {
 /// teapot's spout side, at the teapot's mid height.
 pub fn bake_point(scene: &Scene) -> Vec3 {
     let t = teapot_record(scene);
+    // Where a ray from beside the teapot, low and toward its centre, meets its surface.
     let c = Vec3::from(t.world_center);
     let ro = c + Vec3::new(2.0, 0.02, 0.4);
     let rd = (c - ro).normalize();
@@ -175,6 +178,7 @@ pub fn worked_triangle(w: &World) -> Triangle {
     static TRI: OnceLock<Triangle> = OnceLock::new();
     *TRI.get_or_init(|| {
         let p = bake_point(&w.scene) - NODE;
+        // The teapot's triangle nearest that point.
         let mesh = w
             .meshes
             .iter()
@@ -196,6 +200,7 @@ pub fn worked_triangle(w: &World) -> Triangle {
 pub fn descent(w: &World) -> &'static [bake::Descent] {
     static D: OnceLock<Vec<bake::Descent>> = OnceLock::new();
     D.get_or_init(|| {
+        // The worked triangle plotted alone, recording every child box it tests on the way down.
         let mut v = bake::Voxelizer::begin_bake(world::SUBDIV, world::bounds());
         let mut trace = Vec::new();
         let tri = worked_triangle(w);
@@ -220,6 +225,7 @@ pub fn descent(w: &World) -> &'static [bake::Descent] {
 pub fn worked_leaf(w: &World) -> (Aabb, IVec3) {
     let p = bake_point(&w.scene) - NODE;
     let d = descent(w);
+    // The leaf the triangle reaches nearest the worked point.
     let leaf = d
         .iter()
         .filter(|s| s.overlaps && s.level == world::SUBDIV)
@@ -241,6 +247,7 @@ pub fn picked_cell(state: &ShotState, fallback: IVec3) -> IVec3 {
         state.p("cellZ").round() as i32,
     );
     if p.min_element() < 0 {
+        // No cell picked: the demonstration's own.
         fallback
     } else {
         p
@@ -253,6 +260,7 @@ pub fn nearest_leaf(probe: &Probe, p: IVec3) -> Option<(usize, IVec3)> {
     for dz in -3..=3 {
         for dy in -3..=3 {
             for dx in -3..=3 {
+                // Search a 7 x 7 x 7 neighbourhood for the nearest point that falls in a leaf.
                 let q = p + IVec3::new(dx, dy, dz);
                 if q.min_element() < 0 || q.cmpge(probe.octree_size).any() {
                     continue;
@@ -298,6 +306,7 @@ pub fn pixel_point(state: &ShotState, scene: &Scene) -> (Vec3, Vec3) {
     let r = s.world_extent[0];
     let az = state.p("pixelAzimuth").to_radians();
     let el = state.p("pixelElevation").to_radians();
+    // The pixel's normal from its azimuth and elevation, on the sphere's surface.
     let n = Vec3::new(-az.cos() * el.cos(), el.sin(), az.sin() * el.cos());
     (c + n * r, n)
 }
@@ -357,6 +366,7 @@ pub fn build_frame(
             ids::FLOOR as u32,
             0,
             if state.view_camera().pitch > 60.0 || state.p("octreeLevel") >= 0.0 {
+                // A camera from above (or the octree's levels) hides the panel, which would cover the room.
                 1 << ids::PANEL
             } else {
                 0
@@ -391,6 +401,7 @@ pub fn build_frame(
 fn shared_overlays(state: &ShotState, w: &World, content: &mut FrameContent) {
     let show = state.p("showBox");
     if show > 0.0 {
+        // The probe's box, then (as boundsStep grows) the power-of-two cube and the cells per axis.
         let b = world::bounds();
         wire_box(content, b.position + NODE, b.size, palette::AABB, show, 2.0);
         let step = state.p("boundsStep");
@@ -461,12 +472,14 @@ fn draw_level(state: &ShotState, w: &World, content: &mut FrameContent, level: u
     let boxes = 2.0 * half > 0.12;
     let mut points = Vec::new();
     for cell in probe.level_range(level) {
+        // Each cell of the level below the cut, coloured by the view chosen.
         let d = probe.data[cell];
         let p = cell_center(probe, level, d.pos());
         if p.y > cut {
             continue;
         }
         let color = match view {
+            // Views: coverage, normal, emission, the light texture, direct light; albedo by default.
             1 => alpha_color(d.albedo().w),
             2 => unit_color(d.normal() * 0.5 + Vec3::splat(0.5)),
             3 => light_color(d.emission()),
@@ -482,6 +495,7 @@ fn draw_level(state: &ShotState, w: &World, content: &mut FrameContent, level: u
             _ => unit_color(d.albedo().truncate()),
         };
         if boxes {
+            // Coarse cells as wire boxes (albedo shown as coverage), fine ones as balls.
             let (min, size) = cell_box(probe, level, d.pos());
             let c = if view == 0 {
                 alpha_color(d.albedo().w)
@@ -775,6 +789,7 @@ fn triangle_descent(
     // children the triangle overlaps lit, the ones it misses dim.
     let shown = state.p("descentLevel");
     for d in descent(w) {
+        // A box fades in as its level comes, holds a level, dims the next, then goes.
         let age = shown - d.level as f32;
         let a = if age < 0.0 {
             (1.0 + age).max(0.0)
@@ -832,6 +847,7 @@ fn triangle_descent(
             .iter()
             .find(|d| !d.overlaps && d.level == deepest.max(1))
     {
+        // The stage at which the test separates them, named in the readout.
         let stage = bake::triangle_box_stage(sk.aabb.center(), sk.aabb.size * 0.5, &tri.vtx);
         wire_box(
             content,
@@ -882,6 +898,7 @@ fn leaf_columns(
     let n = state.p("leafColumns").round().clamp(0.0, 16.0) as usize;
     let mut hits = 0;
     for c in s.columns.iter().take(n) {
+        // Each column up to `leafColumns`, bright where the triangle crosses it, its hit marked.
         let color = if c.hit.is_some() {
             palette::VIEW
         } else {
@@ -998,6 +1015,7 @@ fn plotted_voxels(
         })
         .collect();
     if 2.0 * half > 0.12 {
+        // Big voxels as wire boxes, small ones as balls.
         for (p, h, c) in &points {
             wire_box(
                 content,
@@ -1068,6 +1086,7 @@ fn view_maps(
         .rev()
         .flat_map(|y| (0..aw).map(move |x| (y, x)))
         .flat_map(|(y, x)| {
+            // Rows from the top, so +y is up; an uncovered texel is the dark ground.
             let a = v.albedo[y * aw + x];
             if a.w > 0.0 {
                 [
@@ -1098,6 +1117,7 @@ fn view_maps(
         .flat_map(|y| (0..lw).map(move |x| (y, x)))
         .flat_map(|(y, x)| {
             let l = map.light[y * lw + x];
+            // The light per covered texel, its coverage divided out, brightened as the voxels are.
             if l.w > 0.0 {
                 let c = light_color(l.truncate() / l.w.max(1e-3) * DYNAMIC_GAIN);
                 [c.r(), c.g(), c.b(), 255]
@@ -1126,6 +1146,7 @@ fn view_maps(
 /// The worked pixel's cones, as `process` traces them.
 pub fn pixel_cones(state: &ShotState, w: &World, eye_pos: Vec3) -> (Vec3, Vec3, Cones, Vec4, Vec4) {
     let (p, n) = pixel_point(state, &w.scene);
+    // The view reflected about the normal, then the pixel's cones through the probe's instance.
     let v = (eye_pos - p).normalize();
     let r = lab::scene::reflect(-v, n);
     let inst = world::instance(
@@ -1173,6 +1194,7 @@ fn pixel_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
         );
         let shown = state.p("conesShown").round() as usize;
         let steps = state.p("coneSteps").round() as usize;
+        // The first `conesShown` diffuse cones and the specular one, each to `coneSteps` steps.
         for (i, (dir, _w, st, _c)) in cones.diffuse.iter().enumerate().take(shown) {
             draw_cone_world(content, &inst, cones.position, *dir, st, steps, 0.9);
             let _ = i;
@@ -1246,6 +1268,7 @@ fn draw_cone_world(
         .draw
         .segment(to_world(0.0), to_world(reach), palette::VIEW, alpha, 2.0, 0);
     for s in shown_steps {
+        // Each step a circle of the cone's width there, coloured by what it sampled (a dot when too wide).
         let r = s.diameter * 0.5 / inst.to_cell_scale;
         let c = if s.sample.w > 0.0 {
             light_color(s.sample.truncate() / s.sample.w.max(1e-3) * inst.dynamic_range)
@@ -1269,6 +1292,7 @@ fn compose_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
     let lighting = w.scene.lighting;
     let v = (e - p).normalize();
     let r = lab::scene::reflect(-v, n);
+    // The environment's light, replaced by VoxelGI's by its coverage times the mix.
     let env_amb = lab::scene::environment_radiance(&lighting, n);
     let env_ref = sky_reflection(&lighting, r, state.p("sphereRoughness"));
     let mix = state.p("voxelgiMix");
@@ -1323,6 +1347,7 @@ pub fn sky_reflection(lighting: &lab::scene::Lighting, r: Vec3, roughness: f32) 
     } else {
         Vec3::Y
     };
+    // The sky around the reflection, a 3 x 3 spread widened by roughness, averaged.
     let t = v0.cross(r).normalize();
     let b = r.cross(t);
     let mut sum = Vec3::ZERO;

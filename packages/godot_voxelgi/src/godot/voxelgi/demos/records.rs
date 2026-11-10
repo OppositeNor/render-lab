@@ -46,6 +46,7 @@ pub(super) fn cells_demo(state: &ShotState, w: &World, content: &mut FrameConten
         palette::text(),
     )];
     if state.p("fixupStep") < 0.5 {
+        // Before the fixup: the bake's raw sums for the cell.
         let s = &w.sums[cell];
         rows.push(row(
             tr("demos-albedo_sum"),
@@ -191,11 +192,13 @@ pub(super) fn cell_array_inset(probe: &Probe, cell: usize) -> PictureInset {
     let mut edges = vec![0usize];
     let mut acc = 0.0;
     for &c in &probe.level_counts {
+        // Each level's share of the strip grows with the log of its cell count, so small levels stay visible.
         acc += (c as f32).max(1.0).ln_1p();
         edges.push((acc / total * wpx as f32) as usize);
     }
     let mut rgba = vec![0u8; wpx * hpx * 4];
     for x in 0..wpx {
+        // Each column takes its level's colour.
         let l = edges
             .windows(2)
             .position(|e| x >= e[0] && x < e[1])
@@ -207,6 +210,7 @@ pub(super) fn cell_array_inset(probe: &Probe, cell: usize) -> PictureInset {
         }
     }
     let level = probe.level_of(cell);
+    // The cell's mark: its level's span, as far along it as the cell is in its level.
     let within =
         (cell - probe.level_offset(level)) as f32 / probe.level_counts[level].max(1) as f32;
     let at = (edges[level] as f32 + within * (edges[level + 1] - edges[level]) as f32) / wpx as f32;
@@ -261,6 +265,7 @@ pub(super) fn slices(
         .clamp(0, probe.octree_size.y - 1);
     let s = probe.octree_size;
     if want_field {
+        // The field after `edtPass` of its three passes, at the slice's height.
         let passes = state.p("edtPass").round().clamp(0.0, 3.0) as usize;
         let sq = edt_passes(w, passes);
         let max = 16.0f32;
@@ -272,9 +277,11 @@ pub(super) fn slices(
             |x, z| {
                 let v = sq[(x + y_leaf * s.x + z * s.x * s.y) as usize];
                 if v == 0.0 {
+                    // A leaf: distance 0.
                     return [10, 10, 10, 255];
                 }
                 if v >= sdf::BIG_VAL * 0.5 {
+                    // Not reached by the passes so far.
                     return [235, 235, 240, 255];
                 }
                 // Grey by the distance, a darker band every two cells.
@@ -298,6 +305,7 @@ pub(super) fn slices(
         }
     }
     if want_mip {
+        // The light texture's chosen mip at the slice's height.
         let settings = light_settings(state);
         let lit = world::lit_for(&settings);
         let mip = state
@@ -318,6 +326,7 @@ pub(super) fn slices(
             |x, z| {
                 let t = tex.texel(mip, IVec3::new(x, y, z));
                 if t.w == 0.0 {
+                    // An empty texel: a dark checkerboard.
                     let c = if (x + z) % 2 == 0 {
                         22
                     } else {
@@ -355,6 +364,7 @@ pub(super) fn slice_inset(
     let mut rgba = vec![0u8; wpx * hpx * 4];
     for z in 0..nz {
         for x in 0..nx {
+            // Each texel fills a k x k block.
             let c = pixel(x as i32, z as i32);
             for dy in 0..k {
                 for dx in 0..k {

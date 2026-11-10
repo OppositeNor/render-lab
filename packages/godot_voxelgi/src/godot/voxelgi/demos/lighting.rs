@@ -51,6 +51,7 @@ pub(super) fn light_demo(state: &ShotState, w: &World, content: &mut FrameConten
             tr("demos-omni")
         };
         if lt.kind == light::LIGHT_TYPE_AREA {
+            // The panel has no shadow march: its term is shown from step 1 (its line) and 4 (its value).
             let a = light::area_light(&params, lt, cpos, normal);
             let v = a.map(|x| x * albedo).unwrap_or(Vec3::ZERO);
             total += v;
@@ -77,6 +78,7 @@ pub(super) fn light_demo(state: &ShotState, w: &World, content: &mut FrameConten
         let _ = k;
     }
     if step >= 4 {
+        // The cell's whole light and the bytes the write pass stores for it.
         rows.push(row(
             tr("demos-cell_light"),
             v3(total + d.emission()),
@@ -164,6 +166,7 @@ pub(super) fn omni_term(
     rows.extend(march_marks(state, probe, &trace, content));
     let v = res
         .map(|(li, dir)| {
+            // The omni's term, by the normal's cosine (a cell with no normal, fully).
             if normal.length() > 0.2 {
                 normal.dot(-dir).max(0.0) * li * albedo
             } else {
@@ -248,6 +251,7 @@ pub(super) fn march_marks(
     // The shadow march: a circle per step, of the distance the field gave.
     let shown = state.p("marchSteps").round() as usize;
     for (i, s) in trace.steps.iter().take(shown).enumerate() {
+        // Each march step a circle of the distance the field gave, red where the ray was inside a surface.
         let p = probe.from_cell(s.from) + NODE;
         let r = (s.advance.max(0.0) + 0.5) / probe.to_cell_scale;
         let color = if s.advance < 0.0 {
@@ -338,6 +342,7 @@ pub(super) fn draw_cone(
     );
     for s in shown_steps {
         let p = to_world(s.dist);
+        // Each step a circle of the cone's width there, coloured by what it sampled.
         let r = s.diameter * 0.5 / probe.to_cell_scale;
         let c = if s.sample.w > 0.0 {
             light_color(s.sample.truncate() / s.sample.w.max(1e-3) * dynamic_range)
@@ -389,6 +394,7 @@ pub(super) fn bounce_demo(state: &ShotState, w: &World, content: &mut FrameConte
     if normal.length() > 0.2 {
         let [t, b, n] = light::tangent_frame(normal);
         for (i, dir) in light::BOUNCE_CONE_DIRS.iter().enumerate() {
+            // Each of the six cones gathers the first bounce's texture, weighted and tinted by the albedo.
             let direction = t * dir.x + b * dir.y + n * dir.z;
             let mut steps = Vec::new();
             let c = light::bounce_cone(
@@ -490,6 +496,7 @@ pub(super) fn mips_demo(state: &ShotState, w: &World, content: &mut FrameContent
         ),
     ];
     if state.p("workedParent") > 0.5 {
+        // The worked leaf's parent: its box, and each child it holds lit by its own light.
         let plevel = depth(probe) - 1;
         if let Some(parent) = probe.find_cell(leaf, plevel) {
             let pd = probe.data[parent];
