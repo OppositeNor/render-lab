@@ -56,6 +56,13 @@ present, read every `AGENTS.md` inside them before working on anything else.** I
 - On-screen text is a key (`group-name`: Fluent ids have no dots) in the package's `text/en.ftl` and `text/zh-CN.ftl` (Project Fluent, loaded at run time), read with `tr("key")` (or `tr_with("key", args!(name = value))` for a message with variables, `{ $name }` in both languages). Formulas and code names in text are Fluent function calls, `{ FORMULA("LaTeX") }` and `{ CODE("Name") }` (lab/src/rich_text.rs). The package's build.rs (the lab's, for render_lab) fails on a key missing from a language, variables that differ between languages, an unknown key, or an unused one.
 - Python: type-annotate parameters and returns, `X | None` unions, concrete generics. Rust: follow the surrounding code,
   formatted by rustfmt (`cargo fmt --all`, `rustfmt.toml`); no Rust lint or formatter of our own.
+- **Comments in function bodies.** Where a chunk of Rust or Python is hard to follow (a branch, a loop, a step of a
+  long function), a `//` (`#`) comment of one line, two at most, says what it does. A branch's or loop's comment is
+  the first line of its body (`if …: # …`, `for … { // …`), not above its header; one that covers every arm of a
+  `match` goes above it. Write it as the `storytelling` skill writes a sentence: start from what the reader has (the
+  variable, the step before), end on what is new, tell a process in verbs, and give the purpose. State only what the
+  code does; a reason comes from the engine's source or the lab's code, never a guess. Code that reads plainly needs
+  none, and on-screen listings (`pseudocode/`) are left as they are.
 - **Size limits.** A Rust or Python function holds at most 100 lines (blank and comment lines aside), a Rust or Python
   file at most 1400. Clippy's `too_many_lines` checks Rust's functions (denied in every crate's lints, the local
   packages' too; `clippy.toml`); `tools/check_sizes.py` checks the files and Python's functions. Split a long function
