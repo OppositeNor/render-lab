@@ -52,3 +52,36 @@ material spheres, and behind the subject that light passes through.
 $[# brdfSweep {' {' 0.0 6.0 3.1} {' -10.0 4.0 3.3} {' 6.0 8.0 3.0}}]
 $[# surfaceSweep {' {' 4.0 8.0 3.1} {' -8.0 6.0 3.3} {' 6.0 10.0 3.0}}]
 $[# transmissionSweep {' {' 35.0 6.0 1.8} {' 48.0 4.0 2.0} {' 38.0 8.0 1.7}}]
+
+Surface points the inspected point moves to, so every view of a screen-sized resource rings the pixel a sentence
+reads, and the readout reads it: each a position and its normal (the scene's objects in `scene::ids` order).
+
+$[# atFloor [% {' 0.4 0.0 1.0 0.0 1.0 0.0}]]
+$[# atBackWall [% {' 0.3 1.7 -3.0 0.0 0.0 1.0}]]
+$[# atLeftWall [% {' -3.0 1.3 -0.6 1.0 0.0 0.0}]]
+$[# atRightWall [% {' 3.0 1.3 -0.6 -1.0 0.0 0.0}]]
+$[# atSphere [% {' -0.864 0.744 0.027 0.30 0.20 0.93}]]
+$[# atBoxTop [% {' 1.05 0.9 0.15 0.0 1.0 0.0}]]
+$[# atP [% {' -0.315 0.124 -1.478 -0.23 -0.02 0.97}]]
+$[# objFloor 0.0]
+$[# objBackWall 1.0]
+$[# objLeftWall 2.0]
+$[# objRightWall 3.0]
+$[# objSphere 5.0]
+$[# objBox 6.0]
+$[# objTeapot 8.0]
+
+The inspected point glides to `where` over a second and a half, on the object `obj`, ringed in every view.
+
+$[# {pickTo where obj} {'
+    {motion {'
+        {path
+            {' inspectX inspectY inspectZ inspectNX inspectNY inspectNZ}
+            {' where}
+            {seconds 1.5}}}}
+    {inspectObject obj}
+    {pickShown 1.0}}]
+
+The readout's first `n` rows, revealed as the sentence names them.
+
+$[# {rowsTo n} {' {readoutRows n} {blend 0.5}}]

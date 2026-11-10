@@ -119,6 +119,15 @@ pub struct CullTile {
     /// The simple point lights the tile's list holds, for any bin.
     pub listed: Vec<u32>,
     pub point: Vec3,
+    /// The surface points of the tile's pixels read so far (tile prepare, step by step), when not all are.
+    pub read: Vec<Vec3>,
+    /// The tile's list as the culling wrote it (`index << 16 | bins`, groups closed by END_OF_GROUP).
+    pub list: Vec<u32>,
+    /// The point's view distance, which picks its bin.
+    pub distance: f32,
+    /// How many simple point lights (list indices from 1) the culling has tested; the room's light, index 0, is
+    /// tested first.
+    pub tested: usize,
 }
 
 /// The culling readout and the inspected point's tile, from the CPU mirror on
@@ -138,13 +147,17 @@ pub fn culling_view(
         (pixel.x.max(0.0) as u32) / culling::TILE_DIM,
         (pixel.y.max(0.0) as u32) / culling::TILE_DIM,
     ];
-    let data = culling::cpu_tile(camera, objects, tile);
+    let pixels = (culling::TILE_DIM * culling::TILE_DIM) as usize;
+    let read = (state.p("tilePixelsRead").round().max(1.0) as usize).min(pixels);
+    let (data, read_points) = culling::cpu_tile_read(camera, objects, tile, read);
     let lights = shading.lights();
+    // The culling, light by light: only the lights tested so far can enter the tile's list.
+    let tested = state.p("cullTested").round().max(0.0) as usize;
     let list = culling::cull_tile(
         camera,
         &data,
         tile,
-        &lights,
+        &lights[..tested.min(lights.len())],
         &shading.decals,
         &shading.sphere_lights,
     );
@@ -175,7 +188,48 @@ pub fn culling_view(
         .iter()
         .filter(|l| (l.position - p).length_squared() * l.inv_attenuation_radius_squared < 1.0)
         .count();
-    let rows = vec![
+    let rows = culling_rows(
+        tile,
+        &data,
+        (
+            lights.len(),
+            tested.min(lights.len()),
+            in_tile,
+            kept.len(),
+            reach,
+        ),
+        (bin, distance),
+    );
+    (
+        rows,
+        CullTile {
+            tile,
+            data,
+            bin,
+            kept,
+            listed,
+            point: p,
+            read: if read < pixels {
+                read_points
+            } else {
+                Vec::new()
+            },
+            tested,
+            list: list.clone(),
+            distance,
+        },
+    )
+}
+
+/// The culling readout's rows: the tile, its depth range, bins, and mask, and the counts of lights at each
+/// stage, `(lights, tested, in the tile's list, in the point's bin, reaching the point)`.
+fn culling_rows(
+    tile: [u32; 2],
+    data: &super::super::culling::TileLightData,
+    (lights, tested, in_tile, kept, reach): (usize, usize, usize, usize, usize),
+    (bin, distance): (u32, f32),
+) -> Vec<(String, String, Color32)> {
+    vec![
         (
             tr("demos-tile_16_x_16_px").to_string(),
             format!("({}, {})", tile[0], tile[1]),
@@ -198,7 +252,12 @@ pub fn culling_view(
         ),
         (
             tr("demos-simple_point_lights").to_string(),
-            format!("{}", lights.len()),
+            format!("{lights}"),
+            LIGHT,
+        ),
+        (
+            tr("demos-lights_tested").to_string(),
+            format!("{tested}"),
             LIGHT,
         ),
         (
@@ -213,7 +272,7 @@ pub fn culling_view(
         ),
         (
             tr("demos-in_that_bin").to_string(),
-            format!("{}", kept.len()),
+            format!("{kept}"),
             LIGHT,
         ),
         (
@@ -221,18 +280,7 @@ pub fn culling_view(
             format!("{reach}"),
             DIFFUSE,
         ),
-    ];
-    (
-        rows,
-        CullTile {
-            tile,
-            data,
-            bin,
-            kept,
-            listed,
-            point: p,
-        },
-    )
+    ]
 }
 
 /// The tile's view-space box in the world, its depth bins as slices, and the
@@ -291,6 +339,17 @@ pub(super) fn tile_overlay(
         );
     }
     draw.point(tile.point, 9.0, palette::SELECTED, alpha);
+    // The point's own depth: a tick ring across the tile's box between its z near and z far.
+    let tick: Vec<Vec3> = uvs
+        .iter()
+        .chain(std::iter::once(&uvs[0]))
+        .map(|uv| corner(*uv, tile.distance))
+        .collect();
+    draw.polyline(&tick, palette::SELECTED, alpha, 4.0);
+    for q in &tile.read {
+        // The pixels tile prepare has read so far, at the surface each one hit.
+        draw.point(*q, 4.0, palette::accent(), alpha);
+    }
 }
 
 /// A marker on each of the culling demonstration's lights, in its colour:
@@ -322,7 +381,21 @@ pub(super) fn light_markers(
         let index = i as u32 + 1;
         let [r, g, b] = (EXTRA_LIGHT_COLORS[i % 4] * 255.0).round().to_array();
         let color = Color32::from_rgb(r as u8, g as u8, b as u8);
+        if tile.is_some_and(|t| index as usize >= t.tested) {
+            // Not yet tested by the tile's threads: a small grey marker.
+            draw.point(light.position, 7.0, palette::text_dim(), alpha * 0.6);
+            continue;
+        }
         let kept = tile.is_some_and(|t| t.kept.contains(&index));
+        if let Some(t) = tile.filter(|t| t.tested < shading.extra_lights.len() + 1) {
+            // While the culling steps light by light, each tested light's verdict: green kept, red rejected.
+            let verdict = if t.listed.contains(&index) {
+                palette::rgb(0x6be36b)
+            } else {
+                palette::rgb(0xff5d5d)
+            };
+            draw.point(light.position, 20.0, verdict, alpha * 0.9);
+        }
         let listed = tile.is_some_and(|t| t.listed.contains(&index));
         if kept {
             // Kept by the point's bin: lit, ringed, and joined to the point.
@@ -356,5 +429,45 @@ pub(super) fn light_markers(
                     },
             );
         }
+    }
+}
+
+/// The light of the tile's list entry `k` a click on the list view picked: ringed, joined to the point, and
+/// labelled with its entry; nothing for a group marker or an entry past the list.
+pub(super) fn list_pick_link(
+    content: &mut FrameContent,
+    shading: &Shading,
+    tile: &CullTile,
+    k: usize,
+) {
+    use super::super::culling;
+    let Some(&entry) = tile.list.get(k) else {
+        return;
+    };
+    if entry >> 16 == culling::END_OF_GROUP {
+        return;
+    }
+    // The entry's group is the number of markers before it; its light is the group's `index`th.
+    let group = tile.list[..k]
+        .iter()
+        .filter(|e| *e >> 16 == culling::END_OF_GROUP)
+        .count() as u32;
+    let index = (entry >> 16) as usize;
+    let position = match group {
+        culling::GROUP_DECALS => shading.decals.get(index).map(|d| d.position),
+        culling::GROUP_SIMPLE_POINT if index == 0 => Some(shading.light.position),
+        culling::GROUP_SIMPLE_POINT => shading.extra_lights.get(index - 1).map(|l| l.position),
+        _ => shading.sphere_lights.get(index).map(|l| l.position),
+    };
+    if let Some(at) = position {
+        content.draw.point(at, 26.0, palette::SELECTED, 1.0);
+        content
+            .draw
+            .segment(tile.point, at, palette::SELECTED, 1.0, 3.0, FLAG_DASHED);
+        content.labels.push(Label {
+            anchor: at,
+            text: format!("{} {k}", tr("demos-list_entry")),
+            color: palette::SELECTED,
+        });
     }
 }

@@ -62,6 +62,16 @@ id = "shader/views-list"
 parts = ["shader/standard-lighting", "wgsl/views-common", "wgsl/views-list"]
 
 [[resource]]
+id = "wgsl/views-tile-pixels"
+kind = "file"
+source = "shaders/views_tile_pixels.wgsl"
+license = "MIT"
+
+[[shader]]
+id = "shader/views-tile-pixels"
+parts = ["shader/standard-lighting", "wgsl/views-common", "wgsl/views-tile-pixels"]
+
+[[resource]]
 id = "wgsl/views-shadow-buffer"
 kind = "file"
 source = "shaders/views_shadow_buffer.wgsl"

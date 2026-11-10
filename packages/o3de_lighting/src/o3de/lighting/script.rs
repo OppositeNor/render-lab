@@ -26,6 +26,17 @@ pub struct Frame {
     pub light: brdf::PointLight,
     /// The inspected surface's lighting channels.
     pub surface_channels: u32,
+    /// The inspected point's 16 x 16 tile: its top-left pixel and the viewport's size, for the tile view's clicks.
+    pub tile_origin: glam::Vec2,
+    pub viewport: glam::Vec2,
+}
+
+lab::lamlet_record! {
+    /// A place on the viewport, 0..1 with y down.
+    pub struct ViewportUv {
+        pub u: f64 = "u",
+        pub v: f64 = "v",
+    }
 }
 
 lab::lamlet_record! {
@@ -141,6 +152,7 @@ pub fn register(natives: &mut NativeRegistry) -> Result<(), Error> {
         })
         .doc("Fn([], Inspected). The inspected pixel as the CPU mirror shades it in this frame.")
         .register()?;
+    register_picks(natives)?;
     natives
         .function("o3de_lighting/brdf-terms", |_, (dirs,): (Vec<V3>,)| {
             let f = frame_data::<Frame>()?;
@@ -203,6 +215,28 @@ pub fn register(natives: &mut NativeRegistry) -> Result<(), Error> {
             Ok(Falloff { plain, attenuated })
         })
         .doc("Fn([List(Float)], {attenuated: List(Float), plain: List(Float)}). The illuminance on the floor at each distance along +x from below the light: inverse-square alone, and with the radius attenuation, over the inverse-square value one light height away.")
+        .register()?;
+    Ok(())
+}
+
+/// Registers the natives the click handlers use (script/picks.lam): the tile view's cell and the atlas's map.
+fn register_picks(natives: &mut NativeRegistry) -> Result<(), Error> {
+    natives
+        .function("o3de_lighting/tile-cell", |_, (u, v): (f64, f64)| {
+            let f = frame_data::<Frame>()?;
+            // The cell of the zoomed tile view under (u, v), and the centre of its pixel on the viewport.
+            let tile = super::culling::TILE_DIM as f32;
+            let cell = (glam::Vec2::new(u as f32, v as f32) * tile).floor().clamp(glam::Vec2::ZERO, glam::Vec2::splat(tile - 1.0));
+            let at = (f.tile_origin + cell + 0.5) / f.viewport;
+            Ok(ViewportUv { u: at.x as f64, v: at.y as f64 })
+        })
+        .doc("Fn([Float, Float], {u: Float, v: Float}). The viewport place of the inspected tile's pixel under a click on the zoomed tile view.")
+        .register()?;
+    natives
+        .function("o3de_lighting/atlas-map-at", |_, (x, y): (f64, f64)| {
+            Ok(super::demos::illustrations::atlas_map_at(x as f32, y as f32) as f64)
+        })
+        .doc("Fn([Float, Float], Float). The illustrated atlas's map under the back wall's point (x, y), or -1.")
         .register()?;
     Ok(())
 }

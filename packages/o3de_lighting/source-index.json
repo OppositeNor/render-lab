@@ -4146,6 +4146,50 @@
         }
       ]
     },
+    "ev100-to-nits": {
+      "path": "Gems/Atom/Feature/Common/Code/Source/CoreLights/PhotometricValue.cpp",
+      "line": 92,
+      "symbol": "PhotometricValue::ConvertIntensityBetweenUnits",
+      "lineHash": "803baa84cee07646",
+      "inspect": "EV100 luminance becomes nits as 12.5 times two to the EV100, over ISO 100 times a one-second shutter.",
+      "details": []
+    },
+    "emissive-intensity-default": {
+      "path": "Gems/Atom/Feature/Common/Assets/Materials/Types/MaterialInputs/EmissivePropertyGroup.json",
+      "line": 37,
+      "symbol": "emissive.intensity",
+      "lineHash": "08dd71259d973481",
+      "inspect": "A material's emissive intensity defaults to 4 (in EV100 unless its unit is changed).",
+      "details": []
+    },
+    "hair-longitudinal": {
+      "path": "Gems/AtomTressFX/Assets/Shaders/HairLightingEquations.azsli",
+      "line": 68,
+      "symbol": "M_R",
+      "lineHash": "54fb92a12bb062ab",
+      "inspect": "Each lobe's longitudinal term is a normalised Gaussian of the half angle Lh: mean the cuticle tilt times 1 (R, TT) or 1.5 (TRT), standard deviation roughness A squared times 0.5 (R, TT) or 1 (TRT).",
+      "details": [
+        {
+          "line": 87,
+          "lineHash": "c099c7832cfa7fed",
+          "note": "the TRT lobe's width"
+        }
+      ]
+    },
+    "hair-cuticle-default": {
+      "path": "Gems/AtomTressFX/External/Code/src/TressFX/TressFXSettings.h",
+      "line": 115,
+      "symbol": "TressFXRenderingSettings",
+      "lineHash": "0807d94093bb39e8",
+      "inspect": "The cuticle tilt defaults to 0.08 radians, and the hair roughness to 0.65.",
+      "details": [
+        {
+          "line": 114,
+          "lineHash": "c21550d24942688d",
+          "note": "the default hair roughness"
+        }
+      ]
+    },
     "hair-pass-after-opaque": {
       "path": "Gems/AtomTressFX/Code/Rendering/HairFeatureProcessor.cpp",
       "line": 366,
@@ -4310,6 +4354,8 @@
         "occlusion-input",
         "occlusion-eval",
         "emissive-input",
+        "ev100-to-nits",
+        "emissive-intensity-default",
         "emissive-in-specular",
         "decal-evaluate-order",
         "decal-apply",
@@ -4518,6 +4564,8 @@
         "terrain-multiscatter-flags",
         "hair-default-model",
         "hair-marschner",
+        "hair-longitudinal",
+        "hair-cuticle-default",
         "hair-pass-after-opaque"
       ]
     },

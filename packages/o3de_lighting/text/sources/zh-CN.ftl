@@ -612,6 +612,10 @@ entry-terrain-no-direct-multiscatter-inspect = 地形的光照数据把多次散
 entry-hair-default-model-inspect = 头发默认使用 Marschner 光照模型。
 entry-hair-marschner-inspect = Marschner 头发：折射率 1.55，三个波瓣（R、TT、TRT），由高斯纵向项构成，倾斜偏移分别为 cuticle tilt 的 1、1 与 1.5 倍。
 entry-hair-marschner-detail-1 = TRT 波瓣的倾斜
+entry-hair-longitudinal-inspect = 每个波瓣的纵向项是半角 Lh 的归一化高斯：均值为 cuticle tilt 的 1 倍（R、TT）或 1.5 倍（TRT），标准差为 roughness A 的平方乘以 0.5（R、TT）或 1（TRT）。
+entry-hair-longitudinal-detail-1 = TRT 波瓣的宽度
+entry-hair-cuticle-default-inspect = cuticle tilt 默认是 0.08 弧度，头发粗糙度默认是 0.65。
+entry-hair-cuticle-default-detail-1 = 默认的头发粗糙度
 entry-hair-pass-after-opaque-inspect = 头发在不透明父渲染阶段之后用自己的渲染阶段渲染并混合到它的输出颜色中：不透明帧的全屏 IBL、AO 与 SSR 已经执行完毕，所以头发自己计算光照，并有自己的 IBL（默认开启）。
 entry-cascade-image-inspect = 各级联共用一个 D32_FLOAT 纹理数组，每个级联一个切片（默认 4 x 1024 x 1024 x 4 字节 = 16 MiB），每个切片清为 1。
 entry-shadow-atlas-inspect = projected 阴影贴图按从大到小的顺序打包进数组切片：边长为基准大小一半的 map 占切片的四分之一，原点由其位置数位累加得到；默认 256 时每个 map 占满一个切片（一个点光源占六个切片）。
@@ -650,3 +654,5 @@ mapping-Cubemap-lab-layout = ibl::Cubemap：256 x 256 x 6 级 mip 与 32 x 32，
 mapping-Decal-engine-name = Decal（DecalStructures.azsli）：贴花 feature processor 的记录
 mapping-Decal-exact = float3 m_position；float m_opacity；float4 m_quaternion；float3 m_halfSize；float m_angleAttenuation；float m_normalMapOpacity；uint m_sortKeyPacked（key 在低字节）；uint m_textureArrayIndex、m_textureIndex；float3 m_decalColor；float m_decalColorFactor；补齐到 16 字节。
 mapping-Decal-lab-layout = decals::Decal：字段相同，其中一个纹理索引指向实验室的两张程序生成纹理，以替代数组与纹理索引；gShadingFrame 中每张贴花占五个向量（decals::frame_records）。
+entry-ev100-to-nits-inspect = EV100 亮度换算成尼特：12.5 乘以 2 的 EV100 次方，再除以 ISO 100 与一秒快门的乘积。
+entry-emissive-intensity-default-inspect = 材质的自发光强度默认是 4（单位未更改时为 EV100）。

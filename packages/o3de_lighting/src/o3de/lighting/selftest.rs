@@ -187,6 +187,8 @@ fn check_pick(report: &mut Report, renderer: &mut Renderer) {
         let at = Vec2::new(u, v) * Vec2::new(1280.0, 720.0);
         worst = worst.max(back.distance(at));
     }
+    check_tile_pick(report, renderer);
+    check_illustration_picks(report, renderer);
     report.check("a pick round-trips: the picked pixel's surface point projects back to it (5 pixels, within 1 px)", picked == 5 && worst < 1.0 && shot::for_demo(Demo::Room).p("pickShown") == 0.0, json!({"picked": picked, "worstPixels": worst}));
 }
 
@@ -916,4 +918,126 @@ fn check_timeline(
         report.check("every scene beat of the timeline: text >= 24 px, labels inside and apart, listings, formulas, and readouts fit", problems.is_empty() && beats > 0, json!({"timeline": path, "sceneBeats": beats, "problems": problems}));
     }
     Ok(())
+}
+
+/// A click on the zoomed tile view round-trips (script/picks.lam, `pickTilePixel`): the cell clicked picks the
+/// pixel of P's tile it shows, whose surface point projects back into that cell.
+fn check_tile_pick(report: &mut Report, renderer: &mut Renderer) {
+    let base = shot::for_demo(Demo::Culling);
+    let content = demos::build_frame(&base, &renderer.statics, [1280.0, 720.0], 1.0, 0.0);
+    let projector = Projector::new(&content.uniforms.camera);
+    let p = Vec3::new(base.p("inspectX"), base.p("inspectY"), base.p("inspectZ"));
+    let tile = super::culling::TILE_DIM as f32;
+    let origin = projector
+        .project(p)
+        .map_or(Vec2::ZERO, |(px, _)| (px / tile).floor() * tile);
+    let mut results = Vec::new();
+    for (cx, cy) in [(2u32, 3u32), (8, 8), (13, 11)] {
+        // Each click at a cell's centre picks the pixel the cell shows; it must land in that cell.
+        let uv = (Vec2::new(cx as f32, cy as f32) + 0.5) / tile;
+        let mut state = base.clone();
+        let mut frame = lab::actions::ClickFrame {
+            shown: &base,
+            state: &mut state,
+            uv,
+            content: &content,
+            statics: &renderer.statics,
+        };
+        let hit = lab::script::runtime::click("pickTilePixel", &mut frame) == Some(true);
+        let q = Vec3::new(
+            state.p("inspectX"),
+            state.p("inspectY"),
+            state.p("inspectZ"),
+        );
+        let back = projector
+            .project(q)
+            .map(|(px, _)| ((px - origin) / 1.0).floor());
+        results.push((hit, back == Some(Vec2::new(cx as f32, cy as f32))));
+    }
+    let ok = results.iter().all(|(hit, same)| *hit && *same);
+    report.check(
+        "a click on the tile view round-trips: the cell clicked picks the pixel it shows (3 cells)",
+        ok,
+        json!({"tileOrigin": [origin.x, origin.y], "results": results}),
+    );
+}
+
+/// Runs the click handler `name` at `uv` on `state`'s frame; whether it set anything, and the state after.
+fn click_at(
+    renderer: &Renderer,
+    state: &lab::shot::ShotState,
+    name: &str,
+    uv: Vec2,
+) -> (bool, lab::shot::ShotState) {
+    let content = demos::build_frame(state, &renderer.statics, [1280.0, 720.0], 1.0, 0.0);
+    let mut after = state.clone();
+    let mut frame = lab::actions::ClickFrame {
+        shown: state,
+        state: &mut after,
+        uv,
+        content: &content,
+        statics: &renderer.statics,
+    };
+    let hit = lab::script::runtime::click(name, &mut frame) == Some(true);
+    (hit, after)
+}
+
+/// The illustrations' picks round-trip: a click on a list-view slot picks that entry and it names a light; a
+/// click on an atlas map's centre on the wall picks that map; a click on the scene with the probe grid shown puts
+/// the cage's cell around the picked point.
+fn check_illustration_picks(report: &mut Report, renderer: &mut Renderer) {
+    let mut list = shot::for_demo(Demo::Culling);
+    list.set("extraLights", 24.0);
+    list.set("cullTile", 1.0);
+    let mut slots = Vec::new();
+    for k in [1u32, 3, 5] {
+        // The slot's centre on the list view: 32 columns after a 16-pixel margin, 11 rows of 420.
+        let uv = Vec2::new((16.0 + 29.5 * (k as f32 + 0.5)) / 960.0, 0.5 / 11.0);
+        let (hit, after) = click_at(renderer, &list, "pickListSlot", uv);
+        let content = demos::build_frame(&after, &renderer.statics, [1280.0, 720.0], 1.0, 0.0);
+        let (_, tile) = demos::culling_view(
+            &after,
+            &demos::shading(&after),
+            &content.objects,
+            &content.uniforms.camera,
+        );
+        // The picked entry must be a light's, not a group's marker.
+        let light = tile
+            .list
+            .get(k as usize)
+            .is_some_and(|e| e >> 16 != super::culling::END_OF_GROUP);
+        slots.push(hit && after.p("listPick").round() as u32 == k && light);
+    }
+    let mut atlas = shot::for_demo(Demo::Room);
+    atlas.set("atlasMaps", 9.0);
+    let content = demos::build_frame(&atlas, &renderer.statics, [1280.0, 720.0], 1.0, 0.0);
+    let projector = Projector::new(&content.uniforms.camera);
+    let mut maps = Vec::new();
+    for (i, (x0, y0, w)) in demos::illustrations::atlas_rects()
+        .into_iter()
+        .enumerate()
+        .filter(|(i, _)| [0, 2, 7].contains(i))
+    {
+        // The map's centre on the back wall, clicked where the camera sees it.
+        let centre = Vec3::new(x0 + w / 2.0, y0 - w / 2.0, -2.96);
+        let Some((px, _)) = projector.project(centre) else {
+            continue;
+        };
+        let (_, after) = click_at(renderer, &atlas, "scene", px / Vec2::new(1280.0, 720.0));
+        maps.push((i, after.p("atlasPick").round() as i32 == i as i32));
+    }
+    let mut grid = shot::for_demo(Demo::Room);
+    grid.set("probeGrid", 1.0);
+    grid.set("probeCage", 1.0);
+    let (hit, after) = click_at(renderer, &grid, "scene", Vec2::new(0.45, 0.45));
+    let p = Vec3::new(
+        after.p("inspectX"),
+        after.p("inspectY"),
+        after.p("inspectZ"),
+    );
+    let [i, _, k] = demos::illustrations::probe_cell(p);
+    let (x0, z0) = (-2.25 + i as f32 * 1.5, -2.25 + k as f32 * 1.5);
+    let caged = hit && (x0..=x0 + 1.5).contains(&p.x) && (z0..=z0 + 1.5).contains(&p.z);
+    let ok = slots.iter().all(|s| *s) && maps.len() == 3 && maps.iter().all(|m| m.1) && caged;
+    report.check("the illustrations' picks round-trip: list slots (3), atlas maps (3), the probe cage's cell", ok, json!({"slots": slots, "maps": maps, "cage": caged, "point": [p.x, p.y, p.z]}));
 }

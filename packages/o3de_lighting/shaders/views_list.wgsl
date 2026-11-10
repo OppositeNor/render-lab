@@ -5,7 +5,7 @@
 /// the indices its bin keeps, the groups' markers, and END_OF_LIST. A cell is
 /// coloured by its light's group; a marker is dark, END_OF_LIST black, and
 /// the row of the bin the picked pixel's depth falls in is marked on the left.
-/// {@ view=lightList entry=o3deLightListView size=528,240 text=views-light_list reads=tileData,lightList,lightListRemapped,depth}
+/// {@ view=lightList entry=o3deLightListView size=960,420 text=views-light_list reads=tileData,lightList,lightListRemapped,depth}
 @group(3) @binding(0) var gViewOut: texture_storage_2d<rgba8unorm, write>;
 
 struct LightListParams {
@@ -16,6 +16,9 @@ struct LightListParams {
     /// its first `walked` entries lit, the rest dimmed (-1: all lit).
     /// {@ key=walked default=-1 range=-1,256}
     walked: f32,
+    /// How far the culling has filled the tile's list: its first `filled` entries shown, the rest empty (-1: all).
+    /// {@ key=filled default=-1 range=-1,256}
+    filled: f32,
 }
 
 /// {@ view_params=lightList}
@@ -90,7 +93,7 @@ fn o3deLightListView(@builtin(global_invocation_id) id: vec3<u32>) {
                 break;
             }
         }
-        if (markers < LIGHT_GROUPS) {
+        if (markers < LIGHT_GROUPS && (gLightList.filled < 0.0 || f32(k) < gLightList.filled)) {
             color = select(groupColor(group), vec3<f32>(0.18, 0.20, 0.26), (value >> 16u) == NVLC_END_OF_GROUP);
         }
     } else if (row - 3u < (1u << data.logMaxBins)) {

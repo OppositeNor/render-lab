@@ -216,17 +216,26 @@ const MSAA4: [[f32; 2]; 4] = [
 /// sample, the farthest one short of the sky (the sky counts as the near
 /// plane), and one mask bit per sample. The raster's tessellated meshes can
 /// differ from these analytic hits by millimetres.
-pub fn cpu_tile(
+///
+/// LightCullingTilePrepare over the tile's first `read` pixels (row order), as the demonstration steps it: the
+/// tile's data from those pixels alone, and the surface point each of them hit (its first sample).
+pub fn cpu_tile_read(
     camera: &CameraData,
     objects: &[lab::layout::ObjectData],
     tile: [u32; 2],
-) -> TileLightData {
+    read: usize,
+) -> (TileLightData, Vec<glam::Vec3>) {
     let projector = lab::camera::Projector::new(camera);
     let view = Mat4::from_cols_array_2d(&camera.world_to_view);
     let size = Vec2::from(camera.viewport_size);
     let mut samples: Vec<Option<f32>> = Vec::new();
+    let mut points = Vec::new();
     for y in 0..TILE_DIM {
         for x in 0..TILE_DIM {
+            // Only the pixels read so far count.
+            if (y * TILE_DIM + x) as usize >= read {
+                continue;
+            }
             // Each pixel's four MSAA samples, traced for their depth (None for the sky).
             let pixel = Vec2::new(
                 (tile[0] * TILE_DIM + x) as f32,
@@ -235,10 +244,13 @@ pub fn cpu_tile(
             if pixel.x >= size.x || pixel.y >= size.y {
                 continue;
             }
-            for s in MSAA4 {
-                let (o, d) = projector.ray(pixel + Vec2::splat(0.5) + Vec2::from(s));
+            for (k, s) in MSAA4.iter().enumerate() {
+                let (o, d) = projector.ray(pixel + Vec2::splat(0.5) + Vec2::from(*s));
                 let hit =
                     lab::scene::trace_scene(objects, o, d, 100.0, lab::scene::ids::PANEL as u32);
+                if k == 0 && hit.is_hit() {
+                    points.push(o + d * hit.t);
+                }
                 samples.push(
                     hit.is_hit()
                         .then(|| -view.transform_point3(o + d * hit.t).z),
@@ -265,12 +277,13 @@ pub fn cpu_tile(
     });
     let log_max_bins = ((z_far - z_near).abs().log2().clamp(0.0, 3.0) + 0.5) as u32;
     // Packed and unpacked, so zFar keeps only its high bits, as on the GPU.
-    TileLightData::unpack(&[
+    let data = TileLightData::unpack(&[
         z_near.to_bits(),
         (z_far.to_bits() & !BINS_MASK) | log_max_bins,
         mask,
         0,
-    ])
+    ]);
+    (data, points)
 }
 
 /// LightCullingRemap for one tile: per bin, the indices of the entries that

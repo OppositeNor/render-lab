@@ -60,6 +60,96 @@ pub struct LightingValues {
         help = "help-cullTile"
     )]
     pub cull_tile: f32,
+    /// Tile prepare, step by step: how many of the tile's 256 pixels have been read, in row order; the tile's
+    /// zNear, zFar, mask, and bins are those pixels' (the read samples drawn as points).
+    #[value(default = 256.0, range = 0.0..=256.0, unit = index, text = "values-tilePixelsRead", label(culling), help = "help-tilePixelsRead")]
+    pub tile_pixels_read: f32,
+    /// The culling, light by light: how many of the simple point lights (in index order) the tile's threads
+    /// have tested; untested lights are drawn grey, and the tile's list holds only the tested ones it keeps.
+    #[value(default = 64.0, range = 0.0..=64.0, unit = index, text = "values-cullTested", label(culling), help = "help-cullTested")]
+    pub cull_tested: f32,
+    /// The lab's illustration of a quad light's linearly transformed cosine: a quad above the inspected point,
+    /// projected onto its hemisphere, and the cosine lobe whose integral over it has a closed form.
+    #[value(default = 0.0, range = 0.0..=1.0, text = "values-quadLight", help = "help-quadLight")]
+    pub quad_light: f32,
+    /// How far the illustrated lobe is warped from a cosine toward the BRDF's shape (0 a cosine, 1 the warped
+    /// lobe, narrowed and tilted toward the reflection).
+    #[value(default = 0.0, range = 0.0..=1.0, text = "values-quadWarp", help = "help-quadWarp")]
+    pub quad_warp: f32,
+    /// The lab's illustration of the shadow atlas (ShadowmapAtlas): how many of an example set of local-light
+    /// shadow maps have been placed, largest first, in the engine's quadtree order (0 hides it).
+    #[value(default = 0.0, range = 0.0..=10.0, unit = index, text = "values-atlasMaps", help = "help-atlasMaps")]
+    pub atlas_maps: f32,
+    /// The sphere light's six shadow frusta, one per cube face, each of 91 degrees (a fraction fades them in).
+    #[value(default = 0.0, range = 0.0..=1.0, text = "values-pointFrusta", help = "help-pointFrusta")]
+    pub point_frusta: f32,
+    /// The lab's illustration of subsurface scattering's kernel: Burley's normalised diffusion profile for each
+    /// colour channel's scatter distance, drawn beside the teapot (the lab does not run the pass).
+    #[value(default = 0.0, range = 0.0..=1.0, text = "values-sssProfile", help = "help-sssProfile")]
+    pub sss_profile: f32,
+    /// A factor on the illustrated scatter distances.
+    #[value(default = 1.0, range = 0.25..=3.0, unit = factor, text = "values-sssScale", help = "help-sssScale")]
+    pub sss_scale: f32,
+    /// The lab's illustration of a hair strand's three lobes, R, TT, and TRT, beside the sphere (the lab draws
+    /// no strands).
+    #[value(default = 0.0, range = 0.0..=1.0, text = "values-hairLobes", help = "help-hairLobes")]
+    pub hair_lobes: f32,
+    /// The hair's cuticle tilt, radians: the lobes' mean offsets (TressFXRenderingSettings, 0.08 by default).
+    #[value(default = 0.08, range = 0.0..=0.4, text = "values-hairCuticleTilt", engine = "TressFXRenderingSettings::m_HairCuticleTilt", help = "help-hairCuticleTilt")]
+    pub hair_cuticle_tilt: f32,
+    /// The hair's roughness (TressFXRenderingSettings, 0.65 by default): the lobes' widths.
+    #[value(default = 0.65, range = 0.3..=1.0, text = "values-hairRoughness", engine = "TressFXRenderingSettings::m_HairRoughness", help = "help-hairRoughness")]
+    pub hair_roughness: f32,
+    /// The illustrated hair's light: its angle from the vertical, degrees, in the picture's plane.
+    #[value(default = -25.0, range = -80.0..=80.0, unit = deg, text = "values-hairLight", help = "help-hairLight")]
+    pub hair_light: f32,
+    /// The lab's illustration of the terrain's clipmaps around the camera, finest nearest it.
+    #[value(default = 0.0, range = 0.0..=1.0, text = "values-clipmapRings", help = "help-clipmapRings")]
+    pub clipmap_rings: f32,
+    /// The lab's illustration of the distance within which detail materials apply, and where they fade.
+    #[value(default = 0.0, range = 0.0..=1.0, text = "values-detailRange", help = "help-detailRange")]
+    pub detail_range: f32,
+    /// An emissive intensity in EV100 (StandardPBR emissive.intensity, 4 by default), read off in nits above
+    /// the sphere when `ev100Label` is on.
+    #[value(default = 4.0, range = -6.0..=16.0, text = "values-emissiveEv100", engine = "StandardPBR emissive.intensity", help = "help-emissiveEv100")]
+    pub emissive_ev100: f32,
+    /// The EV100-to-nits label above the sphere.
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-ev100Label",
+        help = "help-ev100Label"
+    )]
+    pub ev100_label: f32,
+    /// Every simple point light of the room marked and numbered.
+    #[value(default = 0.0, range = 0.0..=1.0, text = "values-lightNumbers", help = "help-lightNumbers")]
+    pub light_numbers: f32,
+    /// How many of the numbered lights count: the first this many are bright and numbered, the rest grey dots.
+    #[value(default = 5.0, range = 0.0..=25.0, unit = index, text = "values-lightCap", help = "help-lightCap")]
+    pub light_cap: f32,
+    /// The entry of the picked tile's list a click on the list view picked (-1: none): its light is outlined in
+    /// the scene and joined to the point.
+    #[value(default = -1.0, range = -1.0..=255.0, unit = index, text = "values-listPick", help = "help-listPick")]
+    pub list_pick: f32,
+    /// The atlas map a click on the illustrated atlas picked (-1: none; 1 to 6 the sphere light's cube faces):
+    /// its face's frustum stands out.
+    #[value(default = -1.0, range = -1.0..=8.0, unit = index, text = "values-atlasPick", help = "help-atlasPick")]
+    pub atlas_pick: f32,
+    /// The eight probes of the grid cell around the inspected point, joined as a cage.
+    #[value(
+        default = 0.0,
+        toggle,
+        text = "values-probeCage",
+        help = "help-probeCage"
+    )]
+    pub probe_cage: f32,
+    /// The lab's illustration of the diffuse probe grid: its probes through the room, and one probe's rays.
+    #[value(default = 0.0, range = 0.0..=1.0, text = "values-probeGrid", help = "help-probeGrid")]
+    pub probe_grid: f32,
+    /// A double-sided leaf beside the teapot with its vertex normal (grey) and its shading normal, flipped toward
+    /// the viewer on the back face.
+    #[value(default = 0.0, range = 0.0..=1.0, text = "values-leafNormals", help = "help-leafNormals")]
+    pub leaf_normals: f32,
     /// The scene area split in two (Investigation::panes): on the left the
     /// same camera's view in `splitViewMode`, on the right the frame as
     /// `viewMode` shows it.

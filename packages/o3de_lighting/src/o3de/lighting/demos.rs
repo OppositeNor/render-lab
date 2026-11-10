@@ -3,6 +3,7 @@
 //! vectors and the specular lobe at the inspected point, the light's falloff,
 //! and the readout of every term there, computed by the CPU mirror (brdf.rs).
 
+pub mod illustrations;
 mod overlays;
 mod readout;
 mod shadows;
@@ -573,7 +574,15 @@ pub fn build_frame(
     content.readout = Some(readout);
     content.overlay_at = Some(overlay_at);
     let surface_channels = shading.material(shading.inspected).lighting_channels;
+    let viewport = Vec2::from(uniforms.camera.viewport_size);
+    let tile = super::culling::TILE_DIM as f32;
+    // The inspected point's tile: the TILE_DIM square of the viewport its pixel falls in.
+    let tile_origin = lab::camera::Projector::new(&uniforms.camera)
+        .project(p)
+        .map_or(Vec2::ZERO, |(px, _)| (px / tile).floor() * tile);
     content.script = Some(std::sync::Arc::new(super::script::Frame {
+        tile_origin,
+        viewport,
         light_on: shading.light_on,
         light: shading.light,
         surface_channels,
@@ -640,6 +649,14 @@ fn demo_overlays(
         if state.p("cullTile") > 0.0 {
             tile_overlay(&mut content.draw, camera, &tile, state.p("cullTile"));
         }
+        if state.p("listPick") >= 0.0 {
+            list_pick_link(
+                content,
+                shading,
+                &tile,
+                state.p("listPick").round() as usize,
+            );
+        }
         if state.p("lightMarkers") > 0.0 {
             light_markers(
                 &mut content.draw,
@@ -651,6 +668,75 @@ fn demo_overlays(
     }
     if state.p("cascades") > 0.0 {
         cascade_overlay(&mut content.draw, &mut content.labels, state, camera, p, n);
+    }
+    illustration_overlays(content, (state, shading), camera, (p, n));
+}
+
+/// The lab's illustrations of what the port does not run (illustrations.rs), each shown by its own value.
+fn illustration_overlays(
+    content: &mut FrameContent,
+    (state, shading): (&ShotState, &Shading),
+    camera: &lab::layout::CameraData,
+    point: (Vec3, Vec3),
+) {
+    let eye = Vec3::from(camera.position);
+    if state.p("clipmapRings") > 0.0 {
+        illustrations::clipmap_rings(content, eye, state.p("clipmapRings"));
+    }
+    if state.p("detailRange") > 0.0 {
+        illustrations::detail_range(
+            &mut content.draw,
+            &content.objects,
+            eye,
+            state.p("detailRange"),
+        );
+    }
+    if state.p("ev100Label") > 0.5 {
+        illustrations::ev100_label(content, state.p("emissiveEv100"));
+    }
+    if state.p("lightNumbers") > 0.0 {
+        let shown = (state.p("lightNumbers"), state.p("lightCap"));
+        illustrations::numbered_lights(content, shading, shown);
+    }
+    if state.p("quadLight") > 0.0 {
+        illustrations::quad_light(
+            content,
+            point,
+            eye,
+            (state.p("quadLight"), state.p("quadWarp")),
+        );
+    }
+    if state.p("atlasMaps") > 0.0 {
+        illustrations::shadow_atlas(content, state.p("atlasMaps"));
+    }
+    if state.p("pointFrusta") > 0.0 {
+        let light = Vec3::new(
+            state.p("sphereLightX"),
+            state.p("sphereLightY"),
+            state.p("sphereLightZ"),
+        );
+        let picked = state.p("atlasPick").round() as i32;
+        illustrations::point_frusta(&mut content.draw, light, (state.p("pointFrusta"), picked));
+    }
+    if state.p("sssProfile") > 0.0 {
+        illustrations::sss_profile(content, state.p("sssProfile"), state.p("sssScale"));
+    }
+    if state.p("probeGrid") > 0.0 {
+        let cage = (state.p("probeCage") > 0.5).then_some(point.0);
+        illustrations::probe_grid(content, state.p("probeGrid"), cage);
+    }
+    if state.p("leafNormals") > 0.0 {
+        illustrations::leaf_normals(content, eye, state.p("leafNormals"));
+    }
+    if state.p("hairLobes") > 0.0 {
+        // A strand across the room's back right, away from the sphere, in the picture's plane.
+        let strand = (Vec3::new(1.0, 1.6, -2.0), Vec3::new(1.0, 0.25, 0.0));
+        let shape = (
+            state.p("hairLobes"),
+            state.p("hairCuticleTilt"),
+            state.p("hairRoughness"),
+        );
+        illustrations::hair_lobes(content, strand, state.p("hairLight"), shape);
     }
 }
 
