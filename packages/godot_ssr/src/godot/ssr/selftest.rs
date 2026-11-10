@@ -89,6 +89,7 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
     // frame's pyramid and normals back, equal to the GPU's; P's surface on them
     // projects back into P.
     check_reads(&mut report)?;
+    check_inset_clicks(&mut report)?;
 
     // The story's worked example (video/story.lam `spoutPick`): at the trace demonstration's own size, P on the
     // spout walks as the narration says, and the pixel the exits beat moves it to leaves through the top.
@@ -198,6 +199,20 @@ fn check_passes(report: &mut Report) -> Result<()> {
     let (agree, traced, valid, examples) = compare_traces(&inputs, (&color, &level), size);
     let total = (size[0] * size[1]) as usize;
     let share = agree as f32 / total as f32;
+    // The best-fit table: the CPU mirror the story's demonstration draws from, against the GPU's own entries.
+    let table = read(&renderer, "bestFit", 0, wgpu::TextureFormat::R8Unorm)?;
+    let (mut table_same, mut table_all, mut table_worst) = (0, 0, 0.0f32);
+    for i in (0..1024u32).step_by(37) {
+        for j in (0..1024u32).step_by(41) {
+            // Each sampled entry, the GPU's against the mirror's; a near-tie between two lengths may fall either way.
+            let d = (table.load([i as i32, j as i32]).x - super::demos::rules::table_entry([i, j]))
+                .abs();
+            table_all += 1;
+            table_same += usize::from(d <= 1.0 / 255.0 + 1e-6);
+            table_worst = table_worst.max(d);
+        }
+    }
+    report.check("the best-fit table: the CPU mirror (demos/rules.rs) matches the GPU's entries within one 8-bit step at 99% of 700 texels", table_same * 100 >= table_all * 99, json!({"same": table_same, "texels": table_all, "worst": table_worst}));
     report.check("the trace: validity and blur level agree with trace.rs at 99% of the SSR pixels, on the GPU's own Hi-Z and normals", share >= 0.99 && traced > total / 4 && valid > 0, json!({"agree": share, "traced": traced, "valid": valid, "pixels": total, "examples": examples}));
 
     // A worked ray: the floor pixel below the image's centre, its levels step by one (a miss up, a hit down).
@@ -529,4 +544,62 @@ fn reference_clip(demo: Demo) -> lab::animation::Clip {
         Demo::Blur => vec![wave("floorRoughness", 0.35, 0.33, 14.0)],
         Demo::Compose => vec![wave("ssrComposeStep", 1.5, 1.5, 12.0)],
     })
+}
+
+/// The insets' clicks (script/logic.lam): a click on a thread of P's group picks that thread's pixel, and P is then
+/// that pixel (a round trip); a click on the best-fit chart and on the fade chart marks the length under it.
+fn check_inset_clicks(report: &mut Report) -> Result<()> {
+    let gpu = lab::gpu::Gpu::new(lab::gpu::instance(None), None)?;
+    let mut renderer = lab::renderer::Renderer::new(
+        gpu,
+        lab::frame::Statics::prepare(lab::scene::SceneId::STUDY_ROOM)?,
+        640,
+        360,
+    )?;
+    let still = still_timeline(640, 360);
+    let mut shown = shot::for_demo(Demo::Trace);
+    shown.set("laneStep", 2.0);
+    let mut content = renderer
+        .render_frame(request(&shown, &still), None)
+        .content
+        .ok_or_else(|| anyhow!("no frame content"))?;
+    let screen = super::cpu::screen(&mut content).ok_or_else(|| anyhow!("no screen read back"))?;
+    let group = content
+        .script
+        .clone()
+        .and_then(|d| d.downcast::<super::script::LaneGroup>().ok())
+        .ok_or_else(|| anyhow!("no thread group drawn"))?;
+    let mut differ = Vec::new();
+    let click = |handler: &str, uv: glam::Vec2| {
+        // Run a click handler on the shown frame, at `uv` of its inset.
+        let mut state = shown.clone();
+        let mut frame = lab::actions::ClickFrame {
+            shown: &shown,
+            state: &mut state,
+            uv,
+            content: &content,
+            statics: &renderer.statics,
+        };
+        let ran = lab::script::runtime::click(handler, &mut frame);
+        (ran, state)
+    };
+    for k in 0..64 {
+        // Each thread's cell centre picks that thread, and P is then its pixel.
+        let (i, j) = (k % 8, k / 8);
+        let uv = glam::Vec2::new((i as f32 + 0.5) / 8.0, (j as f32 + 0.5) / 8.0);
+        let (ran, state) = click("pickLane", uv);
+        let want = [group.x as i32 + i, group.y as i32 + j];
+        let p = super::demos::picked(&state, &screen, &content.objects);
+        if ran != Some(true) || p != want {
+            differ.push(json!({"cell": [i, j], "picked": p, "want": want}));
+        }
+    }
+    let (fit_ran, fit) = click("pickFitLength", glam::Vec2::new(0.3, 0.5));
+    let (fade_ran, fade) = click("pickFadeLength", glam::Vec2::new(0.3, 0.5));
+    let charts = fit_ran == Some(true)
+        && (fit.p("fitLen") - (0.05 + 0.95 * 0.3)).abs() < 1e-5
+        && fade_ran == Some(true)
+        && (fade.p("fadeProbe") - 0.3).abs() < 1e-5;
+    report.check("the insets' clicks: each of the 64 threads of P's group, clicked, becomes P (a round trip); the best-fit and fade charts mark the length clicked", differ.is_empty() && charts, json!({"group": [group.x, group.y, group.w, group.h], "differ": differ, "fitLen": fit.p("fitLen"), "fadeProbe": fade.p("fadeProbe")}));
+    Ok(())
 }

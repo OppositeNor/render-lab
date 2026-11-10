@@ -16,6 +16,7 @@ pub mod cpu;
 pub mod demos;
 pub mod gpu;
 pub mod pseudocode;
+pub mod script;
 pub mod selftest;
 pub mod shot;
 pub mod sources;
@@ -200,7 +201,7 @@ impl Investigation for Ssr {
             .doc("Fn([], Int). The default fades' peak, in hundredths of validity.")
             .register()?;
         natives.function("godot_ssr/fade-peak-length", |_, ()| Ok((peak().0 * 100.0).round() as i64)).pure().doc("Fn([], Int). The ray length where the default fades peak, in hundredths of the screen.").register()?;
-        Ok(())
+        script::register(natives)
     }
 
     fn selftest(&self, options: &SelftestOptions) -> anyhow::Result<bool> {

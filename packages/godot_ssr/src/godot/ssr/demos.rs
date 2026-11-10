@@ -18,7 +18,9 @@ use lab::utility::height_field::{self, HeightField, Placement};
 use lab::utility::inset::{Link, Marker, Outline, Picture, PictureInset};
 use std::sync::Arc;
 
+pub(crate) mod rules;
 mod stepping;
+mod teach;
 use stepping::*;
 
 /// The scene's records with the shot's materials: the glossy floor and teapot.
@@ -385,6 +387,8 @@ fn trace_demo(state: &ShotState, content: &mut FrameContent) {
     let room = 1.0 - covered(state);
     let start = screen.surface(pixel);
     content.draw.point(start, 6.0, palette::SELECTED, room);
+    teach::lanes(state, content, &screen, pixel);
+    teach::start(state, content, &screen, &t, start);
     // The ray in the room: the screen-space ray at each iteration's t, back in the world.
     let at = |tt: f32| screen.world_of(t.screen_pos + t.screen_ray * tt);
     let mut path: Vec<Vec3> = vec![screen.view_to_world(t.biased)];
@@ -623,14 +627,26 @@ fn inputs_demo(state: &ShotState, content: &mut FrameContent) {
     // The normal is stored in [0, 1]; back to [-1, 1], then into the world for its arrow.
     let normal = (nr.truncate() * 2.0 - Vec3::ONE).normalize_or_zero();
     let world_normal = screen.world_to_view.inverse().transform_vector3(normal);
-    content.draw.segment(
-        world,
-        world + world_normal * 0.5,
-        palette::AXIS_Y,
-        1.0,
-        3.0,
-        0,
-    );
+    if state.p("encodeStep") < 0.5 && state.p("geoStep") < 3.5 {
+        // The stored normal's arrow, unless a step of its packing or of the geometric normal draws P's arrows.
+        content.draw.segment(
+            world,
+            world + world_normal * 0.5,
+            palette::AXIS_Y,
+            1.0,
+            3.0,
+            0,
+        );
+    }
+    teach::encode(state, content, &screen, world, nr);
+    content.insets.extend(rules::fit_chart(state));
+    teach::unproject(state, content, world, depth);
+    teach::mirror(state, content, world, world_normal);
+    if state.p("geoStep") > 0.5
+        && let Some(full) = cpu::screen(content)
+    {
+        teach::geometric(state, content, &full, pixel, world);
+    }
     let view = screen.world_to_view.transform_point3(world);
     let rows = vec![
         (
@@ -683,6 +699,10 @@ fn pyramid_demo(state: &ShotState, content: &mut FrameContent) {
     let pixel = picked(state, &screen, &content.objects);
     let level =
         (state.p("hizLevel").round().max(0.0) as usize).min(gpu::mipmaps(screen.size) as usize - 1);
+    // P's group of threads traces on the whole pyramid: ask for it with the rest, so a settled frame has it too.
+    let full = (state.p("laneStep") > 0.5)
+        .then(|| cpu::screen(content))
+        .flatten();
     let p_depth = cpu::texel(
         content,
         "godot_ssr.pyramid.depth",
@@ -746,13 +766,35 @@ fn pyramid_demo(state: &ShotState, content: &mut FrameContent) {
             ..PictureInset::new(
                 title,
                 level_picture(img, format!("ssr-pyramid-{level}")),
-                [480.0, 480.0 * h / w],
+                [360.0, 360.0 * h / w],
             )
         });
     }
     content.draw.point(start, 6.0, palette::SELECTED, room);
-    let side = 1i32 << level;
-    let rows = vec![
+    if state.p("laneStep") > 0.5
+        && let Some(full) = full
+    {
+        teach::lanes(state, content, &full, pixel);
+    }
+    let rows = pyramid_rows(cell, img.load(cell).x, p_depth, 1i32 << level);
+    content.readout = Some(rows_readout(
+        tr_with(
+            "demos-pyramid_title",
+            lab::args!(level = level, width = img.size[0], height = img.size[1]),
+        ),
+        tr("demos-pyramid_subtitle"),
+        rows,
+    ));
+}
+
+/// The pyramid's readout: P's cell on the level, the cell's depth, P's own, and the cell's footprint at level 0.
+fn pyramid_rows(
+    cell: [i32; 2],
+    cell_depth: f32,
+    p_depth: f32,
+    side: i32,
+) -> Vec<(String, String, Color32)> {
+    vec![
         (
             tr("demos-p_cell").to_string(),
             format!("({}, {})", cell[0], cell[1]),
@@ -760,7 +802,7 @@ fn pyramid_demo(state: &ShotState, content: &mut FrameContent) {
         ),
         (
             tr("demos-cell_depth").to_string(),
-            format!("{:.5}", img.load(cell).x),
+            format!("{cell_depth:.5}"),
             palette::THEME_ACCENT,
         ),
         (
@@ -773,15 +815,7 @@ fn pyramid_demo(state: &ShotState, content: &mut FrameContent) {
             format!("{side} x {side}"),
             palette::THEME_ACCENT,
         ),
-    ];
-    content.readout = Some(rows_readout(
-        tr_with(
-            "demos-pyramid_title",
-            lab::args!(level = level, width = img.size[0], height = img.size[1]),
-        ),
-        tr("demos-pyramid_subtitle"),
-        rows,
-    ));
+    ]
 }
 
 /// A chart as pixels: `w` x `h`, a dark ground.
@@ -808,21 +842,36 @@ fn plot(rgba: &mut [u8], w: usize, h: usize, x: i32, y: i32, c: Color32) {
 
 /// P's validity, term by term, and the fade curve with P's ray length on it.
 fn hit_demo(state: &ShotState, content: &mut FrameContent) {
+    // Last frame's image, for the reprojection, asked for with the rest so a settled frame has it too.
+    if state.p("lastYaw") > 0.0 {
+        cpu::level(
+            content,
+            "godot_ssr.lastFrame",
+            Source::image("lastFrame", 0),
+        );
+    }
     let Some(screen) = cpu::screen(content) else {
         return;
     };
     let pixel = picked(state, &screen, &content.objects);
     let last = Image::new([1, 1], 4);
-    let (fade_in, fade_out) = (state.p("ssrFadeIn"), state.p("ssrFadeOut"));
-    let t = screen
+    let mut t = screen
         .inputs(
             &last,
             state.p("ssrMaxSteps").round() as i32,
-            fade_in,
-            fade_out,
+            state.p("ssrFadeIn"),
+            state.p("ssrFadeOut"),
             state.p("ssrDepthTolerance"),
         )
         .trace(pixel);
+    if state.p("backRule") < 0.5 && t.terms[1] == 0.0 {
+        // With the back-face test left out, the validity is the product of the other terms.
+        t.terms[1] = 1.0;
+        t.validity = t.terms.iter().product();
+    }
+    teach::hit(state, content, &screen, &t, pixel);
+    rules::back_face(state, content, &screen, &t);
+    rules::reproject(state, content, &screen, &t);
     let names = [
         tr("demos-term_edge"),
         tr("demos-term_back"),
@@ -850,54 +899,22 @@ fn hit_demo(state: &ShotState, content: &mut FrameContent) {
         tr("demos-hit_subtitle"),
         rows,
     ));
-    // The fade curve over the ray's screen length, 0 to 1, its peak and P's length marked.
-    let (w, h) = (360usize, 130usize);
-    let (rgba, peak, at) = fade_chart((w, h), (fade_in, fade_out), t.ray_len);
-    // The circle and the line told apart in the inset's own lines, in their colours (a marker's label would hide the curve).
-    let marker = Marker {
-        at: [at, peak],
-        color: palette::SELECTED,
-        label: String::new(),
-    };
-    let lines = vec![
-        (
-            tr_with(
-                "demos-fade_peak",
-                lab::args!(peak = format!("{peak:.2}"), at = format!("{at:.2}")),
-            ),
-            palette::SELECTED,
-        ),
-        (
-            tr_with(
-                "demos-fade_p",
-                lab::args!(
-                    len = format!("{:.2}", t.ray_len),
-                    fade = format!(
-                        "{:.2}",
-                        trace::fade(t.ray_len.clamp(0.0, 1.0), fade_in, fade_out)
-                    )
-                ),
-            ),
-            palette::REFLECTED,
-        ),
-    ];
-    let picture = Picture::Pixels {
-        key: "ssr-fade-chart".into(),
-        size: [w, h],
-        rgba: Arc::new(rgba),
-    };
-    content.insets.push(PictureInset {
-        marker: Some(marker),
-        x_axis: tr("demos-ray_len").to_string(),
-        y_axis: tr("demos-fade_axis").to_string(),
-        lines,
-        ..PictureInset::new(tr("demos-fade_chart"), picture, [360.0, 130.0])
-    });
+    if state.p("lastYaw") > 0.0 || state.p("backSweep") >= 0.0 {
+        // The reprojection and the back-face test have insets of their own: one chart at a time.
+        return;
+    }
+    content
+        .insets
+        .push(match state.p("hitChart").round() as i32 {
+            1 => teach::confidence_chart(state, &t),
+            2 => teach::compress_chart(state),
+            _ => teach::fade_inset(state, &t),
+        });
 }
 
 /// The fade curve over the ray's screen length, 0 to 1, and P's length (`ray_len`) marked: the chart, and where
 /// the curve peaks (its value and its length).
-fn fade_chart(
+pub(super) fn fade_chart(
     (w, h): (usize, usize),
     (fade_in, fade_out): (f32, f32),
     ray_len: f32,

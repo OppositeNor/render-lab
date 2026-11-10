@@ -3,7 +3,11 @@ The SSR investigation's logic
 
 Its click on the scene: in the trace demonstration, the half-resolution pixel the trace starts from.
 
-$[Import* std]$[Import* render_lab_runtime]$[Import* godot_ssr_values]$[ImportAs rl_runtime rt]
+$[Import* std]
+$[Import* render_lab_runtime]
+$[Import* godot_ssr_values]
+$[Import* godot_ssr_natives]
+$[ImportAs rl_runtime rt]
 
 A click on the scene, in the trace demonstration, picks the half-resolution pixel under it (`pickX`, `pickY`: the
 trace runs at half the viewport's size), one pixel wide; elsewhere it picks nothing.
@@ -16,3 +20,21 @@ $[# scene {: {^ {click}
             {setPickWidth 0.0}
             {setPickHeight 0.0}}
         {'}}} ClickHandler}]
+
+A click on the thread-group inset picks the thread under it as P: its pixel in the group the frame drew
+(`laneGroup`), at the SSR size that group is of.
+$[# pickLane {: {^ {click}
+    [# g {laneGroup}]
+    [# i {min {truncate {* {.u click} 8.0}} 7}]
+    [# j {min {truncate {* {.v click} 8.0}} 7}]
+    {'
+        {setPickX {float {+ {.x g} i}}}
+        {setPickY {float {+ {.y g} j}}}
+        {setPickWidth {float {.w g}}}
+        {setPickHeight {float {.h g}}}}} ClickHandler}]
+
+A click on the best-fit chart marks the stored length under it (the chart's lengths run from 0.05 to 1).
+$[# pickFitLength {: {^ {click} {' {setFitLen {+ 0.05 {* 0.95 {.u click}}}}}} ClickHandler}]
+
+A click on the fade chart marks the ray length under it (0 to 1 of the screen).
+$[# pickFadeLength {: {^ {click} {' {setFadeProbe {.u click}}}} ClickHandler}]

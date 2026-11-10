@@ -134,6 +134,19 @@ pub struct Step {
     pub next_t: f32,
 }
 
+/// How the geometric normal of a pixel was found: its depth, the depths one and two pixels to each side (x: left
+/// then right; y: up then down, each near then far), the side kept on each axis (-1 or 1),
+/// the tangents along x and y (view space), and their cross product.
+#[derive(Clone, Copy, Debug)]
+pub struct Geometric {
+    pub depth_c: f32,
+    pub h: Vec4,
+    pub v: Vec4,
+    pub sign: [i32; 2],
+    pub tangents: [Vec3; 2],
+    pub normal: Vec3,
+}
+
 /// What one pixel's trace computed, its steps, and its outputs.
 #[derive(Clone, Debug)]
 pub struct Trace {
@@ -156,6 +169,8 @@ pub struct Trace {
     pub validity: f32,
     /// The validity terms in the shader's order: edge or sky, back-face, confidence (squared), margin, fade.
     pub terms: [f32; 5],
+    /// The view-space distance between the ray's end and the surface the depth image shows there.
+    pub gap: f32,
     pub ray_len: f32,
     /// The colour written (premultiplied by validity, then compressed) and the blur level.
     pub color: Vec4,
@@ -203,6 +218,20 @@ impl Inputs<'_> {
     }
 
     fn geometric_normal(&self, pixel: [i32; 2], depth_c: f32, view_c: Vec3) -> Vec3 {
+        self.geometric(pixel, depth_c, view_c).normal
+    }
+
+    /// The geometric normal of SSR pixel `pixel` and how it was found: the neighbours' depths, the side kept on
+    /// each axis, and the tangents (screen_space_reflection.glsl compute_geometric_normal).
+    pub fn geometric_at(&self, pixel: [i32; 2]) -> Geometric {
+        let s = self.size();
+        let fs = Vec2::new(s[0] as f32, s[1] as f32);
+        let depth_c = self.hiz(pixel, 0);
+        let uv = (Vec2::new(pixel[0] as f32, pixel[1] as f32) + Vec2::splat(0.5)) / fs;
+        self.geometric(pixel, depth_c, self.view_pos(uv.extend(depth_c)))
+    }
+
+    fn geometric(&self, pixel: [i32; 2], depth_c: f32, view_c: Vec3) -> Geometric {
         let h = Vec4::new(
             self.hiz([pixel[0] - 1, pixel[1]], 0),
             self.hiz([pixel[0] - 2, pixel[1]], 0),
@@ -240,7 +269,14 @@ impl Inputs<'_> {
             .view_pos(((px + Vec2::new(0.0, v_sign as f32) + Vec2::splat(0.5)) / fs).extend(vv));
         let h_der = h_sign as f32 * (view_h - view_c);
         let v_der = v_sign as f32 * (view_v - view_c);
-        v_der.cross(h_der)
+        Geometric {
+            depth_c,
+            h,
+            v,
+            sign: [h_sign, v_sign],
+            tangents: [h_der, v_der],
+            normal: v_der.cross(h_der),
+        }
     }
 
     /// The trace of SSR pixel `pixel` (screen_space_reflection.glsl main).
@@ -465,6 +501,7 @@ impl Inputs<'_> {
         let cur_pos = self.view_pos(cur);
         let hit_pos = self.view_pos(cur.truncate().extend(hit_depth));
         let delta = (cur_pos - hit_pos).length();
+        out.gap = delta;
         let confidence = 1.0 - smoothstep(0.0, self.depth_tolerance, delta);
         let conf2 = (confidence * confidence).clamp(0.0, 1.0);
         validity *= conf2;
@@ -514,6 +551,7 @@ impl Trace {
             reprojected_uv: Vec2::ZERO,
             validity: 0.0,
             terms: [0.0; 5],
+            gap: 0.0,
             ray_len: 0.0,
             color: Vec4::ZERO,
             mip_level: 0.0,
