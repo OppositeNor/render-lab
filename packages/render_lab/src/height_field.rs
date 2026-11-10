@@ -38,13 +38,16 @@ impl Placement {
     ) -> Placement {
         let view = Mat4::from_cols_array_2d(&camera.world_to_view);
         let to_world = view.inverse();
+        // The camera's right, up, and back axes in the world.
         let right = to_world.transform_vector3(Vec3::X).normalize();
         let up = to_world.transform_vector3(Vec3::Y).normalize();
         let back = to_world.transform_vector3(Vec3::Z).normalize();
         let eye = Vec3::from(camera.position);
+        // The view's half-height and half-width at `distance`.
         let half_h = distance * (camera.vertical_fov * 0.5).tan();
         let half_w = half_h * camera.viewport_size[0] / camera.viewport_size[1].max(1.0);
         let center = eye - back * distance;
+        // Tilt lays the window back about the camera's right axis; turn then spins it about its tilted normal.
         let tilt = Quat::from_axis_angle(right, -tilt.to_radians());
         let normal = tilt * back;
         let turn = Quat::from_axis_angle(normal, turn.to_radians());
@@ -161,6 +164,7 @@ impl HeightField {
     ) {
         let [x0, y0, x1, y1] = texels;
         let [wx0, wy0, wx1, wy1] = self.window;
+        // The box is clipped to the window, and a box outside it draws nothing.
         let (x0, y0, x1, y1) = (x0.max(wx0), y0.max(wy0), x1.min(wx1), y1.min(wy1));
         if x1 <= x0 || y1 <= y0 {
             return;

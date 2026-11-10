@@ -102,6 +102,7 @@ pub fn draw(notes: &[StoryNote], content: &mut FrameContent, package: &str) {
         let color = note.color.map(|[r, g, b]| Color32::from_rgb(r, g, b));
         match &note.kind {
             NoteKind::Arrow { from, to, width } => {
+                // An arrow is drawn only when the frame resolves both its ends.
                 if let (Some(a), Some(b)) = (resolve(from, content), resolve(to, content)) {
                     content.draw.segment(
                         a,
@@ -114,6 +115,7 @@ pub fn draw(notes: &[StoryNote], content: &mut FrameContent, package: &str) {
                 }
             }
             NoteKind::Label { at, text } => {
+                // A label shows once it is half faded in, at a point the frame resolves.
                 if let Some(anchor) = resolve(at, content).filter(|_| note.alpha >= 0.5) {
                     let text = crate::i18n::package_text(package, text).to_string();
                     content.labels.push(Label {
@@ -124,6 +126,7 @@ pub fn draw(notes: &[StoryNote], content: &mut FrameContent, package: &str) {
                 }
             }
             NoteKind::Arrows => {
+                // A set's arrows are those the frame publishes under its name, in the note's colour if it has one.
                 let arrows: Vec<Arrow> = content
                     .arrow_sets
                     .iter()

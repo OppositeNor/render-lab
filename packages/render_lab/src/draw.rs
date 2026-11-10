@@ -14,6 +14,7 @@ use glam::Vec3;
 pub fn px(content: &FrameContent, p: Vec3, r: f32) -> f32 {
     let c = &content.uniforms.camera;
     let d = (p - Vec3::from(c.position)).length().max(1e-3);
+    // r metres at distance d span r / (d tan(fov/2)) of the view's half-height, which is half the viewport.
     r / (d * (c.vertical_fov * 0.5).tan()) * c.viewport_size[1] * 0.5
 }
 
@@ -49,6 +50,7 @@ pub fn wire_box(
     alpha: f32,
     width: f32,
 ) {
+    // Bits 1, 2, and 4 of a corner's index pick its side along x, y, and z.
     let c = |i: u32| {
         min + size * Vec3::new((i & 1) as f32, ((i >> 1) & 1) as f32, ((i >> 2) & 1) as f32)
     };
@@ -66,6 +68,7 @@ pub fn wire_box(
         (2, 6),
         (3, 7),
     ] {
+        // Each edge joins two corners one bit apart: four along x, four along y, and four along z.
         content.draw.segment(c(a), c(b), color, alpha, width, 0);
     }
 }

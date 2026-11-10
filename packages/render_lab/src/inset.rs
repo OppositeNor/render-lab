@@ -114,9 +114,11 @@ pub fn story(
     let mut inset = match &image.source {
         ImageSource::Published(key) => images.iter().find(|(k, _)| k == key)?.1.clone(),
         ImageSource::Resource(key) => {
+            // A PNG resource, untitled, at its own size ([0, 0]).
             PictureInset::new(String::new(), Picture::Resource(key.clone()), [0.0, 0.0])
         }
         ImageSource::View { kind, .. } => {
+            // An image kind's instance: its texture, titled by the kind's text, at the kind's size.
             let kind = crate::views::kind(package, kind).ok()?;
             let title = kind.text.as_deref().map_or(String::new(), |t| {
                 crate::i18n::package_text(&kind.package, t).to_string()
@@ -142,6 +144,7 @@ pub fn story(
             inset
         }
     };
+    // The story's settings go over the picture: its fade, corner, click handler, title, and mark.
     inset.alpha *= image.alpha;
     inset.corner = image.corner;
     if image.click.is_some() {
@@ -328,10 +331,12 @@ fn measures(
         (size, _) => vec2(size[0], size[1]),
     };
     if size.x + left + right > room {
+        // Too wide for half the viewport: the picture shrinks, keeping its shape.
         size *= ((room - left - right) / size.x).max(0.1);
     }
     let base = size.x + left + right;
     let joined = inset.title.join(" · ");
+    // No title when every part is empty; a line per part when they do not fit on one; else one joined line.
     let title = if inset.title.iter().all(String::is_empty) {
         Vec::new()
     } else if inset.title.len() > 1 && measure(&joined) + 28.0 > base {
@@ -416,6 +421,7 @@ pub fn draw(
         .chain(inset.status.iter().map(|s| (s, palette::text_dim())))
         .collect();
     let safe = l.safe();
+    // The frame sits 16 px in from its corner of the safe area, past the insets stacked there before it.
     let x = if inset.corner.right() {
         safe.max.x - 16.0 - width - offset.x
     } else {
@@ -461,6 +467,7 @@ pub fn draw(
             );
         }
         None => {
+            // No texture under the picture's key: a dark panel stands in for it.
             painter.rect_filled(
                 image,
                 CornerRadius::ZERO,
@@ -506,6 +513,7 @@ fn draw_outlines(
     };
     match inset.grid {
         Some([columns, rows]) => {
+            // A grid: columns + 1 vertical lines and rows + 1 horizontal ones, the edges included.
             let grid = Stroke::new(
                 1.0,
                 fade(Color32::from_rgba_unmultiplied(160, 190, 215, 89)),
@@ -520,6 +528,7 @@ fn draw_outlines(
             }
         }
         None => {
+            // No grid: only a border around the picture.
             painter.rect_stroke(
                 image,
                 CornerRadius::ZERO,
@@ -529,6 +538,7 @@ fn draw_outlines(
         }
     }
     for o in &inset.outlines {
+        // An outline sits just inside its region, or 2 px outside it when `outside`.
         let (rect, kind) = if o.outside {
             (region(o.rect).expand(2.0), StrokeKind::Outside)
         } else {
@@ -547,6 +557,7 @@ fn draw_outlines(
         .and_then(|link| Some((link, inset.outlines.get(link.outline)?)))
         && let Some((px, _)) = Projector::new(camera).project(link.from)
     {
+        // The link runs from the point's pixel to the region's near edge (its bottom, for an inset at the top).
         let a = l.viewport_pixel_to_canvas(px);
         if l.viewport.contains(a) {
             let r = region(o.rect);
@@ -671,6 +682,7 @@ fn draw_marker(ink: &Ink, image: Rect, inset: &PictureInset) {
     let painter = ink.painter;
     let fade = |c: Color32| c.gamma_multiply(inset.alpha.clamp(0.0, 1.0));
     if let Some(m) = &inset.marker {
+        // `Marker.at` runs y up, so its y counts up from the picture's bottom.
         let p = pos2(
             image.min.x + m.at[0].clamp(0.0, 1.0) * image.width(),
             image.max.y - m.at[1].clamp(0.0, 1.0) * image.height(),
@@ -678,6 +690,7 @@ fn draw_marker(ink: &Ink, image: Rect, inset: &PictureInset) {
         painter.circle_stroke(p, 9.0, Stroke::new(3.0, fade(Color32::BLACK)));
         painter.circle_stroke(p, 9.0, Stroke::new(2.0, fade(m.color)));
         if !m.label.is_empty() {
+            // The label goes on the side away from the nearer edge.
             let right = p.x < image.center().x;
             let (anchor, offset) = if right {
                 (Align2::LEFT_CENTER, 14.0)
@@ -724,6 +737,7 @@ fn texture(
         Picture::Pixels { key, size, rgba } => (key, *size, rgba),
     };
     let own = Some(vec2(size[0] as f32, size[1] as f32));
+    // The pixels' hash says whether the texture egui keeps for this key still holds them.
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     size.hash(&mut hasher);
     rgba.hash(&mut hasher);
@@ -733,6 +747,7 @@ fn texture(
     let texture = match ctx.data(|d| d.get_temp::<(egui::TextureHandle, u64)>(id)) {
         Some((texture, made)) if made == hash => return Some((texture.id(), own)),
         Some((mut texture, _)) => {
+            // Changed pixels rewrite the texture in place.
             texture.set(image(), egui::TextureOptions::LINEAR);
             texture
         }
@@ -751,6 +766,7 @@ fn texture(
 pub fn resource_texture(ctx: &egui::Context, key: &str) -> Option<egui::TextureHandle> {
     let id = egui::Id::unique(("picture-resource", key));
     if let Some(texture) = ctx.data(|d| d.get_temp::<Option<egui::TextureHandle>>(id)) {
+        // Decoded (or failed) before: the cached answer, so a failure prints only once.
         return texture;
     }
     let texture = match crate::resources::find(key)
@@ -774,6 +790,7 @@ fn dashed(painter: &Painter, a: Pos2, b: Pos2, stroke: Stroke) {
     let len = d.length();
     let n = (len / 14.0).ceil() as usize;
     for i in (0..n).step_by(2) {
+        // Every other 14 px piece of the line is drawn.
         let t0 = i as f32 / n as f32;
         let t1 = ((i + 1) as f32 / n as f32).min(1.0);
         painter.line_segment([a + d * t0, a + d * t1], stroke);

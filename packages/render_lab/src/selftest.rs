@@ -87,6 +87,7 @@ pub struct Rng(pub u64);
 impl Rng {
     #[allow(clippy::should_implement_trait)] // an endless stream of floats, not an iterator
     pub fn next(&mut self) -> f32 {
+        // Xorshift's three shifts, then the top 24 bits as a float in [0, 1).
         self.0 ^= self.0 << 13;
         self.0 ^= self.0 >> 7;
         self.0 ^= self.0 << 17;
@@ -100,6 +101,7 @@ impl Rng {
     /// A direction, uniform over the sphere.
     pub fn unit(&mut self) -> Vec3 {
         loop {
+            // A point in the cube, kept only inside the unit ball (and off its centre), is uniform once normalised.
             let v = Vec3::new(
                 self.range(-1.0, 1.0),
                 self.range(-1.0, 1.0),
@@ -115,6 +117,7 @@ impl Rng {
     pub fn above(&mut self, n: Vec3) -> Vec3 {
         let v = self.unit();
         if v.dot(n) < 0.05 {
+            // A direction below (or barely above) the horizon is pushed up along n, by a random amount.
             (v - n * (v.dot(n) - 0.05 - self.next())).normalize()
         } else {
             v
