@@ -121,8 +121,7 @@ pub(crate) fn draw_performance(
         palette::accent(),
     );
     y += 36.0;
-    perf_headline(ink, (x, width), y, view);
-    y += 42.0;
+    y = perf_headline(ink, (x, width), y, view) + 42.0;
     // The history: GPU time (accent) and frame time (faint), against the
     // budgets that fit its scale; smaller when the panel is short.
     let graph_height = ((rect.max.y - y) * 0.3).clamp(60.0, 160.0);
@@ -151,8 +150,8 @@ pub(crate) fn draw_performance(
 }
 
 /// The headline numbers at `y`: the GPU's time for the frame, and the time between frames (and the rate), each
-/// the mean of the last 30.
-fn perf_headline(ink: &Ink, (x, width): (f32, f32), y: f32, view: &PerformanceView) {
+/// the mean of the last 30. Where the numbers start.
+fn perf_headline(ink: &Ink, (x, width): (f32, f32), y: f32, view: &PerformanceView) -> f32 {
     let mut y = y;
     let mean = |xs: &[f64]| {
         if xs.is_empty() {
@@ -208,6 +207,7 @@ fn perf_headline(ink: &Ink, (x, width): (f32, f32), y: f32, view: &PerformanceVi
         mono_bold(),
         palette::text(),
     );
+    y
 }
 
 /// The history in `graph`: GPU time (accent) and frame time (faint), against the budgets that fit its scale.
