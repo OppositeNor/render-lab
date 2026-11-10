@@ -179,6 +179,12 @@ $[# {cameraTurnOver length waypoints} {path {' _cameraYaw _cameraPitch} waypoint
 $[# {pose yaw pitch distance} {: {' yaw pitch distance} {List Float}}]
 $[# {aim yaw pitch} {: {' yaw pitch} {List Float}}]
 
+The camera's slow sway while a shot holds, never counted as an animation: its yaw (`{motion {' swayYaw}}`), and its
+pitch beside it (`{motion {' swayYaw swayPitch}}`).
+
+$[# swayYaw {sway _cameraYaw 6.0 24.0}]
+$[# swayPitch {sway _cameraPitch 3.0 17.0}]
+
 One channel to one value over `length`, the commonest motion, as a whole cue attribute: `{glide cameraYaw 24.0
 sentence}` is `{motion {' {path {' cameraYaw} {' {' 24.0}} sentence}}}`.
 

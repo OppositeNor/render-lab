@@ -121,7 +121,7 @@ has), each with the `{attr "…" "…"}` that still writes it.
   `looping`, `pingPonging`, `closed`, `around`, `from`, `centered`, `phased`, `lasting`, `fading`; `cameraPath`,
   `cameraTurn` over the beat, `cameraPathOver`, `cameraTurnOver` over a `Length`, their waypoints `{pose yaw pitch
   distance}` and `{aim yaw pitch}`; and the commonest, one channel to one value, as a whole attribute:
-  `{glide cameraYaw 24.0 sentence}`. Write those short forms; the general `path` is the fallback), points (`{at x y z}`, `{point "key"}` for `labelAt`, `arrowFrom`, `arrowTo`), marks (`{mark u0 v0 u1
+  `{glide cameraYaw 24.0 sentence}`; the camera's sway while a shot holds, `swayYaw` and `swayPitch`. Write those short forms; the general `path` is the fallback), points (`{at x y z}`, `{point "key"}` for `labelAt`, `arrowFrom`, `arrowTo`), marks (`{mark u0 v0 u1
   v1}`, `unmark`), lists of names (`imageHide`, `arrowHide`, `labelHide`), highlights in their namespace (`highlightCode "listing"
   {' "tag"}`, `highlightPasses {' "pass"}`, `highlightFields "ObjectData" {' "field"}`, `unhighlight`; one that the
   cue's panel does not show is refused), records (`recordNone`,
