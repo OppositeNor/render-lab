@@ -299,6 +299,7 @@ fn merge(
     let mut all: Vec<&'static dyn Feature> = built_in.to_vec();
     let mut refused = Vec::new();
     for (package, feature) in packages {
+        // A package's feature joins the lab's unless its id is taken; then it is left out, and the reason kept.
         let id = feature.id();
         if all.iter().any(|f| f.id() == id) {
             refused.push(format!(

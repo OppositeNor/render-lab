@@ -310,6 +310,7 @@ impl Renderer {
         // The chain's compute passes waiting to be encoded: consecutive ones share a compute pass.
         let mut pending: Vec<usize> = Vec::new();
         for &n in &graph.order {
+            // Each live node in order: chain passes gather into one compute pass, the others encode their own.
             let node = &graph.nodes[n];
             if !graph.live[n] {
                 continue;
@@ -317,6 +318,7 @@ impl Renderer {
             // The inspector draws what a node wrote right after it, in the main view only.
             let inspected = timed && self.inspections.values().any(|x| x.node == n);
             if let Step::Compute(i) = node.step {
+                // A chain pass waits to share a compute pass, unless it is inspected: then the waiting ones go now.
                 pending.push(i);
                 if inspected {
                     frame.dispatch(self, encoder, &mut pending, timing.as_mut());
@@ -413,6 +415,7 @@ impl Renderer {
             let span = timing.as_mut().and_then(|t| t.render_writes("depth views"));
             let last = layers.len().saturating_sub(1);
             for (i, (pipeline, layer)) in s.pipelines.depth_views.iter().zip(layers).enumerate() {
+                // Each layer of the depth views clears and draws the scene; the timer brackets the first and the last.
                 let writes = span
                     .as_ref()
                     .filter(|_| i == 0 || i == last)
@@ -565,6 +568,7 @@ impl Renderer {
         }
         pass.set_pipeline(shading.map_or(&self.pipelines.scene, |s| &s.pipelines.scene));
         if let Some(s) = shading {
+            // The shading's groups: its own (1), the chain's targets or an empty stand-in (2), and the program's (3).
             pass.set_bind_group(1, &s.group, &[]);
             if let Some(c) = chain {
                 pass.set_bind_group(2, &c.scene_group, &[]);

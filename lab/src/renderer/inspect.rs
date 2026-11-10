@@ -198,6 +198,7 @@ impl Renderer {
         };
         let mut edges: Vec<ui::GraphEdgeView> = Vec::new();
         for &(a, b, kind) in &graph.edges {
+            // Edges between the same two rows merge into one, which lists the resources each data edge carries.
             let (from, to) = (row_of(a), row_of(b));
             let at = match edges.iter().position(|e| e.from == from && e.to == to) {
                 Some(k) => k,
@@ -341,6 +342,7 @@ impl Renderer {
             self.textures.remove(&view_texture(&name));
         }
         if !self.inspections.contains_key(&name) {
+            // A new inspection (or one whose size changed) gets its own targets and texture, drawn after its node.
             let (texture, storage, id, buffer) = self.inspection_targets(&name, size);
             let (entry, binding) = inspect_entry(&resource.shape);
             self.textures.insert(view_texture(&name), (id, size));
@@ -438,6 +440,7 @@ impl Renderer {
                 "depth" => wgpu::BindingResource::TextureView(&targets.depth),
                 "overlay" => wgpu::BindingResource::TextureView(&targets.overlay),
                 name => {
+                    // The chain's buffer, depth views, or target; else the program's, an update's, or a volume.
                     let chained = chain.and_then(|c| {
                         if let Some((_, b)) = c.buffers.iter().find(|(n, _)| *n == name) {
                             return Some(b.as_entire_binding());
@@ -625,6 +628,7 @@ fn shown_images(state: &ShotState, boxes: &[(String, String)]) -> Vec<Shown> {
         })
         .collect();
     if state.panel == crate::shot::PanelMode::Dag {
+        // The DAG's cards: each pass's result, as the pass leaves it.
         let graph = FrameGraph::new(investigation::current().scene_shading(), &[]);
         for (i, n) in graph.nodes.iter().enumerate() {
             if let Some(r) = graph.result_of(i) {
@@ -639,6 +643,7 @@ fn shown_images(state: &ShotState, boxes: &[(String, String)]) -> Vec<Shown> {
     if !boxes.is_empty() {
         let graph = FrameGraph::new(investigation::current().scene_shading(), &[]);
         for (group, member) in boxes {
+            // A member is `node.resource`, a pass (its result), or a resource (after its last user).
             let key = match graph.node(member) {
                 _ if member.contains('.') => Some(member.clone()),
                 Some(n) => graph.result_of(n).map(|r| format!("{member}.{r}")),
@@ -652,6 +657,7 @@ fn shown_images(state: &ShotState, boxes: &[(String, String)]) -> Vec<Shown> {
         }
     }
     if state.panel == crate::shot::PanelMode::Resources {
+        // The resource cards: each resource (but the frame) as its last user leaves it.
         let graph = FrameGraph::new(investigation::current().scene_shading(), &[]);
         for r in graph.resources.iter().filter(|r| r.name != "frame") {
             if let Some(node) = graph.last_user(r.name) {
@@ -691,6 +697,7 @@ impl Sizing {
         } = *self;
         match &resource.shape {
             Shape::Texture { divisor, .. } => {
+                // Divisor 0 takes the shading's scale, which the state chooses.
                 let d = if *divisor == 0 {
                     scale
                 } else {

@@ -387,6 +387,7 @@ pub(super) fn draw_labels(
         placed.push(Rect::from_min_size(min, size));
     }
     for label in &content.labels {
+        // A label whose anchor is off the viewport, or under an obstacle, is left out.
         let Some((px, _)) = projector.project(label.anchor) else {
             continue;
         };
@@ -400,6 +401,7 @@ pub(super) fn draw_labels(
         if obstacles.iter().any(|o| o.contains(anchor)) {
             continue;
         }
+        // Each place around the anchor is scored by what it overlaps, and heavily if it leaves the bounds.
         let score = |r: &Rect| {
             let overlap: f32 = placed
                 .iter()

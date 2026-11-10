@@ -314,6 +314,7 @@ fn draw_values(
         let Some(field) = rust.iter().find(|f| f.name == name.as_str()) else {
             continue;
         };
+        // Each lit field's value, read from the record's bytes: one line, or a matrix's rows under its name.
         let lines = format_field(&record.bytes, field);
         report.panel_values.push((name.clone(), lines.clone()));
         let needed = line
@@ -327,6 +328,7 @@ fn draw_values(
             break;
         }
         if lines.len() == 1 {
+            // A one-line value goes beside its name when it fits, else on the line below.
             let one_line = format!("{name} = {}", lines[0]);
             if ink.measure(&one_line, 24.0, FontFamily::Monospace).x <= width {
                 ink.text(
@@ -368,6 +370,7 @@ fn draw_values(
                 y += line;
             }
         } else {
+            // A matrix: its name and how its columns are stored, then a line per row.
             let storage = if matches!(field.kind, FieldKind::Mat3) {
                 tr("ui-3_cols_16_b")
             } else {
@@ -711,6 +714,7 @@ fn memory_cells(
     };
     let mut label = String::new();
     for b in 0..16 {
+        // Each byte's cell: padding, a lit field in its colour (a matrix's by column), else fields alternating shades.
         let byte = r * 16 + b;
         let cell_rect = Rect::from_min_size(
             pos2(x + 68.0 + b as f32 * cell, y + 3.0),
@@ -719,6 +723,7 @@ fn memory_cells(
         let color = if is_pad(byte) {
             palette::padding()
         } else if let Some(fi) = field_at(byte) {
+            // The row is labelled by the first field it meets (a matrix's with its column).
             let f = &layout.fields[fi];
             if label.is_empty() {
                 label = match f.matrix {

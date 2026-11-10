@@ -332,6 +332,7 @@ impl App {
             set.push((key, scale));
         }
         for (key, value) in set {
+            // Each value the gizmo moves stays in its range, and is set only when it changes.
             let value = crate::values::entry(key)
                 .and_then(|e| e.range_of(crate::values::component(e, key)))
                 .map_or(value, |(lo, hi)| value.clamp(lo, hi));
@@ -471,6 +472,7 @@ impl App {
             orbit.zoom(steps);
             free.place(&orbit);
         } else if !self.timeline_playing() && !self.ui_has_pointer {
+            // Over a view with a camera of its own, the wheel zooms that camera; elsewhere the main one.
             self.end_intro();
             match under.and_then(|v| self.over_camera(v)) {
                 Some((name, mut camera)) => {

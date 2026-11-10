@@ -448,6 +448,7 @@ pub fn snapshot_scene(
     let mut dragged = String::from("no gizmo (it does not move, or is off screen)");
     let probe = origin + Vec2::new(vp[2] as f32, vp[3] as f32) * 0.5;
     if let Some((shape, _, _)) = app.gizmo_shape(probe) {
+        // The drag: around the ring to rotate, outward from the scale handle to scale, else along the first arrow.
         let (grab, to) = match (mode, chosen.yaw.is_some()) {
             (Mode::Rotate, true) => (shape.ring[0], shape.ring[6]),
             (Mode::Scale, true) => (

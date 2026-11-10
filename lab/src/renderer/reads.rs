@@ -28,6 +28,7 @@ impl Renderer {
         let device = &self.gpu.device;
         match &handle {
             crate::program::ProgramHandle::Buffer(buffers) => {
+                // A buffer is copied into one the CPU can map, and read whole.
                 let b = buffers.get(index as usize)?;
                 let readback = device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some("program readback"),

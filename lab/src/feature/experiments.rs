@@ -171,6 +171,7 @@ impl Experiments {
             Some(((ref_display, ref_linear), (display, linear)))
                 if ref_display.width == display.width && ref_display.height == display.height =>
             {
+                // The reference and the live view, at the same size, are measured against each other.
                 self.session.measurement = Some(crate::metrics::measure(
                     &ref_display,
                     &display,
@@ -218,6 +219,7 @@ impl Experiments {
             }
             Asked::SwapReference if interactive => {
                 if let Some(reference) = s.reference.take() {
+                    // The reference goes on screen, and the live state becomes the reference; the camera stays put.
                     let camera = host.state().camera;
                     let live = std::mem::replace(
                         host.state_mut(),
@@ -411,6 +413,7 @@ impl FeatureState for Experiments {
             let defaults = host.default_state(host.state().demo);
             *host.state_mut() = defaults;
             if compare {
+                // The comparison page: the defaults as the reference, then one ranged value moved to its far end.
                 self.set_reference(host);
                 let entries = values::list();
                 let camera = crate::camera::OrbitCamera::schema();
@@ -425,6 +428,7 @@ impl FeatureState for Experiments {
                     .find(|e| e.engine.is_some() && ranged(e))
                     .or_else(|| entries.iter().find(|e| ranged(e) && !e.labels.is_empty()));
                 if let Some(e) = entry {
+                    // The value goes to whichever end of its range is farther from where it is.
                     let (lo, hi) = e.range.expect("ranged");
                     let now = host.state().p(e.key);
                     let to = if (now - lo).abs() > (now - hi).abs() {

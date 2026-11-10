@@ -153,6 +153,7 @@ pub(super) fn option_row(
     });
     let r = row.response.rect;
     if changed {
+        // A changed setting is marked by an accent bar to the left of its row.
         ui.painter().rect_filled(
             Rect::from_min_max(
                 pos2(r.min.x - 20.0, r.min.y + 4.0),

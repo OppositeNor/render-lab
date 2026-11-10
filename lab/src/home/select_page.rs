@@ -411,6 +411,7 @@ impl Home {
             .filter_map(|f| f.home().map(|label| (f, label)))
             .collect();
         for row in buttons.chunks(2) {
+            // Two feature buttons to a row; one the chosen investigation lacks is drawn but cannot be pressed.
             ui.add_space(2.0);
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 16.0;

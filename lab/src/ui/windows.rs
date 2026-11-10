@@ -238,6 +238,7 @@ fn place_undocked(
     for id in WindowId::ALL.into_iter().filter(|id| visible(*id)) {
         let p = &places[id.index()];
         if p.collapsed {
+            // A collapsed window is its title bar: stacked down its side's corner, or where it floats.
             let width = COLLAPSED_WIDTH.min(area.width());
             let (x, row) = match p.dock {
                 Dock::Right => (free.max.x - width, &mut corners[1]),
@@ -263,6 +264,7 @@ fn place_undocked(
                 wide(id),
             ));
         } else if p.dock == Dock::Float {
+            // A floating window keeps its place and size, kept inside the room it floats over.
             let w = if wide(id) {
                 p.float[2].max(p.wide)
             } else {

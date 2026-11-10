@@ -153,6 +153,7 @@ impl Renderer {
             self.prepare_inspections(request.state, &boxes);
         }
         if let (false, Some(c)) = (request.history, content.as_ref()) {
+            // A frame that stands alone: its program warmed up, and the frame built again from its own reads.
             self.warm_up_program(scene_state, c, viewport_size);
             let time = request.time;
             if let Some(rebuilt) =
@@ -509,6 +510,7 @@ impl Renderer {
             if over.alpha <= 0.0 {
                 continue;
             }
+            // Each view over the main one that is showing draws from its own slot; slots of views gone are freed below.
             let id = ViewId::over(n as u32);
             crate::view::set_name(Some(over.name));
             let size = plan.layout.render_size_px();
@@ -538,6 +540,7 @@ impl Renderer {
                 vec![(ViewId::FREE, layout.viewport), (ViewId::MAIN, corner)]
             }
             _ => {
+                // Without the free camera: the split panes, the reference beside the main view, then the main view.
                 let mut views: Vec<(ViewId, egui::Rect)> = drawn
                     .panes
                     .iter()
@@ -949,6 +952,7 @@ impl Renderer {
         match c.mode {
             Compare::Off => {}
             Compare::Wipe => {
+                // The wipe draws the reference over the left part of the viewport, up to the split.
                 let width = (vp[2] as f32 * c.split.clamp(0.0, 1.0)).round() as u32;
                 if width > 0 {
                     self.composite_from(

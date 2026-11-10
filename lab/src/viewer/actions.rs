@@ -20,6 +20,7 @@ impl App {
                 if self.timeline_mode {
                     self.seek(self.timeline_frame + 1);
                 } else {
+                    // Without a timeline, a step moves the demonstration's animation on by one frame at 30 per second.
                     self.drift_from = self.demo_time;
                     self.demo_time += 1.0 / 30.0;
                     self.bake_animation();
@@ -40,6 +41,7 @@ impl App {
                 if self.timeline_mode {
                     self.seek(0);
                 } else {
+                    // Without a timeline, the demonstration starts over from its defaults, paused.
                     self.state = self.default_state(self.state.demo);
                     self.demo_time = 0.0;
                     self.drift_from = 0.0;
@@ -218,6 +220,7 @@ impl App {
             WindowChange::Drop(dock) => place.dock = dock,
             WindowChange::Resize(to) => {
                 let Some(drawn) = drawn else { return };
+                // A docked window's edge sets its width (or height, at the bottom); a floating one's corner sets both.
                 let f = drawn.frame;
                 let size = match place.dock {
                     Dock::Left => to.x - f.min.x,
@@ -250,6 +253,7 @@ impl App {
         if let Some(r) = self.renderer.as_ref() {
             let l = r.frame_layout();
             for w in l.windows.iter().flatten().filter(|w| !w.collapsed) {
+                // Each docked window keeps the size it was drawn at; floating ones keep their own.
                 let place = self.layout.window_mut(w.id);
                 let size = match w.dock {
                     crate::ui::windows::Dock::Bottom => w.frame.height(),

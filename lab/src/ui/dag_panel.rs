@@ -133,6 +133,7 @@ fn dag_graph(view: &GraphView, card: (f32, f32)) -> crate::graph_view::Graph {
     let mut clusters: Vec<graph_view::Cluster> = Vec::new();
     let mut placed = vec![false; nodes.len()];
     for i in 0..nodes.len() {
+        // Each node not yet placed starts a cluster: its section's passes boxed together, else the node alone.
         if placed[i] {
             continue;
         }

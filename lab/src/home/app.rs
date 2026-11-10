@@ -249,6 +249,7 @@ pub fn run(options: HomeOptions) -> Result<()> {
     // So are its clicks. The player outlives each page, so the click that opens the viewer is heard.
     let mut click = AudioPlayer::new(resources::get(CLICK).path(), &options.manifest_dir);
     loop {
+        // Each turn shows the homepage until it chooses, then opens the choice; coming back shows it again.
         let heard_music = home.applied.music;
         if let Some(m) = music.as_mut() {
             m.set_gain(heard_music.gain());
