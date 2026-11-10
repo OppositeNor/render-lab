@@ -19,13 +19,9 @@ ${cue "key" {opening demoRoom panelHidden 1.0 {'
 ${cue "key" {'
     {motion {' {cameraPath {' {pose 14.0 16.0 6.8} {pose 26.0 20.0 5.2} {pose 20.0 17.0 6.3}}}}}}}
 
-${overText
-    {' {voxelgiMixRange 0.0 0.15}}
-    "This is the lab's study room, lit only by its ceiling panel and the sky"}.
+This is the lab's study room, lit only by its ceiling panel and the sky.
 
-${overText
-    {' {voxelgiMixRange 0.15 0.0}}
-    "A surface the panel cannot reach directly gets only the sky's flat, even light"}.
+A surface the panel cannot reach directly gets only the sky's flat, even light.
 
 ${overText
     {' {voxelgiMixRange 0.0 1.0}}
@@ -43,16 +39,18 @@ ${overText
     {' {voxelgiMixRange 1.0 0.3}}
     "Gathering that light ray by ray, for every pixel in every frame, would cost far too much"}.
 
-${overText
-    {' {voxelgiMixRange 0.3 0.5}}
+${cue "key" {' {cellView 0.0} {cutHeight 1.6}}}${overText
+    {' {octreeLevelRange 3.0 5.0}}
     "So VoxelGI cuts the room into a grid of small boxes, called cells, ahead of time"}.
 
-${overText {' {voxelgiMixRange 0.5 0.8}} "It then lights those cells"}.
+${cue "key" {' {cellView 4.0}}}${overText
+    {' {voxelgiMixRange 0.3 1.0}}
+    "It then lights those cells"}.
 
 Every pixel reads their light back through a few wide cones, shapes that widen as they go.
 
 ${overText
-    {' {voxelgiMixRange 0.8 1.0}}
+    {' {octreeLevelRange 5.0 2.0}}
     "One sample of a cone averages many cells at once, so a pixel needs only a few samples"}.
 
 ### Baked once {#c1-map-bake kind=2d graph=frame focus="BAKE, SDF"}
@@ -61,6 +59,8 @@ ${cue "key" {' {callout "bake-entry"}}}
 That ahead-of-time step is called the bake, and it usually runs once, in Godot's editor.
 
 It turns the meshes inside the VoxelGI's box into an octree, a tree of cells in which each cell splits into eight smaller ones.
+
+### And a distance field {#c1-map-sdf kind=2d graph=frame focus="SDF"}
 
 It also makes a distance field, which records how far each place is from the nearest surface.
 
@@ -73,12 +73,16 @@ At run time, compute passes called the light passes light every cell and store t
 
 The light passes run again only when a light changes, or the VoxelGI's data or settings change, so a still room costs them nothing.
 
+### Moving objects, every frame {#c1-map-dynamic kind=2d graph=frame focus="DYN"}
+
 Moving objects are left out of the bake, so they are drawn into that texture every frame instead.
 
-### Read every frame {#c1-map-read kind=2d graph=frame focus="PRE, CONE, OPAQUE"}
+### Read every frame {#c1-map-read kind=2d graph=frame focus="PRE, CONE"}
 
 ${cue "key" {' {callout "process-gi"}}}
 Every frame, a compute pass called the screen pass traces cones through that texture for each pixel inside the box.
+
+### Into the image {#c1-map-opaque kind=2d graph=frame focus="OPAQUE"}
 
 Then the opaque pass, which shades the scene's solid surfaces, mixes the cones' light into the image as their indirect light.
 
@@ -138,9 +142,11 @@ ${cue "key" {' {callout "gles3-stub"}}}The Compatibility renderer leaves its Vox
 
 ${cue "key" {' {callout "mobile-stub"}}}The Mobile renderer never links an object to a VoxelGI, so no surface there reads its light.
 
-${overText {' {voxelgiMixRange 1.0 0.0}} "No project setting turns VoxelGI on or off"}.
+No project setting turns VoxelGI on or off.
 
-${cue "key" {' {callout "voxelgi-gate"}}}Instead, its work runs in any frame where culling, the test of what is in view, finds a VoxelGI.
+${cue "key" {' {callout "voxelgi-gate"}}}${overText
+    {' {showBoxRange 0.0 1.0}}
+    "Instead, its work runs in any frame where culling, the test of what is in view, finds a VoxelGI"}.
 
 ${cue "key" {' {callout "node-defaults"}}}${overText
     {' {focusRowRange 1.0 4.0}}
@@ -148,8 +154,8 @@ ${cue "key" {' {callout "node-defaults"}}}${overText
 
 By default it is a box twenty metres on each side.
 
-${overText
-    {' {voxelgiMixRange 0.0 1.0}}
+${cue "key" {' {cutHeight 1.6} {cellView 0.0}}}${overText
+    {' {octreeLevelRange 4.0 7.0}}
     "That box is cut into one hundred twenty-eight cells along its longest axis"}.
 
 ${cue "key" {' {callout "quality-setting"}}}${over
@@ -1167,7 +1173,7 @@ ${cue "key" {' {callout "bounce-march"}}}${overText
     {' {coneStepsRange 0.0 1.0}}
     "A cone starts one and a half cells from the cell's centre, clear of the cell itself"}.
 
-${cue "key" {' runMarchCone {runSeconds 0.7} {runFrom 1.0} {runTo 6.0}}}The cone widens as it goes, and on each step it advances by half its current width.
+${cue "key" {' runMarchCone {runSeconds 2.5} {runFrom 1.0} {runTo 6.0}}}The cone widens as it goes, and on each step it advances by half its current width.
 
 ${cue "key" {' {highlightCode "second-bounce" {' "lod"}}}}At each step, it reads the mip whose texels match that width.
 
@@ -1699,9 +1705,15 @@ It asks what all of this costs, and how Godot keeps that cost small.
 
 The work comes at three rates.
 
+### Once {#c8-map-bake kind=2d graph=frame focus="BAKE"}
+
 The bake runs once, in the editor.
 
+### On change {#c8-map-light kind=2d graph=frame focus="LIGHT"}
+
 The light passes run only when something changes.
+
+### Every frame {#c8-map-cone kind=2d graph=frame focus="CONE"}
 
 The screen pass runs every frame.
 
@@ -1718,7 +1730,9 @@ ${cue "key" {' {motion {' {cameraPath {' {pose 12.0 16.0 6.8} {pose 24.0 20.0 6.
 
 ${cue "key" {' {highlightPasses {' "scene pass"}}}}The panel on the right times the graphics card's work.
 
-Its line is each frame's total time, so a spike is a frame that did more work.
+${overText
+    {' {giPropagationRange 0.5 0.52}}
+    "Its line is each frame's total time, so a spike is a frame that did more work"}.
 
 ${cue "key" {' {highlightPasses {' "voxelgiGiCS"}}}}Below the line, each row is one pass, averaged over the last frames.
 
@@ -1732,7 +1746,9 @@ This chapter shows how Godot keeps that row small.
 
 ${cue "key" {' unhighlight}}These times are this machine's.
 
-Watch for the rows that appear only when their work actually runs.
+${overText
+    {' {giPropagationRange 0.52 0.5}}
+    "Watch for the rows that appear only when their work actually runs"}.
 
 ### Light passes only on change {#c8-cache kind=3d}
 
@@ -1743,11 +1759,17 @@ ${cue "key" {' {callout "update-gate"}}}Right now, no light pass is listed.
 
 Nothing changed, so Godot does no light-pass work at all.
 
-${cue "key" {' {callout "light-cache"}}}Each frame, on the processor, the culler compares every visible light near the box with the copy it saved.
+${cue "key" {' {callout "light-cache"} {extraLight 1.0}}}${overText
+    {' {lightXRange 0.9 0.2}}
+    "Each frame, on the processor, the culler compares every visible light near the box with the copy it saved"}.
 
-${cue "key" {' {callout "relight-gate"}}}The light passes run only when a light, the data, or one of three settings has changed.
+${cue "key" {' {callout "relight-gate"}}}${overText
+    {' {giDynamicRangeRange 2.0 3.0}}
+    "The light passes run only when a light, the data, or one of three settings has changed"}.
 
-Those settings are the dynamic range, propagation, and the second bounce.
+${overText
+    {' {giPropagationRange 0.5 0.8}}
+    "Those settings are the dynamic range, propagation, and the second bounce"}.
 
 ${cue "key" {' {giRelightEachFrame 1.0}}}To measure the light passes, the lab now relights the room every frame, which Godot does only when something changed.
 
@@ -1756,7 +1778,9 @@ ${cue "key" {'
 
 ${cue "key" {' {highlightPasses {' "voxelgiBounceCS"}}}}On this machine, the bounce takes the longest, because it traces six cones from every leaf that has a normal.
 
-${cue "key" {' unhighlight {giRelightEachFrame 0.0}}}When the lab returns to Godot's behaviour, those rows are gone, so a still room's light costs nothing per frame.
+${cue "key" {' unhighlight}}}${overText
+    {' {giRelightEachFrameRange 1.0 0.0}}
+    "When the lab returns to Godot's behaviour, those rows are gone, so a still room's light costs nothing per frame"}.
 
 ### Only the occupied cells {#c8-sparse kind=3d}
 
@@ -1978,9 +2002,11 @@ ${overText {' {viewModeRange 0.0 1.0}} "Here are the ambient buffers at full and
 
 ${cue "key" {' {callout "gi-buffer-fetch"}}}Without multisampling, the opaque pass reads the half-size one with a plain bilinear blend.
 
-That blend does not weight by depth.
+${cue "key" {' {giHalfResolution 0.0}}}That blend does not weight by depth.
 
-So along the sphere's edge, texels traced on the wall and on the sphere are blended together.
+${overText
+    {' {giHalfResolutionRange 0.0 1.0}}
+    "So along the sphere's edge, texels traced on the wall and on the sphere are blended together"}.
 
 The edge turns ragged, in steps two pixels wide.
 
