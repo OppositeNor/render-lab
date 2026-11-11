@@ -4,6 +4,36 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+## [0.0.5] - 2026-11-10
+
+### Added
+
+- Size limits: a Rust or Python function holds at most 100 lines and a file at most 1400. Clippy's
+  `too_many_lines` is denied in every crate (`clippy.toml`), and `tools/check_sizes.py` checks files and Python
+  functions, in CI.
+- A package's live scripts now fail to load when a function of their own looks like a hook but has the wrong
+  signature (it returns a hook's list but takes what no hook takes, or it is generic); the error names the
+  parameters a hook takes. Helpers whose names start with `_` are exempt.
+- The camera's sway (`swayYaw`, `swayPitch`) is available to every story.
+
+### Changed
+
+- Refactoring: functions over 100 lines and files over 1400 lines split into named steps and child modules across
+  the lab, the public packages, and `tools/video/build.py`, without changing what a frame shows.
+- Hard-to-follow parts of function bodies in the lab, the packages, and the tools now carry one-line comments, and
+  `AGENTS.md` sets the rules for them.
+- Godot SDFGI, Godot SSR, and O3DE lighting: every chapter has supporting animations scaled to its narration
+  length, with new demonstrations, views, and clickable picks for the mechanisms the narration names (each with a
+  selftest round trip), and narration revised after cold-listener and native reviews in both languages.
+- Godot VoxelGI: more supporting animations in chapters 1, 5, and 8.
+- O3DE lighting: the hair's longitudinal lobes are ported from `HairLightingEquations.azsli` (credited in
+  `THIRD_PARTY.md`), and the lab illustrates the parts the port does not run.
+
+### Fixed
+
+- The performance panel's chart again starts below its headline numbers.
+- SDFGI chapter 1 now says that its passes run on the GPU.
+
 ## [0.0.4] - 2026-11-08
 
 ### Added
@@ -64,7 +94,8 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
 
 First release: Linux (x86_64), Windows (x86_64), and macOS (Apple Silicon) packages.
 
-[Unreleased]: https://github.com/OppositeNor/render-lab/compare/v0.0.4...HEAD
+[Unreleased]: https://github.com/OppositeNor/render-lab/compare/v0.0.5...HEAD
+[0.0.5]: https://github.com/OppositeNor/render-lab/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/OppositeNor/render-lab/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/OppositeNor/render-lab/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/OppositeNor/render-lab/compare/v0.0.1...v0.0.2
