@@ -18,3 +18,18 @@ credit-text = "notice-credit"
 [[provides]]
 type = "resource"
 path = "resources.toml"
+
+# The narrated story, one story in two editions: the homepage opens the one in the interface's language.
+[[provides]]
+type = "demo"
+key = "video"
+title = "How ReSTIR Lights a Room of Many Lights"
+timeline = "timeline/en"
+audio = "narration/en"
+
+[[provides]]
+type = "demo"
+key = "video-zh-CN"
+title = "ReSTIR 如何照亮一个多光源的房间"
+timeline = "timeline/zh-cn"
+audio = "narration/en"
