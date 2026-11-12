@@ -41,14 +41,14 @@ pub(crate) fn draw_code(
         let one_line = format!(
             "≈ {engine}: {} · {}",
             entry.short_symbol(),
-            entry.file_name()
+            entry.short_location()
         );
         let lines = if ink.measure(&one_line, 24.0, FontFamily::Proportional).x <= width {
             vec![one_line]
         } else {
             vec![
                 format!("≈ {engine}: {}", entry.short_symbol()),
-                format!("    {}:{}", entry.file_name(), entry.line),
+                format!("    {}", short_place(entry)),
             ]
         };
         for text in lines {
@@ -137,7 +137,7 @@ pub fn code_panel_fit(ctx: &egui::Context, listing: &crate::pseudocode::Listing)
         let engine = investigation::current().wording().engine_short;
         for text in [
             format!("≈ {engine}: {}", entry.short_symbol()),
-            format!("    {}:{}", entry.file_name(), entry.line),
+            format!("    {}", short_place(entry)),
         ] {
             inner = inner.max(measure(&text, 24.0, FontFamily::Proportional));
         }
@@ -673,4 +673,13 @@ pub(super) fn draw_blocks(
     painter.hatted = false;
     painter.stack(&blocks, pos2(x, y), width);
     report.code_overflow += painter.overflow;
+}
+
+/// A listing's source, short: the file's name and line, or the paper's section and page.
+fn short_place(entry: &crate::sources::SourceEntry) -> String {
+    if entry.page.is_some() {
+        entry.location()
+    } else {
+        format!("{}:{}", entry.file_name(), entry.line)
+    }
 }

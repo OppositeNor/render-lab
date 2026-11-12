@@ -173,6 +173,8 @@ pub struct FrameRequest<'a> {
     pub beat_sources: &'a [String],
     /// A 2D scene of the legal notices (`TimelineBeat::notices`).
     pub notices: bool,
+    /// A 2D scene of the works the story cites (`TimelineBeat::references`).
+    pub references: bool,
     pub chapter_number: u32,
     pub fade: f32,
     pub time: f32,

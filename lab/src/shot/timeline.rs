@@ -159,6 +159,10 @@ pub struct TimelineBeat {
     /// (`[[notice]]`; the video builder ends a video with one).
     #[serde(default)]
     pub notices: bool,
+    /// A 2D scene that shows the works the story cites (the source index's
+    /// `references`; a paper's story ends with one).
+    #[serde(default)]
+    pub references: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

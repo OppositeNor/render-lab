@@ -433,6 +433,11 @@ pub fn heading_keys(translation: bool) -> Vec<Value> {
         for name in ["focus", "sources"] {
             out.push(heading(name, "names", &[3], None));
         }
+        // A 2d beat that shows the works the story cites, the source index's references.
+        let mut references = heading("references", "text", &[3], None);
+        references["options"] = json!(["true", "false"]);
+        references["closed"] = json!(true);
+        out.push(references);
     }
     for name in ["engineVersion", "commit", "date"] {
         out.push(heading(name, "any", &[], None));

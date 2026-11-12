@@ -175,6 +175,7 @@ impl App {
                 diagram: shown.diagram.as_ref().map(OwnedDiagram::borrowed),
                 beat_sources: &shown.sources,
                 notices: shown.notices,
+                references: shown.references,
                 chapter_number: shown.chapter,
                 fade: shown.fade,
                 time: self.demo_time,
@@ -373,7 +374,7 @@ impl App {
     /// (playing, moving from the beat before or building up; paused, settled), its sources, its chapter, its
     /// fade, and whether it is the notices.
     fn beat_shown(&self) -> BeatShown {
-        let (kind, diagram, sources, chapter, fade, notices) = match (
+        let (kind, diagram, sources, chapter, fade, notices, references) = match (
             &self.timeline,
             self.timeline_playing() || self.paused_page(),
         ) {
@@ -398,9 +399,10 @@ impl App {
                     beat.chapter,
                     fade,
                     beat.notices,
+                    beat.references,
                 )
             }
-            _ => (SceneType::ThreeD, None, Vec::new(), 0, 0.0, false),
+            _ => (SceneType::ThreeD, None, Vec::new(), 0, 0.0, false, false),
         };
         BeatShown {
             kind,
@@ -409,6 +411,7 @@ impl App {
             chapter,
             fade,
             notices,
+            references,
         }
     }
 
@@ -548,7 +551,7 @@ impl OwnedDiagram {
 }
 
 /// What a frame shows of the timeline's beat: its kind, its diagram, its sources, its chapter, its fade, and
-/// whether it is the notices.
+/// whether it is the notices or the references.
 struct BeatShown {
     kind: SceneType,
     diagram: Option<OwnedDiagram>,
@@ -556,4 +559,5 @@ struct BeatShown {
     chapter: u32,
     fade: f32,
     notices: bool,
+    references: bool,
 }

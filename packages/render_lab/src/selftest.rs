@@ -66,6 +66,7 @@ pub fn request_at<'a>(
         diagram: None,
         beat_sources: &[],
         notices: false,
+        references: false,
         chapter_number: 1,
         fade: 0.0,
         time: 0.0,

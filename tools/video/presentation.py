@@ -345,14 +345,17 @@ def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, in
             kind = props['kind']
             beat: Json = {'id': beat_id, 'kind': kind, 'headline': plain(beat_heading['inlines'], at)}
             beat.update(metadata(props))
-            if kind == '2d' and not {'diagram', 'graph', 'sources'} & set(props):
-                raise PresentationError(f'{path}: {beat_id}: a 2d beat shows a diagram (diagram=), the frame graph (graph=), or a sources card (sources=)')
+            if kind == '2d' and not {'diagram', 'graph', 'sources', 'references'} & set(props):
+                raise PresentationError(f'{path}: {beat_id}: a 2d beat shows a diagram (diagram=), the frame graph (graph=), a sources card (sources=), or the references (references=true)')
             if 'diagram' in props and 'graph' in props:
                 raise PresentationError(f'{path}: {beat_id}: a beat shows a diagram or the frame graph, not both')
             # `hold` is lamlet-present's own heading attribute, kept as written (headings.py checks it is a number).
             for name in ('diagram', 'graph', 'hold', 'focus', 'sources'):
                 if name in props:
                     beat[name] = markup.number(props[name], at) if name == 'hold' else props[name]
+            # A 2d beat may show the works the story cites, the source index's references (a paper's story ends on them).
+            if props.get('references') in (True, 'true'):
+                beat['references'] = True
             beat['source'] = location(beat_heading, {'file': str(path)})
             # A beat's paragraphs: a leading paragraph of cues alone sets its keys; every other one is a sentence.
             keys: list[Json] = []

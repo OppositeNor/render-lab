@@ -757,11 +757,12 @@ pub(super) fn draw_source_card(ink: &Ink, input: &UiInput) {
     let x = rect.min.x + 40.0;
     let width = rect.width() - 80.0;
     let mut y = rect.min.y + 28.0;
+    let (name, version) = index.source_name();
     let heading = tr_with(
         "ui-read_it_in",
         args!(
-            engine = index.engine.name,
-            version = index.engine.version,
+            engine = name,
+            version = version,
             chapter = input.chapter_number
         ),
     );
@@ -774,15 +775,20 @@ pub(super) fn draw_source_card(ink: &Ink, input: &UiInput) {
         palette::text(),
     );
     y += 50.0;
-    ink.text(
-        pos2(x, y),
-        Align2::LEFT_TOP,
-        format!(
+    // An engine's entries are paths in its checkout; a paper's are its sections and pages.
+    let place = match &index.paper {
+        Some(paper) => format!("{} · DOI {}", tr("ui-sections_and_pages_of"), paper.doi),
+        None => format!(
             "{} {} · commit {}",
             tr("ui-paths_are_relative_to"),
             investigation::current().wording().checkout_dir,
-            &index.engine.commit[..12]
+            index.revision(12)
         ),
+    };
+    ink.text(
+        pos2(x, y),
+        Align2::LEFT_TOP,
+        place,
         24.0,
         FontFamily::Proportional,
         palette::text_dim(),
@@ -804,12 +810,7 @@ pub(super) fn draw_source_card(ink: &Ink, input: &UiInput) {
             palette::accent(),
         );
         y += 38.0;
-        let path = ink.fit_left(
-            &format!("{}:{}", entry.path, entry.line),
-            width,
-            24.0,
-            FontFamily::Monospace,
-        );
+        let path = ink.fit_left(&entry.location(), width, 24.0, FontFamily::Monospace);
         ink.text(
             pos2(x, y),
             Align2::LEFT_TOP,
@@ -827,6 +828,46 @@ pub(super) fn draw_source_card(ink: &Ink, input: &UiInput) {
             FontFamily::Proportional,
             palette::text_dim(),
         ) + 22.0;
+    }
+}
+
+/// The works the story cites (the source index's `references`), in APA
+/// style, under their heading: the closing card of a paper's story.
+pub(super) fn draw_references_card(ink: &Ink, input: &UiInput) {
+    let rect = input.layout.content;
+    crate::paint::panel_card(ink.painter, rect, 14);
+    let x = rect.min.x + 40.0;
+    let width = rect.width() - 80.0;
+    let mut y = rect.min.y + 28.0;
+    ink.text(
+        pos2(x, y),
+        Align2::LEFT_TOP,
+        tr("ui-references_title"),
+        36.0,
+        bold(),
+        palette::text(),
+    );
+    y += 60.0;
+    let index = sources::index();
+    let main = index.paper.as_ref().map(|p| p.key.as_str());
+    for reference in &index.references {
+        // The paper itself in the accent colour, the works it cites beside it dimmer.
+        let color = if Some(reference.key.as_str()) == main {
+            palette::accent()
+        } else {
+            palette::text_dim()
+        };
+        y = ink.wrapped(
+            pos2(x, y),
+            width,
+            &reference.apa,
+            24.0,
+            FontFamily::Proportional,
+            color,
+        ) + 16.0;
+        if y > rect.max.y - 40.0 {
+            break;
+        }
     }
 }
 

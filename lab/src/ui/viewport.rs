@@ -7,12 +7,12 @@ use super::*;
 /// The engine's version and commit, then its package's copyright and license line (`credit-text`): the
 /// viewer's header's right end, a recording's watermark.
 pub(super) fn credit_line() -> String {
-    let engine = sources::index();
+    let index = sources::index();
     let mut line = format!(
         "{} {} · {}",
         investigation::current().wording().engine_tag,
-        engine.engine.version,
-        &engine.engine.commit[..8]
+        index.source_name().1,
+        index.revision(8)
     );
     if let Some(credit) =
         crate::resources::credit(investigation::current().package().unwrap_or("render_lab"))
@@ -667,7 +667,7 @@ pub(super) fn draw_callout(ink: &Ink, l: &Layout, key: &str, insets: &[Rect]) ->
     let entry = index.entries.get(key)?;
     // Within the viewport: the symbol alone when the file name does not fit beside it.
     let room = l.safe().width() - 32.0 - 28.0;
-    let mut text = format!("{} · {}", entry.file_name(), entry.short_symbol());
+    let mut text = format!("{} · {}", entry.short_location(), entry.short_symbol());
     if ink.measure(&text, 24.0, FontFamily::Monospace).x > room {
         text = ink.fit_right(&entry.short_symbol(), room, 24.0, FontFamily::Monospace);
     }

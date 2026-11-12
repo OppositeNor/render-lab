@@ -375,6 +375,7 @@ impl Recording<'_> {
             diagram: timeline.diagram_at(f),
             beat_sources: &beat.sources,
             notices: beat.notices,
+            references: beat.references,
             chapter_number: beat.chapter,
             fade: beat_fade(timeline, f),
             time: f as f32 / timeline.fps as f32,

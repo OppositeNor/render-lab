@@ -453,14 +453,22 @@ pub fn draw_source_list(ink: &Ink, rect: Rect, demo: DemoId) {
     let wording = investigation::current().wording();
     let x = rect.min.x + 20.0;
     let mut y = rect.min.y + 10.0;
-    let heading = tr_with(
-        "ui-source_list_heading",
-        args!(
-            engine = wording.engine_short,
-            demo = demo.title(),
-            checkout = wording.checkout_dir
-        ),
-    );
+    // An engine's entries are paths in its checkout; a paper's are its sections and pages.
+    let heading = if index.paper.is_some() {
+        tr_with(
+            "ui-paper_list_heading",
+            args!(engine = wording.engine_short, demo = demo.title()),
+        )
+    } else {
+        tr_with(
+            "ui-source_list_heading",
+            args!(
+                engine = wording.engine_short,
+                demo = demo.title(),
+                checkout = wording.checkout_dir
+            ),
+        )
+    };
     ink.text(
         pos2(x, y),
         Align2::LEFT_TOP,
@@ -489,7 +497,7 @@ pub fn draw_source_list(ink: &Ink, rect: Rect, demo: DemoId) {
             palette::text(),
         );
         let path = ink.fit_left(
-            &format!("{}:{}", entry.path, entry.line),
+            &entry.location(),
             rect.width() - symbol_width - 40.0,
             24.0,
             FontFamily::Monospace,

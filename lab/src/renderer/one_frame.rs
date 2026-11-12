@@ -749,6 +749,7 @@ impl Renderer {
             diagram_pictures: &diagram_pictures,
             beat_sources: request.beat_sources,
             notices: request.notices,
+            references: request.references,
             chapter_number: request.chapter_number,
             fade: request.fade,
             stamp: request.stamp,

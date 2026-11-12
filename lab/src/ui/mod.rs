@@ -559,6 +559,8 @@ pub struct UiInput<'a> {
     pub beat_sources: &'a [String],
     /// A 2D scene of the legal notices, not the sources card.
     pub notices: bool,
+    /// A 2D scene of the works the story cites, not the sources card.
+    pub references: bool,
     pub chapter_number: u32,
     pub fade: f32,
     pub stamp: Option<u64>,
@@ -641,9 +643,12 @@ pub fn draw(
                 draw_callout(&ink, l, key, &[]);
             }
         }
-        // A 2D scene: the beat's diagram, its sources card, or the notices.
+        // A 2D scene: the beat's diagram, its sources card, the notices, or the references.
         SceneType::TwoD if input.diagram.is_none() && input.notices => {
             draw_notices_card(&ink, input)
+        }
+        SceneType::TwoD if input.diagram.is_none() && input.references => {
+            draw_references_card(&ink, input)
         }
         SceneType::TwoD if input.diagram.is_none() => draw_source_card(&ink, input),
         SceneType::TwoD => {

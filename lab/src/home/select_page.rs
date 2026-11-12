@@ -213,12 +213,7 @@ impl Home {
                         .color(palette::text_dim()),
                 );
             }
-            let engine = &first.sources().engine;
-            let commit = engine.commit.get(..8).unwrap_or(&engine.commit);
-            ui.label(
-                RichText::new(format!("{} {} · {commit}", engine.name, engine.version))
-                    .color(palette::text_faint()),
-            );
+            ui.label(RichText::new(first.sources().edition()).color(palette::text_faint()));
             ui.add_space(12.0);
         }
         new_feature

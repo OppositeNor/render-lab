@@ -356,6 +356,9 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
                 'id': beat['id'], 'chapter': chapter['number'], 'kind': beat['kind'], 'startFrame': beat_start,
                 'frames': beat_end - beat_start, 'headline': beat['headline'], 'captions': captions, 'sources': beat.get('sources', []),
             }
+            if beat.get('references'):
+                # The closing card of a paper's story: the works it cites (lab/src/ui/panel.rs).
+                entry['references'] = True
             if 'graph' in beat:
                 # The lab draws the frame graph as the scene's sections group it (lab/src/graph/).
                 entry['graph'] = frame_graph.load(cfg, beat['graph'])

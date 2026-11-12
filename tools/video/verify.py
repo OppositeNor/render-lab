@@ -123,9 +123,13 @@ def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Js
     links = check_links(cfg, index, [build / 'verification-report.md', build / 'verification-report.json', cfg.video()])
     check('every relative link resolves; no home-directory paths', all(link['ok'] for link in links),
           {'links': len(links), 'problems': [link for link in links if not link['ok']]})
-    # The engine checkout must be the commit the source index was made from.
-    commit = run(['git', '-C', cfg.checkout(index), 'rev-parse', 'HEAD']).strip()
-    check('engine checkout is the recorded commit', commit == index['engine']['commit'], {'checkout': commit, 'recorded': index['engine']['commit']})
+    # The paper must be the PDF the index was read from; an engine's (or a paper's code's) checkout, the recorded commit.
+    if 'paper' in index:
+        digest = sha256(cfg.paper_pdf(index))
+        check('the paper is the recorded PDF', digest == index['paper']['sha256'], {'pdf': digest, 'recorded': index['paper']['sha256']})
+    if index.get('engine', {}).get('commit'):
+        commit = run(['git', '-C', cfg.checkout(index), 'rev-parse', 'HEAD']).strip()
+        check('engine checkout is the recorded commit', commit == index['engine']['commit'], {'checkout': commit, 'recorded': index['engine']['commit']})
     if cfg.zh():
         verify_zh(cfg, check)
     # The selftest must have run with this timeline and passed.
@@ -140,7 +144,7 @@ def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Js
     passed = all(c['passed'] for c in checks)
     toolchain = {'rustc': run(['rustc', '--version']).split()[1], 'ffmpeg': run([env.ffmpeg, '-version']).split()[2], 'python': sys.version.split()[0]}
     result: Json = {'status': 'passed' if passed else 'failed', 'investigation': cfg.investigation, 'video': cfg.video_name(), 'language': cfg.lang,
-                    'bytes': video.stat().st_size, 'sha256': sha256(video), 'durationSeconds': duration, 'engine': index['engine'], 'toolchain': toolchain, 'checks': checks}
+                    'bytes': video.stat().st_size, 'sha256': sha256(video), 'durationSeconds': duration, 'engine': index.get('engine', {}), 'paper': index.get('paper'), 'toolchain': toolchain, 'checks': checks}
     (build / 'verification-report.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
     write_markdown(cfg, result)
     return passed
@@ -166,7 +170,8 @@ def write_markdown(cfg: Config, result: Json) -> None:
     engine = result['engine']
     lines = ['# Verification report' + (' (zh-CN edition)' if cfg.zh() else ''), '',
              f'Status: **{result["status"]}** · `{result["video"]}` · {result["durationSeconds"] / 60:.2f} min · SHA-256 `{result["sha256"][:16]}…`', '',
-             f'Engine: {engine["name"]} {engine["version"]}, commit `{engine["commit"]}`.', '',
+             (f'Paper: {result["paper"]["title"]}, DOI `{result["paper"]["doi"]}`, PDF SHA-256 `{result["paper"]["sha256"][:16]}…`.' if result.get('paper')
+              else f'Engine: {engine["name"]} {engine["version"]}, commit `{engine["commit"]}`.'), '',
              'Toolchain: ' + ', '.join(f'{k} {v}' for k, v in result['toolchain'].items()), '', '| Check | Result |', '|---|---|']
     lines += [f'| {c["name"]} | {"pass" if c["passed"] else "**FAIL**"} |' for c in result['checks']]
     # The chapter budgets' check carries a table of each chapter's timing.

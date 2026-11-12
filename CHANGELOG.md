@@ -4,6 +4,22 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+### Added
+
+- Investigations of papers: a source index may name a `paper` (its title, venue, DOI, and the PDF's SHA-256)
+  instead of an engine checkout, its entries cited by section and page, and list the `references` a story cites in
+  APA style. The sources card, callouts, the Code tab, and the homepage show a paper's sections and pages where an
+  engine's show paths and lines; a 2D beat with `references=true` shows the references card; the video's
+  verification checks the PDF's hash (`paperEnv` in `video.json`).
+- Agent skills: `new-story` now holds what every story shares, with two variants: `new-story-engine` (an engine's
+  feature, read from its checkout) and `new-story-paper` (a paper's method: reading its contributions, related work,
+  and method; checking the authors' code against it; and its chapters, from the introduction to the experiments run
+  on the viewer's machine and the references).
+
+### Fixed
+
+- A source index whose commit is shorter than twelve characters no longer panics the header and the sources card.
+
 ## [0.0.5] - 2026-11-10
 
 ### Added

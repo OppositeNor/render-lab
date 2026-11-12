@@ -33,6 +33,8 @@ WORDS: dict[str, dict[str, str]] = {
         'readingOrder': 'Recommended reading order', 'table': '| File | Symbol | Line | What to inspect |', 'simplify': 'What the demonstrations simplify', "mappings": "What the lab's data stands for", "mappingTable": "| Lab | Engine structure | Relationship | The engine's layout | The lab's |",
         'guideIntro': 'This guide follows the chapters of the video ({video}, script: {script}). For each topic it names the file, the symbol, the line to start reading at, and what to look for there.',
         'checkout': '- Source paths are relative to the root of the engine\'s source, and `:<line>` names the line.',
+        'paper': 'Paper: {title} ({short}, {venue}), DOI `{doi}`. Prepared {date}.',
+        'pages': '- Each entry names the paper\'s section and page (`§<section>, p. <page>`) and the equation, algorithm line, or figure.',
         'index': '- Every entry comes from one machine-readable index, {index}, which also drives the video\'s source cards and the viewer\'s source panel.',
         'video': 'video', 'script': 'Narrated script', 'guide': 'Source-reading guide', 'verification': 'Verification',
     },
@@ -43,6 +45,8 @@ WORDS: dict[str, dict[str, str]] = {
         'readingOrder': '推荐阅读顺序', 'table': '| 文件 | 符号 | 行 | 要看什么 |', 'simplify': '演示做了哪些简化', 'mappings': '实验室的数据对应什么', 'mappingTable': '| 实验室 | 引擎结构 | 关系 | 引擎的布局 | 实验室的布局 |',
         'guideIntro': '本指南按照视频（{video}，脚本：{script}）的章节组织。每个主题都给出文件、符号、开始阅读的行，以及在那里要看什么。',
         'checkout': '- 源码路径相对于引擎源码的根目录，`:<行号>` 指出所在的行。',
+        'paper': '论文：{title}（{short}，{venue}），DOI `{doi}`。准备于 {date}。',
+        'pages': '- 每个条目都给出论文的章节和页码（`§<章节>, p. <页码>`），以及公式、算法行或图。',
         'index': '- 每个条目都来自同一个机器可读的索引 {index}，它同时驱动视频中的源码卡片和查看器的源码面板。',
         'video': '视频', 'script': '旁白脚本', 'guide': '源码阅读指南', 'verification': '验证报告',
     },
@@ -281,7 +285,24 @@ def source_link(cfg: Config, doc_dir: Path, index: Json, key: str, text: str | N
     """An entry's symbol (or `text`) and where it is in the engine's source,
     as text: the source is wherever the reader keeps it, so no link."""
     entry = index['entries'][key]
-    return f'{text or "`" + entry["symbol"] + "`"} (`{entry["path"]}:{entry["line"]}`)'
+    return f'{text or "`" + entry["symbol"] + "`"} (`{place(entry)}`)'
+
+
+def place(entry: Json) -> str:
+    """Where an entry is: `path:line` in a checkout, or `§section, p. page` in a paper (lab/src/sources.rs)."""
+    if 'page' in entry:
+        return f'§{entry["section"]}, p. {entry["page"]}' if 'section' in entry else f'p. {entry["page"]}'
+    return f'{entry["path"]}:{entry["line"]}'
+
+
+def edition(cfg: Config, index: Json, date: str) -> str:
+    """The source the index was read from, in a sentence: the paper, or the engine's version and commit."""
+    w = WORDS[cfg.lang]
+    if 'paper' in index:
+        paper = index['paper']
+        return w['paper'].format(title=paper['title'], short=paper['short'], venue=paper['venue'], doi=paper['doi'], date=date)
+    engine = index['engine']
+    return w['engine'].format(engine=engine['name'], version=engine['version'], commit=engine['commit'], date=date)
 
 
 def repo_link(doc_dir: Path, path: Path, text: str) -> str:
@@ -306,10 +327,9 @@ def write_script(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
     w = WORDS[cfg.lang]
     fps = timeline['fps']
     doc_dir = cfg.build()
-    engine = index['engine']
     joiner = '' if cfg.zh() else ' '
     lines = [f'# {board["title"]}', '', board['subtitle'], '',
-             w['engine'].format(engine=engine['name'], version=engine['version'], commit=engine['commit'], date=board['date']), '',
+             edition(cfg, index, board['date']), '',
              '> ' + cfg.text('intro'), '', f'## {w["chapters"]}', '']
     for c in timeline['chapters']:
         # The table of contents: each chapter's start and a link to its section.
@@ -344,7 +364,8 @@ def write_script(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
                 for key in beat.get('sources', []):
                     entry = index['entries'][key]
                     inspect = source_text(cfg, f'entry-{key}-inspect', entry['inspect'])
-                    lines.append(f'- {source_link(cfg, doc_dir, index, key)} — `{entry["path"].rsplit("/", 1)[-1]}` {w["line"].format(line=entry["line"])}: {inspect}')
+                    at = f'`{entry["path"].rsplit("/", 1)[-1]}` {w["line"].format(line=entry["line"])}' if 'page' not in entry else f'`{place(entry)}`'
+                    lines.append(f'- {source_link(cfg, doc_dir, index, key)} — {at}: {inspect}')
                 lines.append('')
         lines += [w['sources'] + w['sep'].join(source_link(cfg, doc_dir, index, k) for k in chapter['sources']) + '.', '']
     build = cfg.build()
@@ -368,16 +389,17 @@ def write_guide(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
     build = cfg.build()
     doc_dir = build
     engine = index['engine']
+    # A paper's guide names the paper and its pages; an engine's, its commit and the checkout's paths.
+    source = [f'- {edition(cfg, index, board["date"])}'.rstrip(), w['pages']] if 'paper' in index else [f'- {engine["name"]} {engine["version"]}, commit `{engine["commit"]}`.', w['checkout']]
     lines = [f'# {cfg.text("guideTitle")}', '',
              w['guideIntro'].format(video=repo_link(doc_dir, cfg.video(), cfg.video_name()), script=repo_link(doc_dir, build / 'script.md', 'script.md')), '',
-             f'- {engine["name"]} {engine["version"]}, commit `{engine["commit"]}`.',
-             w['checkout'],
+             *source,
              w['index'].format(index=repo_link(doc_dir, cfg.source_index, relpath(cfg.source_index, LAB))), '',
              f'## {w["readingOrder"]}', '']
     for i, key in enumerate(cfg.spec['readingPath'], 1):
         # The reading order first, then a table per chapter of each entry to read.
         entry = index['entries'][key]
-        lines.append(f'{i}. {source_link(cfg, doc_dir, index, key)} · `{entry["path"].rsplit("/", 1)[-1]}`')
+        lines.append(f'{i}. {source_link(cfg, doc_dir, index, key)}' + (f' · `{entry["path"].rsplit("/", 1)[-1]}`' if 'page' not in entry else ''))
     lines.append('')
     for chapter in index['chapters']:
         title = source_text(cfg, f'chapter-{chapter["number"]}-title', chapter['title'])
@@ -385,12 +407,12 @@ def write_guide(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
         for key in chapter['reading']:
             entry = index['entries'][key]
             inspect = source_text(cfg, f'entry-{key}-inspect', entry['inspect'])
-            notes = [(d['line'], source_text(cfg, f'entry-{key}-detail-{n}', d['note'])) for n, d in enumerate(entry.get('details', []), 1)]
+            notes = [(d.get('page', d.get('line')), source_text(cfg, f'entry-{key}-detail-{n}', d['note'])) for n, d in enumerate(entry.get('details', []), 1)]
             if notes:
                 # An entry's notes on particular lines follow what to inspect, each with its line.
                 inspect += ' (' + '; '.join(w['line'].format(line=line) + ': ' + note for line, note in notes) + ')'
-            file_link = f'`{entry["path"]}`'
-            lines.append(f'| {file_link} | `{entry["symbol"]}` | {entry["line"]} | {inspect} |')
+            file_link = f'`{entry["path"]}`' if 'page' not in entry else f'`§{entry.get("section", "")}`'
+            lines.append(f'| {file_link} | `{entry["symbol"]}` | {entry.get("page", entry.get("line"))} | {inspect} |')
         lines.append('')
     if index.get('mappings'):
         # What the lab's data stands for in the engine, when the index says.

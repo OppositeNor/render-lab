@@ -20,6 +20,29 @@ establish is SKILL.md's "Precision"; this file is their formats and checks.
   `O3DE_SOURCE_DIR`, or asks where the source is), so lines and hashes never drift by hand (required). Even for a
   published engine, keep quotes short.
 
+### A paper's entries
+
+An investigation of a paper (`new-story-paper`) cites the paper instead of a checkout (`lab/src/sources.rs`):
+
+- `paper` instead of `engine`: `key` (its key in `references`), `short` ("Bitterli et al. 2020", how the chrome names
+  it), `title`, `venue` ("ACM TOG 39(4)"), `doi`, and `sha256`, the PDF's, which the video's verification checks
+  (`paperEnv` in `video.json` names the variable that says where the PDF is; otherwise it asks). An `engine` block is
+  added only when the authors' code was read too (its name, version, and commit), and its entries are the code's.
+- Each paper entry has `section` ("4.4"), `page` (the printed page, "148:9"), `symbol` (the equation, algorithm line,
+  or figure: "Alg. 6, line 10", "Eq. 22", "Fig. 7"), `quote` (a phrase of the passage, short, that locates it) and
+  `quoteHash` (the first 16 hex digits of the SHA-256 of the quote with its whitespace collapsed), `inspect`, and
+  `details` with a `page` and a `note`. The chrome shows it as `§4.4, p. 148:9` where an engine's shows `path:line`.
+- Write the index with the package's script, which reads the PDF's text (`pdftotext -layout`), finds each quote on
+  its page, and fills the hashes, so a cited passage never drifts by hand (required), as an engine's script reads the
+  checkout.
+
+### References
+
+`references`: the works a story cites, each `key` and `apa`, its reference in APA style (7th edition), from the work
+itself or its publisher's record; the paper's own is among them. A 2D beat with `references=true` shows them on the
+references card (`lab/src/ui/panel.rs`), the paper's in the accent colour, in the order listed (alphabetical, as APA
+lists them). A paper's story ends on it.
+
 Updating one entry (a moved line, a corrected `inspect`) is a local change, but not a hand edit: change the script's
 entry, rerun it against the checkout at the recorded commit, read the cited line and the function around it, and
 check that every narration sentence and callout that uses the key still says what the line does. Tell the two apart by comparing the index's `engine.commit` with the checkout's (`git -C <checkout> rev-parse

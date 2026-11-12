@@ -210,9 +210,26 @@ class Config:
             CHECKOUTS[env] = Path(given).expanduser().resolve()
         return CHECKOUTS[env]
 
+    def paper_pdf(self, index: dict[str, Any]) -> Path:
+        """The paper's PDF: its video.json's `paperEnv` variable, else where the
+        user says (asked once per run)."""
+        env = self.spec.get('paperEnv', '')
+        if env not in PAPERS:
+            # Asked once per run: the variable's value, or failing that, the user's answer.
+            given = os.environ.get(env, '') if env else ''
+            if not given:
+                try:
+                    given = input(f'Where is the PDF of "{index["paper"]["title"]}"? ').strip()
+                except EOFError:
+                    raise SystemExit(f'set {env or "the paper variable"} to the PDF of "{index["paper"]["title"]}"') from None
+            PAPERS[env] = Path(given).expanduser().resolve()
+        return PAPERS[env]
+
 
 # The engines' sources, once given (Config.checkout).
 CHECKOUTS: dict[str, Path] = {}
+# The papers' PDFs, once given (Config.paper_pdf).
+PAPERS: dict[str, Path] = {}
 
 
 @functools.cache

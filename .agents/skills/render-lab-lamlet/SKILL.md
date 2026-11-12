@@ -45,7 +45,7 @@ ${overText {' {voxelgiMixRange 0.0 1.0}} "a range over words"}.
 
 - **Headings:** `#` the video (its text the title, its attributes the header), `##` a chapter (`number`, `target`
   seconds, `summary`, `sources`), `###` a beat (its id, `kind` `3d` or `2d`, `diagram`, `graph`, `focus`, `sources`,
-  `hold`). Quoted attribute values may hold spaces, not quotes or braces. Which attributes each level takes, and
+  `references=true` for the references card of a paper's story, `hold`). Quoted attribute values may hold spaces, not quotes or braces. Which attributes each level takes, and
   their kinds, are the lab's heading keys (`render-lab story headings [--translation]`, `keys::heading_keys`;
   also in `story keys`). The builder applies them (`lamlet ir --keys`), so an unknown attribute (with the
   nearest known one), a non-integer `number` or `fps` (`3.0` too), a number that is not finite, and a `kind` or
