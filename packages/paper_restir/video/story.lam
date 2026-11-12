@@ -59,6 +59,8 @@ $[# pickCamera {'
 
 The camera floating slowly about a view, so the room keeps moving while a beat explains.
 
-$[# floatRoom {' {motion {' {cameraPath {' {pose 18.0 14.0 4.6} {pose 26.0 16.0 4.4} {pose 12.0 13.0 4.7}}}}}}]
+$[# floatRoom {'
+    {motion {' {cameraPath {' {pose 18.0 14.0 4.6} {pose 26.0 16.0 4.4} {pose 12.0 13.0 4.7}}}}}}]
 
-$[# floatPick {' {motion {' {cameraPath {' {pose 24.0 18.0 3.6} {pose 30.0 20.0 3.4} {pose 20.0 17.0 3.7}}}}}}]
+$[# floatPick {'
+    {motion {' {cameraPath {' {pose 24.0 18.0 3.6} {pose 30.0 20.0 3.4} {pose 20.0 17.0 3.7}}}}}}]
