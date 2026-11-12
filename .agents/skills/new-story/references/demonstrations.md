@@ -5,18 +5,18 @@ anything is built on the outline: find what each structure the story explains ca
 explore it. Write it to `story/demonstrations.md`. How a demonstration is coded (values, views, clicks, images) is
 `new-investigation`'s `references/code.md` and `references/presentation.md`.
 
-1. **How the engine stores it.** For each data structure in the outline (a texture, an atlas, a buffer, a table),
-   research the checkout (Phase 1's brief, `references/research.md`) for: its resources, each one's dimension, format,
-   and size; which are separate resources and which are packed together (channels, layers, tiles of one atlas); how an
-   element is addressed (page tables, indirection, tile coordinates); and the engine's own debug views of it (its
-   visualize modes, show flags, debug draws). A debug view says what its authors found worth seeing.
-2. **Mirror the storage** (required). Show the structure as the engine keeps it. Separate resources are separate
-   views, side by side, each titled with its name and format, sharing its layout (the same element outlined in each);
-   channels packed in one resource are one view with its channels decoded. Do not merge what the engine separates, or
-   split what it packs, for convenience.
+1. **How the source keeps it.** For each data structure in the outline (a texture, an atlas, a buffer, a table, a
+   record), find how its source keeps it: for an engine, its resources, formats, sizes, packing, addressing, and debug
+   views, read from the checkout (`new-story-engine`, "Demonstrations of an engine's data"); for a paper, the
+   structure as the paper defines it (its fields, its update rule, its figures of it) and, with the authors' code, as
+   the code stores it (`new-story-paper`, "Demonstrations of a paper's method").
+2. **Mirror it** (required). Show the structure as its source keeps it. Separate resources (or a paper's separate
+   structures) are separate views, side by side, each titled with its name and format, sharing its layout (the same
+   element outlined in each); channels packed in one resource are one view with its channels decoded. Do not merge
+   what the source separates, or split what it packs, for convenience.
 3. **Find the picture first.** For every concept the story demonstrates (an algorithm's step, not only a data
    structure), first think of a good way to see it. Search for how it is usually visualized (papers' figures, talks,
-   course notes, the engine's documentation; online when your environment can) and take the clearest as a reference. A
+   course notes, the engine's documentation, the paper's own figures; online when your environment can) and take the clearest as a reference. A
    reference is an inspiration, not the truth: design from it, and where you see a clearer way to show the concept
    (another angle, an animation instead of a still, a 3D form of a 2D figure, fewer elements), take it. Then build that
    picture with the lab's 3D and 2D scenes: geometry, draws, insets, diagrams, and their animation. If the lab cannot
@@ -30,7 +30,7 @@ explore it. Write it to `story/demonstrations.md`. How a demonstration is coded 
    finer level, and repeats until a single texel's column blocks it. Lay the depth map out as that field, animate the
    levels as real columns rising and merging, and run the trace over it, the blocked column lit at each step.
 4. **Plan the transitions between scenes.** A picture that explains a structure is not how the viewer first meets it,
-   so move from one to the other on screen instead of cutting: show the structure as the engine has it (the depth map,
+   so move from one to the other on screen instead of cutting: show the structure as the source has it (the depth map,
    flat on the screen), then animate it into the explaining picture (each texel rising into its column), and back when
    the story returns to the frame. Morphs, camera moves, and fades are values the storyboard animates like any other,
    so the viewer sees that the two pictures are the same data.
@@ -97,7 +97,7 @@ looking at the code that draws the views. Brief it with:
   there a value in the dock that changes it, with a range wide enough to see its effect, and does the view respond at
   once and visibly? Which parameter would a curious viewer reach for that the dock lacks?
 - **Cause and effect.** For every "because", "so", or "only when" in the outline, can the viewer switch the cause off
-  or move it and see the effect change (a toggle of a step, the engine's path against the lab's reference, a sweep)?
+  or move it and see the effect change (a toggle of a step, the source's path against the lab's reference, a sweep)?
 - **Live data.** Does every view that shows state accumulating over frames keep updating while the camera holds still,
   and does it show its own frame's data (`lab::fetch` tags, `render-graph`)?
 - **Reach.** Is each interaction found without reading code: a hint in the dock group, a cursor change, a label in

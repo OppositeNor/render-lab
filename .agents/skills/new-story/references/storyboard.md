@@ -62,12 +62,12 @@ revising narration): map each chapter's sentences with it and fix what the map s
 - **Define a term where it is first said, with what it is for**, and recall one from an earlier chapter where it is
   used again ("the validity, the alpha from chapter five").
 - **Every fact says why, or what it changes.** A fact with neither is cut from the narration (the listing and the
-  sources card still show it). A constant the engine gives no reason for is stated as the engine's choice, with no
-  invented reason.
+  sources card still show it). A constant the source gives no reason for is stated as the engine's (or the authors')
+  choice, with no invented reason.
 - **Say where a fact comes from at the start**, in one fixed form ("The code shows that …"), or leave it to the
   callout. Never append it ("…, read from the code").
-- **Consequences, not motives.** Say what a step does and what follows from it. Say why an engine does it only when its
-  source or its authors say so.
+- **Consequences, not motives.** Say what a step does and what follows from it. Say why an engine (or a paper) does it only
+  when its source or its authors say so.
 - **Re-check every edited sentence** against this list, not only the one a review flagged: a fix often breaks a rule
   elsewhere.
 
@@ -141,8 +141,8 @@ after other views have come between.
 After each chapter, run `--prepare-only` and render a few stills across each animated beat:
 
 ```sh
-python3 tools/video/build.py --investigation <engine>/<feature> --prepare-only
-cargo run --release -- --investigation <engine>/<feature> render --timeline <timeline.json> \
+python3 tools/video/build.py --investigation <id> --prepare-only
+cargo run --release -- --investigation <id> render --timeline <timeline.json> \
     --snapshot A,B,C --frames A0:C1 --snapshot-dir <scratch>/stills    # A0 a little before A: blends need the frames before
 ```
 

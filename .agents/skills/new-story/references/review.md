@@ -14,8 +14,8 @@ without them, review each chapter yourself in a separate pass, reading only that
 question below before moving on. Each review gets the chapter's storyboard text, its outline section, its stills, and
 these questions:
 
-- **Depth.** Is each step explained, not just named? What would a viewer who knows graphics but not this engine still
-  not understand?
+- **Depth.** Is each step explained, not just named? What would a viewer who knows graphics but not this engine (or
+  this paper) still not understand?
 - **Intuition.** Does each animation make its point clearer than a still would? Which sentence points at nothing on
   screen?
 - **Highlighting.** Is each key concept lit (a highlight, a callout, a lit formula term, a label) while it is named?
@@ -78,7 +78,7 @@ It gets no source, no outline, and no storyboard markup. Its prompt:
 > fact with no reason: you could not tell why it matters or what it changes; (5) heard two or more new ideas at once;
 > (6) lost the thread: you could not tell how this sentence follows from the one before, or heard a name before what
 > it names.
-> Do not flag an engine constant the narration states as the engine's choice. Do not judge correctness, and do not
+> Do not flag a constant the narration states as the engine's or the authors' choice. Do not judge correctness, and do not
 > suggest rewrites. For each flagged sentence: its first five words, the problem numbers, and one line on what you
 > lost. Then what you understood the chapter to say, and what you would still ask.
 
@@ -124,10 +124,11 @@ every applied sentence against those rules.
 
 ## The fact check (required)
 
-A check not anchored on the drafts verifies the facts (`new-investigation`, procedure step 8, "Audit"): every factual
-sentence and every `inspect`, against the checkout, in that step's classes, with file:line evidence. With subagents, a
-fresh agent that has not seen the drafting does it. Without them, do it yourself from the checkout and the source index
-only, claim by claim, writing each verdict and its evidence into `story/reviews/facts.md` before reading the next
+A check not anchored on the drafts verifies the facts: every factual sentence and every `inspect`, against the primary
+source, in the classes of `new-investigation`'s procedure step 8 ("Audit"), with the evidence the variant names
+(`new-story-engine`, "The fact check": the checkout's file:line; `new-story-paper`, "The fact check": the paper's
+section, page, and passage, and the code's file:line for a divergence). With subagents, a fresh agent that has not seen
+the drafting does it. Without them, do it yourself from the source and the source index only, claim by claim, writing each verdict and its evidence into `story/reviews/facts.md` before reading the next
 claim's narration context. Uncertain claims are never rewritten as facts: they are verified, narrated as uncertain, or
 cut.
 
@@ -143,8 +144,8 @@ neither verified nor a stated simplification, and the revised chapters pass Phas
 ## Revising a finished story
 
 When a story is built and a viewer (the user, or a review they pass on) asks for it to be better, improve it; don't
-remake it. Review feedback is input to check, not a script: verify each point against the video and the checkout
-before acting on it, say where it is wrong, and look for what it missed.
+remake it. Review feedback is input to check, not a script: verify each point against the video and the primary
+source before acting on it, say where it is wrong, and look for what it missed.
 
 1. **Audit.** Watch the built edition through its stills (the beats the feedback names, and the rest) and map each
    point to beats (feedback timestamps are approximate: use the edition's `chapters.txt` and the timeline's captions).

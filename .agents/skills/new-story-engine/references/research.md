@@ -1,6 +1,6 @@
 # Phase 1: Research
 
-Load this for a new story's research, or when a revision needs claims researched again. The precision rules every
+Load this for an engine story's research, or when a revision needs claims researched again. The precision rules every
 brief carries are `new-investigation`'s (its SKILL.md, "Precision"); this file is how the research is organised.
 
 ## Who does it
@@ -51,7 +51,7 @@ yourself before merging it.
    column (or note) for **where the lab differs**: what the lab already computes another way (a fit where the engine
    samples a table, a CPU stand-in for a GPU pass, a smaller resolution). Catching a difference here is cheap; finding
    it in a finished storyboard means rewriting sentences.
-6. **Gate**: the subtopics, where it is used, how it is optimised, the scope, and what is left out (SKILL.md,
+6. **Gate**: the subtopics, where it is used, how it is optimised, the scope, and what is left out (`new-story`,
    "Gates").
 
 Done when every subtopic in `story/research.md` has its claims cited, its open questions answered or listed as open,

@@ -9,12 +9,12 @@ its format is in `lab/src/quiz.rs`'s module comment.
 
 - **The algorithm, not the configuration.** Every question asks how the algorithm works: what a pass computes and
   from what, why a step is there, what a choice changes downstream, what would go wrong without it, how two stages
-  hand data to each other. Never the engine's configuration: no setting's value or default, no console variable, no
+  hand data to each other. Never the configuration (an engine's, or a paper's reported settings): no setting's value or default, no console variable, no
   scalability level, no project setting, and nothing about the lab's own scene (where this room leaks, how many lights
   it has). A number belongs in a question only when it is part of the method (a tile of 8 × 8 pixels, one over the
   probability), not when it is a tunable's default (twelve frames, a tenth).
-- **Narrated and verified.** Every right answer is a fact the story narrates, verified against the checkout as the
-  story's are (`new-investigation`, "Precision").
+- **Narrated and verified.** Every right answer is a fact the story narrates, verified against its primary source as the
+  story's are (the variant's precision rules).
 - **Understanding over recall.** Prefer a question a viewer answers by reasoning from the mechanism (what happens to
   the history when the light changes?) over one answered by remembering a word from the narration.
 
@@ -43,7 +43,7 @@ a joke and not a configuration value. It marks any candidate that touches config
 
 **Choosing.** Take about one question per chapter that teaches a mechanism (six to ten in all), the ones that best
 check understanding and that a view can answer; drop every candidate that asks about configuration or rests on no
-narrated sentence; verify each right answer's sentence against the checkout. Save the agent's table in
+narrated sentence; verify each right answer's sentence against its primary source. Save the agent's table in
 `story/reviews/quiz.md` with what was chosen and why.
 
 ## Writing it

@@ -9,7 +9,8 @@ Write `story/outline.md`:
 - **Chapters**, each with a title, a time budget (the chapter heading's `target=` seconds, `targetSeconds` in the
   timeline; about 1.2 times its narration), and its beats. A chapter is one structure or one pass; a beat is one idea,
   and its headline states the claim ("local bounds become an oriented box"), not the topic ("bounds").
-- **Claim → what shows it**, for every key sentence: the claim, its source (file:line), and what is on screen while it
+- **Claim → what shows it**, for every key sentence: the claim, its source (file:line, or the paper's section, page,
+  and equation), and what is on screen while it
   is said (a demonstration's parameter, a camera move, a highlighted field or listing line, a formula, a readout row).
   A claim with nothing to show is either cut, said in passing, or given a visual.
 - **What changes, and what it changes.** For each relation the story explains ("the closer, the sharper"), the
@@ -53,7 +54,7 @@ the story must teach well, and that takes time. The graph, its commands, and the
 ## Teaching a topic
 
 Every topic the story teaches is taught like a teacher at a board, not mentioned: the viewer should be able to explain
-it afterwards without the engine. Give it its own beats, before its first use, in this order where it fits:
+it afterwards without the engine or the paper. Give it its own beats, before its first use, in this order where it fits:
 
 1. **The question** it answers, as a problem the viewer can see ("how far may this ray step without passing through
    anything?").
@@ -72,30 +73,23 @@ where the topic reads better another way, but leave none out.
 
 ## The shape of a story
 
-These are the story's structure. The opening, the bridges, the recaps, and the sources beats are expected in every
-story; the rest are the standard to meet, applied where the chapter has the thing they describe.
+These hold for every story. The bridges, the recaps, and the sources beats are expected in every story; the rest are
+the standard to meet, applied where the chapter has the thing they describe. The order of the chapters, the opening,
+and the ending are the variant's: `new-story-engine`, "The shape of an engine story", and `new-story-paper`, "The
+chapters of a paper's story".
 
-- **Open with what the feature adds, and the problem it solves.** The first beat shows the feature's contribution as a
-  comparison: the same camera, exposure, and scene with the feature off and on, cued on what it adds (the bounced
-  light, the colour bleeding), not two renders that merely differ. Then state the problem in one sentence ("how can
-  the engine light a room with bounced light without tracing many rays for every pixel?"), show the architecture map
-  (below), and say what the viewer will be able to explain by the end. Keep new terms out of the opening; each
-  arrives in its own chapter.
-- **Say what the story teaches, and what the viewer gains.** Still in the opening, a beat names the main topics the
+- **Say what the story teaches, and what the viewer gains.** In the opening, a beat names the main topics the
   story teaches (the three to six that matter most, from the knowledge level, in plain words), what the viewer should
   already know (the starting level; the viewer's Prerequisites tab lists it), and what they will gain: what they will
-  be able to explain, reason about, or do afterwards (read the engine's code for it, tune its settings, judge its
-  trade-offs, apply the techniques elsewhere). Show it on screen as a short list beside the narration.
-- **Then where it runs.** The first chapter places it in the engine's frame (the frame graph's 2D scene, a beat's
-  `graph=frame`, the feature's passes lit) and says what decides whether it runs at all: project settings, quality
-  levels, platform paths, and their defaults.
+  be able to explain, reason about, or do afterwards (read the engine's code or the paper for it, tune its settings,
+  judge its trade-offs, apply the techniques elsewhere). Show it on screen as a short list beside the narration.
 - **Explain each mechanism; showing its data is not explaining it.** A viewer who sees what a structure looks like may
   still not know what it is for. For every mechanism, the story answers, in this order where it fits: the **problem**
   it solves (and what would go wrong without it), an **intuitive example**, the **data** it keeps, the **algorithm**
   (its inputs, the calculation, its outputs), the **result** on screen, the **trade-off** it makes (quality, memory,
   time), and **where its output goes next**. The outline records the answers per chapter; a chapter that only shows a
   structure's layout is not finished.
-- **One architecture map, reused.** One diagram of how the feature's parts relate, true to the engine (its feedback
+- **One architecture map, reused.** One diagram of how the feature's or the method's parts relate, true to the source (its feedback
   loops, caches, parallel or once-only stages; never forced into a line it is not), with the same names and colours
   everywhere. Each chapter opens on it with its own part lit, and ends by showing what its output feeds. Its terms are
   the narration's terms.
@@ -115,27 +109,21 @@ story; the rest are the standard to meet, applied where the chapter has the thin
   all of them (one probe: its rays gather light, the light is compressed, the compressed form is evaluated later), so
   the viewer never rebuilds the picture. Near the end, follow one shaded point on a visible surface back through every
   mechanism it depends on (which data it reads, how it finds it, how occlusion weights it, what light it adds), in the
-  engine's real order.
+  source's real order.
 - **Compact representations, intuition first.** Before showing a representation's coefficients (spherical harmonics,
   an octahedral map, a quantised format), say in plain words what it does ("a few numbers that describe how light
   varies smoothly with direction"), then what it keeps, what it loses, why that is worth it, and where it is read
-  back. Never assume a method because other systems use it: show what this engine's code does (required).
+  back. Never assume a method because other systems use it: show what this engine's code, or this paper, does
+  (required).
 - **The code, step by step.** Animation comes first; pseudo-code is shown only alongside it. For a shading or lookup
   step, show its pseudo-code listing (`{panelCode}`) and light the line the sentence is on (`{highlightCode "<listing>" {' "<tag>"}}`),
   and with every highlight change the demonstration too, so the scene shows what that line does (its rays, its
   samples, its threshold, its result); a highlight that changes nothing on screen is cut, or the demonstration gains
   the step it lacks. Show only the lines the step needs, at a size that reads on a laptop, with the inputs and outputs
-  of the lit line beside it (a readout row or label), and say whether it is the engine's code, the lab's pseudo-code
-  of it, or the lab's own demonstration (required).
-- **End with the whole, and three takeaways.** The recap returns to the full scene, shows each mechanism's
-  contribution (switched off and on, in frame order), and closes on three takeaways: how the feature organises its
-  data, how it computes and reuses light, and what accuracy it trades for speed.
-- **Show the bytes.** Where the story names a format or a layout, show the record's fields and sizes, and how a stored
-  value decodes to what the shader uses; map each record to the engine's structure in the index's `mappings`.
+  of the lit line beside it (a readout row or label), and say whether it is the source's code or algorithm, the lab's
+  pseudo-code of it, or the lab's own demonstration (required).
 - **A subject that shows it.** Choose the scene's object whose shape shows the feature best, and fade the ones that
   would hide it in close-ups.
-- **Mechanisms the lab doesn't run** (an offline build, a streaming policy) are still shown from a CPU computation that
-  follows the engine's code, in a module of their own; say on screen when a view is schematic or scaled (required).
 - **Bridge every chapter to the last.** A chapter's first sentence says what the previous one left, and what this one
   does with it; only then does the chapter start. Vary the wording, and give the reason the step comes next when there
   is one. From O3DE's story:

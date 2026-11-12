@@ -71,8 +71,8 @@ See [Using Render Lab](docs/usage.md) for the controls.
 
 The repository includes skills written for AI coding agents, in [`.agents/skills/`](.agents/skills) (the Agent Skills
 layout, linked from `.claude/skills/` for Claude Code), with the rules every agent follows in [`AGENTS.md`](AGENTS.md).
-Each skill guides one kind of task: `new-investigation`, `new-story`, `packages`, `render-graph`, `knowledge-graph`,
-`experiments`, and `render-lab-lamlet`.
+Each skill guides one kind of task: `new-investigation`, `new-story` (with `new-story-engine` and `new-story-paper`),
+`storytelling`, `packages`, `render-graph`, `knowledge-graph`, `experiments`, and `render-lab-lamlet`.
 
 To start a new investigation, ask an agent:
 
@@ -84,6 +84,17 @@ Please utilize <source-index-utility-name> for indexing code.   (optional)
 The agent loads `new-investigation` (and `new-story` for the narrated video) and follows its pipeline: research in the
 engine's source, the package and its WGSL port, review, and validation. Only engines whose license allows publishing
 derived code belong in the public repository; see `AGENTS.md`.
+
+To investigate a paper instead:
+
+```text
+Please investigate on <paper-title>. The paper is at <pdf-path>. Its source code is at <code-path>.   (optional)
+```
+
+The agent loads `new-story-paper` with `new-story` and `new-investigation`: it reads the paper (its contributions, its
+related work, its method), checks the authors' code against it when there is one, implements the method as the paper
+describes it, and tells it in six kinds of chapter, from the introduction to the experiments run on your machine and
+the references.
 
 ## Documentation
 

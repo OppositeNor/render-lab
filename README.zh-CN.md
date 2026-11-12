@@ -59,7 +59,7 @@ cargo run --release
 
 仓库包含为 AI 编程智能体编写的技能（skills），位于 [`.agents/skills/`](.agents/skills)（Agent Skills 布局，Claude Code
 通过 `.claude/skills/` 中的链接使用），所有智能体遵循的规则见 [`AGENTS.md`](AGENTS.md)。每个技能指导一类任务：
-`new-investigation`、`new-story`、`packages`、`render-graph`、`knowledge-graph`、`experiments` 和 `render-lab-lamlet`。
+`new-investigation`、`new-story`（及 `new-story-engine` 和 `new-story-paper`）、`storytelling`、`packages`、`render-graph`、`knowledge-graph`、`experiments` 和 `render-lab-lamlet`。
 
 开始一项新研究时，可以这样告诉智能体：
 
@@ -70,6 +70,15 @@ Please utilize <source-index-utility-name> for indexing code.   (optional)
 
 智能体会加载 `new-investigation`（制作讲解视频时还有 `new-story`）并按其流程进行：研究引擎源码、创建包并将着色器移植到
 WGSL、审查和验证。只有许可证允许发布衍生代码的引擎才能放入公开仓库，详见 `AGENTS.md`。
+
+研究一篇论文时：
+
+```text
+Please investigate on <paper-title>. The paper is at <pdf-path>. Its source code is at <code-path>.   (optional)
+```
+
+智能体会加载 `new-story-paper`、`new-story` 和 `new-investigation`：阅读论文（贡献、相关工作、方法），有作者代码时逐步核对代码与论文，
+按论文的描述实现方法，并用六类章节讲述它，从引言到在你的机器上运行的实验和参考文献。
 
 ## 文档
 

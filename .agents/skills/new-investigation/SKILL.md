@@ -1,6 +1,6 @@
 ---
 name: new-investigation
-description: Create or change a Render Lab investigation of a game-engine feature (a package, packages/<engine>_<feature>/, whose library implements the Investigation trait) and hold it to the precision standard every investigation meets. Use when asked to investigate a new engine or feature, port an engine's shader to WGSL with a CPU mirror and selftest, give an investigation demonstrations, values, sliders, views, a source index, pseudo-code, formulas, a Play animation, actions, images, or its video's inputs and build, or to verify, audit, or correct an investigation's claims and source references against the engine's source. For the story's narration use `new-story`; for manifests and loading use `packages`; for passes and resources use `render-graph`.
+description: Create or change a Render Lab investigation of a game-engine feature (a package, packages/<engine>_<feature>/, whose library implements the Investigation trait) or of a paper's method (packages/paper_<short>/, with `new-story-paper`'s precision rules), and hold it to the precision standard every investigation meets. Use when asked to investigate a new engine or feature, port an engine's shader to WGSL with a CPU mirror and selftest, give an investigation demonstrations, values, sliders, views, a source index, pseudo-code, formulas, a Play animation, actions, images, or its video's inputs and build, or to verify, audit, or correct an investigation's claims and source references against the engine's source. For the story's narration use `new-story`; for manifests and loading use `packages`; for passes and resources use `render-graph`.
 ---
 
 # An investigation, and the standard it meets
@@ -9,6 +9,11 @@ An investigation is one engine feature, read from the engine's source and shown 
 demonstrations with sliders, a readout or struct panel, Python pseudo-code of the engine's functions, a source index
 that cites every claim by file, symbol, and line, and a narrated video. The lab (`lab/`) is shared and knows nothing
 about any investigation; everything specific reaches it through the `Investigation` trait (`lab/src/investigation.rs`).
+
+An investigation can also be one **paper's method**, read from the paper (`packages/paper_<short>/`, id
+`paper/<short>`): everything here applies to it, except that `new-story-paper`'s "Where it lives" and "Precision for a
+paper" replace step 0 and the engine's rules of step 1, and its index cites the paper (`references/sources.md`, "A
+paper's entries").
 
 The worked example is the Open 3D Engine's lighting model, `packages/o3de_lighting/src/o3de/lighting/`. Copy its
 shape; read its files alongside these steps.
@@ -21,7 +26,7 @@ AGENTS.md, "How deep a task goes", sets the levels; for an investigation they ar
 |---|---|
 | **Local**: one source-index entry, one listing, a value's default or help, a slider, one demonstration's view | Read the cited engine line and its function at the recorded commit; make the change through its script or format (`references/sources.md`, `references/code.md`); run the build, the selftest, and the snapshot of what it shows; check the narration and callouts that use what changed |
 | **Subsystem**: a new demonstration, a port of another shader function, new GPU work, a commit change, a pass restructured | Procedure steps 1 to 6 for that part, the audit (step 8) of every claim it touches, all of "Check" below |
-| **New investigation** | Every section, in order; the story by `new-story` |
+| **New investigation** | Every section, in order; the story by `new-story` with its variant (`new-story-engine`, or `new-story-paper` for a paper) |
 
 The precision standard below holds at every depth.
 
@@ -84,8 +89,9 @@ An investigation is only as good as its claims. Each of these is required, not a
 
 ## 2. Procedure
 
-For the story (the research, the outline, the storyboard, and its review, in phases), follow the `new-story` skill; it
-builds on these steps.
+For the story (the research, the outline, the storyboard, and its review, in phases), follow the `new-story` skill and
+its variant; they build on these steps. For a paper, steps 1 to 3 are its reading (`new-story-paper`'s
+`references/reading.md`), and step 8 checks against the paper.
 
 1. **Scope.** Name the feature's entry points and list its passes in frame order. Note the engine version and commit.
 2. **Sweep.** For a broad question (every pass a feature touches, every caller of a function), delegate the search
