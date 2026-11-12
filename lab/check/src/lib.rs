@@ -281,7 +281,8 @@ fn check_shaders(packages: &[Package], package: &str) {
         let capabilities = Capabilities::default()
             | Capabilities::TEXTURE_ATOMIC
             | Capabilities::TEXTURE_AND_SAMPLER_BINDING_ARRAY
-            | Capabilities::TEXTURE_AND_SAMPLER_BINDING_ARRAY_NON_UNIFORM_INDEXING;
+            | Capabilities::TEXTURE_AND_SAMPLER_BINDING_ARRAY_NON_UNIFORM_INDEXING
+            | Capabilities::RAY_QUERY;
         Validator::new(ValidationFlags::all(), capabilities)
             .validate(&package)
             .unwrap_or_else(|e| {

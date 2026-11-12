@@ -51,6 +51,7 @@ uses = [
     { binding = 3, resource = "surfM", access = "load" },
     { binding = 4, resource = "surfA", access = "load" },
     { binding = 5, resource = "visible", access = "write" },
+    { binding = 15, resource = "tlas", access = "acceleration" },
 ]
 
 # Alg. 5 lines 11-14: temporal reuse.
@@ -70,6 +71,7 @@ uses = [
     { binding = 8, resource = "prevA", access = "load" },
     { binding = 9, resource = "restirScene", access = "uniform" },
     { binding = 10, resource = "temporal", access = "write" },
+    { binding = 15, resource = "tlas", access = "acceleration" },
 ]
 
 # Alg. 5 lines 16-20: n rounds of spatial reuse, from the temporal pass's reservoirs into resA, then back and forth
@@ -85,6 +87,7 @@ uses = [
     { binding = 3, resource = "surfM", access = "load" },
     { binding = 4, resource = "surfA", access = "load" },
     { binding = 5, resource = "resA", access = "write" },
+    { binding = 15, resource = "tlas", access = "acceleration" },
 ]
 
 [[node]]
@@ -98,6 +101,7 @@ uses = [
     { binding = 3, resource = "surfM", access = "load" },
     { binding = 4, resource = "surfA", access = "load" },
     { binding = 5, resource = "resB", access = "write" },
+    { binding = 15, resource = "tlas", access = "acceleration" },
 ]
 
 [[node]]
@@ -111,6 +115,7 @@ uses = [
     { binding = 3, resource = "surfM", access = "load" },
     { binding = 4, resource = "surfA", access = "load" },
     { binding = 5, resource = "resA", access = "write" },
+    { binding = 15, resource = "tlas", access = "acceleration" },
 ]
 
 # Alg. 5 line 24: the frame's reservoirs, and the surfaces they were made at, kept for the next frame.
@@ -150,6 +155,7 @@ uses = [
     { binding = 9, resource = "accumR", access = "read-write" },
     { binding = 10, resource = "accumG", access = "read-write" },
     { binding = 11, resource = "accumB", access = "read-write" },
+    { binding = 15, resource = "tlas", access = "acceleration" },
 ]
 
 [[node]]

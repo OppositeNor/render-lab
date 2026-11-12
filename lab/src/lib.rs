@@ -65,6 +65,7 @@ pub mod popup;
 pub mod program;
 pub mod pseudocode;
 pub mod quiz;
+pub mod ray_tracing;
 pub mod readback;
 pub mod record;
 pub mod renderer;

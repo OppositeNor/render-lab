@@ -3,7 +3,8 @@
 The method of "Spatiotemporal reservoir resampling for real-time ray tracing with dynamic direct lighting"
 (Bitterli, Wyman, Pharr, Shirley, Lefohn, and Jarosz, ACM TOG 39(4), Article 148, 2020), implemented from the
 paper's equations and algorithms as WGSL program passes (`shaders/restir_passes.wgsl`, `shaders/restir_shading.wgsl`)
-and mirrored on the CPU (`cpu.rs`). No authors' code was read. The research and the story's plan are in
+and mirrored on the CPU (`cpu.rs`). Its shadow rays use hardware ray tracing, which the package requires
+(`requires = ["ray-tracing"]`: a Vulkan GPU with ray queries). No authors' code was read. The research and the story's plan are in
 `../../../story/`; every claim cites the paper by section, page, and equation or algorithm line through
 `source-index.json`, written from the PDF by `source_index.py` (`RESTIR_PAPER_PDF`, or asked).
 
@@ -39,7 +40,7 @@ Where the lab differs from the paper:
 - The geometry test (10% of the depth, 25 degrees) is applied to the temporal neighbour too.
 - The temporal neighbour is found by reprojecting the pixel's point with last frame's camera; the room's objects do not move.
 - The material is the lab's albedo and roughness through a GGX dielectric over Lambert, as the paper's unified material.
-- The lab traces shadow rays against its analytic shapes and the teapot's BVH, without hardware ray tracing.
+- Shadow rays are traced in hardware (ray queries) against the scene's triangles, so the spheres are their raster tessellation; the lights and the room's planes do not block them.
 - A frame drawn alone first draws the same shot eight times, so its temporal reuse has frames before it.
 
 ## Verify

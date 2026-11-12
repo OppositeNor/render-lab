@@ -158,38 +158,15 @@ fn restirVisibilityCS(@builtin(global_invocation_id) id: vec3<u32>) {
 // the pixel's reservoir and others are streamed into one, each weighted
 // p̂_q(r.y) · r.W · r.M; M is the sum of theirs; W is wsum over p̂_q(y) times
 // the sum of M (Alg. 4) or times Z, the M of the sources at whose surface the
-// sample's p̂ is not zero (Alg. 6, m = 1 / Z). Entry 0 is the pixel's own.
+// sample's p̂ is not zero (Alg. 6, m = 1 / Z). A pass streams each source in
+// as it reads it (`restirStream`), then finishes with `restirFinishBiased` or
+// counts Z source by source (`restirReachable`), reading the sources again:
+// nothing is kept per source but its pixel.
 
-const RESTIR_MAX_SOURCES: u32 = 17u;
+const RESTIR_MAX_NEIGHBOURS: u32 = 16u;
 
-struct Sources {
-    reservoirs: array<Reservoir, 17>,
-    surfaces: array<Surface, 17>,
-    count: u32,
-}
-
-fn restirCombine(s: Surface, sources: ptr<function, Sources>, rng: ptr<function, Rng>) -> Reservoir {
-    var out = restirEmpty();
-    var m = 0.0;
-    for (var i = 0u; i < (*sources).count; i++) {
-        let r = (*sources).reservoirs[i];
-        restirUpdate(&out, r.y, restirTarget(s, r.y) * r.W * r.M, rng);
-        m += r.M;
-    }
-    out.M = m;
-    if (gShading.unbiased < 0.5) {
-        restirFinish(&out, restirTarget(s, out.y), out.M);
-        return out;
-    }
-    var z = 0.0;
-    for (var i = 0u; i < (*sources).count; i++) {
-        // Alg. 6 lines 7-9: only the sources that could have produced the sample count.
-        if (restirReachable((*sources).surfaces[i], out.y)) {
-            z += (*sources).reservoirs[i].M;
-        }
-    }
-    restirFinish(&out, restirTarget(s, out.y), z);
-    return out;
+fn restirStream(out: ptr<function, Reservoir>, s: Surface, r: Reservoir, rng: ptr<function, Rng>) {
+    restirUpdate(out, r.y, restirTarget(s, r.y) * r.W * r.M, rng);
 }
 
 // ---------------------------------------------------------------------------
@@ -239,14 +216,18 @@ fn restirTemporalCS(@builtin(global_invocation_id) id: vec3<u32>) {
             // Last frame's reservoir there, its M at most temporalClamp times this one's (§5).
             var previous = restirUnpack(textureLoad(tPrev, qPrev, 0));
             previous.M = min(previous.M, gShading.temporalClamp * current.M);
-            var sources: Sources;
-            sources.reservoirs[0] = current;
-            sources.surfaces[0] = s;
-            sources.reservoirs[1] = previous;
-            sources.surfaces[1] = sPrev;
-            sources.count = 2u;
             var rng = restirRng(id.xy, restirSeed(), 1u);
-            out = restirCombine(s, &sources, &rng);
+            var combined = restirEmpty();
+            restirStream(&combined, s, current, &rng);
+            restirStream(&combined, s, previous, &rng);
+            combined.M = current.M + previous.M;
+            var count = combined.M;
+            if (gShading.unbiased > 0.5) {
+                // Alg. 6: only the sources whose target at the sample is not zero count.
+                count = select(0.0, current.M, restirReachable(s, combined.y)) + select(0.0, previous.M, restirReachable(sPrev, combined.y));
+            }
+            restirFinish(&combined, restirTarget(s, combined.y), count);
+            out = combined;
         }
     }
     textureStore(tOut, q, restirPack(out));
@@ -288,23 +269,40 @@ fn restirSpatialCS(@builtin(global_invocation_id) id: vec3<u32>) {
     }
     var rng = restirRng(id.xy, restirSeed(), 2u + restirParam(3u));
     let rotation = vec2<f32>(restirRand(&rng), restirRand(&rng));
-    var sources: Sources;
-    sources.reservoirs[0] = current;
-    sources.surfaces[0] = s;
-    sources.count = 1u;
-    let k = min(u32(gShading.neighbours), RESTIR_MAX_SOURCES - 1u);
+    var out = restirEmpty();
+    restirStream(&out, s, current, &rng);
+    var m = current.M;
+    // The neighbours kept, by pixel, for the unbiased count.
+    var kept: array<vec2<i32>, 16>;
+    var count = 0u;
+    let k = min(u32(gShading.neighbours), RESTIR_MAX_NEIGHBOURS);
     for (var j = 0u; j < k; j++) {
-        // Each neighbour that passes the geometry test brings its reservoir and its surface.
+        // Each neighbour that passes the geometry test streams its reservoir into P's.
         let qn = restirNeighbour(q, j, rotation, size);
         let sn = restirSurfaceAt(sSurfP, sSurfM, sSurfA, qn);
         if (all(qn == q) || !restirSimilar(s, sn)) {
             continue;
         }
-        sources.reservoirs[sources.count] = restirUnpack(textureLoad(sIn, qn, 0));
-        sources.surfaces[sources.count] = sn;
-        sources.count += 1u;
+        let r = restirUnpack(textureLoad(sIn, qn, 0));
+        restirStream(&out, s, r, &rng);
+        m += r.M;
+        kept[count] = qn;
+        count += 1u;
     }
-    textureStore(sOut, q, restirPack(restirCombine(s, &sources, &rng)));
+    out.M = m;
+    var z = m;
+    if (gShading.unbiased > 0.5) {
+        // Alg. 6 lines 6-10: P and each neighbour kept count only if the sample's target there is not zero.
+        z = select(0.0, current.M, restirReachable(s, out.y));
+        for (var i = 0u; i < count; i++) {
+            let sn = restirSurfaceAt(sSurfP, sSurfM, sSurfA, kept[i]);
+            if (restirReachable(sn, out.y)) {
+                z += restirUnpack(textureLoad(sIn, kept[i], 0)).M;
+            }
+        }
+    }
+    restirFinish(&out, restirTarget(s, out.y), z);
+    textureStore(sOut, q, restirPack(out));
 }
 
 // ---------------------------------------------------------------------------

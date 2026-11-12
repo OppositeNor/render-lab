@@ -49,6 +49,8 @@ pub struct Renderer {
     mesh_vertices: wgpu::Buffer,
     mesh_indices: wgpu::Buffer,
     object_ids: wgpu::Buffer,
+    /// The scene's BLASes, made the first time a program traces it (src/ray_tracing.rs).
+    scene_rays: Option<crate::ray_tracing::SceneRays>,
     /// The lab's environment (environment.rs), gEnvironment.
     _environment: wgpu::Texture,
     environment_view: wgpu::TextureView,
@@ -243,6 +245,7 @@ impl Renderer {
             mesh_vertices: scene.mesh_vertices,
             mesh_indices: scene.mesh_indices,
             object_ids: scene.object_ids,
+            scene_rays: scene.rays,
             _environment: environment,
             environment_view,
             sampler,
@@ -431,15 +434,21 @@ impl Renderer {
     /// The GPU data of the scene `statics` prepares: its raster meshes.
     fn scene_resources(device: &wgpu::Device, statics: &Statics) -> SceneResources {
         let meshes = &statics.meshes;
+        // Where the device traces rays, the meshes are also what the scene's BLASes are built from.
+        let rays = if crate::gpu::ray_tracing() {
+            wgpu::BufferUsages::BLAS_INPUT
+        } else {
+            wgpu::BufferUsages::empty()
+        };
         let mesh_vertices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("mesh vertices"),
             contents: bytemuck::cast_slice(&meshes.vertices),
-            usage: wgpu::BufferUsages::VERTEX,
+            usage: wgpu::BufferUsages::VERTEX | rays,
         });
         let mesh_indices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("mesh indices"),
             contents: bytemuck::cast_slice(&meshes.indices),
-            usage: wgpu::BufferUsages::INDEX,
+            usage: wgpu::BufferUsages::INDEX | rays,
         });
         let ids: Vec<u32> = (0..statics.scene.objects.len() as u32).collect();
         let object_ids = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -452,6 +461,7 @@ impl Renderer {
             mesh_vertices,
             mesh_indices,
             object_ids,
+            rays: None,
         }
     }
 
@@ -483,6 +493,7 @@ impl Renderer {
             mesh_vertices: std::mem::replace(&mut self.mesh_vertices, scene.mesh_vertices),
             mesh_indices: std::mem::replace(&mut self.mesh_indices, scene.mesh_indices),
             object_ids: std::mem::replace(&mut self.object_ids, scene.object_ids),
+            rays: std::mem::replace(&mut self.scene_rays, scene.rays),
         };
         self.other_scenes
             .insert(previous.scene.id, (previous, resources));

@@ -263,6 +263,7 @@ const ACCESSES: &[(&str, Access)] = &[
     ("atomic", Access::Atomic),
     ("uniform", Access::Uniform),
     ("sampler", Access::Sampler),
+    ("acceleration", Access::Acceleration),
 ];
 const KINDS: &[(&str, ImageKind)] = &[
     ("2d", ImageKind::D2),

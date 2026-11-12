@@ -43,13 +43,43 @@ pub fn libraries() -> &'static [Library] {
     })
 }
 
+/// Why a loaded package's investigations cannot run here (its manifest's `requires`), if they cannot.
+fn unmet(package: &str) -> Option<&'static str> {
+    resources::packages()
+        .iter()
+        .find(|m| m.name == package)
+        .and_then(|m| m.unmet())
+}
+
+/// Every investigation the packages' libraries hand the lab, with why it cannot run here, if it cannot.
+fn handed() -> &'static [(&'static dyn Investigation, Option<&'static str>)] {
+    static HANDED: OnceLock<Vec<(&'static dyn Investigation, Option<&'static str>)>> =
+        OnceLock::new();
+    HANDED.get_or_init(|| {
+        libraries()
+            .iter()
+            .filter_map(|l| Some((l.package, l.loaded.as_ref().ok()?.investigations()?)))
+            .flat_map(|(package, f)| f().iter().map(move |i| (*i, unmet(package))))
+            .collect()
+    })
+}
+
+/// The investigations that cannot run here, each with the reason (what its package requires).
+pub fn unavailable() -> Vec<(&'static dyn Investigation, &'static str)> {
+    handed()
+        .iter()
+        .filter_map(|(i, why)| Some((*i, (*why)?)))
+        .collect()
+}
+
+/// The investigations that can run here.
 pub fn all() -> &'static [&'static dyn Investigation] {
     static ALL: OnceLock<Vec<&'static dyn Investigation>> = OnceLock::new();
     ALL.get_or_init(|| {
-        let all: Vec<&'static dyn Investigation> = libraries()
+        let all: Vec<&'static dyn Investigation> = handed()
             .iter()
-            .filter_map(|l| l.loaded.as_ref().ok()?.investigations())
-            .flat_map(|f| f().iter().copied())
+            .filter(|(_, why)| why.is_none())
+            .map(|(i, _)| *i)
             .collect();
         // Their choices' WGSL constants, before any shader composes them.
         crate::shader_data::write_choices(&all);

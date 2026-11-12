@@ -185,6 +185,8 @@ pub(super) struct SceneResources {
     pub(super) mesh_vertices: wgpu::Buffer,
     pub(super) mesh_indices: wgpu::Buffer,
     pub(super) object_ids: wgpu::Buffer,
+    /// Its BLASes, made the first time a program traces it (src/ray_tracing.rs).
+    pub(super) rays: Option<crate::ray_tracing::SceneRays>,
 }
 
 /// What a view keeps of its own between frames (src/view.rs): its targets,

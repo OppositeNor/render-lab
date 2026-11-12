@@ -53,7 +53,7 @@ pub fn build_frame(
     content.shading_frame = lights::pack(&placed);
     match Demo::of(state.demo) {
         Demo::Ris => ris::draw(state, &mut content, &placed),
-        Demo::Reuse => reuse::draw(state, &mut content, &placed),
+        Demo::Reuse => reuse::draw(state, &mut content, &placed, &statics.meshes),
         Demo::Bias => bias::draw(state, &mut content),
         Demo::Spatial => spatial::draw(state, &mut content, &placed),
         Demo::Room | Demo::Reservoirs | Demo::Reference | Demo::Methods => {}

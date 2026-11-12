@@ -16,7 +16,12 @@ use lab::palette;
 use lab::shot::ShotState;
 
 /// Draws P's shadow ray to its sample after temporal reuse, and a readout of its reservoir before and after.
-pub fn draw(state: &ShotState, content: &mut FrameContent, placed: &[Light]) {
+pub fn draw(
+    state: &ShotState,
+    content: &mut FrameContent,
+    placed: &[Light],
+    meshes: &lab::scene::Meshes,
+) {
     let size = content.uniforms.camera.viewport_size;
     let q = ris::pixel(state, size);
     let region = Region::around(q, 0);
@@ -39,12 +44,12 @@ pub fn draw(state: &ShotState, content: &mut FrameContent, placed: &[Light]) {
         .map(Reservoir::unpack)
         .unwrap_or(Reservoir::empty());
     let cdf = lights::cdf(placed);
-    let objects = content.objects.clone();
+    let triangles = cpu::occluders(meshes, &content.objects);
     let scene = Scene {
         lights: placed,
         cdf: &cdf,
         eye: Vec3::from(content.uniforms.camera.position),
-        objects: &objects,
+        triangles: &triangles,
         candidates: 1,
         unbiased: false,
         visibility_reuse: true,

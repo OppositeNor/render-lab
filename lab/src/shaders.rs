@@ -19,6 +19,8 @@ fn capabilities() -> Capabilities {
         | Capabilities::TEXTURE_ATOMIC
         | Capabilities::TEXTURE_AND_SAMPLER_BINDING_ARRAY
         | Capabilities::TEXTURE_AND_SAMPLER_BINDING_ARRAY_NON_UNIFORM_INDEXING
+        // Ray queries, which only the shaders of packages that require ray tracing use (src/gpu.rs).
+        | Capabilities::RAY_QUERY
 }
 use naga::{Scalar, ScalarKind, TypeInner, VectorSize};
 use serde_json::{Value, json};

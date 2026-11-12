@@ -97,6 +97,13 @@ the entry point does:
 A program pass's `uses` are checked the same way: every group-3 binding its entry points use is declared, a write
 only where the access writes, texture atomics only where it is `Atomic`, and every use used.
 
+A program pass that traces the scene in hardware binds `{ binding = N, resource = "tlas", access = "acceleration" }`
+(its WGSL a `var t: acceleration_structure;`, traced with render_lab's `sceneRayClear`, the part
+`render_lab.shader/rays` its `[[shader]]` lists): the scene's TLAS, which the renderer rebuilds from each frame's
+object records before the passes run (lab/src/ray_tracing.rs; one BLAS per object's mesh, each instance's custom data
+its object's index, its mask `RAY_MASK_OCCLUDER`, `_EMITTER`, or `_OTHER`). It is no resource of the frame's graph
+(no pass writes it). Only a package whose manifest `requires = ["ray-tracing"]` may bind it.
+
 The lab checks this when it loads the shading (`graph::lint`, from naga's per-entry-point global uses) and refuses
 it on a difference: `o3deMergeCS: reads buffer ssaoFull but does not list it in its reads`, or `lists X in its
 writes but does not write it`. A use only through `arrayLength`/`textureDimensions` counts as declared either way.

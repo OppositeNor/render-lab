@@ -76,7 +76,7 @@ license = "MIT"
 # The scene shading: the lab's scene module, then what the passes share and the scene pass, then the passes.
 [[shader]]
 id = "shader/restir-shading"
-parts = ["render_lab.shader/scene", "wgsl/restir-shading", "wgsl/restir-passes"]
+parts = ["render_lab.shader/scene", "render_lab.shader/rays", "wgsl/restir-shading", "wgsl/restir-passes"]
 
 [[resource]]
 id = "demo/reservoirs"

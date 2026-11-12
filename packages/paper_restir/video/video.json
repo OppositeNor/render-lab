@@ -79,7 +79,7 @@
         "The geometry test (10% of the depth, 25 degrees) is applied to the temporal neighbour too.",
         "The temporal neighbour is found by reprojecting the pixel's point with last frame's camera; the room's objects do not move.",
         "The material is the lab's albedo and roughness through a GGX dielectric over Lambert, as the paper's unified material.",
-        "The lab traces shadow rays against its analytic shapes and the teapot's BVH, without hardware ray tracing.",
+        "Shadow rays are traced in hardware (ray queries) against the scene's triangles, so the spheres are their raster tessellation; the lights and the room's planes do not block them.",
         "A frame drawn alone first draws the same shot eight times, so its temporal reuse has frames before it."
       ]
     },
@@ -107,7 +107,7 @@
         "几何测试（深度的 10%，25 度）也用于时间邻居。",
         "时间邻居通过用上一帧的相机重投影该像素的点来找到；房间里的物体不动。",
         "材质是实验室的反照率和粗糙度，通过 Lambert 底层上的 GGX 电介质，与论文的统一材质相同。",
-        "实验室对解析形状和茶壶的 BVH 追踪阴影光线，不使用硬件光线追踪。",
+        "阴影光线用硬件光线追踪（光线查询）对场景的三角形追踪，所以球体是其光栅化用的细分网格；灯和房间的平面不遮挡它们。",
         "单独绘制的一帧会先把同一镜头绘制八次，使时间复用有之前的帧可用。"
       ]
     }

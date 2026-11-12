@@ -292,6 +292,20 @@ impl Renderer {
         let prepassed = chain.is_some() && chained.is_some_and(|s| s.pipelines.prepass.is_some());
         // Every view runs its program, from its own slot (its images and history; `Renderer::enter`).
         self.bind_program(shading, chain, targets);
+        // A program that traces the scene gets its TLAS rebuilt from this frame's records.
+        if let Some(program) = shading.and_then(|s| s.program.as_ref())
+            && let Some(tlas) = program.borrow_mut().tlas.as_mut()
+        {
+            let rays = self.scene_rays.get_or_insert_with(|| {
+                crate::ray_tracing::SceneRays::new(&self.gpu.device, &self.statics.meshes)
+            });
+            rays.encode(
+                encoder,
+                (&self.mesh_vertices, &self.mesh_indices),
+                &content.objects,
+                tlas,
+            );
+        }
         let frame = SceneFrame {
             targets: FrameTargets {
                 chain,

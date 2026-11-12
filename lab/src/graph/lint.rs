@@ -383,7 +383,9 @@ pub(super) fn lint_program(
                 problems.push(format!("{label}: the scene pass reads the frame's `{}` itself, not through the program", d.resource));
             } else if frame(d.resource) && d.access != Access::Load {
                 problems.push(format!("{label}: reads the frame's `{}` with {:?}; the frame's textures are read with Load", d.resource, d.access));
-            } else if !own(d.resource) && !frame(d.resource) {
+            } else if (d.resource == "tlas") != (d.access == Access::Acceleration) {
+                problems.push(format!("{label}: `{}` with {:?}; the scene's `tlas`, and only it, is bound with Acceleration", d.resource, d.access));
+            } else if !own(d.resource) && !frame(d.resource) && d.resource != "tlas" {
                 problems.push(format!("{label}: uses `{}`, which is none of the program's images, buffers, or samplers, nor a texture of the frame", d.resource));
             }
             if read_only && d.access.writes() {

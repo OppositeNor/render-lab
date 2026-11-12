@@ -558,6 +558,10 @@ pub fn main(app: App) -> Result<()> {
                 i.package().unwrap_or("render_lab")
             );
         }
+        for (i, why) in investigations::unavailable() {
+            // An investigation whose package requires what this machine lacks: listed, with why it cannot run.
+            println!("{:width$}  {} (unavailable: {why})", i.path(), i.title());
+        }
         return Ok(());
     }
     let command = cli.command.unwrap_or(Command::Home {
@@ -590,6 +594,13 @@ fn choose(path: Option<&str>) -> Result<&'static dyn Investigation> {
         .map(str::to_string)
         .or_else(|| known.first().cloned())
         .context("no investigation is installed")?;
+    // One that cannot run here says why, rather than being unknown.
+    if let Some((_, why)) = investigations::unavailable()
+        .into_iter()
+        .find(|(i, _)| i.path() == path)
+    {
+        anyhow::bail!("investigation `{path}` cannot run on this machine: it {why}");
+    }
     let chosen = investigations::find(&path).with_context(|| {
         format!(
             "unknown investigation `{path}`; known: {} (render-lab --list)",

@@ -99,12 +99,11 @@ pub fn draw(state: &ShotState, content: &mut FrameContent, lights: &[Light]) {
         return;
     };
     let cdf = lights::cdf(lights);
-    let objects = content.objects.clone();
     let scene = Scene {
         lights,
         cdf: &cdf,
         eye: Vec3::from(content.uniforms.camera.position),
-        objects: &objects,
+        triangles: &[],
         candidates: state.p("restirCandidates").round().max(1.0) as u32,
         unbiased: false,
         visibility_reuse: false,

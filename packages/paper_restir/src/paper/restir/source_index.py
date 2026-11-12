@@ -197,11 +197,13 @@ MAPPINGS = [{
 }]
 
 PASSES = [
-    {'lab': 'restirCandidatesCS', 'engine': 'Alg. 5 lines 3-5: RIS(q), Alg. 3', 'sources': ['alg3', 'alg5']},
-    {'lab': 'restirVisibilityCS', 'engine': 'Alg. 5 lines 6-9: visibility', 'sources': ['visibility', 'alg5']},
-    {'lab': 'restirTemporalCS', 'engine': 'Alg. 5 lines 10-14: temporal reuse', 'sources': ['temporal', 'alg5']},
-    {'lab': 'restirSpatialCS', 'engine': 'Alg. 5 lines 15-20: spatial reuse', 'sources': ['spatial', 'alg4', 'alg6']},
-    {'lab': 'restirShadeCS', 'engine': 'Alg. 5 lines 21-23: shadePixel, Alg. 3', 'sources': ['alg3', 'alg5']},
+    {'lab': 'restirCandidates', 'engine': 'Alg. 5 lines 3-5: RIS(q), Alg. 3', 'sources': ['alg3', 'alg5']},
+    {'lab': 'restirVisibility', 'engine': 'Alg. 5 lines 6-9: visibility', 'sources': ['visibility', 'alg5']},
+    {'lab': 'restirTemporal', 'engine': 'Alg. 5 lines 10-14: temporal reuse', 'sources': ['temporal', 'alg5']},
+    {'lab': 'restirSpatialTA', 'engine': 'Alg. 5 lines 15-20: spatial reuse, round 1', 'sources': ['spatial', 'alg4', 'alg6']},
+    {'lab': 'restirSpatialAB', 'engine': 'Alg. 5 lines 15-20: spatial reuse, rounds 2 and 4', 'sources': ['spatial', 'alg4', 'alg6']},
+    {'lab': 'restirSpatialBA', 'engine': 'Alg. 5 lines 15-20: spatial reuse, round 3', 'sources': ['spatial', 'alg4', 'alg6']},
+    {'lab': 'restirShade', 'engine': 'Alg. 5 lines 21-23: shadePixel, Alg. 3', 'sources': ['alg3', 'alg5']},
 ]
 
 

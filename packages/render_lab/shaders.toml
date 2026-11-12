@@ -19,6 +19,13 @@ kind = "file"
 source = "shaders/common.wgsl"
 license = "MIT"
 
+# Ray queries of the scene's TLAS (lab/src/ray_tracing.rs), for the packages that require ray tracing.
+[[resource]]
+id = "wgsl/rays"
+kind = "file"
+source = "shaders/rays.wgsl"
+license = "MIT"
+
 [[resource]]
 id = "wgsl/scene"
 kind = "file"
@@ -58,6 +65,11 @@ parts = ["wgsl/types", "wgsl/bindings", "wgsl/common"]
 [[shader]]
 id = "shader/scene"
 parts = ["shader/prelude", "wgsl/scene"]
+
+# What a package that traces the scene composes after the scene module.
+[[shader]]
+id = "shader/rays"
+parts = ["wgsl/rays"]
 
 [[shader]]
 id = "shader/overlay"

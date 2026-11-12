@@ -4,7 +4,7 @@
 //! so the selftest can recompute a pixel's reservoir from the GPU's inputs and
 //! compare.
 
-use super::lights::{FIRST_LIGHT, Light};
+use super::lights::Light;
 use glam::{UVec2, Vec3};
 use lab::layout::ObjectData;
 use std::f32::consts::PI;
@@ -129,7 +129,8 @@ pub struct Scene<'a> {
     pub lights: &'a [Light],
     pub cdf: &'a [f32],
     pub eye: Vec3,
-    pub objects: &'a [ObjectData],
+    /// The triangles the shadow rays trace (`occluders`).
+    pub triangles: &'a [Triangle],
     pub candidates: u32,
     pub unbiased: bool,
     pub visibility_reuse: bool,
@@ -208,14 +209,10 @@ impl Scene<'_> {
         let dist = to_light.length();
         let dir = to_light / dist.max(1e-6);
         let origin = s.position + s.normal * 1e-3;
-        !self.objects[..FIRST_LIGHT]
+        !self
+            .triangles
             .iter()
-            .enumerate()
-            .any(|(i, o)| {
-                i as u32 != s.object
-                    && lab::scene::occludes_light(o)
-                    && lab::scene::intersect_object(o, origin, dir, dist * 0.999).is_some()
-            })
+            .any(|t| t.object != s.object && t.hit(origin, dir, dist * 0.999))
     }
 
     /// Alg. 3: the candidates of one pixel (`restirCandidates`).
@@ -237,7 +234,7 @@ impl Scene<'_> {
         self.target(s, x) > 0.0 && (!self.visibility_reuse || self.visible(s, x))
     }
 
-    /// Alg. 4 or Alg. 6 (`restirCombine`): entry 0 is the pixel's own.
+    /// Alg. 4 or Alg. 6 (restirTemporalCS and restirSpatialCS stream their sources the same way): entry 0 is the pixel's own.
     pub fn combine(
         &self,
         s: &Surface,
@@ -307,4 +304,55 @@ pub fn similar(test: bool, s: &Surface, n: &Surface) -> bool {
         && (!test
             || ((n.distance - s.distance).abs() <= 0.1 * s.distance
                 && n.normal.dot(s.normal) >= 25f32.to_radians().cos()))
+}
+
+/// A triangle of an object that blocks light, in world space: what the GPU's shadow rays trace (the TLAS's
+/// instances of `MASK_OCCLUDER`, lab/src/ray_tracing.rs).
+#[derive(Clone, Copy, Debug)]
+pub struct Triangle {
+    pub object: u32,
+    pub p: [Vec3; 3],
+}
+
+impl Triangle {
+    /// Whether the ray from `o` along the unit `d` meets it before `t_max` (Möller and Trumbore 1997).
+    pub fn hit(&self, o: Vec3, d: Vec3, t_max: f32) -> bool {
+        let (e1, e2) = (self.p[1] - self.p[0], self.p[2] - self.p[0]);
+        let h = d.cross(e2);
+        let a = e1.dot(h);
+        if a.abs() < 1e-12 {
+            return false;
+        }
+        let f = 1.0 / a;
+        let s = o - self.p[0];
+        let u = f * s.dot(h);
+        let q = s.cross(e1);
+        let v = f * d.dot(q);
+        let t = f * e2.dot(q);
+        (0.0..=1.0).contains(&u) && v >= 0.0 && u + v <= 1.0 && t > 0.0 && t < t_max
+    }
+}
+
+/// Every occluder's raster mesh (`meshes`, each object's range, in its local space) at its record's transform.
+pub fn occluders(meshes: &lab::scene::Meshes, objects: &[ObjectData]) -> Vec<Triangle> {
+    let mut out = Vec::new();
+    for (i, (o, range)) in objects.iter().zip(&meshes.ranges).enumerate() {
+        // Only what the GPU's rays stop at: the TLAS's occluders.
+        if lab::ray_tracing::mask(o) != lab::ray_tracing::MASK_OCCLUDER {
+            continue;
+        }
+        let m = glam::Mat4::from_cols_array_2d(&o.local_to_world);
+        let corner = |k: u32| {
+            m.transform_point3(Vec3::from(
+                meshes.vertices[meshes.indices[k as usize] as usize].position,
+            ))
+        };
+        for k in range.clone().step_by(3) {
+            out.push(Triangle {
+                object: i as u32,
+                p: [corner(k), corner(k + 1), corner(k + 2)],
+            });
+        }
+    }
+    out
 }

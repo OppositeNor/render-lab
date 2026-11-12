@@ -15,6 +15,9 @@
 //!   negotiation function (src/plugin.rs), which hands the lab its method
 //!   handles (its investigations);
 //! - `cooked-from`, in a built package: the source package it was built from;
+//! - `requires`, if given: what the lab must offer for its investigations to run (`"ray-tracing"`: hardware
+//!   ray queries, src/gpu.rs); where it does not, they are listed as unavailable, with the reason
+//!   (src/investigations.rs `unavailable`);
 //! - `credit-text`, if given: a key of its text tables, a short line of the
 //!   copyright and license of what it holds, shown after the engine's version
 //!   at the top right of its frames (`{year}` in it is the current year);
@@ -118,6 +121,23 @@ pub struct Package {
     pub notices: Vec<Notice>,
     /// Its copyright and license line (`credit-text`), a text key.
     pub credit: Option<String>,
+    /// What its investigations need of the lab (`requires`, of `REQUIREMENTS`).
+    pub requires: Vec<String>,
+}
+
+/// What a package may require: hardware ray tracing (src/gpu.rs `ray_tracing`).
+pub const REQUIREMENTS: &[&str] = &["ray-tracing"];
+
+impl Package {
+    /// Why its investigations cannot run here, or None when the lab offers all it requires.
+    pub fn unmet(&self) -> Option<&'static str> {
+        self.requires
+            .iter()
+            .any(|r| r == "ray-tracing")
+            .then_some(())
+            .filter(|_| !crate::gpu::ray_tracing_supported())
+            .map(|_| "needs hardware ray tracing (Vulkan ray queries), which this GPU or driver does not offer")
+    }
 }
 
 const FIELDS: &[&str] = &[
@@ -133,6 +153,7 @@ const FIELDS: &[&str] = &[
     "provides",
     "notice",
     "credit-text",
+    "requires",
 ];
 
 /// A package's name: lower-case words joined by `_`.
@@ -283,6 +304,21 @@ fn read(root: &Path, dir: &Path) -> Result<(Package, Vec<(String, String)>), Str
     } = read_provides(table, dir, &imports, &fail)?;
     let notices = read_notices(table, dir, &fail)?;
     let credit = string(table, "credit-text", &fail)?;
+    // What it requires: optional, each one the lab knows.
+    let requires = if table.contains_key("requires") {
+        strings(table, "requires", &fail)?
+    } else {
+        Vec::new()
+    };
+    if let Some(r) = requires
+        .iter()
+        .find(|r| !REQUIREMENTS.contains(&r.as_str()))
+    {
+        return Err(fail(format!(
+            "`requires` names `{r}`; the lab knows {}",
+            REQUIREMENTS.join(", ")
+        )));
+    }
     let package = Package {
         author: required("author")?,
         contact: string(table, "contact", &fail)?,
@@ -299,6 +335,7 @@ fn read(root: &Path, dir: &Path) -> Result<(Package, Vec<(String, String)>), Str
         series,
         notices,
         credit,
+        requires,
     };
     Ok((package, references))
 }

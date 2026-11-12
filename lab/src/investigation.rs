@@ -473,11 +473,15 @@ pub enum Access {
     Atomic,
     Uniform,
     Sampler,
+    /// The scene's acceleration structure, traced with ray queries (`resource = "tlas"`; src/ray_tracing.rs).
+    Acceleration,
 }
 
 impl Access {
+    /// Whether it reads a resource of the frame's graph: the scene's TLAS is no such resource (the renderer
+    /// builds it from the frame's records before the passes run; src/ray_tracing.rs).
     pub fn reads(self) -> bool {
-        !matches!(self, Access::Write | Access::Sampler)
+        !matches!(self, Access::Write | Access::Sampler | Access::Acceleration)
     }
     pub fn writes(self) -> bool {
         matches!(self, Access::Write | Access::ReadWrite | Access::Atomic)

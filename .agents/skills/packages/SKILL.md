@@ -57,6 +57,7 @@ export = ["scene/garden"]            # its own keys other packages may name (a l
 library = "my_feature"               # optional, with `negotiate`: its code (section 5)
 negotiate = "my_feature_negotiate"
 credit-text = "notice-credit"        # optional: a short copyright and license line, after the engine's version at the top right
+requires = ["ray-tracing"]           # optional: what its investigations need of the lab (lab/src/packages.rs `REQUIREMENTS`)
 
 [[provides]]
 type = "resource"                    # a collection, relative to the manifest
@@ -80,6 +81,12 @@ parts = ["godot_ssr", "godot_sdfgi", "godot_voxelgi"]   # in order; each a packa
 notice-text = "notice-copyright"     # a key of its text tables (both languages)
 license = "LICENSE-Engine.txt"       # optional: the file of its terms, in the package; built with it
 ```
+
+`requires` names what the package's investigations cannot run without. The lab knows one requirement,
+`"ray-tracing"`: hardware ray queries (Vulkan; lab/src/gpu.rs), which the lab turns on where the GPU has them
+(`RENDER_LAB_RAY_TRACING=off` turns them off). Where a requirement is not met, the loader (and `--list`)
+list the package's investigations as unavailable, with the reason, and `--investigation` refuses with it; the
+package's shaders still validate in its build (the lab validates with the ray-query capability).
 
 - Unknown keys are errors. `library` and `negotiate` come together or not at all.
 - Packages load after the packages they import (then by name); an import that is not in `packages/`, or a cycle, is

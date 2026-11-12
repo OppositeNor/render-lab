@@ -99,7 +99,7 @@ fn check_estimator(report: &mut Report) {
         lights: &lights,
         cdf: &cdf,
         eye: Vec3::new(0.0, 1.6, 3.0),
-        objects: &[],
+        triangles: &[],
         candidates: 4,
         unbiased: false,
         visibility_reuse: false,
@@ -212,7 +212,7 @@ struct Frame {
     surf: [Image; 3],
     lights: Vec<Light>,
     cdf: Vec<f32>,
-    objects: Vec<lab::layout::ObjectData>,
+    triangles: Vec<cpu::Triangle>,
     eye: Vec3,
 }
 
@@ -230,7 +230,7 @@ impl Frame {
             lights: &self.lights,
             cdf: &self.cdf,
             eye: self.eye,
-            objects: &self.objects,
+            triangles: &self.triangles,
             candidates: state.p("restirCandidates") as u32,
             unbiased: state.p("restirUnbiased") > 0.5,
             visibility_reuse: state.p("restirVisibilityReuse") > 0.5,
@@ -246,6 +246,7 @@ fn render(state: &ShotState) -> Result<(lab::renderer::Renderer, Frame)> {
             .ok_or_else(|| anyhow!("no ReSTIR room"))?,
     )?;
     let objects = super::demos::objects_for(state, &statics);
+    let triangles = cpu::occluders(&statics.meshes, &objects);
     let mut renderer = lab::renderer::Renderer::new(gpu, statics, SIZE[0], SIZE[1])?;
     let still = still_timeline(SIZE[0], SIZE[1]);
     renderer.render_frame(request(state, &still), None);
@@ -258,7 +259,7 @@ fn render(state: &ShotState) -> Result<(lab::renderer::Renderer, Frame)> {
         ],
         cdf: lights::cdf(&lights),
         lights,
-        objects,
+        triangles,
         eye: Vec3::from(
             state
                 .camera

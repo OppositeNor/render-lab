@@ -13,6 +13,43 @@ pub const OPTIONAL_FEATURES: wgpu::Features = wgpu::Features::TIMESTAMP_QUERY
     .union(wgpu::Features::TEXTURE_BINDING_ARRAY)
     .union(wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING);
 
+/// Hardware ray tracing (inline ray queries, Vulkan only in wgpu 30): requested where the adapter has it, unless
+/// `RENDER_LAB_RAY_TRACING=off`. wgpu marks it experimental. A package that needs it says so in its manifest
+/// (`requires = ["ray-tracing"]`, src/packages.rs); its passes trace the scene's TLAS (src/ray_tracing.rs).
+pub const RAY_TRACING_FEATURES: wgpu::Features = wgpu::Features::EXPERIMENTAL_RAY_QUERY;
+
+/// Whether the device the lab made traces rays (set when it is made).
+static RAY_TRACING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether the lab's device traces rays in hardware.
+pub fn ray_tracing() -> bool {
+    RAY_TRACING.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Whether ray tracing is turned off by `RENDER_LAB_RAY_TRACING=off`.
+fn ray_tracing_disabled() -> bool {
+    std::env::var("RENDER_LAB_RAY_TRACING").is_ok_and(|v| v.eq_ignore_ascii_case("off"))
+}
+
+/// Whether this machine's GPU would trace rays, without making a device: the adapter the lab would pick has ray
+/// queries and they are not turned off. Asked once, for the packages that require it (src/investigations.rs).
+pub fn ray_tracing_supported() -> bool {
+    static SUPPORTED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *SUPPORTED.get_or_init(|| {
+        if ray_tracing_disabled() {
+            return false;
+        }
+        let instance = instance(None);
+        pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            force_fallback_adapter: false,
+            compatible_surface: None,
+            apply_limit_buckets: false,
+        }))
+        .is_ok_and(|a| a.features().contains(RAY_TRACING_FEATURES))
+    })
+}
+
 pub const HDR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 pub const OVERLAY_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 /// The RGBA frame shared by the viewer and the recorder. UNORM: shaders
@@ -56,20 +93,33 @@ impl Gpu {
         }))
         .context("no GPU adapter found (WGPU_BACKEND narrows the APIs tried)")?;
         let info = adapter.get_info();
+        let rays = !ray_tracing_disabled() && adapter.features().contains(RAY_TRACING_FEATURES);
+        let features = adapter.features() & OPTIONAL_FEATURES;
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("render-lab"),
             // GPU time per pass for experiments (src/timing.rs), and what an
             // investigation's program may use (`ShadingProgram`): texture
             // atomics, texture clears, the adapter's own storage formats and access, and arrays
             // of textures indexed per invocation, where the adapter has them.
-            required_features: adapter.features() & OPTIONAL_FEATURES,
+            // Ray queries too, where the adapter has them: wgpu calls them experimental, so the device opts in.
+            required_features: if rays {
+                features | RAY_TRACING_FEATURES
+            } else {
+                features
+            },
             // The verification kernels bind ten storage buffers in one stage.
             required_limits: adapter.limits(),
-            experimental_features: wgpu::ExperimentalFeatures::disabled(),
+            experimental_features: if rays {
+                // SAFETY: only the ray-query feature is experimental here, and only packages that require it use it.
+                unsafe { wgpu::ExperimentalFeatures::enabled() }
+            } else {
+                wgpu::ExperimentalFeatures::disabled()
+            },
             memory_hints: wgpu::MemoryHints::Performance,
             trace: wgpu::Trace::Off,
         }))
         .context("request GPU device")?;
+        RAY_TRACING.store(rays, std::sync::atomic::Ordering::Relaxed);
         Ok(Gpu {
             _instance: instance,
             adapter,

@@ -100,37 +100,55 @@ fn image_size(i: &ProgramImage, viewport: [u32; 2]) -> [u32; 3] {
     }
 }
 
+/// A frame texture's binding: loaded, never filtered, the depth as depth and other floats unfilterable.
+fn frame_binding(
+    format: wgpu::TextureFormat,
+    multisampled: bool,
+    u: &ProgramUse,
+) -> (wgpu::BindingType, Option<NonZeroU32>) {
+    // A frame texture is loaded, never filtered: the depth as depth, other floats as unfilterable.
+    let sample_type = if format == crate::gpu::DEPTH_FORMAT {
+        wgpu::TextureSampleType::Depth
+    } else {
+        match format.sample_type(None, None) {
+            Some(wgpu::TextureSampleType::Float { .. }) | None => {
+                wgpu::TextureSampleType::Float { filterable: false }
+            }
+            Some(t) => t,
+        }
+    };
+    assert!(
+        u.access == Access::Load,
+        "a program reads the frame's `{}` with Load, not {:?}",
+        u.resource,
+        u.access
+    );
+    (
+        wgpu::BindingType::Texture {
+            sample_type,
+            view_dimension: wgpu::TextureViewDimension::D2,
+            multisampled,
+        },
+        None,
+    )
+}
+
 fn binding_type(
     shading: &SceneShading,
     program: &ShadingProgram,
     u: &ProgramUse,
 ) -> (wgpu::BindingType, Option<NonZeroU32>) {
-    if let Some((format, multisampled)) = external(shading, u.resource) {
-        // A frame texture is loaded, never filtered: the depth as depth, other floats as unfilterable.
-        let sample_type = if format == crate::gpu::DEPTH_FORMAT {
-            wgpu::TextureSampleType::Depth
-        } else {
-            match format.sample_type(None, None) {
-                Some(wgpu::TextureSampleType::Float { .. }) | None => {
-                    wgpu::TextureSampleType::Float { filterable: false }
-                }
-                Some(t) => t,
-            }
-        };
-        assert!(
-            u.access == Access::Load,
-            "a program reads the frame's `{}` with Load, not {:?}",
-            u.resource,
-            u.access
-        );
+    if u.access == Access::Acceleration {
+        // The scene's TLAS (src/ray_tracing.rs), which the program's runtime keeps.
         return (
-            wgpu::BindingType::Texture {
-                sample_type,
-                view_dimension: wgpu::TextureViewDimension::D2,
-                multisampled,
+            wgpu::BindingType::AccelerationStructure {
+                vertex_return: false,
             },
             None,
         );
+    }
+    if let Some((format, multisampled)) = external(shading, u.resource) {
+        return frame_binding(format, multisampled, u);
     }
     if let Some(image) = program.images.iter().find(|i| i.name == u.resource) {
         // A program image binds as a texture to sample or load, or as storage; `All` binds every one as an array.
@@ -176,7 +194,7 @@ fn binding_type(
             Access::Write => storage(wgpu::StorageTextureAccess::WriteOnly),
             Access::ReadWrite => storage(wgpu::StorageTextureAccess::ReadWrite),
             Access::Atomic => storage(wgpu::StorageTextureAccess::Atomic),
-            Access::Uniform | Access::Sampler => {
+            Access::Uniform | Access::Sampler | Access::Acceleration => {
                 panic!("image `{}` used as {:?}", u.resource, u.access)
             }
         };
@@ -436,6 +454,17 @@ pub struct ProgramRuntime {
     commands: Vec<ProgramCommand>,
     /// The upload data of those commands, in one buffer, and each upload's offset in it.
     uploads: Option<(wgpu::Buffer, Vec<u64>)>,
+    /// The scene's TLAS its passes trace (`resource = "tlas"`), where the device traces rays (src/ray_tracing.rs).
+    pub tlas: Option<wgpu::Tlas>,
+}
+
+/// Whether a program's passes trace the scene (a use with `access = "acceleration"`).
+pub fn traces(program: &ShadingProgram) -> bool {
+    program
+        .passes
+        .iter()
+        .flat_map(|p| p.uses.iter())
+        .any(|u| u.access == Access::Acceleration)
 }
 
 fn usage_of(program: &ShadingProgram, name: &str) -> wgpu::TextureUsages {
@@ -615,6 +644,8 @@ impl ProgramRuntime {
             state: (program.init)(),
             commands: Vec::new(),
             uploads: None,
+            tlas: (traces(program) && crate::gpu::ray_tracing())
+                .then(|| crate::ray_tracing::tlas(device)),
         };
         // A program of its own resources only is bound now; the others when the frame's textures exist.
         if !needs_bind(shading, program) {
@@ -664,6 +695,7 @@ impl ProgramRuntime {
     ) {
         let program = self.source;
         let (views, buffers, samplers) = (&self.views, &self.buffers, &self.samplers);
+        let tlas = self.tlas.as_ref();
         let group = |label: &str,
                      layout: &wgpu::BindGroupLayout,
                      uses: &[ProgramUse],
@@ -683,7 +715,11 @@ impl ProgramRuntime {
                 .collect();
             let mut entries = Vec::new();
             for u in uses {
-                let resource = if let Some((_, v)) = frame.iter().find(|(b, _)| *b == u.binding) {
+                let resource = if u.access == Access::Acceleration {
+                    // The scene's TLAS: a program that traces the scene runs only on a device that traces rays.
+                    tlas.expect("a program that traces the scene, on a device without ray tracing")
+                        .as_binding()
+                } else if let Some((_, v)) = frame.iter().find(|(b, _)| *b == u.binding) {
                     wgpu::BindingResource::TextureView(v)
                 } else if let Some(k) = program.images.iter().position(|i| i.name == u.resource) {
                     // An image binds all its textures as an array, one mip offset by the instance, or one element.

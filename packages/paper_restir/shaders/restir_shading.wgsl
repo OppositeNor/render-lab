@@ -221,36 +221,19 @@ fn restirTarget(s: Surface, x: Sample) -> f32 {
     return restirLuminance(restirContribution(s, x));
 }
 
-// V: whether the segment from the surface to the sample is clear. The lights
-// do not block one another (the lab's choice: they are small), the room's
-// objects do (shadowVisibility, common.wgsl, skips the surface itself).
+// The scene's TLAS (lab/src/ray_tracing.rs), bound at group 3 binding 15 by every pass that traces it.
+@group(3) @binding(15) var gRestirTlas: acceleration_structure;
+
+// V: whether the segment from the surface to the sample is clear, traced in hardware against the scene's
+// triangles (render_lab's rays.wgsl). The room's objects block it, the surface's own object aside; the lights
+// do not block one another (the lab's choice: they are small), nor do the planes of the walls and floor.
 fn restirVisible(s: Surface, x: Sample) -> bool {
     let p = restirSamplePoint(x);
     let toLight = p - s.position;
     let dist = length(toLight);
     let dir = toLight / max(dist, 1e-6);
     let origin = s.position + s.normal * 1e-3;
-    return restirShadowClear(origin, dir, dist * 0.999, s.object);
-}
-
-fn restirShadowClear(p: vec3<f32>, dir: vec3<f32>, dist: f32, selfObject: u32) -> bool {
-    let first = restirFirstLightObject();
-    for (var i = 0u; i < first; i++) {
-        let o = gObjects[i];
-        if (i == selfObject || !occludesLight(o)) {
-            continue;
-        }
-        var blocked = false;
-        if (o.shapeKind == SHAPE_MESH) {
-            blocked = intersectMesh(transformPoint(o.worldToLocal, p), transformVector(o.worldToLocal, dir), dist, true).hit;
-        } else {
-            blocked = intersectObject(o, p, dir, dist).hit;
-        }
-        if (blocked) {
-            return false;
-        }
-    }
-    return true;
+    return sceneRayClear(gRestirTlas, origin, dir, dist * 0.999, RAY_MASK_OCCLUDER, s.object);
 }
 
 // ---------------------------------------------------------------------------

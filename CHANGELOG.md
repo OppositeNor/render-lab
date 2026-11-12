@@ -11,6 +11,11 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
   APA style. The sources card, callouts, the Code tab, and the homepage show a paper's sections and pages where an
   engine's show paths and lines; a 2D beat with `references=true` shows the references card; the video's
   verification checks the PDF's hash (`paperEnv` in `video.json`).
+- Hardware ray tracing, optional: where the GPU has ray queries (Vulkan), the lab turns them on, builds a BLAS per
+  object and a TLAS per frame, and lets a program pass bind it (`resource = "tlas"`, `access = "acceleration"`) and
+  trace it with `sceneRayClear` (`render_lab.shader/rays`). A package that needs it says `requires =
+  ["ray-tracing"]` in its manifest; elsewhere its investigations are listed as unavailable, with the reason.
+  `RENDER_LAB_RAY_TRACING=off` turns it off.
 - Papers: ReSTIR (Bitterli et al. 2020), implemented from the paper in a new public package, `paper_restir`: its
   passes in WGSL with a CPU mirror and selftest, demonstrations of RIS, reservoir sampling, spatial and temporal
   reuse, visibility reuse, and the bias and its removal (the paper's 1D example), an experiment that measures each

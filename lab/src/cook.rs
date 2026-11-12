@@ -373,6 +373,9 @@ fn built_manifest(package: &Package, source: &str) -> String {
     if let Some(credit) = &package.credit {
         writeln!(manifest, "credit-text = {}", quote(credit)).unwrap();
     }
+    if !package.requires.is_empty() {
+        writeln!(manifest, "requires = {}", list(&package.requires)).unwrap();
+    }
     writeln!(
         manifest,
         "cooked-from = {}\n\n[[provides]]\ntype = \"resource\"\npath = \"resources.toml\"",

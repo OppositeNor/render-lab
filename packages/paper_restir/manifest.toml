@@ -11,6 +11,8 @@ import = ["render_lab"]
 library = "paper_restir"
 negotiate = "paper_restir_negotiate"
 export = []
+# Its shadow rays trace the scene in hardware (lab/src/gpu.rs, src/ray_tracing.rs).
+requires = ["ray-tracing"]
 
 # The line shown after the paper's name and venue (src/packages.rs).
 credit-text = "notice-credit"
