@@ -1,11 +1,11 @@
 //! Spatial reuse at P (Alg. 4 and Alg. 5 lines 16-20): P's k neighbours for the
 //! first round, drawn where they are in the room, green where the geometry test
 //! keeps them and red where it rejects them, each with a line to the sample its
-//! reservoir holds; the readout sums the M that P's combined reservoir stands
+//! reservoir holds (red where an object blocks it, cpu.rs `visible`); the readout sums the M that P's combined reservoir stands
 //! for. The neighbours are the GPU's (cpu.rs `neighbour`, the frozen seed).
 
-use super::super::cpu::{self, Reservoir, Rng, Sample, Surface};
-use super::super::lights::Light;
+use super::super::cpu::{self, Reservoir, Rng, Sample, Scene, Surface};
+use super::super::lights::{self, Light};
 use super::ris;
 use crate::paper::restir::text::{tr, tr_with};
 use glam::{UVec2, Vec3};
@@ -68,7 +68,12 @@ impl Disc {
 }
 
 /// Draws P's neighbours of the first round, and what the round combines.
-pub fn draw(state: &ShotState, content: &mut FrameContent, lights: &[Light]) {
+pub fn draw(
+    state: &ShotState,
+    content: &mut FrameContent,
+    lights: &[Light],
+    meshes: &lab::scene::Meshes,
+) {
     let size = content.uniforms.camera.viewport_size;
     let q = ris::pixel(state, size);
     let radius = state.p("restirRadius");
@@ -80,50 +85,48 @@ pub fn draw(state: &ShotState, content: &mut FrameContent, lights: &[Light]) {
         content.readout = Some(ris::waiting());
         return;
     };
+    let cdf = lights::cdf(lights);
+    let triangles = cpu::occluders(meshes, &content.objects);
+    let scene = Scene {
+        lights,
+        cdf: &cdf,
+        eye: Vec3::from(content.uniforms.camera.position),
+        triangles: &triangles,
+        candidates: 1,
+        unbiased: state.p("restirUnbiased") > 0.5,
+        visibility_reuse: state.p("restirVisibilityReuse") > 0.5,
+    };
     let seed = state.p("restirSeed").max(0.0) as u32;
     let mut rng = Rng::new(UVec2::new(q[0] as u32, q[1] as u32), seed, 2);
     let rotation = [rng.rand(), rng.rand()];
-    let test = state.p("restirGeometryTest") > 0.5;
     let own = words(&disc.reservoirs, q)
         .map(Reservoir::unpack)
         .unwrap_or(Reservoir::empty());
-    let (mut kept, mut m) = (0, own.m);
     let k = (state.p("restirNeighbours").round() as u32).min(16);
-    for j in 0..k {
-        // Each neighbour where it is in the room: green if the test keeps it, red if it rejects it.
-        let qn = cpu::neighbour(q, j, rotation, radius, [size[0] as u32, size[1] as u32]);
-        let (Some(sn), Some(r)) = (
-            disc.surface(qn),
-            words(&disc.reservoirs, qn).map(Reservoir::unpack),
-        ) else {
-            continue;
-        };
-        if !sn.valid {
-            continue;
-        }
-        let ok = qn != q && cpu::similar(test, &s, &sn);
-        let color = if ok {
+    let round = Round {
+        q,
+        s: &s,
+        k,
+        step: state.p("spatialStep").round().max(0.0) as u32,
+        rotation,
+        radius,
+        size: [size[0] as u32, size[1] as u32],
+        test: state.p("restirGeometryTest") > 0.5,
+    };
+    let mut sources = vec![(own, s)];
+    let kept = neighbours(content, &round, &disc, &scene, &mut sources);
+    let m: f32 = sources.iter().map(|(r, _)| r.m).sum();
+    // The reservoir P holds once the sources so far are combined (the GPU's stream, Alg. 4), and its shadow ray.
+    let combined = scene.combine(&s, &sources, &mut rng);
+    if combined.y.light != cpu::NONE {
+        let color = if scene.visible(&s, combined.y) {
             palette::SELECTED
         } else {
-            egui::Color32::from_rgb(235, 80, 70)
+            super::BLOCKED
         };
-        content
-            .draw
-            .segment(s.position, sn.position, color, 0.8, 2.0, 0);
-        content.draw.point(sn.position, 7.0, color, 1.0);
-        if ok && r.y.light != cpu::NONE {
-            // The sample the neighbour's reservoir holds, which P may now take.
-            kept += 1;
-            m += r.m;
-            content.draw.segment(
-                sn.position,
-                sample_point(lights, r.y),
-                palette::INCIDENT,
-                0.6,
-                1.5,
-                0,
-            );
-        }
+        let at = sample_point(lights, combined.y);
+        content.draw.segment(s.position, at, color, 1.0, 3.5, 0);
+        content.draw.point(at, 8.0, color, 1.0);
     }
     content.draw.point(s.position, 10.0, palette::SELECTED, 1.0);
     content
@@ -147,6 +150,79 @@ pub fn draw(state: &ShotState, content: &mut FrameContent, lights: &[Light]) {
             ),
         ],
     });
+}
+
+/// P's round of spatial reuse as the dock sets it: its k neighbours, the first `step` of them combined so far.
+struct Round<'a> {
+    q: [i32; 2],
+    s: &'a Surface,
+    k: u32,
+    step: u32,
+    rotation: [f32; 2],
+    radius: f32,
+    size: [u32; 2],
+    test: bool,
+}
+
+/// Draws P's neighbours (green if the test keeps them, red if it rejects them, dim until the step reaches them),
+/// each kept one's line to its sample; pushes the kept ones the step has reached onto `sources`, and counts them.
+fn neighbours(
+    content: &mut FrameContent,
+    round: &Round,
+    disc: &Disc,
+    scene: &Scene,
+    sources: &mut Vec<(Reservoir, Surface)>,
+) -> u32 {
+    let mut kept = 0;
+    for j in 0..round.k {
+        // Each neighbour where it is in the room, as bright as the step has made it.
+        let qn = cpu::neighbour(round.q, j, round.rotation, round.radius, round.size);
+        let (Some(sn), Some(r)) = (
+            disc.surface(qn),
+            words(&disc.reservoirs, qn).map(Reservoir::unpack),
+        ) else {
+            continue;
+        };
+        if !sn.valid {
+            continue;
+        }
+        let ok = qn != round.q && cpu::similar(round.test, round.s, &sn);
+        let reached = j < round.step;
+        let alpha = if reached {
+            1.0
+        } else {
+            0.3
+        };
+        let color = if ok {
+            palette::SELECTED
+        } else {
+            super::BLOCKED
+        };
+        content
+            .draw
+            .segment(round.s.position, sn.position, color, 0.8 * alpha, 2.0, 0);
+        content.draw.point(sn.position, 7.0, color, alpha);
+        if !ok {
+            continue;
+        }
+        if reached {
+            sources.push((r, sn));
+        }
+        if r.y.light != cpu::NONE {
+            // The sample the neighbour's reservoir holds, which P may take.
+            kept += 1;
+            let color = if scene.visible(&sn, r.y) {
+                palette::INCIDENT
+            } else {
+                super::BLOCKED
+            };
+            let at = sample_point(scene.lights, r.y);
+            content
+                .draw
+                .segment(sn.position, at, color, 0.6 * alpha, 1.5, 0);
+        }
+    }
+    kept
 }
 
 fn sample_point(lights: &[Light], y: Sample) -> Vec3 {

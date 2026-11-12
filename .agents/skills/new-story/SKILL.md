@@ -46,6 +46,9 @@ These do not relax for a small change:
 - Every factual sentence is backed by a callout or its chapter's `sources`; numbers about the lab's scene come from the
   lab's code, never typed in.
 - Each sentence has a visual that shows it; a listing highlight changes the scene; a view is explained when it appears.
+- Every chapter, of an engine's story or a paper's, plays at least ⌈T / 6 s⌉ supporting animations (T its narration
+  time), with no stretch of narration over about 12 s without one, and every mechanism a sentence names shown working
+  (`references/storyboard.md`, Phase 6: what counts, and what is filler). Camera sways and floats never count.
 - The narration is clear and in-depth: written for the ear (`references/storyboard.md`, "Written for the ear"), built
   and checked sentence by sentence with the sentence map (`references/storytelling.md`), and
   each changed chapter passes the cold-listener review and the native-language review, one reviewer per language,

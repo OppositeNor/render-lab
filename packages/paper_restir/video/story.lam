@@ -30,8 +30,8 @@ $[# baseRoom {'
     {lightCount 64.0}
     {lightIntensity 1.0}
     {risStep 32.0}
-    {pickU 0.52}
-    {pickV 0.8}}]
+    {pickU 0.88}
+    {pickV 0.56}}]
 
 No reuse at all: each pixel's candidates alone (streaming RIS), as `count` candidates.
 

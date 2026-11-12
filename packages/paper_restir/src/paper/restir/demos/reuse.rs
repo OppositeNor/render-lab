@@ -60,7 +60,7 @@ pub fn draw(
         let color = if clear {
             palette::SELECTED
         } else {
-            egui::Color32::from_rgb(235, 80, 70)
+            super::BLOCKED
         };
         content
             .draw

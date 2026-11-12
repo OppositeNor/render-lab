@@ -13,6 +13,8 @@ use lab::shot::ShotState;
 use lab::utility::selftest::{Report, request, still_timeline};
 use serde_json::json;
 
+mod sight;
+
 /// The size the passes are checked at.
 const SIZE: [u32; 2] = [320, 180];
 
@@ -24,6 +26,7 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
     check_bias(&mut report);
     check_passes(&mut report)?;
     check_listings(&mut report);
+    sight::check(&mut report, options.timeline.as_deref())?;
     let states_ok = Demo::ALL.iter().all(|&d| shot::for_demo(d).demo == d.id());
     report.check(
         "every demonstration's file loads",

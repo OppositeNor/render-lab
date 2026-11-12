@@ -3,9 +3,10 @@
 //! by cpu.rs exactly as the GPU drew them (the frozen seed makes them the same
 //! every frame; the selftest checks they match), drawn as lines from P to the
 //! points on the lights, each as bright as its weight w = p̂ / p; streamed one by
-//! one into the reservoir as far as `risStep`, the kept candidate lit.
+//! one into the reservoir as far as `risStep`, the kept candidate lit; a line
+//! an object blocks (cpu.rs `visible`, the GPU's shadow ray) is drawn red.
 
-use super::super::cpu::{Reservoir, Rng, Sample, Scene, Surface};
+use super::super::cpu::{self, Reservoir, Rng, Sample, Scene, Surface};
 use super::super::lights::{self, Light};
 use crate::paper::restir::text::{tr, tr_with};
 use egui::Color32;
@@ -90,7 +91,12 @@ pub fn stream(
 }
 
 /// Draws P's candidates and the reservoir after `risStep` of them, with a readout of the stream.
-pub fn draw(state: &ShotState, content: &mut FrameContent, lights: &[Light]) {
+pub fn draw(
+    state: &ShotState,
+    content: &mut FrameContent,
+    lights: &[Light],
+    meshes: &lab::scene::Meshes,
+) {
     let size = content.uniforms.camera.viewport_size;
     let q = pixel(state, size);
     let Some(s) = surface(content, q) else {
@@ -99,11 +105,12 @@ pub fn draw(state: &ShotState, content: &mut FrameContent, lights: &[Light]) {
         return;
     };
     let cdf = lights::cdf(lights);
+    let triangles = cpu::occluders(meshes, &content.objects);
     let scene = Scene {
         lights,
         cdf: &cdf,
         eye: Vec3::from(content.uniforms.camera.position),
-        triangles: &[],
+        triangles: &triangles,
         candidates: state.p("restirCandidates").round().max(1.0) as u32,
         unbiased: false,
         visibility_reuse: false,
@@ -113,16 +120,23 @@ pub fn draw(state: &ShotState, content: &mut FrameContent, lights: &[Light]) {
     let steps = (state.p("risStep").round().max(0.0) as u32).min(scene.candidates);
     let (candidates, r) = stream(&scene, &s, &mut rng, steps);
     let top = candidates.iter().map(|c| c.w).fold(1e-12, f32::max);
+    let weigh = state.p("risWeigh").clamp(0.0, 1.0);
+    let lit = picked(&candidates, steps, state.p("risPick"), &r);
     for (i, c) in candidates.iter().enumerate() {
-        // Each candidate's line: dim until streamed, then as bright as its weight; the kept one lit.
-        let kept = steps > 0 && c.x == r.y;
-        let (color, alpha, width) = if kept {
+        // Each candidate's line: dim until streamed, then as bright as its weight; the lit one (the kept, or the
+        // pick marker's) highlighted, a blocked one red.
+        let kept = lit == Some(i);
+        let (mut color, alpha, width) = if kept {
             (palette::SELECTED, 1.0, 4.0)
         } else if (i as u32) < steps {
-            (palette::INCIDENT, 0.45 + 0.55 * (c.w / top).sqrt(), 2.5)
+            let by_weight = 0.45 + 0.55 * (c.w / top).sqrt();
+            (palette::INCIDENT, 1.0 + weigh * (by_weight - 1.0), 2.5)
         } else {
             (palette::THEME_ACCENT, 0.15, 1.0)
         };
+        if !scene.visible(&s, c.x) {
+            color = super::BLOCKED;
+        }
         content
             .draw
             .segment(s.position, c.point, color, alpha, width, 0);
@@ -142,6 +156,26 @@ pub fn draw(state: &ShotState, content: &mut FrameContent, lights: &[Light]) {
         .draw
         .text(s.position, "P", palette::SELECTED, [1.2, -0.6]);
     content.readout = Some(readout(&candidates, &r, steps));
+}
+
+/// The candidate to light: with the pick marker between 0 and 1, the streamed one under it when they are laid end to
+/// end by weight; otherwise (and at 1) the one the reservoir kept.
+fn picked(candidates: &[Candidate], steps: u32, marker: f32, r: &Reservoir) -> Option<usize> {
+    let streamed = &candidates[..(steps as usize).min(candidates.len())];
+    let kept = streamed.iter().position(|c| c.x == r.y);
+    let total: f32 = streamed.iter().map(|c| c.w).sum();
+    if marker <= 0.0 || marker >= 1.0 || total <= 0.0 {
+        return kept;
+    }
+    let mut running = 0.0;
+    for (i, c) in streamed.iter().enumerate() {
+        // The marker's share of the sum falls in this candidate's stretch of it.
+        running += c.w;
+        if marker * total < running {
+            return Some(i);
+        }
+    }
+    kept
 }
 
 fn readout(candidates: &[Candidate], r: &Reservoir, steps: u32) -> Readout {

@@ -172,12 +172,15 @@ pub fn curves(m: usize, weight: Weight, near_zero: bool) -> Arc<Curves> {
 }
 
 /// The plot as pixels: the true inverse PDF (thick), the mean W (thin), on 0 to 4; a line where the step stops.
-fn plot(c: &Curves, size: [u32; 2]) -> Vec<u8> {
+fn plot(c: &Curves, size: [u32; 2], show: Show) -> Vec<u8> {
     let (w, h) = (size[0] as usize, size[1] as usize);
     let mut rgba = vec![0u8; w * h * 4];
+    let mark = (show.mark >= 0.0).then(|| ((show.mark * w as f32) as usize).min(w - 1));
     for (k, px) in rgba.chunks_mut(4).enumerate() {
-        // The background, and the column at one half where p₂ stops.
-        let color = if k % w == w / 2 {
+        // The middle of the range drawn as a faint rule, the marker as a bright one.
+        let color = if Some(k % w) == mark {
+            [235, 235, 240, 255]
+        } else if k % w == w / 2 {
             [70, 76, 88, 255]
         } else {
             [22, 26, 32, 255]
@@ -185,7 +188,6 @@ fn plot(c: &Curves, size: [u32; 2]) -> Vec<u8> {
         px.copy_from_slice(&color);
     }
     let mut put = |x: usize, y: f64, color: [u8; 3], thick: usize| {
-        // A point of a curve at column x, value y on 0 to 4, `thick` pixels high.
         let row = h as f64 - 1.0 - (y / 4.0).clamp(0.0, 1.0) * (h as f64 - 1.0);
         for t in 0..thick {
             let r = (row as usize + t).saturating_sub(thick / 2).min(h - 1);
@@ -194,25 +196,67 @@ fn plot(c: &Curves, size: [u32; 2]) -> Vec<u8> {
         }
     };
     for x in 0..w {
-        // Each column: its bin's two values.
+        // Each curve drawn as far across as the reveal has reached it: the target, the two PDFs, then the lines.
         let bin = (x * BINS / w).min(BINS - 1);
-        put(x, c.truth[bin], [120, 200, 255], 5);
-        put(x, c.mean_w[bin], [255, 196, 90], 2);
+        let at = (x as f64 + 0.5) / w as f64;
+        let reached = |n: f32| show.reveal - n >= x as f32 / w as f32;
+        if reached(0.0) {
+            put(x, target(at), TARGET, 2);
+        }
+        if reached(1.0) {
+            put(x, pdf(0, at, false), PDFS, 1);
+        }
+        if reached(2.0) {
+            put(x, pdf(1, at, false), PDFS, 1);
+        }
+        if reached(3.0) {
+            put(x, c.truth[bin], [120, 200, 255], 5);
+        }
+        if reached(4.0) {
+            put(x, c.mean_w[bin], [255, 196, 90], 2);
+        }
     }
     rgba
 }
 
-/// Draws the plot for the shot's `biasWeight`, `biasCandidates`, and `biasNearZero`.
+/// The target ramp's colour and the two source PDFs' in the plot.
+const TARGET: [u8; 3] = [205, 205, 210];
+const PDFS: [u8; 3] = [130, 210, 150];
+
+/// What the plot shows (`biasReveal`, `biasMark`): how far each curve is drawn, and the marker's place.
+#[derive(Clone, Copy)]
+struct Show {
+    reveal: f32,
+    mark: f32,
+}
+
 pub fn draw(state: &lab::shot::ShotState, content: &mut FrameContent) {
     let m = (state.p("biasCandidates").round() as usize).clamp(2, 20) & !1;
     let weight = Weight::of(state.p("biasWeight"));
     let near_zero = state.p("biasNearZero") > 0.5;
     let c = curves(m, weight, near_zero);
     let size: [u32; 2] = [480, 240];
+    let show = Show {
+        reveal: state.p("biasReveal").clamp(0.0, 5.0),
+        mark: state.p("biasMark").min(1.0),
+    };
+    let key = format!(
+        "restir-bias-{m}-{weight:?}-{near_zero}-{}-{}",
+        (show.reveal * 100.0).round(),
+        (show.mark * 200.0).round()
+    );
     content.insets.push(PictureInset {
         corner: Corner::TopRight,
         x_axis: tr("demos-bias_axis").to_string(),
         lines: vec![
+            (
+                tr("demos-bias_target").to_string(),
+                egui::Color32::from_rgb(TARGET[0], TARGET[1], TARGET[2]),
+            ),
+            (
+                tr("demos-bias_pdfs").to_string(),
+                egui::Color32::from_rgb(PDFS[0], PDFS[1], PDFS[2]),
+            ),
             (
                 tr("demos-bias_truth").to_string(),
                 egui::Color32::from_rgb(120, 200, 255),
@@ -225,9 +269,9 @@ pub fn draw(state: &lab::shot::ShotState, content: &mut FrameContent) {
         ..PictureInset::new(
             tr("demos-bias_title"),
             Picture::Pixels {
-                key: format!("restir-bias-{m}-{weight:?}-{near_zero}"),
+                key,
                 size: [size[0] as usize, size[1] as usize],
-                rgba: Arc::new(plot(&c, size)),
+                rgba: Arc::new(plot(&c, size, show)),
             },
             [480.0, 240.0],
         )

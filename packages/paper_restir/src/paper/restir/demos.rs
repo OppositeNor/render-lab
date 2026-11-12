@@ -14,6 +14,9 @@ use lab::layout::FrameUniforms;
 use lab::scene::ids;
 use lab::shot::ShotState;
 
+/// The colour of what a demonstration shows as stopped: a shadow ray an object blocks, a neighbour the test rejects.
+pub const BLOCKED: egui::Color32 = egui::Color32::from_rgb(235, 80, 70);
+
 /// The scene's records with the shot's lights on them.
 pub fn objects_for(state: &ShotState, statics: &Statics) -> Vec<lab::layout::ObjectData> {
     let mut objects = statics.scene.records();
@@ -52,10 +55,10 @@ pub fn build_frame(
     let placed = lights::place(state);
     content.shading_frame = lights::pack(&placed);
     match Demo::of(state.demo) {
-        Demo::Ris => ris::draw(state, &mut content, &placed),
+        Demo::Ris => ris::draw(state, &mut content, &placed, &statics.meshes),
         Demo::Reuse => reuse::draw(state, &mut content, &placed, &statics.meshes),
         Demo::Bias => bias::draw(state, &mut content),
-        Demo::Spatial => spatial::draw(state, &mut content, &placed),
+        Demo::Spatial => spatial::draw(state, &mut content, &placed, &statics.meshes),
         Demo::Room | Demo::Reservoirs | Demo::Reference | Demo::Methods => {}
     }
     content

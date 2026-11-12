@@ -9,10 +9,10 @@ use lab::controls::Dock;
 /// The value groups a demonstration shows, in order: the per-pixel ones start with P, the 1D example with its own.
 fn groups(demo: Demo) -> &'static [&'static str] {
     match demo {
-        Demo::Ris => &["pick", "restir"],
-        Demo::Spatial => &["pick", "restir", "view"],
+        Demo::Ris => &["pick", "restir", "view", "lights"],
+        Demo::Spatial => &["pick", "restir", "view", "lights"],
         Demo::Reuse => &["pick", "restir", "view", "lights"],
-        Demo::Bias => &["bias", "restir", "view"],
+        Demo::Bias => &["bias", "restir", "view", "lights"],
         Demo::Methods => &["restir", "view", "lights"],
         Demo::Room | Demo::Reservoirs | Demo::Reference => &["restir", "view", "lights"],
     }
