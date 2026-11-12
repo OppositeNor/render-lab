@@ -1,0 +1,20 @@
+# Bias in RIS: the paper's 1D example (Fig. 7) beside the room, where the dock switches between the biased and unbiased combination.
+
+key = "bias"
+title-text = "shot-bias_title"
+tab-text = "shot-bias"
+hint-text = "shot-bias_hint"
+scene = "paper_restir.scene/restir-room"
+listing = "frame"
+resets-camera = true
+
+[camera]
+target = [0.0, 0.9, -0.6]
+yaw = 18.0
+pitch = 14.0
+distance = 4.6
+fov = 55.0
+
+
+[params]
+restirSeed = -1

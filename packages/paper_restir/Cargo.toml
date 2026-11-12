@@ -1,0 +1,28 @@
+[package]
+name = "paper_restir"
+version = "0.0.5"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+description = "Render Lab's investigation of ReSTIR (Bitterli et al. 2020)"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+test = false
+doctest = false
+
+[dependencies]
+lab = { package = "render-lab-core", path = "../../lab" }
+anyhow = "1"
+egui = "=0.37.0"
+glam = { version = "0.34", features = ["bytemuck"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+wgpu = { version = "=30.0.1", default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
+
+[build-dependencies]
+render-lab-check = { path = "../../lab/check" }
+
+[lints]
+workspace = true

@@ -1,0 +1,740 @@
+# ReSTIR's room (src/paper/restir/lights.rs places its lights): the study room of the render_lab package (its
+# scenes/study-room.lam, the TOML it is read as), its ceiling panel dark, and 64 small spherical lights, each placed,
+# sized, and coloured every frame by the investigation (`lights::place`), so they move as the paper's dynamic
+# lights do. The format is the study room's.
+
+camera-clear = { room-margin = 0.2 }
+title-text = "scene-restir_room"
+
+[lighting]
+ambient = 0.12
+exposure = 1.0
+f0 = 0.04
+ggx-samples = 16
+light = "emissive panel"
+reflection-strength = 1.0
+
+[[object]]
+albedo = [0.16, 0.17, 0.19]
+extent = [3.0, 0.0, 3.0]
+name = "floor"
+roughness = 1.0
+shape = "plane"
+
+[[object]]
+albedo = [0.72, 0.7, 0.66]
+extent = [3.0, 0.0, 1.5]
+name = "back wall"
+rotation = { x = 90.0 }
+roughness = 1.0
+shape = "plane"
+translation = [0.0, 1.5, -3.0]
+
+[[object]]
+albedo = [0.7, 0.24, 0.18]
+extent = [1.5, 0.0, 3.0]
+name = "left wall"
+rotation = { z = -90.0 }
+roughness = 1.0
+shape = "plane"
+translation = [-3.0, 1.5, 0.0]
+
+[[object]]
+albedo = [0.16, 0.55, 0.5]
+extent = [1.5, 0.0, 3.0]
+name = "right wall"
+rotation = { z = 90.0 }
+roughness = 1.0
+shape = "plane"
+translation = [3.0, 1.5, 0.0]
+
+[[object]]
+albedo = [0.8, 0.8, 0.8]
+emissive = [1.0, 0.88, 0.72]
+emissive-strength = 0.0
+extent = [1.2, 0.0, 0.6]
+movable = true
+name = "emissive panel"
+rotation = { x = 180.0 }
+roughness = 1.0
+shape = "panel"
+translation = [0.0, 2.95, -0.2]
+
+[[object]]
+albedo = [0.86, 0.82, 0.74]
+extent = [0.62, 0.62, 0.62]
+movable = true
+name = "sphere"
+roughness = 0.5
+shape = "sphere"
+translation = [-1.05, 0.62, -0.55]
+
+[[object]]
+albedo = [0.22, 0.42, 0.85]
+extent = [0.5, 0.45, 0.38]
+movable = true
+name = "rotated box"
+rotation = { y = 30.0 }
+roughness = 0.6
+shape = "box"
+translation = [1.05, 0.45, 0.15]
+
+[[object]]
+albedo = [0.92, 0.55, 0.22]
+extent = [0.24, 0.24, 0.24]
+movable = true
+name = "small box"
+rotation = { y = 20.0 }
+roughness = 0.6
+shape = "box"
+translation = [1.95, 0.24, 1.45]
+
+[[object]]
+albedo = [0.5, 0.66, 0.56]
+mesh = "teapot"
+movable = true
+name = "teapot"
+rotation = { y = 30.0 }
+roughness = 0.35
+shape = "mesh"
+translation = [-0.25, 0.0, -1.75]
+
+[[object]]
+name = "light 0"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 1"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 2"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 3"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 4"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 5"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 6"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 7"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 8"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 9"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 10"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 11"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 12"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 13"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 14"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 15"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 16"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 17"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 18"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 19"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 20"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 21"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 22"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 23"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 24"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 25"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 26"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 27"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 28"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 29"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 30"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 31"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 32"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 33"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 34"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 35"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 36"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 37"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 38"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 39"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 40"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 41"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 42"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 43"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 44"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 45"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 46"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 47"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 48"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 49"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 50"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 51"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 52"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 53"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 54"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 55"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 56"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 57"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 58"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 59"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 60"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 61"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 62"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0
+
+[[object]]
+name = "light 63"
+shape = "sphere"
+extent = [0.05, 0.05, 0.05]
+translation = [0.0, 1.5, 0.0]
+albedo = [0.0, 0.0, 0.0]
+roughness = 1.0
+emissive = [1.0, 1.0, 1.0]
+emissive-strength = 1.0

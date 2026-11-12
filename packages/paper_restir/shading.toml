@@ -1,0 +1,291 @@
+# The ReSTIR investigation's frame (a `shading` resource of its package, read by the lab at run time). The format is
+# in lab/src/shading_file.rs; the functions it names are in src/paper/restir/gpu.rs (`HOOKS`).
+#
+# The frame is the paper's Alg. 5 (Bitterli et al. 2020, 148:6): the pre-pass writes each pixel's normal and
+# material; the program's passes (shaders/restir_passes.wgsl) generate each pixel's candidates by streaming RIS,
+# test the selected sample's visibility, reuse last frame's reservoir, then their neighbours' in n rounds, keep the
+# frame's reservoirs for the next frame, and shade each pixel's sample; the scene pass draws the result.
+
+module = "paper_restir.shader/restir-shading"
+
+# The pre-pass's targets: the normal (turned to the eye) and the object, the albedo and roughness.
+[[target]]
+name = "restirNormal"
+format = "rgba16float"
+
+[[target]]
+name = "restirMaterial"
+format = "rgba16float"
+
+[[node]]
+kind = "prepass"
+entry = "restirPrepassFS"
+writes = ["restirNormal", "restirMaterial"]
+
+# Alg. 3: streaming RIS of M candidates per pixel.
+[[node]]
+kind = "program"
+name = "restirCandidates"
+compute = "restirCandidatesCS"
+workgroup = [8, 8, 1]
+uses = [
+    { binding = 1, resource = "depth", access = "load" },
+    { binding = 2, resource = "restirNormal", access = "load" },
+    { binding = 3, resource = "restirMaterial", access = "load" },
+    { binding = 4, resource = "restirScene", access = "uniform" },
+    { binding = 5, resource = "surfP", access = "write" },
+    { binding = 6, resource = "surfM", access = "write" },
+    { binding = 7, resource = "surfA", access = "write" },
+    { binding = 8, resource = "initial", access = "write" },
+]
+
+# Alg. 5 lines 7-9: visibility reuse.
+[[node]]
+kind = "program"
+name = "restirVisibility"
+compute = "restirVisibilityCS"
+workgroup = [8, 8, 1]
+uses = [
+    { binding = 1, resource = "initial", access = "load" },
+    { binding = 2, resource = "surfP", access = "load" },
+    { binding = 3, resource = "surfM", access = "load" },
+    { binding = 4, resource = "surfA", access = "load" },
+    { binding = 5, resource = "visible", access = "write" },
+]
+
+# Alg. 5 lines 11-14: temporal reuse.
+[[node]]
+kind = "program"
+name = "restirTemporal"
+compute = "restirTemporalCS"
+workgroup = [8, 8, 1]
+uses = [
+    { binding = 1, resource = "visible", access = "load" },
+    { binding = 2, resource = "prev", access = "load" },
+    { binding = 3, resource = "surfP", access = "load" },
+    { binding = 4, resource = "surfM", access = "load" },
+    { binding = 5, resource = "surfA", access = "load" },
+    { binding = 6, resource = "prevP", access = "load" },
+    { binding = 7, resource = "prevM", access = "load" },
+    { binding = 8, resource = "prevA", access = "load" },
+    { binding = 9, resource = "restirScene", access = "uniform" },
+    { binding = 10, resource = "temporal", access = "write" },
+]
+
+# Alg. 5 lines 16-20: n rounds of spatial reuse, from the temporal pass's reservoirs into resA, then back and forth
+# between resA and resB.
+[[node]]
+kind = "program"
+name = "restirSpatialTA"
+compute = "restirSpatialCS"
+workgroup = [8, 8, 1]
+uses = [
+    { binding = 1, resource = "temporal", access = "load" },
+    { binding = 2, resource = "surfP", access = "load" },
+    { binding = 3, resource = "surfM", access = "load" },
+    { binding = 4, resource = "surfA", access = "load" },
+    { binding = 5, resource = "resA", access = "write" },
+]
+
+[[node]]
+kind = "program"
+name = "restirSpatialAB"
+compute = "restirSpatialCS"
+workgroup = [8, 8, 1]
+uses = [
+    { binding = 1, resource = "resA", access = "load" },
+    { binding = 2, resource = "surfP", access = "load" },
+    { binding = 3, resource = "surfM", access = "load" },
+    { binding = 4, resource = "surfA", access = "load" },
+    { binding = 5, resource = "resB", access = "write" },
+]
+
+[[node]]
+kind = "program"
+name = "restirSpatialBA"
+compute = "restirSpatialCS"
+workgroup = [8, 8, 1]
+uses = [
+    { binding = 1, resource = "resB", access = "load" },
+    { binding = 2, resource = "surfP", access = "load" },
+    { binding = 3, resource = "surfM", access = "load" },
+    { binding = 4, resource = "surfA", access = "load" },
+    { binding = 5, resource = "resA", access = "write" },
+]
+
+# Alg. 5 line 24: the frame's reservoirs, and the surfaces they were made at, kept for the next frame.
+[[node]]
+kind = "program"
+name = "restirKeep"
+compute = "restirKeepCS"
+workgroup = [8, 8, 1]
+uses = [
+    { binding = 1, resource = "temporal", access = "load" },
+    { binding = 2, resource = "resA", access = "load" },
+    { binding = 3, resource = "resB", access = "load" },
+    { binding = 4, resource = "surfP", access = "load" },
+    { binding = 5, resource = "surfM", access = "load" },
+    { binding = 6, resource = "surfA", access = "load" },
+    { binding = 7, resource = "prev", access = "write" },
+    { binding = 8, resource = "prevP", access = "write" },
+    { binding = 9, resource = "prevM", access = "write" },
+    { binding = 10, resource = "prevA", access = "write" },
+]
+
+# Alg. 3, shadePixel: f(y) · W for each pixel, and the running mean while nothing moves.
+[[node]]
+kind = "program"
+name = "restirShade"
+compute = "restirShadeCS"
+workgroup = [8, 8, 1]
+uses = [
+    { binding = 1, resource = "initial", access = "load" },
+    { binding = 2, resource = "visible", access = "load" },
+    { binding = 3, resource = "temporal", access = "load" },
+    { binding = 4, resource = "prev", access = "load" },
+    { binding = 5, resource = "surfP", access = "load" },
+    { binding = 6, resource = "surfM", access = "load" },
+    { binding = 7, resource = "surfA", access = "load" },
+    { binding = 8, resource = "direct", access = "write" },
+    { binding = 9, resource = "accumR", access = "read-write" },
+    { binding = 10, resource = "accumG", access = "read-write" },
+    { binding = 11, resource = "accumB", access = "read-write" },
+]
+
+[[node]]
+kind = "scene"
+entry = "restirForwardFS"
+reads = ["direct", "accumR", "accumG", "accumB"]
+
+[program]
+plan = "plan"
+# A frame drawn alone first draws the shot eight times, so its temporal reuse has frames before it.
+warmup = 8
+scene-uses = [
+    { binding = 1, resource = "direct", access = "load" },
+    { binding = 2, resource = "accumR", access = "load" },
+    { binding = 3, resource = "accumG", access = "load" },
+    { binding = 4, resource = "accumB", access = "load" },
+]
+
+# The surfaces each pixel's reservoir is made at: position and camera distance; normal and object; albedo and
+# roughness. Last frame's, kept by restirKeep.
+[[program.image]]
+name = "surfP"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "rgba32float"
+viewport = 1
+
+[[program.image]]
+name = "surfM"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "rgba32float"
+viewport = 1
+
+[[program.image]]
+name = "surfA"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "rgba32float"
+viewport = 1
+
+[[program.image]]
+name = "prevP"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "rgba32float"
+viewport = 1
+
+[[program.image]]
+name = "prevM"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "rgba32float"
+viewport = 1
+
+[[program.image]]
+name = "prevA"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "rgba32float"
+viewport = 1
+
+# The reservoirs (light, point, W, M) after each stage: RIS, visibility, temporal reuse, the spatial rounds' two
+# images, and the frame's, kept for the next.
+[[program.image]]
+name = "initial"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "rgba32uint"
+viewport = 1
+
+[[program.image]]
+name = "visible"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "rgba32uint"
+viewport = 1
+
+[[program.image]]
+name = "temporal"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "rgba32uint"
+viewport = 1
+
+[[program.image]]
+name = "resA"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "rgba32uint"
+viewport = 1
+
+[[program.image]]
+name = "resB"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "rgba32uint"
+viewport = 1
+
+[[program.image]]
+name = "prev"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "rgba32uint"
+viewport = 1
+
+# Each pixel's shaded sample, and the running mean of the frames since anything moved, one channel an image.
+[[program.image]]
+name = "direct"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "rgba16float"
+viewport = 1
+
+[[program.image]]
+name = "accumR"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "r32float"
+viewport = 1
+
+[[program.image]]
+name = "accumG"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "r32float"
+viewport = 1
+
+[[program.image]]
+name = "accumB"
+kind = "2d"
+size = [1024, 1024, 1]
+format = "r32float"
+viewport = 1
+
+# The cameras (gpu.rs `SCENE_WORDS`): this frame's clip-to-world, last frame's world-to-clip and eye.
+[[program.buffer]]
+name = "restirScene"
+bytes = 144

@@ -1,0 +1,22 @@
+# Spatial reuse at P: its k neighbours in the radius, the geometry test, and what one round combines; the seed fixed, no temporal reuse.
+
+key = "spatial"
+title-text = "shot-spatial_title"
+tab-text = "shot-spatial"
+hint-text = "shot-spatial_hint"
+scene = "paper_restir.scene/restir-room"
+listing = "frame"
+resets-camera = true
+
+[camera]
+target = [0.0, 0.9, -0.6]
+yaw = 18.0
+pitch = 14.0
+distance = 4.6
+fov = 55.0
+
+
+[params]
+restirTemporal = 0
+restirSpatialPasses = 1
+restirSeed = 5

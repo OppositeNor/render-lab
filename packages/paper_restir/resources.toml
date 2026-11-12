@@ -1,0 +1,109 @@
+# The ReSTIR investigation's resources (lab/src/pipeline/mod.rs has the format), by key:
+# `paper_restir.<id>`. Everything here is the lab's own (MIT); the citation index quotes the paper briefly.
+
+[[resource]]
+id = "text/en"
+kind = "file"
+source = "text/en.ftl"
+license = "MIT"
+
+[[resource]]
+id = "text/zh-cn"
+kind = "file"
+source = "text/zh-CN.ftl"
+license = "MIT"
+
+[[resource]]
+id = "sources/zh-cn"
+kind = "file"
+source = "text/sources/zh-CN.ftl"
+license = "MIT"
+
+[[resource]]
+id = "source-index"
+kind = "file"
+source = "source-index.json"
+license = "MIT (citations of Bitterli et al. 2020, short quotes)"
+
+[[resource]]
+id = "knowledge"
+kind = "file"
+source = "knowledge.toml"
+license = "MIT"
+
+[[resource]]
+id = "shading"
+kind = "file"
+source = "shading.toml"
+license = "MIT"
+
+[[resource]]
+id = "demos"
+kind = "file"
+source = "demos/index.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/room"
+kind = "file"
+source = "demos/room.toml"
+license = "MIT"
+
+[[resource]]
+id = "scene/restir-room"
+kind = "file"
+source = "scenes/restir-room.toml"
+license = "MIT"
+
+[[resource]]
+id = "wgsl/restir-shading"
+kind = "file"
+source = "shaders/restir_shading.wgsl"
+license = "MIT"
+
+[[resource]]
+id = "wgsl/restir-passes"
+kind = "file"
+source = "shaders/restir_passes.wgsl"
+license = "MIT"
+
+[[resource]]
+id = "listing/frame"
+kind = "file"
+source = "pseudocode/frame.py"
+license = "MIT"
+
+# The scene shading: the lab's scene module, then what the passes share and the scene pass, then the passes.
+[[shader]]
+id = "shader/restir-shading"
+parts = ["render_lab.shader/scene", "wgsl/restir-shading", "wgsl/restir-passes"]
+
+[[resource]]
+id = "demo/stage0"
+kind = "file"
+source = "demos/stage0.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/accum"
+kind = "file"
+source = "demos/accum.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/ris"
+kind = "file"
+source = "demos/ris.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/spatial"
+kind = "file"
+source = "demos/spatial.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/bias"
+kind = "file"
+source = "demos/bias.toml"
+license = "MIT"

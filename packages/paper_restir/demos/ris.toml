@@ -1,0 +1,25 @@
+# RIS at one pixel, P: its candidates drawn from the lights by power, each weighted p̂ / p, streamed through a
+# reservoir; the seed fixed, so P's candidates are the same every frame. No reuse: the reservoirs after RIS alone.
+
+key = "ris"
+title-text = "shot-ris_title"
+tab-text = "shot-ris"
+hint-text = "shot-ris_hint"
+scene = "paper_restir.scene/restir-room"
+listing = "frame"
+resets-camera = true
+
+[camera]
+target = [0.0, 0.9, -0.6]
+yaw = 18.0
+pitch = 14.0
+distance = 4.6
+fov = 55.0
+
+[params]
+restirStage = 0
+restirTemporal = 0
+restirSpatialPasses = 0
+restirCandidates = 8
+risStep = 8
+restirSeed = 5

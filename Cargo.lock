@@ -2821,6 +2821,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "paper_restir"
+version = "0.0.5"
+dependencies = [
+ "anyhow",
+ "egui",
+ "glam",
+ "render-lab-check",
+ "render-lab-core",
+ "serde",
+ "serde_json",
+ "wgpu",
+]
+
+[[package]]
 name = "parking_lot"
 version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
