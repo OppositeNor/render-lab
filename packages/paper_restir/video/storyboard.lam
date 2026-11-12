@@ -6,13 +6,13 @@ $[Import* paper_restir]
 $[Import* paper_restir_story]
 # How ReSTIR Lights a Room of Many Lights {#video subtitle="Bitterli et al. 2020, spatiotemporal reservoir resampling, implemented from the paper" date=2026-11-12 fps=30 width=1920 height=1080}
 
-## The paper and its problem {#c1 number=1 target=235 summary="The paper, the problem it solves, how it solves it, and its contributions." sources="problem, approach, reservoir-intro, pdfs-not-colors, biased-mode, first-vertex"}
+## The paper and its problem {#c1 number=1 target=245 summary="The paper, the problem it solves, how it solves it, and its contributions." sources="problem, approach, reservoir-intro, pdfs-not-colors, biased-mode, first-vertex"}
 
 ### The paper {#c1-paper kind=2d diagram=paper}
 
 ${cue "key" {' {callout "problem"}}}This video is about a paper by Benedikt Bitterli, Chris Wyman, Matt Pharr, Peter Shirley, Aaron Lefohn, and Wojciech Jarosz.
 
-It is called Spatiotemporal reservoir resampling for real-time ray tracing with dynamic direct lighting.
+The paper is called Spatiotemporal reservoir resampling for real-time ray tracing with dynamic direct lighting.
 
 It was published in ACM Transactions on Graphics in 2020.
 
@@ -21,29 +21,33 @@ It was published in ACM Transactions on Graphics in 2020.
 ${cue "key" {opening demoRoom panelHidden {append baseRoom {append roomCamera {noReuse 1.0}}}}}
 ${cue "key" floatRoom}
 
-${overText
-    {' {lightPhaseRange 0.0 0.06}}
-    "This room is lit by sixty-four small lights, and every one of them moves"}.
+${overText {' {lightPhaseRange 0.0 0.05}} "The paper's problem shows up in a room like this one"}.
+
+It is lit by sixty-four small lights, and all of them move.
 
 ${overText
-    {' {lightPhaseRange 0.06 0.12}}
-    "To light one pixel, a renderer must add up what every light sends to it"}.
+    {' {lightPhaseRange 0.05 0.1}}
+    "Every point on the floor and the walls receives some light from each of them"}.
 
 ${cue "key" {' {callout "first-vertex"}}}${overText
-    {' {lightPhaseRange 0.12 0.18}}
-    "A shadow ray tells whether a light reaches a pixel, and in real time a pixel can afford only a few"}.
+    {' {lightPhaseRange 0.1 0.15}}
+    "To know whether a light reaches a point, a renderer traces a shadow ray from the point to the light"}.
 
-So each pixel has to guess which lights are worth testing.
+In real time, each pixel can afford only a few of those rays.
+
+So each pixel has to guess which lights are worth a ray.
 
 ${overText
-    {' {lightPhaseRange 0.18 0.24}}
-    "Here each pixel picks one light at random, favouring the brighter ones"}.
+    {' {lightPhaseRange 0.15 0.2}}
+    "Here each pixel guesses by picking one light at random, favouring the brighter ones"}.
 
-${cue "key" {' {glide cameraDistance 4.2 sentence}}}Most guesses land on a light that adds little to that pixel, so the image is full of noise.
+${cue "key" {' {glide cameraDistance 4.2 sentence}}}Most of those guesses land on lights that add little to that pixel.
+
+That is where all this noise comes from.
 
 ${cue "key" {' {callout "problem"}}}${overText
-    {' {lightPhaseRange 0.24 0.3}}
-    "The paper asks how each pixel can find the lights that matter to it while they move, and still run in real time"}.
+    {' {lightPhaseRange 0.2 0.3}}
+    "So the paper asks how each pixel can find the lights that matter to it, even while they move, within a real-time frame"}.
 
 ### The answer, in three steps {#c1-solution kind=3d}
 
@@ -52,63 +56,83 @@ ${cue "key" floatRoom}
 
 ${cue "key" {' {callout "approach"}}}${overText
     {' {restirCandidatesRange 1.0 32.0}}
-    "The answer starts with many cheap guesses for each pixel"}.
+    "Its answer starts by letting each pixel make many cheap guesses instead of one"}.
 
-Ignoring shadows, a pixel can estimate cheaply how much light each guess would bring.
+For each guess, the pixel estimates how much light it would bring, leaving shadows out.
 
-It keeps one guess, chosen in proportion to that estimate.
+That estimate is cheap, because it needs no ray.
+
+The pixel then keeps one guess, chosen in proportion to its estimate.
 
 ${overText
     {' {restirSpatialPassesRange 0.0 2.0}}
-    "Then each pixel borrows the guesses its neighbours kept"}.
+    "Next, each pixel borrows the guesses its neighbours kept"}.
 
 ${overText
     {' {restirTemporalRange 0.0 1.0}}
-    "It also borrows the guess the same point kept in the previous frame"}.
+    "It also borrows the guess its point kept in the previous frame"}.
 
-Nearby pixels and nearby moments usually need the same lights, so their guesses help each other.
+Borrowing helps, because nearby pixels and nearby moments usually need the same lights.
 
-${cue "key" {' {callout "reservoir-intro"}}}${cue "key" {' {glide cameraYaw 28.0 sentence}}}Only the guesses a pixel keeps need shadow rays, so the rays per pixel stay few.
+${cue "key" {' {callout "reservoir-intro"}}}${cue "key" {' {glide cameraYaw 28.0 sentence}}}Only the guesses a pixel finally keeps cost shadow rays, so the rays per pixel stay few.
 
-${cue "key" {' {callout "pdfs-not-colors"}}}Unlike a denoiser, the method shares what each pixel learned about which lights to pick, not the colours of pixels.
+${cue "key" {' {callout "pdfs-not-colors"}}}Sharing between pixels is not new in itself.
 
-That is what makes an unbiased version possible, one that is correct on average.
+A denoiser shares colours between pixels.
+
+This method instead shares the guesses each pixel kept, which say which lights to pick.
+
+Sharing that, rather than colours, is what makes an unbiased version possible, one that is correct on average.
 
 ${cue "key" {' {callout "biased-mode"}}}${overText
     {' {restirUnbiasedRange 0.0 1.0}}
-    "It also offers a biased version, which reaches the same quality faster but darkens the edges of objects a little"}.
+    "The paper also gives a biased version, which reaches the same quality faster"}.
+
+But the biased version darkens the edges of objects a little.
 
 ### Four contributions {#c1-contributions kind=2d diagram=contributions}
 
-${cue "key" {' {callout "name"}}}The paper calls its method ReSTIR, short for reservoir-based spatiotemporal importance resampling.
+${cue "key" {' {callout "name"}}}The paper calls this method ReSTIR, short for reservoir-based spatiotemporal importance resampling.
 
-This video groups the paper's ideas into four contributions.
+This video groups the method's ideas into four contributions.
 
 ### Streaming {#c1-c-stream kind=2d diagram=contributions focus=STREAM}
 
-${cue "key" {' {callout "approach"}}}First, a pixel keeps a tiny record called a reservoir, instead of a list of its guesses.
+${cue "key" {' {callout "approach"}}}First, a pixel does not keep a list of its guesses, only one tiny record.
+
+The paper calls that record a reservoir.
 
 ### Reuse {#c1-c-reuse kind=2d diagram=contributions focus=REUSE}
 
-Second, reservoirs can be combined across neighbouring pixels and across frames.
+Second, reservoirs can be combined, across neighbouring pixels and across frames.
 
 ### No bias {#c1-c-unbiased kind=2d diagram=contributions focus=UNBIASED}
 
-${cue "key" {' {callout "pdfs-not-colors"}}}Third, it shows where that reuse introduces bias, and gives a weight that removes it.
+${cue "key" {' {callout "pdfs-not-colors"}}}Third, the paper shows where that combining introduces bias.
+
+It also gives a weight that removes the bias.
 
 ### On the GPU {#c1-c-gpu kind=2d diagram=contributions focus=GPU}
 
-${cue "key" {' {callout "biased-mode"}}}Fourth, it runs on the GPU in real time, in a biased and an unbiased form.
+${cue "key" {' {callout "biased-mode"}}}Fourth, the method runs on the GPU in real time.
+
+It comes in a biased and an unbiased form.
 
 ### The passes of a frame {#c1-map kind=2d diagram=alg5 focus="RIS, VIS, TEMP, SPAT, SHADE"}
 
-Every frame, the method runs as a chain of GPU passes, each one a step over all the pixels.
+On the GPU, each frame runs the method as a chain of passes, steps that each run over all the pixels.
 
-Each pixel draws its guesses, tests the one it keeps, borrows from the previous frame and from its neighbours, and is then shaded.
+In order, each pixel draws its guesses and keeps one.
+
+It tests that kept guess with a shadow ray.
+
+Then it borrows from the previous frame and from its neighbours, and is shaded.
 
 ### Last frame feeds the next {#c1-map-loop kind=2d diagram=alg5 focus="PREV, TEMP"}
 
-Each frame's reservoirs are kept for the next frame, which closes a loop.
+Each frame keeps the reservoirs it ends with.
+
+The next frame borrows from them, so the frames form a loop.
 
 ### What this story teaches {#c1-teach kind=3d}
 
@@ -117,51 +141,63 @@ ${cue "key" floatRoom}
 
 ${overText
     {' {lightPhaseRange 0.0 0.08}}
-    "By the end, you will be able to explain each pass, and why the result stays correct"}.
+    "By the end, you will be able to explain each of those passes, and why their result stays correct"}.
 
 ${overText
     {' {lightPhaseRange 0.08 0.16}}
-    "On the way, the video teaches the two ideas the method is built from"}.
+    "On the way, the video teaches the two older ideas the method is built from"}.
 
-They are resampled importance sampling and weighted reservoir sampling.
+They are resampled importance sampling, which picks one guess from many, and weighted reservoir sampling, which keeps that pick in a tiny record.
 
 ${overText
     {' {lightPhaseRange 0.16 0.24}}
-    "It assumes you know Monte Carlo integration with importance sampling, and how a physically based renderer shades a surface"}.
+    "The video assumes you know Monte Carlo integration with importance sampling, and how a physically based renderer shades a surface"}.
 
 ${overText
     {' {lightPhaseRange 0.24 0.32}}
-    "Every demonstration is rendered by the lab, the program that made this video, with the paper's algorithms written from its text"}.
+    "Every demonstration is rendered by the lab, the program that made this video"}.
+
+The lab implements the paper's algorithms from its text.
 
 ### Where to read it {#c1-sources kind=2d sources="problem, approach, reservoir-intro, pdfs-not-colors, biased-mode, first-vertex"}
 
-The paper's introduction covers this chapter, on its first two pages.
+This chapter follows the paper's introduction, on its first two pages.
 
-## Related work {#c2 number=2 target=285 summary="What ReSTIR replaces, and the two ideas it is built from: resampled importance sampling and weighted reservoir sampling." sources="many-lights, hierarchies, tiled, path-reuse, denoisers, eq3, eq4, eq5, eq6, ris-unbiased, ris-converges, wrs, eq9, alg2"}
+## Related work {#c2 number=2 target=295 summary="What ReSTIR replaces, and the two ideas it is built from: resampled importance sampling and weighted reservoir sampling." sources="many-lights, hierarchies, tiled, path-reuse, denoisers, eq3, eq4, eq5, eq6, ris-unbiased, ris-converges, wrs, eq9, alg2"}
 
 ### Other ways to light many lights {#c2-others kind=2d diagram=related focus=OTHERS}
 
-The paper discusses related work after its method, in section seven, but it helps to meet it first.
+Before the two older ideas this video teaches, a look at what else has been tried.
+
+The paper discusses this related work at the end, in section seven, but it helps to meet it first.
 
 ### Light trees {#c2-many kind=2d diagram=related focus=MANY}
 
-${cue "key" {' {callout "many-lights"}}}Many-light methods sort lights by importance, often into a tree that can be sampled quickly.
+${cue "key" {' {callout "many-lights"}}}One family of methods sorts the lights by how much they matter, often into a tree that can be sampled quickly.
 
-${cue "key" {' {callout "hierarchies"}}}A tree has to be maintained as its lights move, and a real-time frame has little time for that.
+${cue "key" {' {callout "hierarchies"}}}But a tree has to be updated whenever its lights move.
+
+A real-time frame has little time for that.
 
 ### Tiles {#c2-tiled kind=2d diagram=related focus=TILED}
 
-${cue "key" {' {callout "tiled"}}}Tiled shading keeps a short list of lights for each tile of the screen.
+${cue "key" {' {callout "tiled"}}}Another family, tiled shading, keeps a short list of lights for each tile of the screen.
 
-To keep the lists short, each light's reach is typically limited to an area, which biases the image.
+To keep each list short, it usually limits how far each light reaches.
+
+That limit biases the image, which means the image is wrong on average.
 
 ### Shared paths {#c2-paths kind=2d diagram=related focus=PATHS}
 
-${cue "key" {' {callout "path-reuse"}}}Path reuse shares the paths light takes between pixels, but traces a new shadow ray each time a path is reused.
+${cue "key" {' {callout "path-reuse"}}}Path reuse shares, between pixels, the paths light takes from a light to the camera.
+
+But it traces a new shadow ray every time it reuses a path.
 
 ### Denoisers {#c2-denoise kind=2d diagram=related focus=DENOISE}
 
-${cue "key" {' {callout "denoisers"}}}Denoisers blur noisy colours after rendering, and ReSTIR can give them better samples to start from.
+${cue "key" {' {callout "denoisers"}}}Denoisers blur the noisy colours after rendering.
+
+ReSTIR does not replace them, but gives them better samples to start from.
 
 ### Two foundations {#c2-foundations kind=2d diagram=related focus="FOUNDATIONS, RESTIR"}
 
@@ -176,14 +212,20 @@ ${cue "key" floatPick}
 
 ${cue "key" {' {callout "eq3"}}}Both ideas start from importance sampling.
 
-${cue "key" {' {glide cameraYaw 28.0 sentence}}}To estimate the light at a point P, we draw one light sample.
+${cue "key" {' {glide cameraYaw 28.0 sentence}}}Take one pixel, P, on the floor beside the blue box.
 
-Its estimate is ${formulaSaid f"{\frac{f(x)}{p(x)}}" "its contribution f, divided by p, the probability it was drawn with"
+To estimate the light at P, the renderer draws one light sample, a point on one of the lights.
+
+The estimate is ${formulaSaid f"{\frac{f(x)}{p(x)}}" "what that sample brings, f, divided by the probability p it was drawn with"
     {'}}.
 
-${cue "key" {' {glide cameraYaw 22.0 sentence}}}The more closely that probability follows each sample's contribution, the less noise remains.
+${cue "key" {' {glide cameraYaw 22.0 sentence}}}Dividing by p balances the samples, because a likely sample is drawn often and so must count less.
 
-${cue "key" {' {callout "eq4"}}}${cue "key" {' {glide cameraDistance 3.3 sentence}}}Multiple importance sampling combines several such strategies with weights that sum to one, an idea the paper returns to when it removes bias.
+The closer p follows what each sample brings, the less noise is left.
+
+${cue "key" {' {callout "eq4"}}}${cue "key" {' {glide cameraDistance 3.3 sentence}}}One more idea from importance sampling comes back later in the paper.
+
+Multiple importance sampling mixes several ways of drawing samples, with weights that sum to one.
 
 ### What we would like to sample {#c2-ris-question kind=3d}
 
@@ -192,17 +234,23 @@ ${cue "key" {opening demoRis panelHidden {append baseRoom {append pickCamera {ap
     {' {restirSeed 5.0} {risStep 1.0}}}}}}}
 ${cue "key" floatPick}
 
-${cue "key" {' {callout "eq5"}}}${cue "key" {' {glide cameraYaw 30.0 sentence}}}The ideal is to draw each light sample in proportion to the light it would bring to P.
+${cue "key" {' {callout "eq5"}}}${cue "key" {' {glide cameraYaw 30.0 sentence}}}So for a single p, the best choice would follow what each light sample brings to P.
 
-${cue "key" {' {glide cameraYaw 24.0 sentence}}}That depends on the light's emission, on P's surface, and on the angle and distance between them.
+${cue "key" {' {glide cameraYaw 24.0 sentence}}}What a sample brings depends on the light's emission, on P's surface, and on the angle and distance between the light and P.
 
-The paper calls that ideal shape the target, written p-hat.
+The paper calls that ideal p the target.
 
-${overText {' {restirSeedRange 5.0 9.0}} "Nobody can draw samples in exactly that proportion"}.
+It writes the target as p-hat.
+
+${overText
+    {' {restirSeedRange 5.0 9.0}}
+    "But no one can draw samples in exact proportion to the target"}.
 
 ${overText
     {' {restirSeedRange 9.0 13.0}}
-    "The simplest practical choice, which this lab starts from, draws lights in proportion to their power, ignoring P entirely"}.
+    "Instead, a cheap choice draws lights in proportion to their power, and ignores P altogether"}.
+
+That cheap choice is the lab's starting point.
 
 ### Resampled importance sampling {#c2-ris kind=3d}
 
@@ -211,28 +259,34 @@ ${cue "key" {opening demoRis panelValues {append baseRoom {append pickCamera {ap
     {' {restirSeed 5.0} {risStep 8.0}}}}}}}
 ${cue "key" floatPick}
 
-${cue "key" {' {callout "eq5"}}}Resampled importance sampling, or RIS, makes a cheap guess many times, then keeps one.
+${cue "key" {' {callout "eq5"}}}Resampled importance sampling, RIS for short, gets from the cheap choice to the target in two steps.
 
-${overText {' {risStepRange 0.0 8.0}} "Here P draws eight candidates"}.
+${overText {' {risStepRange 0.0 8.0}} "First, P draws eight samples the cheap way"}.
 
-Each one is a light picked by power, and a point on that light.
+Each sample is a light and a point on it, one of the guesses from chapter one.
 
-Each candidate gets a weight, ${formulaSaid f"{w = \frac{\hat{p}(x)}{p(x)}}" "its target divided by the probability it was drawn with"
+These samples are called candidates.
+
+Then each candidate gets a weight, ${formulaSaid f"{w = \frac{\hat{p}(x)}{p(x)}}" "its target divided by the probability it was drawn with"
     {'}}.
 
-${cue "key" {' {glide cameraYaw 30.0 sentence}}}A candidate that would bring more light is drawn as a brighter line from P.
+${cue "key" {' {glide cameraYaw 30.0 sentence}}}Here the brighter a line from P, the larger its candidate's weight.
 
-${cue "key" {' {glide cameraYaw 24.0 sentence}}}P keeps one candidate, chosen with a probability in proportion to its weight.
+${cue "key" {' {glide cameraYaw 24.0 sentence}}}Second, P keeps one candidate, picked with a chance in proportion to its weight.
 
-${cue "key" {' {callout "eq6"}}}The kept sample is then shaded as if it had been drawn in proportion to the target.
+${cue "key" {' {callout "eq6"}}}P then shades the kept candidate as if it had been drawn in proportion to the target.
 
-It was not, so the result is multiplied by a correction, the average of all the weights.
+But the candidate was not drawn that way.
 
-${cue "key" {' {callout "ris-unbiased"}}}With that correction, RIS is unbiased for any number of candidates.
+So the shaded result is multiplied by a correction, the average of all eight weights.
 
-${cue "key" {' {glide cameraDistance 3.2 sentence}}}The panel folds that correction and one over the kept sample's target into a single number, W.
+${cue "key" {' {callout "ris-unbiased"}}}With that correction, RIS is unbiased, however many candidates it draws.
 
-The pixel's light is then the kept sample's contribution times W.
+${cue "key" {' {glide cameraDistance 3.2 sentence}}}Shading as if drawn by the target means dividing by the kept candidate's target.
+
+Together with the correction, that division makes a single number, called W.
+
+So the light at P is what the kept candidate brings, times W.
 
 ### More candidates, less noise {#c2-ris-more kind=3d}
 
@@ -242,17 +296,19 @@ ${cue "key" floatRoom}
 
 ${cue "key" {' {callout "ris-converges"}}}${overText
     {' {restirCandidatesRange 1.0 8.0}}
-    "With more candidates, the kept sample follows the target more closely"}.
+    "The more candidates a pixel draws, the more closely its kept candidate follows the target"}.
 
 ${overText
     {' {restirCandidatesRange 8.0 32.0}}
-    "The noise in the room falls as the count rises to thirty-two"}.
+    "So the noise in the room falls as the count rises to thirty-two"}.
 
-${cue "key" {' {glide cameraYaw 26.0 sentence}}}The cost rises with it, because every candidate has to be weighted.
+${cue "key" {' {glide cameraYaw 26.0 sentence}}}But the cost rises too, because every candidate has to be weighted.
 
-${cue "key" {' {glide cameraYaw 18.0 sentence}}}The target also ignores shadows, so a kept light may still be hidden from P.
+${cue "key" {' {glide cameraYaw 18.0 sentence}}}And the target ignores shadows, so a kept candidate may still be hidden from P.
 
-This is exactly the first pass of ReSTIR, run for every pixel.
+RIS with these candidates is the first pass of ReSTIR.
+
+Every pixel runs it.
 
 ### Keeping one from a stream {#c2-wrs kind=3d}
 
@@ -261,29 +317,37 @@ ${cue "key" {opening demoRis panelCode {append baseRoom {append pickCamera {appe
     {' listingRis {highlightCode "ris" {' "candidate"}} {restirSeed 5.0} {risStep 0.0}}}}}}}
 ${cue "key" floatPick}
 
-The second foundation, weighted reservoir sampling, solves a problem of storage.
+RIS as described has one more problem, its storage.
 
-${cue "key" {' {glide cameraYaw 28.0 sentence}}}As described, RIS keeps every candidate until it chooses, and a GPU cannot afford a list for every pixel.
+${cue "key" {' {glide cameraYaw 28.0 sentence}}}RIS keeps every candidate until it picks one.
 
-${cue "key" {' {callout "wrs"}}}It chooses one item from a stream, a sequence it sees one item at a time, and only once.
+A GPU cannot afford such a list for every pixel.
 
-${cue "key" {' {callout "alg2"}}}Its reservoir holds just the kept item, the running sum of weights, and the count of items seen.
+${cue "key" {' {callout "wrs"}}}Weighted reservoir sampling picks one item from a stream, a sequence that arrives one item at a time and is seen only once.
 
-${cue "key" {' {highlightCode "ris" {' "update"}} {risStep 1.0}}}The first candidate arrives, and the reservoir keeps it.
+${cue "key" {' {callout "alg2"}}}It keeps a small record of three things, the kept item, the running sum of weights, and the count of items so far.
 
-${cue "key" {' {callout "eq9"}}}${cue "key" {' {highlightCode "ris" {' "keep"}}}}Each later candidate replaces the kept one with a probability equal to its weight divided by the new sum.
+This record is the reservoir from chapter one.
 
-${overText {' {risStepRange 1.0 8.0}} "One by one, the candidates stream through the reservoir"}.
+${cue "key" {' {highlightCode "ris" {' "update"}} {risStep 1.0}}}When P's first candidate arrives, the reservoir keeps it.
 
-${cue "key" {' {highlightCode "ris" {' "finish"}}}}At the end, each candidate has been kept in proportion to its weight, exactly as RIS needs.
+${cue "key" {' {callout "eq9"}}}${cue "key" {' {highlightCode "ris" {' "keep"}}}}Each later candidate first adds its weight to the sum.
 
-${cue "key" {' {callout "combine"}}}${cue "key" {' {glide cameraDistance 3.3 sentence}}}Two reservoirs can also be merged as if one stream had passed through both, which is what lets pixels share their work.
+It then replaces the kept one with a chance equal to its own weight divided by that new sum.
+
+${overText {' {risStepRange 1.0 8.0}} "One by one, all eight candidates pass through the reservoir"}.
+
+${cue "key" {' {highlightCode "ris" {' "finish"}}}}At the end, each candidate has been kept with a chance in proportion to its weight, exactly as RIS needs.
+
+${cue "key" {' {callout "combine"}}}${cue "key" {' {glide cameraDistance 3.3 sentence}}}And two reservoirs can be merged into one, as if both their streams had passed through a single reservoir.
+
+That merge is what will let pixels share.
 
 ### Where to read it {#c2-sources kind=2d sources="many-lights, hierarchies, tiled, path-reuse, denoisers, eq3, eq4, eq5, eq6, ris-unbiased, ris-converges, wrs, eq9, alg2"}
 
-The related work is in section seven, and the two foundations are in section two.
+The related work is in section seven, and these two ideas are in section two.
 
-## Streaming RIS {#c3 number=3 target=105 summary="RIS through one reservoir per pixel: what it stores, the paper's choices, and what it costs." sources="alg3, storage, candidates-param, alias, target-param, streaming-cost"}
+## Streaming RIS {#c3 number=3 target=116 summary="RIS through one reservoir per pixel: what it stores, the paper's choices, and what it costs." sources="alg3, storage, candidates-param, alias, target-param, streaming-cost"}
 
 ### One reservoir per pixel {#c3-alg3 kind=3d}
 
@@ -292,16 +356,18 @@ ${cue "key" {opening demoRis panelCode {append baseRoom {append pickCamera {appe
     {' listingRis {highlightCode "ris" {' "candidate"}} {restirSeed 5.0} {risStep 8.0}}}}}}}
 ${cue "key" floatPick}
 
-${cue "key" {' {callout "alg3"}}}Combined, the two ideas become streaming RIS, the first pass of every frame.
+${cue "key" {' {callout "alg3"}}}Put the two ideas together, and you have streaming RIS, the first pass of every frame.
 
 ${cue "key" {' {highlightCode "ris" {' "weight"}}}}${overText
     {' {risStepRange 0.0 8.0}}
     "Each pixel streams its candidates through one reservoir, and keeps only the reservoir"}.
 
-${cue "key" {' {highlightCode "ris" {' "finish"}}}}When the stream ends, the pixel turns the sum of weights into W, ${formulaSaid f"{W = \frac{\sum w}{M\, \hat{p}(y)}}" "the sum divided by the count M and by the kept sample's target"
+${cue "key" {' {highlightCode "ris" {' "finish"}}}}When the stream ends, the pixel turns the sum of weights into W, the number from chapter two.
+
+W is ${formulaSaid f"{W = \frac{\sum w}{M\, \hat{p}(y)}}" "the average weight, the sum over the count M, divided by the kept candidate's target"
     {'}}.
 
-${cue "key" {' {highlightCode "ris" {' "shade"}}}}${cue "key" {' {glide cameraYaw 30.0 sentence}}}The pixel is shaded with what the kept sample brings, multiplied by W.
+${cue "key" {' {highlightCode "ris" {' "shade"}}}}${cue "key" {' {glide cameraYaw 30.0 sentence}}}Then the pixel is shaded with what its kept candidate brings, times W.
 
 ### What a reservoir holds {#c3-store kind=3d}
 
@@ -310,15 +376,21 @@ ${cue "key" {opening demoReservoirs panelHidden {append baseRoom {append roomCam
     {' {restirView 1.0}}}}}}}
 ${cue "key" floatRoom}
 
-${cue "key" {' {callout "storage"}}}A reservoir needs only three things, the sample y, the count M, and the weight W.
+${cue "key" {' {callout "storage"}}}So at the end, a reservoir holds only three numbers.
 
-Here each pixel is coloured by the light its sample is on.
+They are the sample y it kept, the count M, and W.
+
+W takes the place of the running sum, which is no longer needed.
+
+This view shows y, colouring each pixel by the light its sample is on.
 
 ${cue "key" {' {glide cameraYaw 26.0 sentence}}}Neighbouring pixels on one surface often keep the same lights, because those lights matter to all of them.
 
-${cue "key" {' {restirView 3.0}}}This view shows W, which is larger where the kept sample was unlikely to be drawn, so that it counts for more.
+${cue "key" {' {restirView 3.0}}}This view shows W instead, which is larger where the kept sample was unlikely to be drawn.
 
-${cue "key" {' {restirView 2.0}}}And here M is thirty-two in every lit pixel, the number of candidates each one drew.
+A larger W lets that rare sample count for more.
+
+${cue "key" {' {restirView 2.0}}}And this one shows M, thirty-two in every lit pixel, one for each candidate it drew.
 
 ### The paper's choices {#c3-params kind=3d}
 
@@ -326,27 +398,33 @@ ${cue "key" {opening demoReservoirs panelHidden {append baseRoom {append roomCam
     32.0}}}}}
 ${cue "key" floatRoom}
 
-${cue "key" {' {callout "candidates-param"}}}The paper uses thirty-two candidates per pixel.
+${cue "key" {' {callout "candidates-param"}}}Those thirty-two candidates are the paper's choice.
 
-${cue "key" {' {callout "alias"}}}${cue "key" {' {glide cameraYaw 24.0 sentence}}}It picks an emissive triangle by its power from an alias table, then a uniform point on that triangle.
+${cue "key" {' {callout "alias"}}}${cue "key" {' {glide cameraYaw 24.0 sentence}}}The paper's lights are emissive triangles.
+
+It picks each candidate's triangle by power, from an alias table, a lookup table that draws by weight.
+
+Then it picks a uniform point on that triangle.
 
 ${overText
     {' {lightPhaseRange 0.0 0.1}}
-    "The lab's lights are spheres, picked by power from a running sum with a binary search, which gives the same distribution"}.
+    "The lab's lights are spheres instead, picked by power with a table of summed powers and a binary search"}.
 
-${cue "key" {' {callout "target-param"}}}As in RIS, the target is the light a sample would bring if nothing were in the way.
+This gives the same distribution.
+
+${cue "key" {' {callout "target-param"}}}Next, the paper's target is the light a candidate would bring if nothing stood in the way.
 
 ${cue "key" {' {callout "streaming-cost"}}}${overText
     {' {restirCandidatesRange 32.0 64.0}}
-    "Storage is now constant, but the work still grows with every candidate"}.
+    "Streaming makes the storage constant, but the work still grows with every candidate"}.
 
-So instead of drawing more, the next steps reuse candidates already drawn.
+So instead of drawing more candidates, the rest of the method reuses the candidates that other pixels and earlier frames drew.
 
 ### Where to read it {#c3-sources kind=2d sources="alg3, storage, candidates-param, alias, target-param, streaming-cost"}
 
 Streaming RIS is in section three point one, and the paper's choices are in section five.
 
-## Spatial reuse {#c4 number=4 target=140 summary="Combining reservoirs, the neighbours each pixel combines, the rounds that multiply its candidates, and the test that rejects some." sources="combine, reweight, alg4, neighbors-param, spatial, spatial-passes, geometry-test"}
+## Spatial reuse {#c4 number=4 target=150 summary="Combining reservoirs, the neighbours each pixel combines, the rounds that multiply its candidates, and the test that rejects some." sources="combine, reweight, weight-meaning, alg4, neighbors-param, spatial, spatial-passes, geometry-test"}
 
 ### Combining two reservoirs {#c4-combine kind=3d}
 
@@ -358,16 +436,22 @@ ${cue "key" {opening demoSpatial panelCode {append baseRoom {append pickCamera {
     {restirSeed 5.0}}}}}}
 ${cue "key" floatPick}
 
-Each pixel now holds one reservoir, and its neighbours hold theirs.
+After the first pass, P holds one reservoir, and so does each of its neighbours.
 
-${cue "key" {' {callout "combine"}}}${cue "key" {' {glide cameraYaw 28.0 sentence}}}Combining two reservoirs treats each kept sample as a new candidate.
+${cue "key" {' {callout "combine"}}}${cue "key" {' {glide cameraYaw 28.0 sentence}}}To combine two reservoirs, the method treats each one's kept sample as a single new candidate.
 
-${cue "key" {' {callout "reweight"}}}Its weight is ${formulaSaid f"{\hat{p}_P(y) \cdot W \cdot M}" "the target at P, times the reservoir's W, times its M"
+${cue "key" {' {callout "reweight"}}}That candidate's weight is ${formulaSaid f"{\hat{p}_P(y) \cdot W \cdot M}" "the target at P, times its reservoir's W, times its M"
     {'}}.
 
-${cue "key" {' {glide cameraYaw 22.0 sentence}}}The target is evaluated at P, because a sample that suits a neighbour may not suit P.
+Recall that W stands in for one over the chance that the sample was drawn.
 
-${cue "key" {' {callout "alg4"}}}${cue "key" {' {highlightCode "combine" {' "count"}}}}The combined reservoir stands for every candidate behind both, so their counts add up.
+${cue "key" {' {glide cameraYaw 22.0 sentence}}}The target is taken at P, because a sample that suits a neighbour may not suit P.
+
+${cue "key" {' {callout "weight-meaning"}}}The factor M makes a reservoir count as much as the candidates behind it.
+
+${cue "key" {' {callout "alg4"}}}${cue "key" {' {highlightCode "combine" {' "count"}}}}The combined reservoir keeps one of the two samples, in proportion to these weights.
+
+It stands for every candidate behind both reservoirs, so their counts add up.
 
 ### Neighbours in a disc {#c4-neighbours kind=3d}
 
@@ -378,17 +462,23 @@ ${cue "key" {opening demoSpatial panelValues {append baseRoom {append pickCamera
     {restirSeed 5.0}}}}}}
 ${cue "key" floatPick}
 
+P shares with a few neighbours at once, and does so in rounds.
+
 ${cue "key" {' {callout "neighbors-param"}}}${overText
     {' {restirNeighboursRange 1.0 5.0}}
-    "Spatial reuse runs in rounds, and in each round P picks k neighbours at random within thirty pixels"}.
+    "In each round, P picks k neighbours within thirty pixels, and the paper uses five in its biased version"}.
 
-${cue "key" {' {glide cameraYaw 30.0 sentence}}}The paper takes them from a low-discrepancy sequence, because deterministic neighbours caused distracting artifacts.
+${cue "key" {' {glide cameraYaw 30.0 sentence}}}The paper picks them with a low-discrepancy sequence, points that look random but spread evenly.
 
-The lab uses the R2 sequence for it.
+It does so because fixed neighbours caused distracting artifacts.
+
+The lab uses one such sequence, called R2.
 
 ${cue "key" {' {glide cameraYaw 24.0 sentence}}}Each line here runs from P to a neighbour, and on to the sample that neighbour's reservoir holds.
 
-${cue "key" {' {glide cameraDistance 3.3 sentence}}}Combining them, P's count M grows by the candidates of every neighbour it takes.
+${cue "key" {' {glide cameraDistance 3.3 sentence}}}P combines the reservoirs of all k neighbours.
+
+Its count M grows by each neighbour's candidates.
 
 ### Rounds multiply the candidates {#c4-rounds kind=3d}
 
@@ -400,20 +490,19 @@ ${cue "key" floatRoom}
 
 ${cue "key" {' {callout "spatial"}}}${overText
     {' {restirSpatialPassesRange 0.0 1.0}}
-    "One round already removes much of the noise"}.
+    "A single round already removes much of the noise"}.
 
 ${overText
     {' {restirSpatialPassesRange 1.0 2.0}}
-    "A second round combines the reservoirs the first one made, so the candidates multiply"}.
+    "A second round combines the reservoirs the first round made, so the candidates multiply"}.
 
-Each round multiplies the candidates again, so after n rounds, with distinct neighbours, a pixel can stand for ${formulaSaid f"{k^n M}" "k to the power n, times M"
-    {'}} candidates.
+So after n rounds, a pixel can stand for ${formulaSaid f"{k^n M}" "k to the power n, times M" {'}} candidates, if every round finds new neighbours.
 
-${cue "key" {' {restirView 2.0}}}This view shows M, which is much larger than the thirty-two each pixel drew.
+${cue "key" {' {restirView 2.0}}}This view shows M, now far larger than the thirty-two each pixel drew.
 
 ${cue "key" {' {restirView 0.0}}}${overText
     {' {restirSpatialPassesRange 2.0 4.0}}
-    "The gain fades once the rounds have gathered the nearby candidates, since later rounds find the same ones again"}.
+    "The gain fades once the rounds have gathered the nearby candidates, because later rounds find the same ones again"}.
 
 ${cue "key" {' {callout "spatial-passes"}}}${overText
     {' {restirSpatialPassesRange 4.0 2.0}}
@@ -430,21 +519,25 @@ ${cue "key" {opening demoSpatial panelValues {append baseRoom {append pickCamera
     {pickV 0.64}}}}}}
 ${cue "key" floatPick}
 
-${cue "key" {' {glide cameraYaw 28.0 sentence}}}A neighbour across the edge of an object sees different light from P.
+${cue "key" {' {glide cameraYaw 28.0 sentence}}}But a neighbour across an object's edge sees different light from P.
 
-${cue "key" {' {callout "geometry-test"}}}In its biased algorithm, the paper skips a neighbour whose depth differs by more than ten percent, or whose normal differs by more than twenty-five degrees.
+${cue "key" {' {callout "geometry-test"}}}So the paper's biased version skips a neighbour whose depth differs from P's by more than ten percent.
 
-The lab applies the same test to the previous frame's pixel too.
+It also skips one whose normal differs by more than twenty-five degrees.
 
-${cue "key" {' {glide cameraYaw 22.0 sentence}}}Here the neighbours it skips are drawn in red.
+${cue "key" {' {glide cameraYaw 22.0 sentence}}}Here the skipped neighbours are drawn in red.
 
 ${overText
     {' {restirGeometryTestRange 1.0 0.0}}
     "Without this test, those neighbours would pass on samples that suit P poorly"}.
 
-### Where to read it {#c4-sources kind=2d sources="combine, reweight, alg4, neighbors-param, spatial, spatial-passes, geometry-test"}
+The lab applies the same test to the pixel in the previous frame.
 
-Spatial reuse is in section three point two, and its parameters in section five.
+The next chapter reuses that pixel's reservoir.
+
+### Where to read it {#c4-sources kind=2d sources="combine, reweight, weight-meaning, alg4, neighbors-param, spatial, spatial-passes, geometry-test"}
+
+Spatial reuse is in section three point two, and its parameters are in section five.
 
 ## Temporal and visibility reuse {#c5 number=5 target=123 summary="Reusing the frame before, the clamp on its count, the moving lights, and the shadow ray before reuse." sources="temporal, temporal-pick, clamp, visibility, alg5"}
 
@@ -454,21 +547,25 @@ ${cue "key" {opening demoReuse panelValues {append baseRoom {append pickCamera {
     {restirSpatialPasses 0.0}}}}}}
 ${cue "key" floatPick}
 
-Neighbours share across the screen, and the previous frame offers still more.
+Neighbours share across the screen, and the previous frame can share too.
 
 ${cue "key" {' {callout "temporal"}}}After each frame, every pixel's final reservoir, the one it was shaded with, is kept.
 
-${cue "key" {' {callout "temporal-pick"}}}${cue "key" {' {glide cameraYaw 30.0 sentence}}}In the next frame, each pixel finds where its point was in the previous frame, and combines that pixel's reservoir with its own.
+${cue "key" {' {callout "temporal-pick"}}}${cue "key" {' {glide cameraYaw 30.0 sentence}}}In the next frame, each pixel finds where its point was in the previous frame.
 
-${cue "key" {' {glide cameraYaw 22.0 sentence}}}The kept reservoir already holds the frames before it, so every past frame feeds the present one.
+It then combines the reservoir kept there with its own, just as it combines a neighbour's.
 
-${cue "key" {' {restirView 2.0}}}${cue "key" {' {glide cameraDistance 3.2 sentence}}}Each combination adds the counts, so M keeps climbing from frame to frame.
+${cue "key" {' {glide cameraYaw 22.0 sentence}}}That kept reservoir was itself combined with the frame before it, so every past frame feeds the present one.
 
-${cue "key" {' {callout "clamp"}}}Left alone, it would grow without limit, and old samples would outweigh new ones.
+${cue "key" {' {restirView 2.0}}}${cue "key" {' {glide cameraDistance 3.2 sentence}}}Each combination adds the counts, so M climbs from frame to frame.
+
+${cue "key" {' {callout "clamp"}}}If nothing stops it, M grows without limit.
+
+Then old samples would outweigh new ones.
 
 ${overText
     {' {restirTemporalClampRange 20.0 2.0}}
-    "The paper therefore clamps the previous frame's M to twenty times this frame's"}.
+    "So the paper clamps the previous frame's M to at most twenty times this frame's"}.
 
 ### Lights on the move {#c5-dynamic kind=3d}
 
@@ -476,15 +573,15 @@ ${cue "key" {opening demoReuse panelValues {append baseRoom {append roomCamera {
     {restirSpatialPasses 0.0}}}}}}
 ${cue "key" floatRoom}
 
-${overText {' {lightPhaseRange 0.0 0.1}} "The lights keep moving throughout"}.
+${overText {' {lightPhaseRange 0.0 0.1}} "All this time, the lights keep moving"}.
 
 ${overText
     {' {lightPhaseRange 0.1 0.2}}
-    "In the lab, a sample is a light plus a point on it, so it follows its light as the light moves"}.
+    "In the lab, a sample is a light and a point on that light, so the sample moves with its light"}.
 
 ${overText
     {' {lightPhaseRange 0.2 0.3}}
-    "Its target is evaluated again at the light's new position whenever it is combined"}.
+    "Each time a sample is combined, its target is evaluated again at the light's new position"}.
 
 ### A shadow ray before reuse {#c5-visibility kind=3d}
 
@@ -494,31 +591,35 @@ ${cue "key" {opening demoReuse panelValues {append baseRoom {append pickCamera {
     {restirStage 1.0}}}}}}
 ${cue "key" floatPick}
 
-${cue "key" {' {glide cameraYaw 28.0 sentence}}}The target ignores shadows, so a kept sample may be hidden from its pixel.
+${cue "key" {' {glide cameraYaw 28.0 sentence}}}The target still ignores shadows, so a kept sample may be hidden from its pixel.
 
-${cue "key" {' {callout "visibility"}}}Before any reuse, each pixel traces one shadow ray to the sample it kept.
+${cue "key" {' {callout "visibility"}}}So before any reuse, each pixel traces one shadow ray to the sample it kept.
 
-${cue "key" {' {callout "alg5"}}}${cue "key" {' {glide cameraYaw 22.0 sentence}}}If the ray is blocked, W becomes zero, but the reservoir keeps its M, the candidates it stands for.
+${cue "key" {' {callout "alg5"}}}${cue "key" {' {glide cameraYaw 22.0 sentence}}}If the ray is blocked, W becomes zero.
 
-Here green pixels kept a visible sample, and red pixels a hidden one.
+The reservoir still keeps M, the count of candidates it stands for.
 
-${cue "key" {' {restirView 0.0} {restirStage 3.0} {restirSpatialPasses 2.0}}}A hidden sample then cannot spread to neighbouring pixels.
+In this view, green pixels kept a visible sample, and red pixels a hidden one.
 
-${overText
-    {' {restirVisibilityReuseRange 1.0 0.0}}
-    "Without the test, as the lab shows here, shadows fill with noise, because neighbours pass on lights they cannot see"}.
+${cue "key" {' {restirView 0.0} {restirStage 3.0} {restirSpatialPasses 2.0}}}A combined sample's weight is its target times W times M, so a hidden sample's weight is zero.
+
+A sample with no weight cannot spread to neighbouring pixels.
+
+${overText {' {restirVisibilityReuseRange 1.0 0.0}} "Here the lab leaves the shadow ray out"}.
+
+The shadows fill with noise, because neighbours pass on lights they cannot see.
 
 ### The whole frame {#c5-alg5 kind=2d diagram=alg5 focus="RIS, VIS, TEMP, SPAT, SHADE, PREV"}
 
 ${cue "key" {' {callout "alg5"}}}That completes one frame of the paper's algorithm.
 
-The candidates come first, then visibility, the previous frame, the neighbours, and finally the shading.
+In order, each pixel draws candidates, tests the kept one's visibility, reuses the previous frame, reuses its neighbours, and is shaded.
 
 ### Where to read it {#c5-sources kind=2d sources="temporal, temporal-pick, clamp, visibility, alg5"}
 
-Temporal and visibility reuse are in section three point two, and the clamp in section five.
+Temporal and visibility reuse are in section three point two, and the clamp is in section five.
 
-## Bias, and removing it {#c6 number=6 target=176 summary="Why reuse biases RIS, the paper's one-dimensional example, the weights that remove the bias, and the unbiased combination." sources="bias-source, eq12, weight-meaning, eq19, fig7, eq20, naive-m, eq22, talbot-cost, alg6, approx-pdf, unbiased-cost"}
+## Bias, and removing it {#c6 number=6 target=222 summary="Why reuse biases RIS, the paper's one-dimensional example, the weights that remove the bias, and the unbiased combination." sources="bias-source, eq12, weight-meaning, eq19, fig7, eq20, naive-m, eq22, talbot-cost, alg6, approx-pdf, unbiased-cost"}
 
 ### Every pixel has its own target {#c6-source kind=3d}
 
@@ -528,15 +629,19 @@ ${cue "key" {opening demoSpatial panelValues {append baseRoom {append pickCamera
     {restirSeed 5.0}}}}}}
 ${cue "key" floatPick}
 
-The reuse so far has one flaw.
+The reuse so far has one flaw, and it comes from the neighbours.
 
 ${cue "key" {' {callout "bias-source"}}}${cue "key" {' {glide cameraYaw 28.0 sentence}}}Every pixel has its own target, because its surface faces its own way and sees its own lights.
 
-${cue "key" {' {glide cameraYaw 22.0 sentence}}}A sample from a neighbour was chosen for the neighbour's target, not for P's.
+${cue "key" {' {glide cameraYaw 22.0 sentence}}}So a sample from a neighbour was chosen for the neighbour's target, not for P's.
 
-${cue "key" {' {callout "eq12"}}}Recall that W stands in for one over the probability of the kept sample.
+${cue "key" {' {callout "eq12"}}}Recall what W does.
 
-${cue "key" {' {callout "weight-meaning"}}}On average, W must equal that exactly, or the image comes out too bright or too dark.
+It stands in for one over the chance that the kept sample was drawn.
+
+${cue "key" {' {callout "weight-meaning"}}}On average, W must equal one over that chance exactly, or the image comes out too bright or too dark.
+
+But a neighbour's W was built for the neighbour's target, so for P it may be wrong.
 
 ### The paper's example in one dimension {#c6-1d kind=3d}
 
@@ -546,29 +651,41 @@ ${cue "key" {opening demoBias panelHidden {append baseRoom {append roomCamera {'
     {biasNearZero 0.0}}}}}}
 ${cue "key" floatRoom}
 
-${cue "key" {' {callout "fig7"}}}The paper shows the problem in one dimension.
+${cue "key" {' {callout "fig7"}}}The paper shows what goes wrong in one dimension.
 
 Here the target is ${formulaSaid f"{\hat{p}(x) = 2 - 2x}" "a ramp that falls from two to zero" {'}}.
 
-Half the candidates come from a flat distribution, and half from a step that covers only the left half.
+Half the candidates come from a flat distribution, one that picks every place equally.
+
+The other candidates come from a step, a distribution that covers only the left half of the range.
 
 ${overText
     {' {biasCandidatesRange 2.0 4.0}}
-    "The thick line is the true inverse probability of RIS's output, measured over many runs"}.
+    "The thick line shows what W should equal at each place"}.
+
+It is one over the chance that RIS outputs that place, measured over many runs.
 
 ${overText
     {' {biasCandidatesRange 4.0 10.0}}
-    "The thin line is the average of W at each place the output lands"}.
+    "The thin line shows what W really averages at each place"}.
 
-On the right half, the step can never produce a sample, yet W still divides by every candidate, the step's included.
+If W is correct, the two lines match.
+
+On the left half, they agree.
+
+On the right half, only the flat candidates can produce a sample.
+
+Yet W still divides by the count of every candidate, the step ones included.
 
 ${cue "key" {' {callout "eq19"}}}${overText
     {' {biasCandidatesRange 10.0 20.0}}
-    "So W is too small there, by half, and an image would come out too dark"}.
+    "So W comes out half as large as it should"}.
 
-${cue "key" {' {callout "approx-pdf"}}}In ReSTIR, each reservoir a pixel combines is such a source of candidates.
+An image would then come out too dark.
 
-A neighbour whose surface faces away, or whose shadow hides a light, cannot produce some samples P can use.
+${cue "key" {' {callout "approx-pdf"}}}In ReSTIR, each reservoir a pixel combines acts like the step, a source that covers only some of the places.
+
+A neighbour whose surface faces away from a light, or whose view of it is blocked, cannot produce samples of that light that P can use.
 
 ### Counting only those that could {#c6-fix kind=3d}
 
@@ -578,7 +695,7 @@ ${cue "key" {opening demoBias panelHidden {append baseRoom {append roomCamera {'
     {biasNearZero 0.0}}}}}}
 ${cue "key" floatRoom}
 
-${cue "key" {' {callout "eq20"}}}The fix is to divide only by the candidates that could have produced the sample.
+${cue "key" {' {callout "eq20"}}}The fix is to divide only by the count of the candidates that could have produced the sample.
 
 ${cue "key" {' {callout "naive-m"}}}${overText
     {' {biasWeightRange 0.0 1.0}}
@@ -586,19 +703,29 @@ ${cue "key" {' {callout "naive-m"}}}${overText
 
 ${overText
     {' {biasNearZeroRange 0.0 1.0}}
-    "But when the step is close to zero rather than exactly zero, this count makes W very noisy"}.
+    "Now let the step be nearly zero on the right half, instead of exactly zero"}.
 
-A candidate drawn from the step there has a tiny probability, and so a huge weight.
+Then its candidates still count there, and W becomes very noisy.
+
+That is because a step candidate on the right half has a tiny probability there, and so a huge weight.
 
 ${cue "key" {' {callout "eq22"}}}${overText
     {' {biasWeightRange 1.0 2.0}}
-    "The paper's better weight is the balance heuristic, from multiple importance sampling"}.
+    "The paper's better weight asks, for each candidate, how likely its own distribution was to produce the sample"}.
 
-It weights each candidate by how likely its own distribution was to produce the sample, compared with all of them.
+It divides that chance by the sum of the chances of all the distributions.
 
-${cue "key" {' {glide cameraYaw 26.0 sentence}}}It agrees with the truth, and it stays stable.
+This weight is the balance heuristic, from multiple importance sampling, the mix of ways to draw samples from chapter two.
 
-${cue "key" {' {callout "talbot-cost"}}}When every candidate has its own distribution, Talbot's original method evaluates every probability for every candidate, so its cost grows with the square of their number.
+${cue "key" {' {glide cameraYaw 26.0 sentence}}}With it, the two lines agree, and W stays steady.
+
+${cue "key" {' {callout "talbot-cost"}}}The original RIS, by Talbot and colleagues, uses another weight here, the target divided by the sum of every distribution's probability.
+
+When every candidate has its own distribution, each candidate's weight needs every distribution's probability.
+
+So that weight's cost grows with the square of the number of candidates.
+
+The paper's weight is needed only for the sample that is kept, so its cost grows only with the number of candidates.
 
 ### The unbiased combination {#c6-alg6 kind=3d}
 
@@ -608,25 +735,31 @@ ${cue "key" {opening demoMethods panelCode {append baseRoom {append roomCamera {
     {restirUnbiased 0.0}}}}}}
 ${cue "key" floatRoom}
 
-${cue "key" {' {callout "alg6"}}}${cue "key" {' {highlightCode "combine" {' "z"}}}}In the room, the unbiased combination uses the simple count from the paper's algorithm six.
+${cue "key" {' {callout "alg6"}}}${cue "key" {' {highlightCode "combine" {' "z"}}}}Back in the room, the paper's unbiased combination, its algorithm six, uses the first fix, the count.
 
-It counts only the sources, P and its neighbours, whose target at the sample is not zero.
+For each reservoir, P's and its neighbours', it checks that pixel's target at the sample.
 
-The paper says a version with the balance heuristic works the same way.
+It adds up the counts M of only the reservoirs whose target there is not zero.
 
-${cue "key" {' {callout "unbiased-cost"}}}With visibility reuse, that check needs one extra shadow ray per neighbour.
+Those are the reservoirs that could have produced the sample.
+
+The paper says a version with the balance heuristic is unbiased in the same way.
+
+${cue "key" {' {callout "unbiased-cost"}}}With visibility reuse, a neighbour's target includes whether the neighbour can see the sample, so checking it costs one extra shadow ray per neighbour.
 
 ${cue "key" {' {callout "biased-mode"}}}${overText
     {' {restirUnbiasedRange 0.0 1.0}}
-    "The biased version skips that cost, and darkens the edges of objects a little instead"}.
+    "The biased version skips that cost"}.
 
-${cue "key" {' {glide cameraYaw 26.0 sentence}}}The paper offers both versions, and so does the lab's dock.
+Instead, it darkens the edges of objects a little.
+
+${cue "key" {' {glide cameraYaw 26.0 sentence}}}The paper offers both versions, and the lab offers both in its dock, the panel of controls.
 
 ### Where to read it {#c6-sources kind=2d sources="bias-source, eq12, weight-meaning, eq19, fig7, eq20, naive-m, eq22, talbot-cost, alg6, approx-pdf, unbiased-cost"}
 
 Bias and its removal are in section four, and the example is figure seven.
 
-## Experiments on this machine {#c7 number=7 target=84 summary="The paper's comparisons, run on this machine as the video is recorded." sources="results-setup, biased-vs-unbiased, sample-count"}
+## Experiments on this machine {#c7 number=7 target=102 summary="The paper's comparisons, run on this machine as the video is recorded." sources="still-images, results-setup, biased-vs-unbiased, sample-count"}
 
 ### The comparisons {#c7-methods kind=3d}
 
@@ -634,31 +767,39 @@ ${cue "key" {opening demoMethods panelPerformance {append baseRoom {append roomC
     32.0}}}}}
 ${cue "key" floatRoom}
 
-With every part in place, the paper compares its methods.
+With every part explained, it is time for the paper's comparisons.
 
 These are the experimentation data run on this current machine, the one that recorded this video.
 
-${cue "key" {' {glide cameraYaw 24.0 sentence}}}The panel on the right shows each pass's cost on this computer, as these frames render.
+${cue "key" {' {glide cameraYaw 24.0 sentence}}}The panel on the right measures each pass on this machine, so you can see each pass's time as these frames render.
 
 ${cue "key" {' {callout "results-setup"}}}First comes streaming RIS alone, the baseline the paper compares against.
 
-${overText
+${cue "key" {' {callout "still-images"}}}${overText
     {' {restirSpatialPassesRange 0.0 2.0}}
-    "Next comes spatial reuse alone, which the paper offers for still images that have no previous frame"}.
+    "Next, spatial reuse joins it"}.
 
-${overText
-    {' {restirTemporalRange 0.0 1.0}}
-    "Then comes full spatiotemporal reuse, in its biased form"}.
+The paper offers this version for still images, which have no previous frame.
 
-The lab keeps one reservoir per pixel, where the paper's biased results keep four.
+${overText {' {restirTemporalRange 0.0 1.0}} "Then temporal reuse joins too"}.
 
-${cue "key" {' {glide cameraYaw 30.0 sentence}}}Watch how much noise disappears, and how little time the new passes take.
+This gives the full method in its biased version.
+
+One setting differs from the paper.
+
+The paper's biased results keep four reservoirs in each pixel, and the lab keeps one.
+
+${cue "key" {' {glide cameraYaw 30.0 sentence}}}Watch how much noise disappears.
+
+Then look at the panel, for how little time the new passes add.
 
 ${cue "key" {' {callout "biased-vs-unbiased"}}}${overText
     {' {restirUnbiasedRange 0.0 1.0}}
-    "Last comes the unbiased form, with its extra shadow rays in the spatial pass"}.
+    "Last comes the unbiased version, with its extra shadow rays in the spatial pass"}.
 
-The paper reports that the biased form has less noise, and that the unbiased form loses no energy to bias.
+The paper reports that the biased version has less noise than the unbiased one.
+
+It also reports that the unbiased version loses no brightness to bias, so its edges are not darkened.
 
 ### Against a reference {#c7-reference kind=3d}
 
@@ -667,11 +808,19 @@ ${cue "key" {opening demoReference panelHidden {append baseRoom {append roomCame
     {restirTemporal 0.0}
     {restirSpatialPasses 0.0}}}}}}
 
-The reference is the room averaged over many frames of streaming RIS, which converges to the image every method estimates.
+Each version estimates the same image.
 
-The package includes an experiment that measures each method's error against this reference, on whichever machine runs it.
+Here the lab makes that image by averaging the room over many frames of streaming RIS, until the average stops changing.
 
-### Where to read it {#c7-sources kind=2d sources="results-setup, biased-vs-unbiased, sample-count"}
+Streaming RIS is unbiased, so this average has no bias, and enough frames leave almost no noise.
+
+This image is called the reference.
+
+The reference also lets each version be measured.
+
+An experiment that comes with this video measures how far each version's image is from the reference, on whichever machine runs it.
+
+### Where to read it {#c7-sources kind=2d sources="still-images, results-setup, biased-vs-unbiased, sample-count"}
 
 The paper's own results are in section six.
 
@@ -682,33 +831,41 @@ The paper's own results are in section six.
 ${cue "key" {opening demoRoom panelHidden {append baseRoom {append roomCamera {noReuse 1.0}}}}}
 ${cue "key" floatRoom}
 
-To close, here is the frame once more, in order.
+To close, here is one frame once more, step by step.
 
 ${overText
     {' {restirCandidatesRange 1.0 32.0}}
-    "Each pixel draws thirty-two candidates and keeps one, in a reservoir"}.
+    "Each pixel draws thirty-two candidates, and keeps one in its reservoir"}.
 
-${overText {' {restirStageRange 0.0 1.0}} "A shadow ray tests the sample it kept"}.
+${overText
+    {' {restirStageRange 0.0 1.0}}
+    "Each pixel then traces a shadow ray to the sample it kept"}.
 
-${overText {' {restirTemporalRange 0.0 1.0}} "The previous frame then adds its reservoir"}.
+${overText
+    {' {restirTemporalRange 0.0 1.0}}
+    "It combines the previous frame's reservoir with its own"}.
 
 ${overText
     {' {restirSpatialPassesRange 0.0 2.0}}
-    "Then the neighbours' reservoirs join in, round by round"}.
+    "Then it combines its neighbours' reservoirs, round by round"}.
 
-${cue "key" {' {restirStage 3.0}}}Only then is the pixel shaded.
+${cue "key" {' {restirStage 3.0}}}Only then is the pixel shaded, with its final reservoir.
 
 ### What the paper concludes {#c8-paper kind=2d diagram=alg5 focus="RIS, VIS, TEMP, SPAT, SHADE, PREV"}
 
-${cue "key" {' {callout "conclusion"}}}The authors conclude that denoising need not be a separate step after rendering.
+${cue "key" {' {callout "conclusion"}}}The authors conclude that filtering need not come only after rendering, as a denoiser does it.
 
-ReSTIR filters the chances of picking each light, rather than the colours.
+ReSTIR already filters while it samples, but what it filters is the chance of picking each light, not the colours.
 
-${cue "key" {' {callout "limitations"}}}Its gain shrinks where neighbouring pixels differ, so their samples help each other less.
+A denoiser can still run afterwards, on its better samples.
 
-That happens where hidden surfaces come into view, at sharp changes in lighting, and with fast-moving lights.
+${cue "key" {' {callout "limitations"}}}ReSTIR's gain shrinks where neighbouring pixels differ, because then their samples help each other less.
 
-${cue "key" {' {callout "screen-space"}}}It also works only at the first surface each pixel sees, and extending it to surfaces beyond is left for future work.
+Neighbouring pixels differ most where hidden surfaces come into view, where the lighting changes sharply, and where lights move fast.
+
+${cue "key" {' {callout "screen-space"}}}ReSTIR also works only at the first surface each pixel sees.
+
+The authors leave the surfaces beyond it to future work.
 
 ### Three things to remember {#c8-takeaways kind=3d}
 
@@ -717,7 +874,7 @@ ${cue "key" floatRoom}
 
 ${overText
     {' {lightPhaseRange 0.0 0.08}}
-    "First, a reservoir summarises a whole stream of candidates in a few numbers"}.
+    "First, a reservoir sums up a whole stream of candidates in a few numbers"}.
 
 ${overText
     {' {lightPhaseRange 0.08 0.16}}
@@ -725,12 +882,12 @@ ${overText
 
 ${overText
     {' {lightPhaseRange 0.16 0.24}}
-    "Third, reuse stays unbiased only when every source that could have produced a sample is counted"}.
+    "Third, reuse stays unbiased only when W counts every reservoir that could have produced a sample"}.
 
 ### Where to read it {#c8-sources kind=2d sources="conclusion, limitations, screen-space"}
 
-The conclusion and its limits are section eight.
+The conclusion and its limits are in section eight.
 
 ### References {#c8-references kind=2d references=true}
 
-These are the works this video cites, including the paper itself.
+These are the works this video cites, the paper itself among them.
