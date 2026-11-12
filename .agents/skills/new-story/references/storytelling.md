@@ -1,29 +1,25 @@
----
-name: storytelling
-description: How Render Lab's explanations are written, sentence by sentence, and how to find and fix a passage that is hard to follow. Each sentence adds one new thing at its end, starts from what the sentence before ended on, tells a process in verbs before naming it as a noun, and does one job (point, act, branch, name, give a purpose, reframe, check, compress, bridge); a passage builds an idea from an anchor, by contrast, or in stated stages. Covers the sentence map (each sentence's known and new part and its job), the faults it shows, and their fixes, in English and in Chinese. Use when writing, revising, or reviewing a story's narration, a chapter's sentences, a bridge, or on-screen explanatory text (descriptions, inspect text, quiz explanations), or when a reviewer or the user says a passage is unclear. What a story says, its facts and visuals, is `new-story`'s; its syntax is `render-lab-lamlet`'s.
----
-
-# Storytelling: how an explanation is written
+# How an explanation is written: sentence by sentence
 
 A listener follows an explanation when they never have to hold an unexplained word, an unnamed thing, or an unanswered
 "why" for long. Every sentence either attaches to something already said or shown, or says where it is going. This
-skill is how to write that way, and how to find and fix the sentences that break it.
+file is how to write that way, and how to find and fix the sentences that break it.
 
-It is loaded by `new-story` whenever narration is written or revised, and its rules sit on top of that skill's
-"Written for the ear" (`new-story`, `references/storyboard.md`): those rules are required and are the floor (subject and
-verb first, one appended phrase, no colons or semicolons, one referent per pronoun); this skill is how sentences and
-passages are built above it. Where the two seem to disagree in narration, the ear rules win. On-screen text read at the
-reader's own pace (descriptions, inspect text, quiz explanations) follows this skill, and may use a colon.
+Load this whenever narration is written or revised (SKILL.md, "How explanations are written"), and for on-screen
+explanatory text. Its rules sit on top of "Written for the ear" (`references/storyboard.md`): those rules are required
+and are the floor (subject and
+verb first, one appended phrase, no colons or semicolons, one referent per pronoun); this file is how sentences and
+passages are built above them. Where the two seem to disagree in narration, the ear rules win. On-screen text read at the
+reader's own pace (descriptions, inspect text, quiz explanations) follows this file, and may use a colon.
 
 ## Choose the depth
 
 | Task | Do | Load |
 |---|---|---|
 | **A sentence** reworded or added | Its map row (below): its known part comes from the sentence before or the screen, its new part is last and single, its job is clear. Map the sentences on each side of it too: a new sentence moves the chain. | this file |
-| **A passage or chapter** written or rewritten | Write it with "Building a passage"; then map every sentence, fix every fault, and re-map what you edited | this file, `references/examples.md` |
-| **A review** flagged a passage, or the user says it is unclear | "Finding and fixing": map it, name each fault, fix by the table, re-check against the ear rules | this file, `references/examples.md` |
-| **A whole story** reviewed or revised, or many sentences that carry cues edited | The narration as heard, reviewers per story with every flag verified, cue-safe edits, the translation in step, only facts a rewrite may add, then the checks | this file, `references/examples.md`, `references/revision.md` |
-| **The translation** | "In Chinese" below, with `new-story`'s rules for the translation | this file |
+| **A passage or chapter** written or rewritten | Write it with "Building a passage"; then map every sentence, fix every fault, and re-map what you edited | this file, `references/storytelling-examples.md` |
+| **A review** flagged a passage, or the user says it is unclear | "Finding and fixing": map it, name each fault, fix by the table, re-check against the ear rules | this file, `references/storytelling-examples.md` |
+| **A whole story** reviewed or revised, or many sentences that carry cues edited | The narration as heard, reviewers per story with every flag verified, cue-safe edits, the translation in step, only facts a rewrite may add, then the checks | this file, `references/storytelling-examples.md`, `references/storytelling-revision.md` |
+| **The translation** | "In Chinese" below, with the translation's rules (`references/storyboard.md`) | this file |
 
 ## The sentence
 
@@ -121,22 +117,22 @@ prose.
 | The passage ends mid-act | no landing | End on a compress or a bridge |
 
 After fixing, map the edited sentences again and check them against the ear rules. A split often breaks a pronoun, and
-a reordering can change a claim: re-check its fact (`new-story`, "What is required at every depth").
+a reordering can change a claim: re-check its fact (SKILL.md, "What is required at every depth").
 
 **A fix changes how a fact is said, never which facts are said.** It may add a bridge, a landing, the standard gloss
 of a general term, a consequence that follows by arithmetic from what is narrated, or a lab difference read from the
-lab's code. A reason or purpose for the engine's choice comes only from the engine's source (or the package's
-research that cites it); without one, restructure the sentence, or state the value as the engine's choice. When two
+lab's code. A reason or purpose for the engine's (or the authors') choice comes only from the engine's source or the
+paper (or the package's research that cites it); without one, restructure the sentence, or state the value as the engine's choice. When two
 sentences contradict each other, or a title disagrees with its beat, settle the fact before rewording.
 
-`references/examples.md`, section 3, has the faults a revision finds most, with their fixes;
-`references/revision.md` is the whole-story procedure: reading the narration as heard, reviewing at scale, editing
+`references/storytelling-examples.md`, section 3, has the faults a revision finds most, with their fixes;
+`references/storytelling-revision.md` is the whole-story procedure: reading the narration as heard, reviewing at scale, editing
 around cues and ranges, and keeping the translation in step.
 
 ## In Chinese
 
-The same structure holds, written as Chinese, not mirrored from the English (`new-story`, `references/storyboard.md`,
-"Written for the ear"). Chinese puts the topic first even more strongly than English: open each sentence with what is
+The same structure holds, written as Chinese, not mirrored from the English (`references/storyboard.md`, "Written
+for the ear"). Chinese puts the topic first even more strongly than English: open each sentence with what is
 already known (一句话先说已知，再说新的), and let the new part land at the end of the sentence, before 。. Name a
 technique after describing it (……这就是所谓的……, or ……，叫作……). Keep one word for one thing across the edition (its
 `glossary`). Mark the relation with 所以, 因为, 但是, 于是, 否则 rather than leaving it to the reader. The translation
@@ -147,8 +143,7 @@ that paragraph, never across two.
 
 | Change | Check |
 |---|---|
-| A sentence | Its map row and its neighbours' rows; the ear rules; `--prepare-only` and the beat's stills (`new-story`) |
-| A passage or chapter | The map of every sentence, no fault left; the cold-listener review (`new-story`, `references/review.md`) with no flag left of the kinds it requires fixed |
-| A whole story | `references/revision.md`, "Check": layout, `tools/video/check.py` in both languages (paragraph counts), `--prepare-only` for both (a chapter over its budget gets a larger budget, never less explanation), the changed beats' stills |
+| A sentence | Its map row and its neighbours' rows; the ear rules; `--prepare-only` and the beat's stills (`references/storyboard.md`) |
+| A passage or chapter | The map of every sentence, no fault left; the cold-listener review (`references/review.md`) with no flag left of the kinds it requires fixed |
+| A whole story | `references/storytelling-revision.md`, "Check": layout, `tools/video/check.py` in both languages (paragraph counts), `--prepare-only` for both (a chapter over its budget gets a larger budget, never less explanation), the changed beats' stills |
 | Explanatory on-screen text | Its map; both languages' keys (AGENTS.md); `render-lab i18n --check` |
-| This skill | `python3 tools/check_skills.py` |

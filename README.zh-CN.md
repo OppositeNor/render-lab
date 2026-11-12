@@ -63,7 +63,7 @@ cargo run --release
 
 仓库包含为 AI 编程智能体编写的技能（skills），位于 [`.agents/skills/`](.agents/skills)（Agent Skills 布局，Claude Code
 通过 `.claude/skills/` 中的链接使用），所有智能体遵循的规则见 [`AGENTS.md`](AGENTS.md)。每个技能指导一类任务：
-`new-investigation`、`new-story`（及 `new-story-engine` 和 `new-story-paper`）、`storytelling`、`packages`、`render-graph`、`knowledge-graph`、`experiments` 和 `render-lab-lamlet`。
+`new-investigation`、`new-story`（及 `new-story-engine` 和 `new-story-paper`，它也说明每段讲解该怎样写）、`packages`、`render-graph`、`knowledge-graph`、`experiments` 和 `render-lab-lamlet`。
 
 开始一项新研究时，可以这样告诉智能体：
 

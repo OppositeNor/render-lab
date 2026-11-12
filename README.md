@@ -76,8 +76,8 @@ See [Using Render Lab](docs/usage.md) for the controls.
 
 The repository includes skills written for AI coding agents, in [`.agents/skills/`](.agents/skills) (the Agent Skills
 layout, linked from `.claude/skills/` for Claude Code), with the rules every agent follows in [`AGENTS.md`](AGENTS.md).
-Each skill guides one kind of task: `new-investigation`, `new-story` (with `new-story-engine` and `new-story-paper`),
-`storytelling`, `packages`, `render-graph`, `knowledge-graph`, `experiments`, and `render-lab-lamlet`.
+Each skill guides one kind of task: `new-investigation`, `new-story` (with `new-story-engine` and `new-story-paper`;
+it also holds how every explanation is written), `packages`, `render-graph`, `knowledge-graph`, `experiments`, and `render-lab-lamlet`.
 
 To start a new investigation, ask an agent:
 

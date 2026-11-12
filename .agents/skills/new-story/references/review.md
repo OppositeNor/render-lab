@@ -82,7 +82,7 @@ It gets no source, no outline, and no storyboard markup. Its prompt:
 > suggest rewrites. For each flagged sentence: its first five words, the problem numbers, and one line on what you
 > lost. Then what you understood the chapter to say, and what you would still ask.
 
-Fix the flagged sentences under "Written for the ear" (`references/storyboard.md`) and the `storytelling` skill's
+Fix the flagged sentences under "Written for the ear" (`references/storyboard.md`) and `references/storytelling.md`'s
 "Finding and fixing" (map the flagged sentence with its neighbours: a flag is often caused by the sentence before),
 re-check every edited sentence against those rules, and run it again. Judge by the flags, not by a score: the chapter
 passes when no flag of kinds 1, 2, 3, or 6 is left, and each flag of kinds 4 and 5 is either fixed or answered by the

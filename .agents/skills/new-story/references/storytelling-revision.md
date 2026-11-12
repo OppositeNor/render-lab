@@ -1,7 +1,7 @@
 # Revising a storyboard's narration
 
 Load this to review or fix the narration of a whole story, or of a chapter, in its storyboard
-(`packages/<package>/video/storyboard.lam` and `storyboard.zh-CN.lam`). The skill's SKILL.md says what a good sentence is;
+(`packages/<package>/video/storyboard.lam` and `storyboard.zh-CN.lam`). `references/storytelling.md` says what a good sentence is;
 this file is how to find the faults across a story, how to edit sentences that carry cues, how the translation
 follows, and what a rewrite may add.
 
@@ -36,8 +36,8 @@ Run it from the repository's root with the lab built. The same file is what a re
 ## 2. Review a whole story
 
 A story has hundreds of sentences, so map it with reviewers, one per story (or per few chapters), on a cheaper
-model (AGENTS.md). Give each the same brief: read this skill, its `references/examples.md`, and `new-story`'s
-"Written for the ear"; judge language only; map every sentence; report only faulty sentences, each with its beat,
+model (AGENTS.md). Give each the same brief: read `references/storytelling.md`, `references/storytelling-examples.md`, and
+"Written for the ear" (`references/storyboard.md`); judge language only; map every sentence; report only faulty sentences, each with its beat,
 number, line, map row, fault, and a rewrite that keeps every fact; mark each rewrite that splits a sentence; mark
 "needs fact" where a fix needs a reason the narration lacks; end with the story's drifting terms and its ten most
 important fixes. The review of a local package stays in that package.
@@ -83,7 +83,7 @@ moves timing, so:
 - A split English sentence splits its Chinese paragraph; an added sentence adds a paragraph in the same place; a
   reordered pair reorders the pair. A changed English sentence changes its Chinese paragraph only when its meaning or
   its order of ideas changed.
-- Write the new paragraph as Chinese (SKILL.md, "In Chinese"), with the same term the edition uses elsewhere. Check
+- Write the new paragraph as Chinese (`references/storytelling.md`, "In Chinese"), with the same term the edition uses elsewhere. Check
   that a new word does not collide with one already taken: if 脏区 is the dirty slab, the new space before it is
   marked needs another word (薄层).
 - Change a renamed term everywhere in both editions (once "the probe cube" is the English term, the Chinese edition says
@@ -106,7 +106,7 @@ A rewrite changes how a fact is said, not which facts are said. It may add:
 It may not add a reason, a purpose, or a consequence that needs the engine's source, unless it is read there (or in
 the package's `story/research.md`, which cites it) for this edit. Where a fault needs such a fact and none is at hand,
 restructure the sentence without it, or state a constant as the engine's choice. A new or changed fact still needs
-its callout or its chapter's `sources` (`new-story`).
+its callout or its chapter's `sources` (SKILL.md).
 
 ## 6. Check
 
@@ -116,5 +116,5 @@ After the edits, for each changed story:
    In zsh, pass several paths through an array (`L=(a b); … "${L[@]}"`), since a string is one word.
 2. `python3 tools/video/check.py --investigation <id>` for `en` and `zh-CN`.
 3. `python3 tools/video/build.py --investigation <id> --prepare-only`, English then `--lang zh-CN`, one at a time.
-4. The stills of the changed beats (`new-story`, `references/storyboard.md`), looked at.
+4. The stills of the changed beats (`references/storyboard.md`), looked at.
 5. A new map of every edited sentence and its neighbours: a split often leaves a pronoun pointing at the wrong half.

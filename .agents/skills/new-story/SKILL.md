@@ -1,6 +1,6 @@
 ---
 name: new-story
-description: The process and standard every Render Lab story shares, whatever it explains: an investigation's narrated video (its storyboard and the demonstrations it needs), from the outline and the knowledge level through demonstrations, the storyboard's sentences and cues, per-chapter reviews from offscreen stills, the fact check, the quiz, and both editions' build. Scales from adjusting one cue or sentence to a whole new story. Use when asked to create or plan a story or video, outline or restructure chapters, write, adjust, or review narration, cues, animations, or depth, or act on feedback about a built video; load with it the variant for what the story explains, `new-story-engine` (an engine's feature, read from its source) or `new-story-paper` (a paper's method, read from the paper). For the storyboard's Lamlet syntax use `render-lab-lamlet`; for the package, port, and source index use `new-investigation`.
+description: The process and standard every Render Lab story shares, whatever it explains: an investigation's narrated video (storyboard and demonstrations), from the outline and the knowledge level through demonstrations, sentences and cues, per-chapter reviews from offscreen stills, the fact check, the quiz, and both editions' build; and how every explanation is written, sentence by sentence (the sentence map, its faults and fixes, in English and Chinese). Scales from one cue or sentence to a whole story. Use when asked to create or plan a story or video, outline or restructure chapters, write, adjust, or review narration, cues, animations, or depth, act on feedback about a built video, or write or fix explanatory on-screen text or a passage that is hard to follow; load with it the variant, `new-story-engine` (an engine's feature) or `new-story-paper` (a paper's method). Lamlet syntax is `render-lab-lamlet`'s; the package, port, and index `new-investigation`'s.
 ---
 
 # A story for an investigation
@@ -18,9 +18,6 @@ Other skills own the rest:
 - `new-investigation` (**required**): the package, the port, its CPU mirror and selftest, the source index, and the
   video's inputs, for Phase 4 and when a demonstration needs code; its "Precision" section is the standard every
   engine sentence meets, and `new-story-paper`'s "Precision for a paper" the one every paper sentence meets.
-- `storytelling` (**required when writing or revising narration**, from one sentence to a chapter, and when a review
-  flags one): how each sentence is built (its known and new parts, its job), how sentences chain, how a passage
-  develops an idea, and the sentence map that finds and fixes what is hard to follow.
 - `render-lab-lamlet` (**required when writing cues**): the storyboard's syntax, its vocabulary, the translation's
   form.
 - `knowledge-graph` (**useful**): the graph, the audience's commands, and the Prerequisites tab.
@@ -32,8 +29,8 @@ AGENTS.md, "How deep a task goes", sets the levels; for a story they are:
 
 | Task | Do | Load |
 |---|---|---|
-| **Local**: a cue, a sentence's wording, a camera key, a callout, a timing | Edit it; `--prepare-only` (both languages when a sentence changed; the build too if code changed); render stills across the beat (`references/storyboard.md`, "Check each chapter") and look at them. A changed or split English sentence changes its zh-CN paragraph too (a cue-only change leaves the translation alone). A changed **fact** is verified against its primary source before it is narrated (the variant's fact check, for that sentence). A changed sentence is mapped with its neighbours (`storytelling`). | `references/storyboard.md`, `storytelling` |
-| **Chapter**: a chapter rewritten, a beat or demonstration added, a chapter's depth or audience changed | Phases 5 to 7 for that chapter (with Phase 3 for a new demonstration), its neighbours' bridges, its animation count, the knowledge check, then Phase 8's checks except the full build (the selftest with `--timeline` for labels, text sizes, and fit; both languages' `--prepare-only`) | the references of those phases, `storytelling`, the variant |
+| **Local**: a cue, a sentence's wording, a camera key, a callout, a timing | Edit it; `--prepare-only` (both languages when a sentence changed; the build too if code changed); render stills across the beat (`references/storyboard.md`, "Check each chapter") and look at them. A changed or split English sentence changes its zh-CN paragraph too (a cue-only change leaves the translation alone). A changed **fact** is verified against its primary source before it is narrated (the variant's fact check, for that sentence). A changed sentence is mapped with its neighbours (`references/storytelling.md`). | `references/storyboard.md`, `references/storytelling.md` |
+| **Chapter**: a chapter rewritten, a beat or demonstration added, a chapter's depth or audience changed | Phases 5 to 7 for that chapter (with Phase 3 for a new demonstration), its neighbours' bridges, its animation count, the knowledge check, then Phase 8's checks except the full build (the selftest with `--timeline` for labels, text sizes, and fit; both languages' `--prepare-only`) | the references of those phases, `references/storytelling.md`, the variant |
 | **Story**: a new story, or a redesign of an existing one | Every phase, in order | each phase's reference as you reach it, the variant |
 | **Feedback** on a built story | `references/review.md`, "Revising a finished story" | it, then what the corrections need |
 | **Quiz**: writing or revising a story's quiz | `references/quiz.md`: the quiz agent, then the quiz file and its checks | `references/quiz.md` |
@@ -50,7 +47,7 @@ These do not relax for a small change:
   lab's code, never typed in.
 - Each sentence has a visual that shows it; a listing highlight changes the scene; a view is explained when it appears.
 - The narration is clear and in-depth: written for the ear (`references/storyboard.md`, "Written for the ear"), built
-  and checked sentence by sentence with the `storytelling` skill's map, and
+  and checked sentence by sentence with the sentence map (`references/storytelling.md`), and
   each changed chapter passes the cold-listener review and the native-language review, one reviewer per language,
   briefed in its own language (`references/review.md`).
 - The translation keeps one paragraph per English sentence, the same headings and formulas.
@@ -61,6 +58,18 @@ These do not relax for a small change:
 In the references, **required** marks a correctness rule; the other rules are the standard a story is reviewed
 against, and an exception needs a reason a reviewer would accept. Wording like "about", "prefer", or "where it fits"
 marks a heuristic.
+
+## How explanations are written
+
+Every sentence a listener hears, and every explanatory text read on screen (descriptions, inspect text, quiz
+explanations), is built the same way (**required when writing or revising narration**, from one sentence to a
+chapter, and when a review or the user says a passage is unclear): each sentence adds one new thing at its end,
+starts from what the sentence before ended on, tells a process in verbs before naming it as a noun, and does one job;
+a passage builds an idea from an anchor, by contrast, or in stated stages. The rules, the sentence map that finds what
+is hard to follow, its faults and fixes, and the Chinese form are in `references/storytelling.md`; worked drafts and
+their maps in `references/storytelling-examples.md`; reviewing and revising a whole story's narration at scale (cue-safe
+edits, the translation in step) in `references/storytelling-revision.md`. They sit on top of "Written for the ear"
+(`references/storyboard.md`), whose rules win where the two seem to disagree in narration.
 
 ## Working with agents
 
@@ -112,9 +121,9 @@ code, say) is asked when the phase reaches it, not saved for a gate.
 | 2. Outline | `story/outline.md`, `[audience]` in `knowledge.toml` | `references/outline.md`, the variant's story structure | every key claim has a source and a visual, every chapter a budget, the level checked; gate |
 | 3. Demonstrations | `story/demonstrations.md`, the views and their interactions | `references/demonstrations.md`, the variant's notes on data | the data mirrored as its source keeps it, every view interactive, the interaction review answered, every taught topic demonstrated, pick round-trip in the selftest; gate |
 | 4. The base | index entries, port, mirror, selftest, listings, formulas, step parameters | `new-investigation` (procedure steps 3 to 6) | below |
-| 5. Storyboard | `storyboard.lam`, chapter by chapter | `references/storyboard.md`, `storytelling` | each chapter's sentences mapped with no fault left, the chapter prepared, its stills looked at |
+| 5. Storyboard | `storyboard.lam`, chapter by chapter | `references/storyboard.md`, `references/storytelling.md` | each chapter's sentences mapped with no fault left, the chapter prepared, its stills looked at |
 | 6. Showing the data | animations, interactions, views | `references/storyboard.md`, Phase 6 | each chapter's supporting animations at least ⌈T / 6 s⌉, no gap over about 12 s, every named mechanism shown (a replay only with a reason the narration gives), its per-beat checks passed |
-| 7. Review | `story/reviews/`, revisions | `references/review.md`, `storytelling`, the variant's fact check | every review row (the interaction review's included) fixed or answered, every fact verified or a stated simplification |
+| 7. Review | `story/reviews/`, revisions | `references/review.md`, `references/storytelling.md`, the variant's fact check | every review row (the interaction review's included) fixed or answered, every fact verified or a stated simplification |
 | 8. Translate and build | `storyboard.zh-CN.lam`, both editions | below | the checks below pass, the user asked to watch |
 
 ### Phase 4: The base

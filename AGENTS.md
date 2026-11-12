@@ -59,7 +59,7 @@ present, read every `AGENTS.md` inside them before working on anything else.** I
 - **Comments in function bodies.** Where a chunk of Rust or Python is hard to follow (a branch, a loop, a step of a
   long function), a `//` (`#`) comment of one line, two at most, says what it does. A branch's or loop's comment is
   the first line of its body (`if …: # …`, `for … { // …`), not above its header; one that covers every arm of a
-  `match` goes above it. Write it as the `storytelling` skill writes a sentence: start from what the reader has (the
+  `match` goes above it. Write it as `new-story`'s `references/storytelling.md` writes a sentence: start from what the reader has (the
   variable, the step before), end on what is new, tell a process in verbs, and give the purpose. State only what the
   code does; a reason comes from the engine's source or the lab's code, never a guess. Code that reads plainly needs
   none, and on-screen listings (`pseudocode/`) are left as they are.
@@ -192,9 +192,9 @@ Code. All are published. Load the skill that owns the task; load another only wh
 | Task | Skill | Also required | Useful |
 |---|---|---|---|
 | A new investigation; porting an engine's shader; a source index, listing, formula, demonstration, value, or Play animation; verifying an investigation's claims against the engine | `new-investigation` | `packages` (a new package) | `render-graph`, `experiments` |
-| Researching, outlining, writing, reviewing, or revising an investigation's narrated story | `new-story` | its variant: `new-story-engine` (an engine's feature) or `new-story-paper` (a paper's method); `new-investigation` (its precision standard), `storytelling` (when writing or revising narration), `render-lab-lamlet` (when writing cues) | `knowledge-graph` |
+| Researching, outlining, writing, reviewing, or revising an investigation's narrated story | `new-story` | its variant: `new-story-engine` (an engine's feature) or `new-story-paper` (a paper's method); `new-investigation` (its precision standard), `render-lab-lamlet` (when writing cues) | `knowledge-graph` |
 | Investigating a paper: reading it, its contributions and related work, its authors' code against it, its story's chapters | `new-story-paper` | `new-story`, `new-investigation` | `experiments` (its Experimentation chapter) |
-| How an explanation is written: a sentence's known and new parts, the chain between sentences, a passage's shape; finding and fixing a passage that is hard to follow (narration, explanatory on-screen text) | `storytelling` | | `new-story` (what a story says and shows) |
+| How an explanation is written: a sentence's known and new parts, the chain between sentences, a passage's shape; finding and fixing a passage that is hard to follow (narration, explanatory on-screen text) | `new-story` (its `references/storytelling.md`) | | |
 | A storyboard's syntax or cues, a package's live scripts (`script/*.lam`), the runtime library, `render_lab.lam`, the lab's Lamlet code | `render-lab-lamlet` | the pinned `lamlet` / `lamlet-present` skills it names | `new-story` (what a story should say and show) |
 | A pass, target, buffer, volume, history, or program of a frame; the lint's refusals; the inspector, graph panel, DAG | `render-graph` | | `experiments` (`[inspect]`) |
 | Topics, chapter requirements, an investigation's audience, the Prerequisites tab | `knowledge-graph` | | `new-story` (costing a story's level) |

@@ -1,6 +1,6 @@
 # Worked examples: mapping and fixing a passage
 
-Load this when you write or fix a passage with the `storytelling` skill. Each example shows a draft, its map, the
+Load this when you write or fix a passage with `references/storytelling.md`. Each example shows a draft, its map, the
 faults the map shows, and the fixed passage with its map. Sections 1, 2, and 4 are written for these examples;
 section 3 quotes the published stories' storyboards.
 

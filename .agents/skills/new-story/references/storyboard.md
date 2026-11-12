@@ -49,7 +49,7 @@ The narration is heard once, at speaking speed, by the story's listener (its car
 why it is so or what it changes. Clarity is never bought by cutting depth: a dense passage becomes more sentences, not
 fewer facts. Write the draft for accuracy, then edit it for the ear under these rules (required), then check its facts
 again, since rewording can change a claim. These rules are the floor. How each sentence orders what is known and what
-is new, how sentences chain, and how a passage builds an idea are the `storytelling` skill's (required when writing or
+is new, how sentences chain, and how a passage builds an idea are `references/storytelling.md`'s (required when writing or
 revising narration): map each chapter's sentences with it and fix what the map shows.
 
 - **Subject and verb first.** At most one short phrase before them. Never open with a participle ("Averaged in as
