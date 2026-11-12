@@ -11,6 +11,11 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
   APA style. The sources card, callouts, the Code tab, and the homepage show a paper's sections and pages where an
   engine's show paths and lines; a 2D beat with `references=true` shows the references card; the video's
   verification checks the PDF's hash (`paperEnv` in `video.json`).
+- Papers: ReSTIR (Bitterli et al. 2020), implemented from the paper in a new public package, `paper_restir`: its
+  passes in WGSL with a CPU mirror and selftest, demonstrations of RIS, reservoir sampling, spatial and temporal
+  reuse, visibility reuse, and the bias and its removal (the paper's 1D example), an experiment that measures each
+  method on the machine that runs it, and a narrated story in English and Chinese. The knowledge graph gains
+  resampled importance sampling, weighted reservoir sampling, and reservoir reuse.
 - Agent skills: `new-story` now holds what every story shares, with two variants: `new-story-engine` (an engine's
   feature, read from its checkout) and `new-story-paper` (a paper's method: reading its contributions, related work,
   and method; checking the authors' code against it; and its chapters, from the introduction to the experiments run

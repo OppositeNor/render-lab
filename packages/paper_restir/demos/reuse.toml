@@ -1,0 +1,21 @@
+# Temporal and visibility reuse at P: its reservoir before and after last frame's is combined, and the shadow ray to the sample it keeps; no spatial rounds.
+
+key = "reuse"
+title-text = "shot-reuse_title"
+tab-text = "shot-reuse"
+hint-text = "shot-reuse_hint"
+scene = "paper_restir.scene/restir-room"
+listing = "frame"
+resets-camera = true
+
+[camera]
+target = [0.0, 0.9, -0.6]
+yaw = 18.0
+pitch = 14.0
+distance = 4.6
+fov = 55.0
+
+
+[params]
+restirSpatialPasses = 0
+restirStage = 2

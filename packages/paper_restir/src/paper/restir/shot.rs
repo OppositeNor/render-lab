@@ -9,28 +9,34 @@ use lab::shot::{DemoId, ShotState};
 pub enum Demo {
     Room,
     Ris,
-    Stage0,
-    Accum,
+    Reservoirs,
+    Reference,
     Spatial,
     Bias,
+    Reuse,
+    Methods,
 }
 
 impl Demo {
-    pub const ALL: [Demo; 6] = [
+    pub const ALL: [Demo; 8] = [
         Demo::Room,
         Demo::Ris,
-        Demo::Stage0,
-        Demo::Accum,
+        Demo::Reservoirs,
+        Demo::Reference,
         Demo::Spatial,
         Demo::Bias,
+        Demo::Reuse,
+        Demo::Methods,
     ];
 
     pub fn key(self) -> &'static str {
         match self {
             Demo::Room => "room",
             Demo::Ris => "ris",
-            Demo::Stage0 => "stage0",
-            Demo::Accum => "accum",
+            Demo::Reservoirs => "reservoirs",
+            Demo::Reference => "reference",
+            Demo::Methods => "methods",
+            Demo::Reuse => "reuse",
             Demo::Bias => "bias",
             Demo::Spatial => "spatial",
         }

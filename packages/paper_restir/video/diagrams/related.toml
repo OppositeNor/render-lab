@@ -1,0 +1,49 @@
+# The related work (chapter 2; the paper's §2 and §7): the foundations ReSTIR is made of, and the other approaches.
+
+[[node]]
+id = "FOUNDATIONS"
+title-text = "diagram-related-foundations"
+
+[[node.row]]
+id = "RIS"
+label-text = "diagram-related-ris"
+
+[[node.row]]
+id = "WRS"
+label-text = "diagram-related-wrs"
+
+[[node]]
+id = "OTHERS"
+title-text = "diagram-related-others"
+dashed = true
+
+[[node.row]]
+id = "MANY"
+label-text = "diagram-related-many"
+
+[[node.row]]
+id = "TILED"
+label-text = "diagram-related-tiled"
+
+[[node.row]]
+id = "PATHS"
+label-text = "diagram-related-paths"
+
+[[node.row]]
+id = "DENOISE"
+label-text = "diagram-related-denoise"
+
+[[node]]
+id = "RESTIR"
+title-text = "diagram-related-restir"
+
+[[edge]]
+from = "FOUNDATIONS"
+to = "RESTIR"
+label-text = "diagram-related-builds"
+
+[[edge]]
+from = "OTHERS"
+to = "RESTIR"
+label-text = "diagram-related-compares"
+dotted = true

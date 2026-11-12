@@ -7,7 +7,7 @@ use lab::resources;
 use std::sync::OnceLock;
 
 /// In the order the viewer lists them; each is the resource `paper_restir.listing/<name>`.
-const NAMES: &[&str] = &["frame"];
+const NAMES: &[&str] = &["frame", "ris", "combine"];
 
 pub fn all() -> &'static [Listing] {
     static LISTINGS: OnceLock<Vec<Listing>> = OnceLock::new();

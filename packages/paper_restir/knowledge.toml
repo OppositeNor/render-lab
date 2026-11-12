@@ -4,7 +4,7 @@
 
 [audience]
 profile = "Has written a physically based renderer: knows the GPU pipeline, depth and G-buffers, microfacet BRDFs, area lights, and Monte Carlo integration with importance sampling."
-known = ["render_lab.knowledge#gpu-compute", "render_lab.knowledge#gpu-passes", "render_lab.knowledge#rt-spaces", "render_lab.knowledge#rt-depth", "render_lab.knowledge#rt-gbuffer", "render_lab.knowledge#cg-ggx", "render_lab.knowledge#cg-area-lights", "render_lab.knowledge#cg-importance-sampling"]
+known = ["render_lab.knowledge#gpu-compute", "render_lab.knowledge#gpu-passes", "render_lab.knowledge#rt-spaces", "render_lab.knowledge#rt-depth", "render_lab.knowledge#rt-gbuffer", "render_lab.knowledge#cg-importance-sampling"]
 
 [[chapter]]
 number = 1
@@ -14,34 +14,24 @@ requires = ["render_lab.knowledge#cg-light-sampling"]
 [[chapter]]
 number = 2
 demos = ["room"]
-requires = ["render_lab.knowledge#cg-importance-sampling", "render_lab.knowledge#cg-light-sampling"]
+requires = ["render_lab.knowledge#cg-light-sampling", "render_lab.knowledge#cg-ris", "render_lab.knowledge#cg-wrs"]
 
 [[chapter]]
 number = 3
 demos = ["room"]
-requires = ["render_lab.knowledge#cg-light-sampling"]
+requires = ["render_lab.knowledge#cg-ris", "render_lab.knowledge#cg-wrs"]
 
 [[chapter]]
 number = 4
 demos = ["room"]
-requires = ["render_lab.knowledge#rt-gbuffer"]
+requires = ["render_lab.knowledge#cg-reservoir-reuse", "render_lab.knowledge#rt-gbuffer"]
 
 [[chapter]]
 number = 5
 demos = ["room"]
-requires = ["render_lab.knowledge#rt-reprojection", "render_lab.knowledge#cg-visibility"]
+requires = ["render_lab.knowledge#cg-reservoir-reuse", "render_lab.knowledge#rt-reprojection", "render_lab.knowledge#cg-visibility"]
 
 [[chapter]]
 number = 6
 demos = ["room"]
-requires = ["render_lab.knowledge#cg-importance-sampling"]
-
-[[chapter]]
-number = 7
-demos = ["room"]
-requires = []
-
-[[chapter]]
-number = 8
-demos = ["room"]
-requires = []
+requires = ["render_lab.knowledge#cg-reservoir-reuse"]

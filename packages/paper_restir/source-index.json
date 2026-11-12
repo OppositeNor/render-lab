@@ -12,64 +12,51 @@
   "references": [
     {
       "key": "bekaert2002",
-      "apa": "Bekaert, P., Sbert, M., & Halton, J. (2002). Accelerating path tracing by re-using paths. In *Proceedings of the 13th Eurographics Workshop on Rendering* (pp. 125–134). Eurographics Association. https://doi.org/10/ggdwkn"
+      "apa": "Bekaert, P., Sbert, M., & Halton, J. (2002). Accelerating path tracing by re-using paths. In Proceedings of the 13th Eurographics Workshop on Rendering (pp. 125–134). Eurographics Association. https://doi.org/10/ggdwkn"
     },
     {
       "key": "bitterli2020",
-      "apa": "Bitterli, B., Wyman, C., Pharr, M., Shirley, P., Lefohn, A., & Jarosz, W. (2020). Spatiotemporal reservoir resampling for real-time ray tracing with dynamic direct lighting. *ACM Transactions on Graphics, 39*(4), Article 148. https://doi.org/10.1145/3386569.3392481"
+      "apa": "Bitterli, B., Wyman, C., Pharr, M., Shirley, P., Lefohn, A., & Jarosz, W. (2020). Spatiotemporal reservoir resampling for real-time ray tracing with dynamic direct lighting. ACM Transactions on Graphics, 39(4), Article 148. https://doi.org/10.1145/3386569.3392481"
     },
     {
       "key": "chao1982",
-      "apa": "Chao, M.-T. (1982). A general purpose unequal probability sampling plan. *Biometrika, 69*(3), 653–656. https://doi.org/10/fd87zs"
-    },
-    {
-      "key": "efraimidis2006",
-      "apa": "Efraimidis, P. S., & Spirakis, P. G. (2006). Weighted random sampling with a reservoir. *Information Processing Letters, 97*(5), 181–185. https://doi.org/10/cw2qc4"
+      "apa": "Chao, M.-T. (1982). A general purpose unequal probability sampling plan. Biometrika, 69(3), 653–656. https://doi.org/10/fd87zs"
     },
     {
       "key": "estevez2018",
-      "apa": "Estevez, A. C., & Kulla, C. (2018). Importance sampling of many lights with adaptive tree splitting. *Proceedings of the ACM on Computer Graphics and Interactive Techniques, 1*(2), Article 25. https://doi.org/10/ggh89v"
+      "apa": "Estevez, A. C., & Kulla, C. (2018). Importance sampling of many lights with adaptive tree splitting. Proceedings of the ACM on Computer Graphics and Interactive Techniques, 1(2), Article 25. https://doi.org/10/ggh89v"
     },
     {
       "key": "moreau2019",
-      "apa": "Moreau, P., Pharr, M., & Clarberg, P. (2019). Dynamic many-light sampling for real-time ray tracing. In *High-Performance Graphics: Short Papers*. Eurographics Association. https://doi.org/10/ggh89m"
+      "apa": "Moreau, P., Pharr, M., & Clarberg, P. (2019). Dynamic many-light sampling for real-time ray tracing. In High-Performance Graphics: Short Papers. Eurographics Association. https://doi.org/10/ggh89m"
     },
     {
       "key": "olsson2011",
-      "apa": "Olsson, O., & Assarsson, U. (2011). Tiled shading. *Journal of Graphics, GPU, and Game Tools, 15*(4), 235–251. https://doi.org/10/bbfdms"
+      "apa": "Olsson, O., & Assarsson, U. (2011). Tiled shading. Journal of Graphics, GPU, and Game Tools, 15(4), 235–251. https://doi.org/10/bbfdms"
     },
     {
       "key": "schied2017",
-      "apa": "Schied, C., Kaplanyan, A., Wyman, C., Patney, A., Chaitanya, C. R. A., Burgess, J., Liu, S., Dachsbacher, C., Lefohn, A., & Salvi, M. (2017). Spatiotemporal variance-guided filtering: Real-time reconstruction for path-traced global illumination. In *Proceedings of High Performance Graphics* (Article 2). ACM. https://doi.org/10/ggd8dg"
+      "apa": "Schied, C., Kaplanyan, A., Wyman, C., Patney, A., Chaitanya, C. R. A., Burgess, J., Liu, S., Dachsbacher, C., Lefohn, A., & Salvi, M. (2017). Spatiotemporal variance-guided filtering: Real-time reconstruction for path-traced global illumination. In Proceedings of High Performance Graphics (Article 2). ACM. https://doi.org/10/ggd8dg"
     },
     {
       "key": "shirley1996",
-      "apa": "Shirley, P., Wang, C., & Zimmerman, K. (1996). Monte Carlo techniques for direct lighting calculations. *ACM Transactions on Graphics, 15*(1), 1–36. https://doi.org/10/ddgbgg"
+      "apa": "Shirley, P., Wang, C., & Zimmerman, K. (1996). Monte Carlo techniques for direct lighting calculations. ACM Transactions on Graphics, 15(1), 1–36. https://doi.org/10/ddgbgg"
     },
     {
       "key": "talbot2005",
-      "apa": "Talbot, J. F., Cline, D., & Egbert, P. (2005). Importance resampling for global illumination. In *Eurographics Symposium on Rendering* (pp. 139–146). Eurographics Association. https://doi.org/10/gfzsm2"
+      "apa": "Talbot, J. F., Cline, D., & Egbert, P. (2005). Importance resampling for global illumination. In Eurographics Symposium on Rendering (pp. 139–146). Eurographics Association. https://doi.org/10/gfzsm2"
     },
     {
       "key": "veach1995",
-      "apa": "Veach, E., & Guibas, L. J. (1995). Optimally combining sampling techniques for Monte Carlo rendering. In *Proceedings of SIGGRAPH 95* (pp. 419–428). ACM. https://doi.org/10/d7b6n4"
-    },
-    {
-      "key": "vitter1985",
-      "apa": "Vitter, J. S. (1985). Random sampling with a reservoir. *ACM Transactions on Mathematical Software, 11*(1), 37–57."
-    },
-    {
-      "key": "walter2005",
-      "apa": "Walter, B., Fernandez, S., Arbree, A., Bala, K., Donikian, M., & Greenberg, D. P. (2005). Lightcuts: A scalable approach to illumination. *ACM Transactions on Graphics, 24*(3), 1098–1107. https://doi.org/10/dhp5d3"
+      "apa": "Veach, E., & Guibas, L. J. (1995). Optimally combining sampling techniques for Monte Carlo rendering. In Proceedings of SIGGRAPH 95 (pp. 419–428). ACM. https://doi.org/10/d7b6n4"
     },
     {
       "key": "ward1994",
-      "apa": "Ward, G. J. (1994). Adaptive shadow testing for ray tracing. In P. Brunet & F. W. Jansen (Eds.), *Photorealistic Rendering in Computer Graphics* (pp. 11–20). Springer. https://doi.org/10/b7zrhm"
+      "apa": "Ward, G. J. (1994). Adaptive shadow testing for ray tracing. In P. Brunet & F. W. Jansen (Eds.), Photorealistic Rendering in Computer Graphics (pp. 11–20). Springer. https://doi.org/10/b7zrhm"
     }
   ],
   "entries": {
     "problem": {
-      "section": "Abstract",
       "page": "148:1",
       "symbol": "Abstract",
       "quote": "Efficiently rendering direct lighting from millions of dynamic light sources",
@@ -78,535 +65,553 @@
       "details": []
     },
     "approach": {
-      "section": "1",
       "page": "148:2",
       "symbol": "Introduction",
       "quote": "Our approach builds on resampled importance sampling",
       "quoteHash": "d4da5aee281cb129",
       "inspect": "The approach: resampled importance sampling, with a small fixed-size reservoir that stores only accepted samples.",
-      "details": []
+      "details": [],
+      "section": "1"
     },
     "reservoir-intro": {
-      "section": "1",
       "page": "148:2",
       "symbol": "Introduction",
       "quote": "Given the reservoir, our approach does not use any data structures more complicated than fixed-size arrays",
       "quoteHash": "4b6824b282171950",
       "inspect": "No data structure more complicated than fixed-size arrays; each pixel's sampling PDF improves by reusing its neighbours' statistics.",
-      "details": []
+      "details": [],
+      "section": "1"
     },
     "pdfs-not-colors": {
-      "section": "1",
       "page": "148:2",
       "symbol": "Introduction",
       "quote": "our reuse informs the sampling probabilities used within the renderer",
       "quoteHash": "2be471b2fcb375e9",
       "inspect": "Unlike denoisers, which reuse colours, the reuse informs sampling probabilities, which makes an unbiased algorithm possible.",
-      "details": []
+      "details": [],
+      "section": "1"
     },
     "biased-mode": {
-      "section": "1",
       "page": "148:2",
       "symbol": "Introduction",
       "quote": "Our unbiased mode can be modified to be biased",
       "quoteHash": "5449ba9c575a33f6",
       "inspect": "A biased mode reduces noise further at the cost of some darkening near geometric discontinuities.",
-      "details": []
+      "details": [],
+      "section": "1"
     },
     "first-vertex": {
-      "section": "1",
       "page": "148:2",
       "symbol": "Introduction",
       "quote": "direct lighting at the first camera vertex",
       "quoteHash": "543ab1471d4f7ac4",
       "inspect": "The paper considers direct lighting at the first camera vertex only.",
-      "details": []
+      "details": [],
+      "section": "1"
     },
     "eq1": {
-      "section": "2",
       "page": "148:2",
       "symbol": "Eq. 1",
       "quote": "The reflected radiance L of a point y in direction",
       "quoteHash": "221cc0d044782179",
       "inspect": "Direct light at y: the integral over the emitting surfaces of the BSDF, the emitted radiance, the geometry term, and visibility.",
-      "details": []
+      "details": [],
+      "section": "2"
     },
     "eq3": {
-      "section": "2",
       "page": "148:3",
       "symbol": "Eq. 3",
       "quote": "Standard Monte Carlo importance sampling",
       "quoteHash": "38fde9ca5728201c",
       "inspect": "Importance sampling: the mean of f/p over N samples from a source PDF p, unbiased where p > 0 wherever f is not zero.",
-      "details": []
+      "details": [],
+      "section": "2"
     },
     "eq4": {
-      "section": "2",
       "page": "148:3",
       "symbol": "Eq. 4",
       "quote": "MIS remains unbiased",
       "quoteHash": "54a4d209e7bdfd24",
       "inspect": "MIS: samples from several strategies, weighted; unbiased while the weights sum to one; the balance heuristic.",
-      "details": []
+      "details": [],
+      "section": "2"
     },
     "eq5": {
-      "section": "2.1",
       "page": "148:3",
       "symbol": "Eq. 5",
       "quote": "It then randomly chooses an index",
       "quoteHash": "a876c06fe7bbbc09",
       "inspect": "RIS draws M candidates from a source p and picks one with probability proportional to its weight w = p̂ / p.",
-      "details": []
+      "details": [],
+      "section": "2.1"
     },
     "eq6": {
-      "section": "2.1",
       "page": "148:3",
       "symbol": "Eq. 6",
       "quote": "Intuitively, the estimator uses y as if it were drawn from",
       "quoteHash": "69393b3a83e576d8",
       "inspect": "The one-sample RIS estimator: f(y) / p̂(y) times the mean of the candidates' weights, which corrects for y being only approximately distributed as p̂.",
-      "details": []
+      "details": [],
+      "section": "2.1"
     },
     "ris-unbiased": {
-      "section": "2.1",
       "page": "148:3",
       "symbol": "Eq. 7",
       "quote": "RIS is unbiased as long as M, N ≥ 1",
       "quoteHash": "b725be710c37c457",
       "inspect": "RIS is unbiased for M, N ≥ 1 when p and p̂ are positive wherever f is not zero; the paper sets N = 1 from here on.",
-      "details": []
+      "details": [],
+      "section": "2.1"
     },
     "ris-converges": {
-      "section": "2.1",
       "page": "148:3",
       "symbol": "Section 2.1",
       "quote": "the distribution of y approaches p̂ as M → ∞",
       "quoteHash": "af3b6dc8883dbe1f",
       "inspect": "As M grows, the distribution of the selected sample approaches the target p̂.",
-      "details": []
+      "details": [],
+      "section": "2.1"
     },
     "alg1": {
-      "section": "2.1",
       "page": "148:3",
       "symbol": "Alg. 1",
       "quote": "Algorithm 1: Resampled importance sampling.",
       "quoteHash": "1cc947b71ff500d6",
       "inspect": "Algorithm 1: generate M proposals and their weights, build a normalised CDF, draw an index from it.",
-      "details": []
+      "details": [],
+      "section": "2.1"
     },
     "wrs": {
-      "section": "2.2",
       "page": "148:4",
       "symbol": "Eq. 8",
       "quote": "Weighted reservoir sampling (WRS)",
       "quoteHash": "080feb25fe0a33f9",
       "inspect": "Weighted reservoir sampling: one pass over a stream, each element selected with probability its weight over the sum.",
-      "details": []
+      "details": [],
+      "section": "2.2"
     },
     "eq9": {
-      "section": "2.2",
       "page": "148:4",
       "symbol": "Eq. 9-10",
       "quote": "The update rule stochastically replaces",
       "quoteHash": "d1b0ed832e7665b6",
       "inspect": "The update replaces the kept sample with the new one with probability its weight over the running sum; every earlier one stays in proportion to its weight.",
-      "details": []
+      "details": [],
+      "section": "2.2"
     },
     "alg2": {
-      "section": "2.2",
       "page": "148:4",
       "symbol": "Alg. 2",
       "quote": "Algorithm 2: Weighted reservoir sampling.",
       "quoteHash": "b595cc375c4aa875",
       "inspect": "Algorithm 2: a reservoir keeps the output sample, the sum of weights, and the count M.",
-      "details": []
+      "details": [],
+      "section": "2.2"
     },
     "alg3": {
-      "section": "3.1",
       "page": "148:5",
       "symbol": "Alg. 3",
       "quote": "Algorithm 3: Streaming RIS using weighted reservoir sampling.",
       "quoteHash": "76be5cbd7efdcb1f",
       "inspect": "Algorithm 3: RIS as a stream through one reservoir, W from the weight sum (line 8), shading f(y) · W (line 11).",
-      "details": []
+      "details": [],
+      "section": "3.1"
     },
     "streaming-cost": {
-      "section": "3.1",
       "page": "148:5",
       "symbol": "Section 3.1",
       "quote": "computation remains linear in M",
       "quoteHash": "cc671d1985cf689d",
       "inspect": "Streaming makes storage constant, but computation stays linear in M.",
-      "details": []
+      "details": [],
+      "section": "3.1"
     },
     "combine": {
-      "section": "3.2",
       "page": "148:5",
       "symbol": "Section 3.2",
       "quote": "To combine two reservoirs, we treat each reservoir",
       "quoteHash": "f6b41fefcf00434d",
       "inspect": "Combining reservoirs: each reservoir's sample is fed to a new reservoir as a fresh sample, equivalent to resampling their combined streams.",
-      "details": []
+      "details": [],
+      "section": "3.2"
     },
     "reweight": {
-      "section": "3.2",
       "page": "148:5",
       "symbol": "Alg. 4, line 4",
       "quote": "we reweight the samples with the factor",
       "quoteHash": "422996546a884639",
       "inspect": "A neighbour's sample is reweighted by p̂_q / p̂_q′ for this pixel's target, written p̂_q(r.y) · r.W · r.M.",
-      "details": []
+      "details": [],
+      "section": "3.2"
     },
     "alg4": {
-      "section": "3.2",
       "page": "148:6",
       "symbol": "Alg. 4",
       "quote": "Algorithm 4: Combining the streams of multiple reservoirs.",
       "quoteHash": "5185ad13b6f5add5",
       "inspect": "Algorithm 4: update with each reservoir's sample weighted p̂_q · W · M, M the sum of theirs, W from the weight sum.",
-      "details": []
+      "details": [],
+      "section": "3.2"
     },
     "spatial": {
-      "section": "3.2",
       "page": "148:6",
       "symbol": "Section 3.2",
       "quote": "Crucially, spatial reuse can be repeated",
       "quoteHash": "df08b1db06325911",
-      "inspect": "Spatial reuse can repeat, each round reading the last: O(nk + M) work for k^n M effective candidates.",
-      "details": []
+      "inspect": "Spatial reuse can repeat, each round reading the last: O(nk + M) work for k^n M effective candidates, assuming distinct neighbours.",
+      "details": [],
+      "section": "3.2"
     },
     "temporal": {
-      "section": "3.2",
       "page": "148:6",
       "symbol": "Section 3.2",
       "quote": "After rendering a frame, we store each pixel",
       "quoteHash": "6f2b7c66e4378683",
       "inspect": "Temporal reuse: each pixel's final reservoir is kept and combined in the next frame, so a frame reuses every frame before it.",
-      "details": []
+      "details": [],
+      "section": "3.2"
     },
     "visibility": {
-      "section": "3.2",
       "page": "148:6",
       "symbol": "Section 3.2",
       "quote": "we also perform visibility reuse",
       "quoteHash": "e156c379a4f0b27c",
       "inspect": "Visibility reuse: before reuse, each pixel's selected sample is tested, and an occluded one discarded.",
-      "details": []
+      "details": [],
+      "section": "3.2"
     },
     "alg5": {
-      "section": "3.2",
       "page": "148:6",
       "symbol": "Alg. 5",
       "quote": "Algorithm 5: Our algorithm for RIS with spatiotemporal reuse.",
       "quoteHash": "8bffcb232403b99b",
       "inspect": "Algorithm 5: candidates, visibility, temporal reuse, n rounds of spatial reuse, shading; the reservoirs returned for the next frame.",
-      "details": []
+      "details": [],
+      "section": "3.2"
     },
     "bias-source": {
-      "section": "4",
       "page": "148:6",
       "symbol": "Section 4",
       "quote": "Each pixel uses a different integration domain and target distribution",
       "quoteHash": "dd42b098584a20e3",
       "inspect": "Reusing candidates from adjacent pixels mixes samples from different PDFs, which standard RIS does not accommodate.",
-      "details": []
+      "details": [],
+      "section": "4"
     },
     "eq12": {
-      "section": "4.1",
       "page": "148:7",
       "symbol": "Eq. 11-12",
       "quote": "where W is the stochastic weight for the generated sample",
       "quoteHash": "a921e066b963136b",
       "inspect": "W is a stochastic weight that takes the place of 1/p(y); unbiasedness needs its expected value to be 1/p(y).",
-      "details": []
+      "details": [],
+      "section": "4.1"
     },
     "weight-meaning": {
-      "section": "4.1",
       "page": "148:7",
       "symbol": "Section 4.1",
       "quote": "simply represents the standard RIS weight",
       "quoteHash": "f9c0e4c41d3bcc4c",
       "inspect": "p̂_q(r.y) · r.W is the RIS weight p̂ / p with r.W estimating the inverse PDF, scaled by the r.M candidates behind it.",
-      "details": []
+      "details": [],
+      "section": "4.1"
     },
     "eq19": {
-      "section": "4.2",
       "page": "148:7",
       "symbol": "Eq. 19",
       "quote": "the inverse PDF is consistently underestimated",
       "quoteHash": "2e660a22ccbd4f63",
       "inspect": "Where some candidate PDFs are zero, the expected W is |Z(y)|/M times 1/p(y): too small, so the image is darker.",
-      "details": []
+      "details": [],
+      "section": "4.2"
     },
     "fig7": {
-      "section": "4.2",
       "page": "148:8",
       "symbol": "Fig. 7",
       "quote": "We show results of RIS for sampling a simple linear target PDF",
       "quoteHash": "3835e9b70fe6aa51",
       "inspect": "Figure 7: a linear target 2 − 2x sampled from a constant PDF and a step; RIS's weight against the true inverse PDF.",
-      "details": []
+      "details": [],
+      "section": "4.2"
     },
     "eq20": {
-      "section": "4.3",
       "page": "148:8",
       "symbol": "Eq. 20-21",
       "quote": "Instead of multiplying by the factor 1/M",
       "quoteHash": "7580157b11270867",
       "inspect": "Unbiased RIS: replace 1/M with a weight m that sums to one over the candidates that could have produced the sample.",
-      "details": []
+      "details": [],
+      "section": "4.3"
     },
     "naive-m": {
-      "section": "4.3",
       "page": "148:8",
       "symbol": "Section 4.3",
       "quote": "we divide by the number of candidates with non-zero PDFs",
       "quoteHash": "0be5874d7d680476",
       "inspect": "The naive weight 1/|Z|: unbiased, but noisy where a PDF is near zero rather than zero.",
-      "details": []
+      "details": [],
+      "section": "4.3"
     },
     "eq22": {
-      "section": "4.3",
       "page": "148:8",
       "symbol": "Eq. 22",
       "quote": "the balance heuristic of the candidate PDFs",
       "quoteHash": "7e278fb6616d5996",
       "inspect": "m as the balance heuristic of the candidate PDFs solves both bias and noise.",
-      "details": []
+      "details": [],
+      "section": "4.3"
     },
     "talbot-cost": {
-      "section": "4.3",
       "page": "148:8",
       "symbol": "Section 4.3",
       "quote": "Talbot et al. evaluate all PDFs for each candidate sample",
       "quoteHash": "805ed7c10f2d8042",
-      "inspect": "Talbot et al.'s alternative weight costs O(M²) PDF evaluations; the paper's O(M).",
-      "details": []
+      "inspect": "When each candidate has its own PDF, Talbot et al.'s alternative weight costs O(M²) PDF evaluations; the paper's O(M).",
+      "details": [],
+      "section": "4.3"
     },
     "alg6": {
-      "section": "4.4",
       "page": "148:9",
       "symbol": "Alg. 6",
       "quote": "Algorithm 6: Unbiased combination of multiple reservoirs.",
       "quoteHash": "e6144a267fd92ed9",
       "inspect": "Algorithm 6: Z sums the M of the sources whose p̂ at the sample is not zero; W uses m = 1/Z (lines 6-11).",
-      "details": []
+      "details": [],
+      "section": "4.4"
     },
     "approx-pdf": {
-      "section": "4.4",
       "page": "148:9",
       "symbol": "Section 4.4",
       "quote": "as an approximation to the real PDF of samples",
       "quoteHash": "f5db6901a90f5c67",
       "inspect": "Each source pixel's p̂ stands in for its samples' unknown PDF, zero wherever that PDF is; with visibility reuse, visibility is part of it.",
-      "details": []
+      "details": [],
+      "section": "4.4"
     },
     "unbiased-cost": {
-      "section": "4.4",
       "page": "148:9",
       "symbol": "Section 4.4",
       "quote": "this means tracing k additional rays",
       "quoteHash": "b9af473539d77dc2",
       "inspect": "With visibility reuse, the unbiased combination traces one more shadow ray per neighbour.",
-      "details": []
+      "details": [],
+      "section": "4.4"
     },
     "candidates-param": {
-      "section": "5",
       "page": "148:9",
       "symbol": "Section 5",
       "quote": "We sample M = 32 initial candidates",
       "quoteHash": "fc9b3fd8baa7c640",
       "inspect": "M = 32 candidates, an emissive triangle by power, then a uniform point on it (p ∝ Le); 25% from the environment map when there is one.",
-      "details": []
+      "details": [],
+      "section": "5"
     },
     "alias": {
-      "section": "5",
       "page": "148:9",
       "symbol": "Section 5",
       "quote": "accelerated using an alias table",
       "quoteHash": "c10968d26350d945",
       "inspect": "Lights are picked with an alias table (Walker 1974).",
-      "details": []
+      "details": [],
+      "section": "5"
     },
     "target-param": {
-      "section": "5",
       "page": "148:9",
       "symbol": "Section 5",
       "quote": "We use the unshadowed path contribution",
       "quoteHash": "53470231d3984ccb",
       "inspect": "The target p̂ ∝ ρ · Le · G, unshadowed; the material a GGX dielectric layer over a Lambertian base.",
-      "details": []
+      "details": [],
+      "section": "5"
     },
     "neighbors-param": {
-      "section": "5",
       "page": "148:9",
       "symbol": "Section 5",
       "quote": "we instead sample k = 5",
       "quoteHash": "655005f0a608acec",
       "inspect": "k = 5 neighbours (3 unbiased), random points in a 30-pixel radius from a low-discrepancy sequence; deterministic ones gave artifacts.",
-      "details": []
+      "details": [],
+      "section": "5"
     },
     "temporal-pick": {
-      "section": "5",
       "page": "148:9",
       "symbol": "Section 5",
       "quote": "we compute motion vectors to project the current pixel",
       "quoteHash": "5859cc4615df221c",
       "inspect": "The temporal neighbour: the current pixel's position projected into the previous frame with motion vectors.",
-      "details": []
+      "details": [],
+      "section": "5"
     },
     "geometry-test": {
-      "section": "5",
       "page": "148:9",
       "symbol": "Section 5",
       "quote": "compare the difference in camera distance",
       "quoteHash": "97fbf3c67ca427d1",
       "inspect": "The biased algorithm rejects a neighbour whose camera distance differs by more than 10% or whose normal turns more than 25°.",
-      "details": []
+      "details": [],
+      "section": "5"
     },
     "spatial-passes": {
-      "section": "5",
       "page": "148:10",
       "symbol": "Section 5",
       "quote": "We use n = 2 (n = 1 for our unbiased algorithm)",
       "quoteHash": "c9a9f539b6b3a8d5",
       "inspect": "n = 2 spatial rounds (1 unbiased).",
-      "details": []
+      "details": [],
+      "section": "5"
     },
     "sample-count": {
-      "section": "5",
       "page": "148:10",
       "symbol": "Section 5",
       "quote": "our biased algorithm uses N = 4 instead",
       "quoteHash": "0616ea26f9933736",
       "inspect": "N = 1 for the unbiased algorithm; the biased one keeps four reservoirs per pixel.",
-      "details": []
+      "details": [],
+      "section": "5"
     },
     "storage": {
-      "section": "5",
       "page": "148:10",
       "symbol": "Section 5",
       "quote": "we only store the information of the pixel",
       "quoteHash": "a6e75f0e29269f57",
       "inspect": "Each pixel stores only its reservoir: the selected sample y, M, and W.",
-      "details": []
+      "details": [],
+      "section": "5"
     },
     "clamp": {
-      "section": "5",
       "page": "148:10",
       "symbol": "Section 5",
       "quote": "clamp the previous frame",
       "quoteHash": "6ef029f38f53ce97",
       "inspect": "Last frame's M is clamped to at most 20 times the current frame's, bounding stale temporal samples.",
-      "details": []
+      "details": [],
+      "section": "5"
+    },
+    "name": {
+      "page": "148:10",
+      "symbol": "Section 6",
+      "quote": "or ReSTIR for short",
+      "quoteHash": "34b8674b6a35fa41",
+      "inspect": "The paper names its algorithm Reservoir-based SpatioTemporal Importance Resampling, ReSTIR.",
+      "details": [],
+      "section": "6"
+    },
+    "still-images": {
+      "page": "148:10",
+      "symbol": "Section 6",
+      "quote": "makes it possible to evaluate our algorithm for still images",
+      "quoteHash": "2a572395c154a269",
+      "inspect": "Biased spatial reuse without temporal reuse is the variant for still images.",
+      "details": [],
+      "section": "6"
     },
     "results-setup": {
-      "section": "6",
       "page": "148:10",
       "symbol": "Section 6",
       "quote": "We report image errors of each method compared",
       "quoteHash": "6f70bd520d69f495",
       "inspect": "Errors against an unbiased reference at high sample count, as relative mean absolute error.",
-      "details": []
+      "details": [],
+      "section": "6"
     },
     "biased-vs-unbiased": {
-      "section": "6",
       "page": "148:10",
       "symbol": "Section 6",
       "quote": "our biased method has considerably less variance",
       "quoteHash": "c50f7f2bacee2a2f",
       "inspect": "The biased method has less variance at the cost of energy loss at shadow boundaries, sharp highlights, and complex geometry.",
-      "details": []
+      "details": [],
+      "section": "6"
     },
     "many-lights": {
-      "section": "7",
       "page": "148:10",
       "symbol": "Section 7",
       "quote": "pioneered this area",
       "quoteHash": "9d40f0126f0cb933",
       "inspect": "Many-light sampling: Ward and Shirley et al. classified lights as important and unimportant; light hierarchies sample them in sub-linear time.",
-      "details": []
+      "details": [],
+      "section": "7"
     },
     "hierarchies": {
-      "section": "7",
       "page": "148:12",
       "symbol": "Section 7",
       "quote": "Our approach eliminates the cost of maintaining complex data structures",
       "quoteHash": "056ae140b5abfcbd",
       "inspect": "Against light hierarchies: no data structure to maintain, and samples that account for the BSDF and visibility.",
-      "details": []
+      "details": [],
+      "section": "7"
     },
     "tiled": {
-      "section": "7",
       "page": "148:12",
       "symbol": "Section 7",
       "quote": "tiled shading",
       "quoteHash": "251deeb811adf64b",
       "inspect": "Tiled shading limits the lights per tile, which biases each light's reach.",
-      "details": []
+      "details": [],
+      "section": "7"
     },
     "path-reuse": {
-      "section": "7",
       "page": "148:13",
       "symbol": "Section 7",
       "quote": "a visibility ray must be traced each time a path is reused",
       "quoteHash": "659114578937d5fa",
       "inspect": "Path reuse traces a visibility ray per reuse; ReSTIR traces rays for only a few samples.",
-      "details": []
+      "details": [],
+      "section": "7"
     },
     "ratio": {
-      "section": "7",
       "page": "148:13",
       "symbol": "Section 7",
       "quote": "Resampling techniques, including our method, are related to ratio estimators",
       "quoteHash": "3cf7e381e79298b9",
       "inspect": "Ratio, weighted uniform, and weighted importance sampling estimators: biased but consistent; RIS can be seen as making them unbiased.",
-      "details": []
+      "details": [],
+      "section": "7"
     },
     "reservoir-history": {
-      "section": "7",
       "page": "148:14",
       "symbol": "Section 7",
       "quote": "emerged in the early 1980s",
       "quoteHash": "ce12b1a9d4f9999d",
       "inspect": "Reservoir sampling began in the early 1980s, to select data on tape drives without rewinding.",
-      "details": []
+      "details": [],
+      "section": "7"
     },
     "denoisers": {
-      "section": "7",
       "page": "148:14",
       "symbol": "Section 7",
       "quote": "These approaches are largely orthogonal to our work",
       "quoteHash": "a51b5fb3cdc68230",
       "inspect": "Denoisers are orthogonal: they can improve ReSTIR's output when it is not converged.",
-      "details": []
+      "details": [],
+      "section": "7"
     },
     "conclusion": {
-      "section": "8",
       "page": "148:14",
       "symbol": "Section 8",
       "quote": "filter PDFs rather than colors",
       "quoteHash": "e493a38018586e81",
       "inspect": "The conclusion: denoising moved into the renderer, filtering PDFs rather than colours.",
-      "details": []
+      "details": [],
+      "section": "8"
     },
     "limitations": {
-      "section": "8.1",
       "page": "148:14",
       "symbol": "Section 8.1",
       "quote": "near disocclusions, lighting discontinuities",
       "quoteHash": "41c2dc5ebb84202e",
       "inspect": "Limits: quality degrades where pixels are not correlated: disocclusions, lighting discontinuities, complex geometry, fast lights.",
-      "details": []
+      "details": [],
+      "section": "8.1"
     },
     "screen-space": {
-      "section": "8.1",
       "page": "148:14",
       "symbol": "Section 8.1",
       "quote": "it limits the use of our method to operations on the first vertex",
       "quoteHash": "865c28e7eafaac3b",
       "inspect": "Image buffers limit the method to the primary hit; world-space reuse is future work.",
-      "details": []
+      "details": [],
+      "section": "8.1"
     }
   },
   "chapters": [
@@ -614,6 +619,7 @@
       "number": 1,
       "title": "The paper and its problem",
       "reading": [
+        "name",
         "problem",
         "approach",
         "reservoir-intro",
@@ -704,6 +710,7 @@
       "number": 7,
       "title": "Experiments on this machine",
       "reading": [
+        "still-images",
         "results-setup",
         "biased-vs-unbiased",
         "sample-count"

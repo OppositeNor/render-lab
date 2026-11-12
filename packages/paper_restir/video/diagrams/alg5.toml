@@ -1,0 +1,65 @@
+# The architecture map (Alg. 5, 148:6): the passes of one frame, and last frame's reservoirs feeding the next.
+
+[[node]]
+id = "RIS"
+title-text = "diagram-alg5-ris"
+
+[[node.row]]
+id = "RIS-M"
+label-text = "diagram-alg5-ris-m"
+
+[[node]]
+id = "VIS"
+title-text = "diagram-alg5-vis"
+
+[[node]]
+id = "TEMP"
+title-text = "diagram-alg5-temp"
+
+[[node.row]]
+id = "TEMP-CLAMP"
+label-text = "diagram-alg5-temp-clamp"
+
+[[node]]
+id = "SPAT"
+title-text = "diagram-alg5-spat"
+
+[[node.row]]
+id = "SPAT-K"
+label-text = "diagram-alg5-spat-k"
+
+[[node]]
+id = "SHADE"
+title-text = "diagram-alg5-shade"
+
+[[node]]
+id = "PREV"
+title-text = "diagram-alg5-prev"
+dashed = true
+
+[[edge]]
+from = "RIS"
+to = "VIS"
+
+[[edge]]
+from = "VIS"
+to = "TEMP"
+
+[[edge]]
+from = "TEMP"
+to = "SPAT"
+
+[[edge]]
+from = "SPAT"
+to = "SHADE"
+
+[[edge]]
+from = "SPAT"
+to = "PREV"
+label-text = "diagram-alg5-keep"
+
+[[edge]]
+from = "PREV"
+to = "TEMP"
+label-text = "diagram-alg5-next"
+dotted = true

@@ -1,4 +1,4 @@
 # The ReSTIR investigation's demonstrations, in the order of the viewer's keys
 # (1-9, 0, -, =); each is demos/<key>.toml (lab/src/demo.rs reads them).
 
-demos = ["room", "ris", "stage0", "accum", "spatial", "bias"]
+demos = ["room", "ris", "reservoirs", "reference", "spatial", "bias", "reuse", "methods"]

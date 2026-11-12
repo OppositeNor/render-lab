@@ -1,0 +1,21 @@
+# The paper's contributions (chapter 1; gathered from its §1 and §7, 148:2 and 148:13).
+
+[[node]]
+id = "CONTRIB"
+title-text = "diagram-contrib-title"
+
+[[node.row]]
+id = "STREAM"
+label-text = "diagram-contrib-stream"
+
+[[node.row]]
+id = "REUSE"
+label-text = "diagram-contrib-reuse"
+
+[[node.row]]
+id = "UNBIASED"
+label-text = "diagram-contrib-unbiased"
+
+[[node.row]]
+id = "GPU"
+label-text = "diagram-contrib-gpu"

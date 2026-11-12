@@ -1,0 +1,64 @@
+The ReSTIR story's cue groups
+=============================
+
+What the storyboard (`storyboard.lam`) says again and again, said once: the package `paper_restir_story`, which the
+storyboard imports (`$$[Import* paper_restir_story]`; tools/video/build.py gives it to the reader).
+
+$[Import* std]$[Import* content]$[Import* present]$[Import* render_lab]$[Import* paper_restir]
+
+A beat's opening keys: its demonstration and panel, the callout and the insets cleared; `more` are the beat's own.
+
+$[# {opening demo panel more} {append {' demo {callout ""} {inset ""} panel} more}]
+
+The method as the paper runs it: its parameters at the paper's values (148:9-10 §5), the frame's own seed, every stage
+shown, the lights all on and at the start of their loops, and P on the floor in front of the teapot.
+
+$[# baseRoom {'
+    {restirCandidates 32.0}
+    {restirTemporal 1.0}
+    {restirSpatialPasses 2.0}
+    {restirNeighbours 5.0}
+    {restirRadius 30.0}
+    {restirVisibilityReuse 1.0}
+    {restirUnbiased 0.0}
+    {restirGeometryTest 1.0}
+    {restirTemporalClamp 20.0}
+    {restirView 0.0}
+    {restirAccumulate 0.0}
+    {restirStage 3.0}
+    {restirSeed -1.0}
+    {lightCount 64.0}
+    {lightIntensity 1.0}
+    {risStep 32.0}
+    {pickU 0.52}
+    {pickV 0.8}}]
+
+No reuse at all: each pixel's candidates alone (streaming RIS), as `count` candidates.
+
+$[# {noReuse count} {'
+    {restirCandidates count}
+    {restirTemporal 0.0}
+    {restirSpatialPasses 0.0}
+    {restirStage 0.0}}]
+
+The room from the doorway, the teapot and the box in the middle.
+
+$[# roomCamera {'
+    {cameraTarget {' 0.0 0.9 -0.6}}
+    {cameraYaw 18.0}
+    {cameraPitch 14.0}
+    {cameraDistance 4.6}}]
+
+Close on P, the floor in front of the teapot, its lines to the lights in view.
+
+$[# pickCamera {'
+    {cameraTarget {' 0.1 0.8 -0.5}}
+    {cameraYaw 24.0}
+    {cameraPitch 18.0}
+    {cameraDistance 3.6}}]
+
+The camera floating slowly about a view, so the room keeps moving while a beat explains.
+
+$[# floatRoom {' {motion {' {cameraPath {' {pose 18.0 14.0 4.6} {pose 26.0 16.0 4.4} {pose 12.0 13.0 4.7}}}}}}]
+
+$[# floatPick {' {motion {' {cameraPath {' {pose 24.0 18.0 3.6} {pose 30.0 20.0 3.4} {pose 20.0 17.0 3.7}}}}}}]

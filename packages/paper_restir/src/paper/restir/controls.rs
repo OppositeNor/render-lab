@@ -6,72 +6,34 @@ use crate::paper::restir::text::tr;
 use egui::Ui;
 use lab::controls::Dock;
 
+/// The value groups a demonstration shows, in order: the per-pixel ones start with P, the 1D example with its own.
+fn groups(demo: Demo) -> &'static [&'static str] {
+    match demo {
+        Demo::Ris => &["pick", "restir"],
+        Demo::Spatial => &["pick", "restir", "view"],
+        Demo::Reuse => &["pick", "restir", "view", "lights"],
+        Demo::Bias => &["bias", "restir", "view"],
+        Demo::Methods => &["restir", "view", "lights"],
+        Demo::Room | Demo::Reservoirs | Demo::Reference => &["restir", "view", "lights"],
+    }
+}
+
+/// One group of values, with its title and hint.
+fn group(dock: &mut Dock, ui: &mut Ui, label: &str) {
+    let (title, hint) = match label {
+        "pick" => (tr("controls-pick"), tr("hints-pick")),
+        "restir" => (tr("controls-restir"), tr("hints-restir")),
+        "view" => (tr("controls-view_group"), tr("hints-view")),
+        "lights" => (tr("controls-lights"), tr("hints-lights")),
+        _ => (tr("controls-bias"), tr("hints-bias")),
+    };
+    dock.values(ui, title, Some(hint), label);
+}
+
 pub fn parameters(dock: &mut Dock, ui: &mut Ui) {
     let demo = Demo::of(dock.state.demo);
     dock.camera(ui);
-    match demo {
-        Demo::Ris => {
-            // RIS at P: the pixel, the stream's step, the seed; then the method's parameters.
-            dock.values(ui, tr("controls-pick"), Some(tr("hints-pick")), "pick");
-            dock.values(
-                ui,
-                tr("controls-restir"),
-                Some(tr("hints-restir")),
-                "restir",
-            );
-        }
-        Demo::Spatial => {
-            // Spatial reuse at P.
-            dock.values(ui, tr("controls-pick"), Some(tr("hints-pick")), "pick");
-            dock.values(
-                ui,
-                tr("controls-restir"),
-                Some(tr("hints-restir")),
-                "restir",
-            );
-            dock.values(
-                ui,
-                tr("controls-view_group"),
-                Some(tr("hints-view")),
-                "view",
-            );
-        }
-        Demo::Bias => {
-            // Bias in RIS.
-            dock.values(ui, tr("controls-bias"), Some(tr("hints-bias")), "bias");
-            dock.values(
-                ui,
-                tr("controls-restir"),
-                Some(tr("hints-restir")),
-                "restir",
-            );
-            dock.values(
-                ui,
-                tr("controls-view_group"),
-                Some(tr("hints-view")),
-                "view",
-            );
-        }
-        Demo::Room | Demo::Stage0 | Demo::Accum => {
-            // The room: the method's parameters, what the scene shows, and the lights.
-            dock.values(
-                ui,
-                tr("controls-restir"),
-                Some(tr("hints-restir")),
-                "restir",
-            );
-            dock.values(
-                ui,
-                tr("controls-view_group"),
-                Some(tr("hints-view")),
-                "view",
-            );
-            dock.values(
-                ui,
-                tr("controls-lights"),
-                Some(tr("hints-lights")),
-                "lights",
-            );
-        }
+    for label in groups(demo) {
+        group(dock, ui, label);
     }
 }

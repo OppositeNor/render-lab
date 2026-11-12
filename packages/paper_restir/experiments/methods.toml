@@ -1,0 +1,44 @@
+# The paper's comparisons (148:10-13 §6, Fig. 8 and 11), run on the machine that runs this file: streaming RIS
+# alone, spatial reuse alone, and spatiotemporal reuse, biased and unbiased, each against a reference that averages
+# streaming RIS over many frames while nothing moves. Its numbers are this machine's; the paper's are its own setup's.
+
+name = "methods"
+description = "Streaming RIS, spatial reuse, and spatiotemporal reuse (biased and unbiased) against an accumulated reference: error and GPU time per pass."
+investigation = "paper/restir"
+demo = "methods"
+resolution = [1280, 720]
+frames = 20                     # the paper shows temporal methods after twenty frames (148:10 §6)
+warmup = 4
+repeats = 20
+convergence = false
+metrics = ["gpu_ms", "relmse", "flip"]
+
+[base.values]
+restirSeed = -1.0
+restirAccumulate = 0.0
+restirView = 0.0
+restirStage = 3.0
+
+[reference]
+frames = 1024
+[reference.values]
+restirAccumulate = 1.0
+restirTemporal = 0.0
+restirSpatialPasses = 0.0
+restirCandidates = 32.0
+
+[[variant]]
+name = "streaming-ris"
+values = { restirTemporal = 0.0, restirSpatialPasses = 0.0 }
+
+[[variant]]
+name = "spatial-biased"
+values = { restirTemporal = 0.0, restirSpatialPasses = 2.0, restirUnbiased = 0.0 }
+
+[[variant]]
+name = "spatiotemporal-biased"
+values = { restirTemporal = 1.0, restirSpatialPasses = 2.0, restirUnbiased = 0.0, restirNeighbours = 5.0 }
+
+[[variant]]
+name = "spatiotemporal-unbiased"
+values = { restirTemporal = 1.0, restirSpatialPasses = 1.0, restirUnbiased = 1.0, restirNeighbours = 3.0 }

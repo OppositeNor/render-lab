@@ -79,15 +79,15 @@ id = "shader/restir-shading"
 parts = ["render_lab.shader/scene", "wgsl/restir-shading", "wgsl/restir-passes"]
 
 [[resource]]
-id = "demo/stage0"
+id = "demo/reservoirs"
 kind = "file"
-source = "demos/stage0.toml"
+source = "demos/reservoirs.toml"
 license = "MIT"
 
 [[resource]]
-id = "demo/accum"
+id = "demo/reference"
 kind = "file"
-source = "demos/accum.toml"
+source = "demos/reference.toml"
 license = "MIT"
 
 [[resource]]
@@ -106,4 +106,34 @@ license = "MIT"
 id = "demo/bias"
 kind = "file"
 source = "demos/bias.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/reuse"
+kind = "file"
+source = "demos/reuse.toml"
+license = "MIT"
+
+[[resource]]
+id = "demo/methods"
+kind = "file"
+source = "demos/methods.toml"
+license = "MIT"
+
+[[resource]]
+id = "listing/ris"
+kind = "file"
+source = "pseudocode/ris.py"
+license = "MIT"
+
+[[resource]]
+id = "listing/combine"
+kind = "file"
+source = "pseudocode/combine.py"
+license = "MIT"
+
+[[resource]]
+id = "experiment/methods"
+kind = "file"
+source = "experiments/methods.toml"
 license = "MIT"

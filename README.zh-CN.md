@@ -41,6 +41,10 @@
   渲染器如何计算其烘焙体素全局光照，按引擎的默认细分在 CPU 上逐步复现：烘焙的 octree 与距离场、单元格的记录、光照、mip 与反弹 pass、
   动态物体路径，以及移植到 WGSL 的逐像素锥体追踪。
 
+- **论文：ReSTIR**（[`packages/paper_restir/src/paper/restir`](packages/paper_restir/src/paper/restir/README.md)）。按论文实现的
+  Bitterli 等人 2020 年的时空 reservoir 重采样：对每个像素的光源候选做流式 RIS，再做可见性、时间和空间复用（有偏与无偏），
+  以 WGSL 通道在有 64 盏移动灯的房间中运行，每个通道都与 CPU 镜像核对，并重画了论文关于偏差的一维例子。
+
 一个本仓库不提供的可选模块可以向 `packages/` 加入它自己的本地包（各有自己的 Cargo 工作区）。没有它时，实验室只包含公开的研究。
 
 ## 快速开始

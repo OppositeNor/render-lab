@@ -864,7 +864,7 @@ pub(super) fn draw_references_card(ink: &Ink, input: &UiInput) {
             24.0,
             FontFamily::Proportional,
             color,
-        ) + 16.0;
+        ) + 8.0;
         if y > rect.max.y - 40.0 {
             break;
         }

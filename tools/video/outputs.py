@@ -388,7 +388,7 @@ def write_guide(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
     w = WORDS[cfg.lang]
     build = cfg.build()
     doc_dir = build
-    engine = index['engine']
+    engine = index.get('engine', {})
     # A paper's guide names the paper and its pages; an engine's, its commit and the checkout's paths.
     source = [f'- {edition(cfg, index, board["date"])}'.rstrip(), w['pages']] if 'paper' in index else [f'- {engine["name"]} {engine["version"]}, commit `{engine["commit"]}`.', w['checkout']]
     lines = [f'# {cfg.text("guideTitle")}', '',

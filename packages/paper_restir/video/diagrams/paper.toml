@@ -1,0 +1,13 @@
+# The paper's title card (chapter 1): its title, authors, and where it was published.
+
+[[node]]
+id = "PAPER"
+title-text = "diagram-paper-title"
+
+[[node.row]]
+id = "AUTHORS"
+label-text = "diagram-paper-authors"
+
+[[node.row]]
+id = "VENUE"
+label-text = "diagram-paper-venue"

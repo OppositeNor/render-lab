@@ -5,6 +5,7 @@
 use super::lights;
 
 pub mod bias;
+pub mod reuse;
 pub mod ris;
 pub mod spatial;
 use super::shot::Demo;
@@ -52,9 +53,10 @@ pub fn build_frame(
     content.shading_frame = lights::pack(&placed);
     match Demo::of(state.demo) {
         Demo::Ris => ris::draw(state, &mut content, &placed),
+        Demo::Reuse => reuse::draw(state, &mut content, &placed),
         Demo::Bias => bias::draw(state, &mut content),
         Demo::Spatial => spatial::draw(state, &mut content, &placed),
-        Demo::Room | Demo::Stage0 | Demo::Accum => {}
+        Demo::Room | Demo::Reservoirs | Demo::Reference | Demo::Methods => {}
     }
     content
 }

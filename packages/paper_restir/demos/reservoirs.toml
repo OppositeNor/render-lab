@@ -1,0 +1,20 @@
+# Each pixel's reservoir after one stage of Alg. 5, shaded or shown by a view mode: the light it samples, its M, its W, its visibility.
+
+key = "reservoirs"
+title-text = "shot-reservoirs_title"
+tab-text = "shot-reservoirs"
+hint-text = "shot-reservoirs_hint"
+scene = "paper_restir.scene/restir-room"
+listing = "frame"
+resets-camera = true
+
+[camera]
+target = [0.0, 0.9, -0.6]
+yaw = 18.0
+pitch = 14.0
+distance = 4.6
+fov = 55.0
+
+[params]
+restirStage = 0
+restirSeed = -1

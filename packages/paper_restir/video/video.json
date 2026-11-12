@@ -1,0 +1,115 @@
+{
+  "investigation": "paper/restir",
+  "storyboard": "storyboard.lam",
+  "translations": {
+    "zh-CN": "storyboard.zh-CN.lam"
+  },
+  "diagrams": "diagrams",
+  "sourceIndex": "../source-index.json",
+  "pseudocode": "../pseudocode",
+  "video": {
+    "en": "paper-restir.mp4",
+    "zh-CN": "paper-restir-zh-CN.mp4"
+  },
+  "engineLabel": "Bitterli et al. 2020 · ACM TOG 39(4)",
+  "paperEnv": "RESTIR_PAPER_PDF",
+  "durationMinutes": [
+    14,
+    22
+  ],
+  "readingPath": [
+    "problem",
+    "approach",
+    "eq6",
+    "alg1",
+    "eq9",
+    "alg2",
+    "alg3",
+    "combine",
+    "alg4",
+    "spatial",
+    "temporal",
+    "visibility",
+    "alg5",
+    "eq19",
+    "fig7",
+    "eq22",
+    "alg6",
+    "candidates-param",
+    "neighbors-param",
+    "geometry-test",
+    "clamp",
+    "biased-vs-unbiased",
+    "limitations"
+  ],
+  "pronunciations": {
+    "ReSTIR": "restir",
+    "RIS": "R I S",
+    "WRS": "W R S",
+    "BSDF": "B S D F",
+    "BRDF": "B R D F",
+    "MIS": "M I S",
+    "GPU": "G P U",
+    "PDF": "P D F",
+    "PDFs": "P D Fs",
+    "BVH": "B V H"
+  },
+  "documents": {
+    "en": {
+      "guideTitle": "Reading guide: ReSTIR (Bitterli et al. 2020)",
+      "intro": "**What this is.** A narrated walkthrough of the paper \"Spatiotemporal reservoir resampling for real-time ray tracing with dynamic direct lighting\" (Bitterli, Wyman, Pharr, Shirley, Lefohn, and Jarosz, ACM TOG 39(4), 2020), built from 3D demonstrations rendered by the Rust/wgpu lab in `render-lab`. The lab implements the paper's method from its equations and algorithms, in WGSL passes on the GPU (streaming RIS, visibility reuse, temporal reuse, spatial reuse, biased and unbiased), checks every pass against a CPU mirror on the GPU's own data, and redraws the paper's 1D example of bias; the scene and the lights are the lab's own. Every claim cites the paper's section, page, and equation or algorithm line.",
+      "demos": {
+        "room": "the room of many lights",
+        "ris": "RIS at one pixel",
+        "reservoirs": "the reservoirs after each stage",
+        "reference": "a converged reference",
+        "spatial": "spatial reuse at one pixel",
+        "bias": "bias and the 1D example",
+        "reuse": "temporal and visibility reuse",
+        "methods": "the paper's comparisons"
+      },
+      "simplifications": [
+        "The paper's scenes (thousands to millions of emissive triangles) are replaced by the lab's room with 64 small spherical lights that move along loops.",
+        "Lights are picked by power with a CDF and a binary search, where the paper uses an alias table: the same distribution, a different lookup.",
+        "A candidate is a uniform point on a light's sphere; points on the far side have a target of zero, as a triangle facing away does.",
+        "The lights do not block one another's shadow rays; the room's objects do.",
+        "There is no environment map, so the paper's 25% of environment candidates does not apply.",
+        "Both variants keep one reservoir per pixel (N = 1); the paper's biased results keep four.",
+        "Spatial neighbours come from the R2 sequence turned per pixel; the paper says only \"a low-discrepancy sequence\".",
+        "The geometry test (10% of the depth, 25 degrees) is applied to the temporal neighbour too.",
+        "The temporal neighbour is found by reprojecting the pixel's point with last frame's camera; the room's objects do not move.",
+        "The material is the lab's albedo and roughness through a GGX dielectric over Lambert, as the paper's unified material.",
+        "The lab traces shadow rays against its analytic shapes and the teapot's BVH, without hardware ray tracing.",
+        "A frame drawn alone first draws the same shot eight times, so its temporal reuse has frames before it."
+      ]
+    },
+    "zh-CN": {
+      "guideTitle": "阅读指南：ReSTIR（Bitterli 等人 2020）",
+      "intro": "**这是什么。** 对论文《Spatiotemporal reservoir resampling for real-time ray tracing with dynamic direct lighting》（Bitterli、Wyman、Pharr、Shirley、Lefohn、Jarosz，ACM TOG 39(4)，2020）的讲解，由 `render-lab` 中基于 Rust/wgpu 的实验室渲染的 3D 演示构成。实验室按论文的公式和算法实现了这个方法，在 GPU 上以 WGSL 通道运行（流式 RIS、可见性复用、时间复用、空间复用，有偏与无偏），用 CPU 镜像在 GPU 自己的数据上逐一核对每个通道，并重画了论文中关于偏差的一维例子；场景和光源是实验室自己的。每个结论都注明论文的章节、页码，以及公式或算法行。",
+      "demos": {
+        "room": "多光源房间",
+        "ris": "单个像素上的 RIS",
+        "reservoirs": "各阶段的 reservoir",
+        "reference": "收敛的参考图",
+        "spatial": "单个像素上的空间复用",
+        "bias": "偏差与一维例子",
+        "reuse": "时间复用与可见性复用",
+        "methods": "论文的对比"
+      },
+      "simplifications": [
+        "论文的场景（数千到数百万个发光三角形）换成了实验室的房间，其中 64 盏小球形灯沿环路移动。",
+        "按功率选取光源用的是 CDF 加二分查找，论文用的是别名表：分布相同，查找方式不同。",
+        "候选是灯球上均匀分布的一点；背面的点目标值为零，正如背向的三角形一样。",
+        "灯与灯之间不互相遮挡阴影光线；房间里的物体会遮挡。",
+        "没有环境贴图，所以论文中 25% 的环境候选不适用。",
+        "两种方法每个像素都只保存一个 reservoir（N = 1）；论文的有偏结果保存四个。",
+        "空间邻居取自按像素旋转的 R2 序列；论文只说“一个低差异序列”。",
+        "几何测试（深度的 10%，25 度）也用于时间邻居。",
+        "时间邻居通过用上一帧的相机重投影该像素的点来找到；房间里的物体不动。",
+        "材质是实验室的反照率和粗糙度，通过 Lambert 底层上的 GGX 电介质，与论文的统一材质相同。",
+        "实验室对解析形状和茶壶的 BVH 追踪阴影光线，不使用硬件光线追踪。",
+        "单独绘制的一帧会先把同一镜头绘制八次，使时间复用有之前的帧可用。"
+      ]
+    }
+  }
+}

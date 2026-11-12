@@ -1,9 +1,9 @@
-# ReSTIR in the room: its many lights, every pixel lit through the paper's passes.
+# A reference: the frames averaged while nothing moves, with streaming RIS and no reuse, so it converges without bias.
 
-key = "accum"
-title-text = "shot-room_title"
-tab-text = "shot-room"
-hint-text = "investigation-demo_hint"
+key = "reference"
+title-text = "shot-reference_title"
+tab-text = "shot-reference"
+hint-text = "shot-reference_hint"
 scene = "paper_restir.scene/restir-room"
 listing = "frame"
 resets-camera = true

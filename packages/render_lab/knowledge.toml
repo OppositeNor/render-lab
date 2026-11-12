@@ -833,6 +833,33 @@ requires = ["cg-importance-sampling", "cg-lights"]
 reading = ["Shirley, Wang and Zimmerman 1996, Monte Carlo Techniques for Direct Lighting Calculations, ACM Transactions on Graphics 15(1)", "Pharr, Jakob and Humphreys 2016, Physically Based Rendering, 3rd edition, chapter 14 (Light Transport I: Surface Reflection), §14.3", "Chao 1982, A General Purpose Unequal Probability Sampling Plan, Biometrika 69(3)"]
 
 [[topic]]
+key = "cg-ris"
+title-text = "topic-cg-ris-title"
+summary-text = "topic-cg-ris-summary"
+area = "cg"
+group = "cg-monte-carlo"
+requires = ["cg-importance-sampling"]
+reading = ["Talbot, Cline and Egbert 2005, Importance Resampling for Global Illumination, Eurographics Symposium on Rendering", "Bitterli, Wyman, Pharr, Shirley, Lefohn and Jarosz 2020, Spatiotemporal reservoir resampling for real-time ray tracing with dynamic direct lighting, ACM Transactions on Graphics 39(4), §2.1"]
+
+[[topic]]
+key = "cg-wrs"
+title-text = "topic-cg-wrs-title"
+summary-text = "topic-cg-wrs-summary"
+area = "cg"
+group = "cg-monte-carlo"
+requires = ["cg-mc"]
+reading = ["Chao 1982, A General Purpose Unequal Probability Sampling Plan, Biometrika 69(3)", "Efraimidis and Spirakis 2006, Weighted Random Sampling with a Reservoir, Information Processing Letters 97(5)"]
+
+[[topic]]
+key = "cg-reservoir-reuse"
+title-text = "topic-cg-reservoir-reuse-title"
+summary-text = "topic-cg-reservoir-reuse-summary"
+area = "cg"
+group = "cg-monte-carlo"
+requires = ["cg-ris", "cg-wrs"]
+reading = ["Bitterli, Wyman, Pharr, Shirley, Lefohn and Jarosz 2020, Spatiotemporal reservoir resampling for real-time ray tracing with dynamic direct lighting, ACM Transactions on Graphics 39(4), §3-4"]
+
+[[topic]]
 key = "cg-sampling-patterns"
 title-text = "topic-cg-sampling-patterns-title"
 summary-text = "topic-cg-sampling-patterns-summary"

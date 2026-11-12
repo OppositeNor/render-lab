@@ -76,7 +76,7 @@ ENTRIES: list[tuple[str, str, int, str, str, str]] = [
     ('alg4', '3.2', 6, 'Alg. 4', 'Algorithm 4: Combining the streams of multiple reservoirs.',
      'Algorithm 4: update with each reservoir\'s sample weighted p̂_q · W · M, M the sum of theirs, W from the weight sum.'),
     ('spatial', '3.2', 6, 'Section 3.2', 'Crucially, spatial reuse can be repeated',
-     'Spatial reuse can repeat, each round reading the last: O(nk + M) work for k^n M effective candidates.'),
+     'Spatial reuse can repeat, each round reading the last: O(nk + M) work for k^n M effective candidates, assuming distinct neighbours.'),
     ('temporal', '3.2', 6, 'Section 3.2', 'After rendering a frame, we store each pixel',
      'Temporal reuse: each pixel\'s final reservoir is kept and combined in the next frame, so a frame reuses every frame before it.'),
     ('visibility', '3.2', 6, 'Section 3.2', 'we also perform visibility reuse',
@@ -100,7 +100,7 @@ ENTRIES: list[tuple[str, str, int, str, str, str]] = [
     ('eq22', '4.3', 8, 'Eq. 22', 'the balance heuristic of the candidate PDFs',
      'm as the balance heuristic of the candidate PDFs solves both bias and noise.'),
     ('talbot-cost', '4.3', 8, 'Section 4.3', 'Talbot et al. evaluate all PDFs for each candidate sample',
-     'Talbot et al.\'s alternative weight costs O(M²) PDF evaluations; the paper\'s O(M).'),
+     'When each candidate has its own PDF, Talbot et al.\'s alternative weight costs O(M²) PDF evaluations; the paper\'s O(M).'),
     ('alg6', '4.4', 9, 'Alg. 6', 'Algorithm 6: Unbiased combination of multiple reservoirs.',
      'Algorithm 6: Z sums the M of the sources whose p̂ at the sample is not zero; W uses m = 1/Z (lines 6-11).'),
     ('approx-pdf', '4.4', 9, 'Section 4.4', 'as an approximation to the real PDF of samples',
@@ -127,6 +127,10 @@ ENTRIES: list[tuple[str, str, int, str, str, str]] = [
      'Each pixel stores only its reservoir: the selected sample y, M, and W.'),
     ('clamp', '5', 10, 'Section 5', 'clamp the previous frame',
      'Last frame\'s M is clamped to at most 20 times the current frame\'s, bounding stale temporal samples.'),
+    ('name', '6', 10, 'Section 6', 'or ReSTIR for short',
+     'The paper names its algorithm Reservoir-based SpatioTemporal Importance Resampling, ReSTIR.'),
+    ('still-images', '6', 10, 'Section 6', 'makes it possible to evaluate our algorithm for still images',
+     'Biased spatial reuse without temporal reuse is the variant for still images.'),
     ('results-setup', '6', 10, 'Section 6', 'We report image errors of each method compared',
      'Errors against an unbiased reference at high sample count, as relative mean absolute error.'),
     ('biased-vs-unbiased', '6', 10, 'Section 6', 'our biased method has considerably less variance',
@@ -153,33 +157,30 @@ ENTRIES: list[tuple[str, str, int, str, str, str]] = [
      'Image buffers limit the method to the primary hit; world-space reuse is future work.'),
 ]
 
-# The works the story cites, in APA style (7th edition), alphabetical.
+# The works the story cites, in APA style (7th edition), alphabetical; the card draws plain text, so titles are not italic.
 REFERENCES: list[tuple[str, str]] = [
-    ('bekaert2002', 'Bekaert, P., Sbert, M., & Halton, J. (2002). Accelerating path tracing by re-using paths. In *Proceedings of the 13th Eurographics Workshop on Rendering* (pp. 125–134). Eurographics Association. https://doi.org/10/ggdwkn'),
-    ('bitterli2020', 'Bitterli, B., Wyman, C., Pharr, M., Shirley, P., Lefohn, A., & Jarosz, W. (2020). Spatiotemporal reservoir resampling for real-time ray tracing with dynamic direct lighting. *ACM Transactions on Graphics, 39*(4), Article 148. https://doi.org/10.1145/3386569.3392481'),
-    ('chao1982', 'Chao, M.-T. (1982). A general purpose unequal probability sampling plan. *Biometrika, 69*(3), 653–656. https://doi.org/10/fd87zs'),
-    ('efraimidis2006', 'Efraimidis, P. S., & Spirakis, P. G. (2006). Weighted random sampling with a reservoir. *Information Processing Letters, 97*(5), 181–185. https://doi.org/10/cw2qc4'),
-    ('estevez2018', 'Estevez, A. C., & Kulla, C. (2018). Importance sampling of many lights with adaptive tree splitting. *Proceedings of the ACM on Computer Graphics and Interactive Techniques, 1*(2), Article 25. https://doi.org/10/ggh89v'),
-    ('moreau2019', 'Moreau, P., Pharr, M., & Clarberg, P. (2019). Dynamic many-light sampling for real-time ray tracing. In *High-Performance Graphics: Short Papers*. Eurographics Association. https://doi.org/10/ggh89m'),
-    ('olsson2011', 'Olsson, O., & Assarsson, U. (2011). Tiled shading. *Journal of Graphics, GPU, and Game Tools, 15*(4), 235–251. https://doi.org/10/bbfdms'),
-    ('schied2017', 'Schied, C., Kaplanyan, A., Wyman, C., Patney, A., Chaitanya, C. R. A., Burgess, J., Liu, S., Dachsbacher, C., Lefohn, A., & Salvi, M. (2017). Spatiotemporal variance-guided filtering: Real-time reconstruction for path-traced global illumination. In *Proceedings of High Performance Graphics* (Article 2). ACM. https://doi.org/10/ggd8dg'),
-    ('shirley1996', 'Shirley, P., Wang, C., & Zimmerman, K. (1996). Monte Carlo techniques for direct lighting calculations. *ACM Transactions on Graphics, 15*(1), 1–36. https://doi.org/10/ddgbgg'),
-    ('talbot2005', 'Talbot, J. F., Cline, D., & Egbert, P. (2005). Importance resampling for global illumination. In *Eurographics Symposium on Rendering* (pp. 139–146). Eurographics Association. https://doi.org/10/gfzsm2'),
-    ('veach1995', 'Veach, E., & Guibas, L. J. (1995). Optimally combining sampling techniques for Monte Carlo rendering. In *Proceedings of SIGGRAPH 95* (pp. 419–428). ACM. https://doi.org/10/d7b6n4'),
-    ('vitter1985', 'Vitter, J. S. (1985). Random sampling with a reservoir. *ACM Transactions on Mathematical Software, 11*(1), 37–57.'),
-    ('walter2005', 'Walter, B., Fernandez, S., Arbree, A., Bala, K., Donikian, M., & Greenberg, D. P. (2005). Lightcuts: A scalable approach to illumination. *ACM Transactions on Graphics, 24*(3), 1098–1107. https://doi.org/10/dhp5d3'),
-    ('ward1994', 'Ward, G. J. (1994). Adaptive shadow testing for ray tracing. In P. Brunet & F. W. Jansen (Eds.), *Photorealistic Rendering in Computer Graphics* (pp. 11–20). Springer. https://doi.org/10/b7zrhm'),
+    ('bekaert2002', 'Bekaert, P., Sbert, M., & Halton, J. (2002). Accelerating path tracing by re-using paths. In Proceedings of the 13th Eurographics Workshop on Rendering (pp. 125–134). Eurographics Association. https://doi.org/10/ggdwkn'),
+    ('bitterli2020', 'Bitterli, B., Wyman, C., Pharr, M., Shirley, P., Lefohn, A., & Jarosz, W. (2020). Spatiotemporal reservoir resampling for real-time ray tracing with dynamic direct lighting. ACM Transactions on Graphics, 39(4), Article 148. https://doi.org/10.1145/3386569.3392481'),
+    ('chao1982', 'Chao, M.-T. (1982). A general purpose unequal probability sampling plan. Biometrika, 69(3), 653–656. https://doi.org/10/fd87zs'),
+    ('estevez2018', 'Estevez, A. C., & Kulla, C. (2018). Importance sampling of many lights with adaptive tree splitting. Proceedings of the ACM on Computer Graphics and Interactive Techniques, 1(2), Article 25. https://doi.org/10/ggh89v'),
+    ('moreau2019', 'Moreau, P., Pharr, M., & Clarberg, P. (2019). Dynamic many-light sampling for real-time ray tracing. In High-Performance Graphics: Short Papers. Eurographics Association. https://doi.org/10/ggh89m'),
+    ('olsson2011', 'Olsson, O., & Assarsson, U. (2011). Tiled shading. Journal of Graphics, GPU, and Game Tools, 15(4), 235–251. https://doi.org/10/bbfdms'),
+    ('schied2017', 'Schied, C., Kaplanyan, A., Wyman, C., Patney, A., Chaitanya, C. R. A., Burgess, J., Liu, S., Dachsbacher, C., Lefohn, A., & Salvi, M. (2017). Spatiotemporal variance-guided filtering: Real-time reconstruction for path-traced global illumination. In Proceedings of High Performance Graphics (Article 2). ACM. https://doi.org/10/ggd8dg'),
+    ('shirley1996', 'Shirley, P., Wang, C., & Zimmerman, K. (1996). Monte Carlo techniques for direct lighting calculations. ACM Transactions on Graphics, 15(1), 1–36. https://doi.org/10/ddgbgg'),
+    ('talbot2005', 'Talbot, J. F., Cline, D., & Egbert, P. (2005). Importance resampling for global illumination. In Eurographics Symposium on Rendering (pp. 139–146). Eurographics Association. https://doi.org/10/gfzsm2'),
+    ('veach1995', 'Veach, E., & Guibas, L. J. (1995). Optimally combining sampling techniques for Monte Carlo rendering. In Proceedings of SIGGRAPH 95 (pp. 419–428). ACM. https://doi.org/10/d7b6n4'),
+    ('ward1994', 'Ward, G. J. (1994). Adaptive shadow testing for ray tracing. In P. Brunet & F. W. Jansen (Eds.), Photorealistic Rendering in Computer Graphics (pp. 11–20). Springer. https://doi.org/10/b7zrhm'),
 ]
 
 # The chapters' reading tables, in story order.
 CHAPTERS: list[tuple[str, list[str]]] = [
-    ('The paper and its problem', ['problem', 'approach', 'reservoir-intro', 'pdfs-not-colors', 'biased-mode', 'first-vertex']),
+    ('The paper and its problem', ['name', 'problem', 'approach', 'reservoir-intro', 'pdfs-not-colors', 'biased-mode', 'first-vertex']),
     ('Related work', ['eq1', 'eq3', 'eq4', 'eq5', 'eq6', 'ris-unbiased', 'ris-converges', 'alg1', 'wrs', 'eq9', 'alg2', 'many-lights', 'hierarchies', 'tiled', 'path-reuse', 'ratio', 'reservoir-history', 'denoisers']),
     ('Streaming RIS', ['alg3', 'streaming-cost', 'candidates-param', 'alias', 'target-param', 'storage']),
     ('Spatial reuse', ['combine', 'reweight', 'alg4', 'spatial', 'neighbors-param', 'geometry-test', 'spatial-passes']),
     ('Temporal and visibility reuse', ['temporal', 'temporal-pick', 'clamp', 'visibility', 'alg5']),
     ('Bias, and removing it', ['bias-source', 'eq12', 'weight-meaning', 'eq19', 'fig7', 'eq20', 'naive-m', 'eq22', 'talbot-cost', 'alg6', 'approx-pdf', 'unbiased-cost']),
-    ('Experiments on this machine', ['results-setup', 'biased-vs-unbiased', 'sample-count']),
+    ('Experiments on this machine', ['still-images', 'results-setup', 'biased-vs-unbiased', 'sample-count']),
     ('Conclusion', ['conclusion', 'limitations', 'screen-space']),
 ]
 
@@ -234,7 +235,11 @@ def entries(pdf: Path) -> dict[str, dict[str, object]]:
             missing.append(f'{key} (p. 148:{page}): {quote!r}')
             continue
         digest = hashlib.sha256(collapse(quote).encode()).hexdigest()[:16]
-        out[key] = {'section': section, 'page': f'148:{page}', 'symbol': symbol, 'quote': quote, 'quoteHash': digest, 'inspect': inspect, 'details': []}
+        # The abstract has no section number: its entries cite the page alone.
+        entry: dict[str, object] = {'page': f'148:{page}', 'symbol': symbol, 'quote': quote, 'quoteHash': digest, 'inspect': inspect, 'details': []}
+        if section != 'Abstract':
+            entry['section'] = section
+        out[key] = entry
     if missing:
         raise SystemExit('quotes not found on their pages:\n  ' + '\n  '.join(missing))
     return out

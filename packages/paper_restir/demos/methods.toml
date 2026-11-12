@@ -1,0 +1,20 @@
+# The comparisons of the paper's results: streaming RIS, spatial reuse alone, and spatiotemporal reuse, biased and unbiased, switched by their parameters, with the performance panel measuring each pass on this machine.
+
+key = "methods"
+title-text = "shot-methods_title"
+tab-text = "shot-methods"
+hint-text = "shot-methods_hint"
+scene = "paper_restir.scene/restir-room"
+listing = "frame"
+resets-camera = true
+
+[camera]
+target = [0.0, 0.9, -0.6]
+yaw = 18.0
+pitch = 14.0
+distance = 4.6
+fov = 55.0
+
+
+[params]
+restirSeed = -1

@@ -51,6 +51,11 @@ whose license allows publishing code derived from them:
   default subdivision: the bake's octree and distance field, the cells' records, the light, mip, and bounce passes, the
   dynamic-object path, and the per-pixel cone trace, ported to WGSL.
 
+- **Papers: ReSTIR** ([`packages/paper_restir/src/paper/restir`](packages/paper_restir/src/paper/restir/README.md)).
+  Bitterli et al.'s 2020 spatiotemporal reservoir resampling, implemented from the paper: streaming RIS of each
+  pixel's light candidates, visibility, temporal, and spatial reuse, biased and unbiased, in WGSL passes over a room
+  of 64 moving lights, each pass checked against a CPU mirror, and the paper's 1D example of bias redrawn.
+
 An optional module, not provided in this repo, can add local packages of its own to `packages/` (each with its own Cargo
 workspace). Without it the lab runs with the public investigations alone.
 

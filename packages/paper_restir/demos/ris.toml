@@ -6,7 +6,7 @@ title-text = "shot-ris_title"
 tab-text = "shot-ris"
 hint-text = "shot-ris_hint"
 scene = "paper_restir.scene/restir-room"
-listing = "frame"
+listing = "ris"
 resets-camera = true
 
 [camera]

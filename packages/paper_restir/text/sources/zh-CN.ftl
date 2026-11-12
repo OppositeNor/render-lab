@@ -24,7 +24,7 @@ entry-streaming-cost-inspect = 流式处理让存储变为常数，但计算量�
 entry-combine-inspect = 合并 reservoir：把每个 reservoir 的样本当作新样本送入一个新的 reservoir，等价于对它们合并后的数据流重采样。
 entry-reweight-inspect = 邻居的样本按本像素的目标重新加权，乘以 p̂_q / p̂_q′，写作 p̂_q(r.y) · r.W · r.M。
 entry-alg4-inspect = 算法 4：用每个 reservoir 的样本更新，权重为 p̂_q · W · M；M 是它们的 M 之和；W 由权重和得到。
-entry-spatial-inspect = 空间复用可以重复，每一轮读取上一轮的结果：O(nk + M) 的计算量，换来 k^n M 个有效候选。
+entry-spatial-inspect = 空间复用可以重复，每一轮读取上一轮的结果：O(nk + M) 的计算量，换来 k^n M 个有效候选（假设邻居互不相同）。
 entry-temporal-inspect = 时间复用：保存每个像素的最终 reservoir，在下一帧合并，于是每一帧复用了之前所有的帧。
 entry-visibility-inspect = 可见性复用：复用之前先测试每个像素选中的样本，被遮挡的就丢弃。
 entry-alg5-inspect = 算法 5：候选、可见性、时间复用、n 轮空间复用、着色；最后返回 reservoir 给下一帧。
@@ -36,7 +36,7 @@ entry-fig7-inspect = 图 7：用常数 PDF 和阶跃 PDF 采样线性目标 2 �
 entry-eq20-inspect = 无偏 RIS：把 1/M 换成权重 m，它在可能产生该样本的候选上求和为一。
 entry-naive-m-inspect = 朴素权重 1/|Z|：无偏，但当某个 PDF 接近零而不为零时噪声很大。
 entry-eq22-inspect = 取 m 为候选 PDF 的平衡启发式，同时解决了偏差和噪声。
-entry-talbot-cost-inspect = Talbot 等人的另一种权重需要 O(M²) 次 PDF 计算；论文的做法只要 O(M)。
+entry-talbot-cost-inspect = 当每个候选各有自己的 PDF 时，Talbot 等人的另一种权重需要 O(M²) 次 PDF 计算；论文的做法只要 O(M)。
 entry-alg6-inspect = 算法 6：Z 累加那些在该样本处 p̂ 不为零的来源的 M；W 使用 m = 1/Z（第 6-11 行）。
 entry-approx-pdf-inspect = 每个来源像素的 p̂ 代替其样本未知的 PDF，在那个 PDF 为零处它也为零；启用可见性复用时，可见性也是它的一部分。
 entry-unbiased-cost-inspect = 启用可见性复用时，无偏合并要为每个邻居多发一条阴影光线。
@@ -50,6 +50,8 @@ entry-spatial-passes-inspect = n = 2 轮空间复用（无偏时为 1）。
 entry-sample-count-inspect = 无偏算法 N = 1；有偏算法每个像素保存四个 reservoir。
 entry-storage-inspect = 每个像素只保存它的 reservoir：选中的样本 y、M 和 W。
 entry-clamp-inspect = 上一帧的 M 被截断为至多本帧的 20 倍，限制过时的时间样本。
+entry-name-inspect = 论文把它的算法命名为 Reservoir-based SpatioTemporal Importance Resampling，即 ReSTIR。
+entry-still-images-inspect = 不含时间复用的有偏空间复用，是用于静态图像的变体。
 entry-results-setup-inspect = 误差相对于高样本数的无偏参考图，用相对平均绝对误差表示。
 entry-biased-vs-unbiased-inspect = 有偏方法方差更小，代价是阴影边界、锐利高光和复杂几何处的能量损失。
 entry-many-lights-inspect = 多光源采样：Ward 和 Shirley 等人把光源分为重要与不重要；光源层次结构以亚线性时间采样它们。

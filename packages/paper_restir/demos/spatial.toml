@@ -5,7 +5,7 @@ title-text = "shot-spatial_title"
 tab-text = "shot-spatial"
 hint-text = "shot-spatial_hint"
 scene = "paper_restir.scene/restir-room"
-listing = "frame"
+listing = "combine"
 resets-camera = true
 
 [camera]
