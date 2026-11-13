@@ -2,10 +2,11 @@
 # public packages' libraries (packages/<name>, each a cdylib the lab loads at
 # run time; src/packages.rs in the lab). A package's library depends on the lab
 # alone, and on crates the lab depends on, with no more features than the
-# lab's, so every crate sees one build of the lab.
+# lab's, so every crate sees one build of the lab. lab/abi-test holds two test
+# libraries of the C ABI between packages, built the same way, for the lab's tests.
 [workspace]
-members = ["lab", "lab/check", "lab/derive", "packages/o3de_lighting", "packages/godot_sdfgi", "packages/godot_ssr", "packages/godot_voxelgi", "packages/paper_restir"]
-default-members = [".", "packages/o3de_lighting", "packages/godot_sdfgi", "packages/godot_ssr", "packages/godot_voxelgi", "packages/paper_restir"]
+members = ["lab", "lab/abi-test/exporter", "lab/abi-test/importer", "lab/check", "lab/derive", "packages/o3de_lighting", "packages/godot_sdfgi", "packages/godot_ssr", "packages/godot_voxelgi", "packages/paper_restir"]
+default-members = [".", "lab/abi-test/exporter", "lab/abi-test/importer", "packages/o3de_lighting", "packages/godot_sdfgi", "packages/godot_ssr", "packages/godot_voxelgi", "packages/paper_restir"]
 resolver = "3"
 
 # The CPU mirrors keep the shape of the engine and shader code they port: its

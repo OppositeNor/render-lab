@@ -1,8 +1,9 @@
 //! Every investigation the lab has, grouped by engine on the homepage: those
 //! the packages' libraries hand the lab when they negotiate (src/packages.rs,
 //! src/plugin.rs). The libraries are opened the first time the lab needs the
-//! list, in the packages' order; a library that cannot be used is reported,
-//! and its package's content stays mounted.
+//! list, in the packages' order; a library that cannot be used is reported
+//! (and so are the libraries that import it), and its package's content
+//! stays mounted.
 
 use crate::investigation::{Engine, Investigation};
 use crate::plugin::Handles;
@@ -22,16 +23,16 @@ pub fn set_title(path: &'static str) {
     let _ = TITLE.set(path);
 }
 
-/// Every package's library, opened once.
+/// Every package's library, opened once, in the packages' order (each after
+/// its imports', which it is handed; src/packages.rs `load_all`).
 pub fn libraries() -> &'static [Library] {
     static LIBRARIES: OnceLock<Vec<Library>> = OnceLock::new();
     LIBRARIES.get_or_init(|| {
-        let libraries: Vec<Library> = resources::packages()
-            .iter()
-            .filter(|m| m.library.is_some())
-            .map(|m| Library {
+        let libraries: Vec<Library> = packages::load_all(resources::packages(), packages::load)
+            .into_iter()
+            .map(|(m, loaded)| Library {
                 package: &m.name,
-                loaded: packages::load(m),
+                loaded,
             })
             .collect();
         for library in &libraries {

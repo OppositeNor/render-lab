@@ -261,7 +261,8 @@ fn images() -> Result<()> {
 fn packages(json: bool) -> Result<()> {
     let packages = crate::resources::packages();
     // Its library: the file, and its handles or why it is not loaded.
-    let library = |m: &crate::packages::Package| -> Option<(String, Result<Vec<String>, String>)> {
+    type Loaded = Result<(Vec<String>, Vec<String>), String>;
+    let library = |m: &crate::packages::Package| -> Option<(String, Loaded)> {
         let (name, _) = m.library.as_ref()?;
         let loaded = investigations::libraries()
             .iter()
@@ -271,7 +272,17 @@ fn packages(json: bool) -> Result<()> {
             loaded
                 .loaded
                 .as_ref()
-                .map(|h| h.names().map(String::from).collect())
+                .map(|h| {
+                    // The C functions it resolved in its imports' libraries, each `package: symbol`.
+                    let resolved = h
+                        .resolved
+                        .iter()
+                        .filter(|(_, s)| !s.ends_with("_signature"));
+                    (
+                        h.names().map(String::from).collect(),
+                        resolved.map(|(p, s)| format!("{p}: {s}")).collect(),
+                    )
+                })
                 .map_err(Clone::clone),
         ))
     };
@@ -281,7 +292,7 @@ fn packages(json: bool) -> Result<()> {
             .map(|m| {
                 let demos: Vec<serde_json::Value> = m.demos.iter().map(|d| serde_json::json!({"key": d.key, "title": d.title, "timeline": d.timeline, "audio": d.audio})).collect();
                 let library = library(m).map(|(file, loaded)| match loaded {
-                    Ok(handles) => serde_json::json!({"file": file, "handles": handles}),
+                    Ok((handles, imports)) => serde_json::json!({"file": file, "handles": handles, "imports": imports}),
                     Err(error) => serde_json::json!({"file": file, "error": error}),
                 });
                 serde_json::json!({"name": m.name, "author": m.author, "contact": m.contact, "license": m.license, "manifest": m.manifest, "import": m.imports, "export": m.exports, "library": library, "demos": demos})
@@ -316,8 +327,11 @@ fn packages(json: bool) -> Result<()> {
                 }
             );
             match library(m) {
-                Some((file, Ok(handles))) => {
-                    println!("    library: {file}, handles: {}", handles.join(", "))
+                Some((file, Ok((handles, imports)))) => {
+                    println!("    library: {file}, handles: {}", handles.join(", "));
+                    if !imports.is_empty() {
+                        println!("    resolved: {}", imports.join(", "));
+                    }
                 }
                 Some((file, Err(_))) => println!("    library: {file}, not loaded (above)"),
                 None => {}

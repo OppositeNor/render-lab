@@ -42,12 +42,17 @@
 //!
 //! `scan` reads the manifests and orders the packages so that each comes
 //! after the packages it imports; the resource registry (src/resources.rs)
-//! reads their collections in that order, and `load` opens a package's
-//! library when the lab first needs its investigations
-//! (src/investigations.rs).
+//! reads their collections in that order, and `load_all` opens the
+//! packages' libraries in that order when the lab first needs its
+//! investigations (src/investigations.rs): each library gets the handles of
+//! its imports' libraries (src/plugin/abi.rs), and one whose import was
+//! refused is refused too.
 
+use crate::plugin::abi::{RlPackage, RlStr};
 use crate::plugin::{self, Handles, NegotiateFn};
+use std::cell::RefCell;
 use std::collections::BTreeMap;
+use std::ffi::c_void;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -538,10 +543,9 @@ pub fn scan(root: &Path, dir: &Path) -> Result<Vec<Package>, String> {
                 .iter()
                 .all(|i| ordered.iter().any(|o| &o.name == i))
         }) else {
-            let names: Vec<&str> = pending.iter().map(|(m, _)| m.name.as_str()).collect();
             return Err(format!(
-                "packages: the imports of {} form a cycle",
-                names.join(", ")
+                "packages: their imports form a cycle: {}",
+                cycle(pending.iter().map(|(m, _)| m)).join(" -> ")
             ));
         };
         let (mut package, references) = pending.remove(i);
@@ -562,6 +566,26 @@ pub fn scan(root: &Path, dir: &Path) -> Result<Vec<Package>, String> {
         ordered.push(package);
     }
     Ok(ordered)
+}
+
+/// A cycle among `pending` packages, none of which has all its imports
+/// taken: its names in order, the first again at the end.
+fn cycle<'a>(pending: impl Iterator<Item = &'a Package> + Clone) -> Vec<&'a str> {
+    let find = |name: &str| pending.clone().find(|p| p.name == name);
+    let mut path: Vec<&Package> = pending.clone().take(1).collect();
+    loop {
+        // Each pending package imports a pending one; follow it until a package comes round again.
+        let last = path[path.len() - 1];
+        let Some(next) = last.imports.iter().find_map(|i| find(i)) else {
+            return path.iter().map(|p| p.name.as_str()).collect();
+        };
+        if let Some(start) = path.iter().position(|p| p.name == next.name) {
+            let mut names: Vec<&str> = path[start..].iter().map(|p| p.name.as_str()).collect();
+            names.push(&next.name);
+            return names;
+        }
+        path.push(next);
+    }
 }
 
 /// The directory of the running binary (for a test, of the binary it tests),
@@ -590,10 +614,75 @@ pub fn library_path(package: &Package, name: &str) -> PathBuf {
     }
 }
 
-/// Opens `package`'s library and negotiates with it: the handles it
-/// registers, or why it cannot be used. The library stays loaded for the
-/// rest of the run (its handles are `'static`).
-pub fn load(package: &Package) -> Result<Handles, String> {
+/// Opens the libraries of `packages` (in their order, imports first) with
+/// `open`, each given the opened libraries of its imports (those that have
+/// one). A package whose imported library was refused is refused too, with
+/// the reason down the chain.
+pub fn load_all<'a, T>(
+    packages: &'a [Package],
+    mut open: impl FnMut(&'a Package, &[(&'a str, &T)]) -> Result<T, String>,
+) -> Vec<(&'a Package, Result<T, String>)> {
+    let mut loaded: Vec<(&'a Package, Result<T, String>)> = Vec::new();
+    for package in packages.iter().filter(|p| p.library.is_some()) {
+        let result = {
+            let mut imports: Vec<(&'a str, &T)> = Vec::new();
+            let mut refused = None;
+            for name in &package.imports {
+                // An import without a library has no handle to give.
+                let Some((import, result)) = loaded.iter().find(|(p, _)| &p.name == name) else {
+                    continue;
+                };
+                match result {
+                    Ok(opened) => imports.push((import.name.as_str(), opened)),
+                    Err(e) => {
+                        refused = Some(format!(
+                            "packages: {}: imports `{name}`, whose library was not loaded: {e}",
+                            package.manifest
+                        ));
+                        break;
+                    }
+                }
+            }
+            match refused {
+                Some(e) => Err(e),
+                None => open(package, &imports),
+            }
+        };
+        loaded.push((package, result));
+    }
+    loaded
+}
+
+/// What an importer's handle of another package's library points to: that
+/// library, and the symbols the importer found in it.
+struct Lookup<'a> {
+    package: &'a str,
+    library: &'static libloading::Library,
+    found: RefCell<Vec<String>>,
+}
+
+/// `RlPackage::symbol`: `name`'s address in a `Lookup`'s library, or null.
+unsafe extern "C" fn lookup(library: *const c_void, name: RlStr) -> *const c_void {
+    // SAFETY: `load` passes its `Lookup`s, alive for the negotiation, and the library's UTF-8 name.
+    let (lookup, name) = unsafe { (&*(library as *const Lookup), name.as_str()) };
+    let Some(name) = name else {
+        return std::ptr::null();
+    };
+    // SAFETY: an address only; the importer checks its signature before it uses it.
+    match unsafe { lookup.library.get::<*const c_void>(name.as_bytes()) } {
+        Ok(symbol) => {
+            lookup.found.borrow_mut().push(name.to_string());
+            *symbol
+        }
+        Err(_) => std::ptr::null(),
+    }
+}
+
+/// Opens `package`'s library and negotiates with it, handing it the
+/// libraries of its `imports`: the handles it registers, or why it cannot be
+/// used. The library stays loaded for the rest of the run (its handles are
+/// `'static`).
+pub fn load(package: &Package, imports: &[(&str, &Handles)]) -> Result<Handles, String> {
     let Some((name, symbol)) = &package.library else {
         return Ok(Handles::default());
     };
@@ -615,10 +704,38 @@ pub fn load(package: &Package) -> Result<Handles, String> {
     // SAFETY: the manifest names the function's symbol; its type is the negotiation's.
     let negotiate: NegotiateFn = *unsafe { library.get::<NegotiateFn>(symbol.as_bytes()) }
         .map_err(|e| fail(format!("no negotiation function `{symbol}`: {e}")))?;
-    // SAFETY: as above.
-    let handles = unsafe { plugin::negotiate(negotiate) }
+    let lookups: Vec<Lookup> = imports
+        .iter()
+        .filter_map(|(package, handles)| {
+            Some(Lookup {
+                package,
+                library: handles.library?,
+                found: RefCell::default(),
+            })
+        })
+        .collect();
+    let handed: Vec<RlPackage> = lookups
+        .iter()
+        .map(|l| RlPackage {
+            name: RlStr::borrowed(l.package),
+            library: l as *const Lookup as *const c_void,
+            symbol: lookup,
+        })
+        .collect();
+    // SAFETY: as above; the handles point to `lookups`, alive for the call.
+    let mut handles = unsafe { plugin::negotiate(negotiate, &handed) }
         .map_err(|e| fail(format!("negotiation `{symbol}`: {e}")))?;
-    std::mem::forget(library);
+    handles.library = Some(Box::leak(Box::new(library)));
+    handles.resolved = lookups
+        .into_iter()
+        .flat_map(|l| {
+            let package = l.package.to_string();
+            l.found
+                .take()
+                .into_iter()
+                .map(move |s| (package.clone(), s))
+        })
+        .collect();
     Ok(handles)
 }
 
@@ -648,6 +765,9 @@ pub fn resolve(package: &Package, imported: &[Package], reference: &str) -> Resu
     }
     Ok(reference.to_string())
 }
+
+#[cfg(all(test, unix))]
+mod library_tests;
 
 #[cfg(test)]
 mod tests {
@@ -713,7 +833,67 @@ mod tests {
                 ("b", &manifest("b", "\"a\"", "")),
             ],
         );
-        assert!(scan(&dir, &dir).err().unwrap().contains("cycle"));
+        assert!(
+            scan(&dir, &dir)
+                .err()
+                .unwrap()
+                .contains("cycle: a -> b -> a")
+        );
+        // A package importing the cycle is not part of it.
+        let dir = directory(
+            "cycle-path",
+            &[
+                ("a", &manifest("a", "\"b\"", "")),
+                ("b", &manifest("b", "\"c\"", "")),
+                ("c", &manifest("c", "\"b\"", "")),
+            ],
+        );
+        assert!(
+            scan(&dir, &dir)
+                .err()
+                .unwrap()
+                .contains("cycle: b -> c -> b")
+        );
+    }
+
+    #[test]
+    fn a_refused_import_refuses_its_importers() {
+        let library = "library = \"x\"\nnegotiate = \"x_negotiate\"\n";
+        let dir = directory(
+            "load-order",
+            &[
+                ("a", &(manifest("a", "\"b\", \"c\"", "") + library)),
+                ("b", &(manifest("b", "\"d\"", "") + library)),
+                ("c", &manifest("c", "", "")),
+                ("d", &(manifest("d", "", "") + library)),
+                ("e", &(manifest("e", "\"c\"", "") + library)),
+            ],
+        );
+        let packages = scan(&dir, &dir).unwrap();
+        // `d` fails to open; every library is opened after its imports', with theirs.
+        let mut opened = Vec::new();
+        let loaded = load_all(&packages, |p, imports: &[(&str, &String)]| {
+            opened.push(p.name.clone());
+            if p.name == "d" {
+                return Err("d: broken".into());
+            }
+            let names: Vec<&str> = imports.iter().map(|(n, _)| *n).collect();
+            Ok(format!("{}({})", p.name, names.join(",")))
+        });
+        assert_eq!(opened, ["d", "e"]);
+        let result = |name: &str| {
+            loaded
+                .iter()
+                .find(|(p, _)| p.name == name)
+                .map(|(_, r)| r.clone())
+                .unwrap()
+        };
+        assert_eq!(result("e").unwrap(), "e()");
+        let b = result("b").unwrap_err();
+        assert!(b.contains("imports `d`, whose library was not loaded: d: broken"));
+        let a = result("a").unwrap_err();
+        assert!(a.contains("imports `b`, whose library was not loaded") && a.contains("d: broken"));
+        assert!(!loaded.iter().any(|(p, _)| p.name == "c"));
     }
 
     #[test]

@@ -1,0 +1,24 @@
+# A test library of the C ABI between packages (the lab's src/plugin/abi.rs;
+# src/packages/library_tests.rs opens it): a cdylib that depends on the lab
+# alone, as a package's library does. `cargo build --release` builds it beside
+# the binary, where the lab's tests find it.
+[package]
+name = "abi_importer"
+version = "0.0.5"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+description = "Render Lab's test library of the C ABI between packages: the importer"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+# No unit tests: a test harness of a library that links the lab's dylib cannot link.
+test = false
+doctest = false
+
+[dependencies]
+lab = { package = "render-lab-core", path = "../.." }
+
+[lints]
+workspace = true
