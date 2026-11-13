@@ -5,7 +5,8 @@
 name = "godot_sdfgi"
 author = "OppositeNor"
 license = "MIT"
-import = ["render_lab"]
+# godot_voxelgi: its library exports the light falloff and area-light integral this one imports (src/lib.rs).
+import = ["render_lab", "godot_voxelgi"]
 # Its code (src/, Cargo.toml): the library the lab opens, and its negotiation
 # function, which hands the lab the package's investigations (lab/src/plugin.rs).
 library = "godot_sdfgi"

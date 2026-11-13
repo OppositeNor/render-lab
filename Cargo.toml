@@ -5,7 +5,7 @@
 # lab's, so every crate sees one build of the lab. lab/abi-test holds two test
 # libraries of the C ABI between packages, built the same way, for the lab's tests.
 [workspace]
-members = ["lab", "lab/abi-test/exporter", "lab/abi-test/importer", "lab/check", "lab/derive", "packages/o3de_lighting", "packages/godot_sdfgi", "packages/godot_ssr", "packages/godot_voxelgi", "packages/paper_restir"]
+members = ["lab", "lab/abi-test/exporter", "lab/abi-test/importer", "lab/check", "lab/derive", "packages/o3de_lighting", "packages/godot_sdfgi", "packages/godot_ssr", "packages/godot_voxelgi", "packages/godot_voxelgi/interface", "packages/paper_restir"]
 default-members = [".", "lab/abi-test/exporter", "lab/abi-test/importer", "packages/o3de_lighting", "packages/godot_sdfgi", "packages/godot_ssr", "packages/godot_voxelgi", "packages/paper_restir"]
 resolver = "3"
 

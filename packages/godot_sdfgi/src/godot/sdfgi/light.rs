@@ -20,6 +20,9 @@ use super::voxels::{
     ANISO_DIR, CELLS, N, SolidCell, decode_rgbe8985, index, inside, shared_exponent,
 };
 use glam::{IVec3, Vec3};
+// Godot's omni-light falloff (`get_omni_attenuation`) and area-light integral (`ltc_evaluate_diff` with no
+// projector texture), shared with godot_voxelgi: its library exports them, and this one imports them at load.
+pub use godot_voxelgi_interface::{ltc_diffuse, omni_attenuation};
 
 pub const LIGHT_TYPE_DIRECTIONAL: u32 = 0;
 pub const LIGHT_TYPE_OMNI: u32 = 1;
@@ -138,17 +141,6 @@ pub fn sample_sdf(sdf: &[u8], uvw: Vec3) -> f32 {
     sample3(uvw, |p| sdf[index(p)] as f32 / 255.0)
 }
 
-/// `get_omni_attenuation`: (1 - (d/r)^4)^2 * d^-decay.
-pub fn omni_attenuation(distance: f32, inv_range: f32, decay: f32) -> f32 {
-    // Godot's window, (1 - (d / range)^4)^2, times the distance to the power -decay.
-    let mut nd = distance * inv_range;
-    nd *= nd;
-    nd *= nd;
-    nd = (1.0 - nd).max(0.0);
-    nd *= nd;
-    nd * distance.max(0.0001).powf(-decay)
-}
-
 /// The probe maps the bounce reads: the light-probe texture's irradiance layer
 /// of a cascade, sampled at a texel position (bilinear, as `textureLod`).
 pub trait ProbeLookup {
@@ -231,169 +223,6 @@ pub fn shadow_ray(
         ray_pos = pos;
     }
     false
-}
-
-/// `ltc_evaluate_diff` with no projector texture: the integral over the
-/// light's quad (clipped to the horizon of `normal`) of the cosine to
-/// `normal`, not divided by 2 pi (area_lights_inc.glsl: "no division by
-/// (2.0 * M_PI) for GI calculations").
-pub fn ltc_diffuse(normal: Vec3, points: [Vec3; 4]) -> f32 {
-    // An orthonormal frame around the normal, so the polygon can be clipped and integrated in it.
-    let eye_vec = if normal.z.abs() < 0.7 {
-        Vec3::new(0.0, 0.0, -1.0)
-    } else {
-        Vec3::X
-    };
-    let z = -(eye_vec - normal * eye_vec.dot(normal)).normalize();
-    let x = normal.cross(z);
-    // M_inv = transpose(mat3(x, normal, z)): rows x, normal, z.
-    let rot = |p: Vec3| Vec3::new(x.dot(p), normal.dot(p), z.dot(p));
-    let mut l = [
-        rot(points[0]),
-        rot(points[1]),
-        rot(points[2]),
-        rot(points[3]),
-        Vec3::ZERO,
-    ];
-    let n = clip_quad_to_horizon(&mut l);
-    if n == 0 {
-        // The whole light is below the horizon.
-        return 0.0;
-    }
-    let proj = l.map(|v| v.normalize_or_zero());
-    let pnorm = (proj[0] - proj[1])
-        .cross(proj[2] - proj[1])
-        .normalize_or_zero();
-    if pnorm.dot(proj[0]).abs() < 1e-10 {
-        return 0.0;
-    }
-    // The integral over the clipped polygon is the sum over its edges.
-    let mut i = integrate_edge(proj[0], proj[1], l[0], l[1]);
-    i += integrate_edge(proj[1], proj[2], l[1], l[2]);
-    i += integrate_edge(proj[2], proj[3], l[2], l[3]);
-    if n >= 4 {
-        i += integrate_edge(proj[3], proj[4], l[3], l[4]);
-    }
-    if n == 5 {
-        i += integrate_edge(proj[4], proj[0], l[4], l[0]);
-    }
-    i.abs()
-}
-
-/// `integrate_edge_hill`'s y component: Hill and Heitz's fit of the edge
-/// integral of the clamped cosine.
-fn edge_hill(p0: Vec3, p1: Vec3) -> f32 {
-    let x = p0.dot(p1);
-    let y = x.abs();
-    let a = 5.42031 + (3.12829 + 0.0902326 * y) * y;
-    let b = 3.45068 + (4.18814 + y) * y;
-    let mut theta_sintheta = a / b;
-    // Past 90 degrees the fit is extended by symmetry.
-    if x < 0.0 {
-        theta_sintheta = std::f32::consts::PI / (1.0 - x * x).sqrt() - theta_sintheta;
-    }
-    theta_sintheta * p0.cross(p1).y
-}
-
-fn integrate_edge(p_proj0: Vec3, p_proj1: Vec3, p0: Vec3, p1: Vec3) -> f32 {
-    let epsilon = 0.00001;
-    if p_proj0.dot(p_proj1) < -1.0 + epsilon {
-        // An edge between nearly opposite directions is split at its midpoint, as two edges.
-        let half_point_t = p0 + (p1 - p0).normalize() * p0.dot((p0 - p1).normalize());
-        let half_point = half_point_t.normalize();
-        edge_hill(p_proj0, half_point) + edge_hill(half_point, p_proj1)
-    } else {
-        edge_hill(p_proj0, p_proj1)
-    }
-}
-
-/// `clip_quad_to_horizon`: clips the quad to y > 0, returning its vertex count.
-fn clip_quad_to_horizon(l: &mut [Vec3; 5]) -> usize {
-    let mut config = 0;
-    // Which corners are above the horizon (y > 0), as four bits.
-    for (k, bit) in [1, 2, 4, 8].iter().enumerate() {
-        if l[k].y > 0.0 {
-            config += bit;
-        }
-    }
-    let lerp = |a: Vec3, b: Vec3| -a.y * b + b.y * a;
-    // Each case keeps the corners above the horizon and moves the others to the edges' crossings.
-    let n = match config {
-        1 => {
-            l[1] = lerp(l[1], l[0]);
-            l[2] = lerp(l[3], l[0]);
-            3
-        }
-        2 => {
-            l[0] = lerp(l[0], l[1]);
-            l[2] = lerp(l[2], l[1]);
-            3
-        }
-        3 => {
-            l[2] = lerp(l[2], l[1]);
-            l[3] = lerp(l[3], l[0]);
-            4
-        }
-        4 => {
-            l[0] = lerp(l[3], l[2]);
-            l[1] = lerp(l[1], l[2]);
-            3
-        }
-        6 => {
-            l[0] = lerp(l[0], l[1]);
-            l[3] = lerp(l[3], l[2]);
-            4
-        }
-        7 => {
-            l[4] = lerp(l[3], l[0]);
-            l[3] = lerp(l[3], l[2]);
-            5
-        }
-        8 => {
-            l[0] = lerp(l[0], l[3]);
-            l[1] = lerp(l[2], l[3]);
-            l[2] = l[3];
-            3
-        }
-        9 => {
-            l[1] = lerp(l[1], l[0]);
-            l[2] = lerp(l[2], l[3]);
-            4
-        }
-        11 => {
-            l[4] = l[3];
-            l[3] = lerp(l[2], l[3]);
-            l[2] = lerp(l[2], l[1]);
-            5
-        }
-        12 => {
-            l[1] = lerp(l[1], l[2]);
-            l[0] = lerp(l[0], l[3]);
-            4
-        }
-        13 => {
-            l[4] = l[3];
-            l[3] = l[2];
-            l[2] = lerp(l[1], l[2]);
-            l[1] = lerp(l[1], l[0]);
-            5
-        }
-        14 => {
-            l[4] = lerp(l[0], l[3]);
-            l[0] = lerp(l[0], l[1]);
-            5
-        }
-        15 => 4,
-        _ => 0,
-    };
-    if n == 3 {
-        // Close the polygon by repeating its first corner.
-        l[3] = l[0];
-    }
-    if n == 4 {
-        l[4] = l[0];
-    }
-    n
 }
 
 /// `compute_area_light`: the closest point of the light's rectangle, the

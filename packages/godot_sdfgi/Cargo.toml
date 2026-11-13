@@ -24,6 +24,8 @@ egui = "=0.37.0"
 glam = { version = "0.34", features = ["bytemuck"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# The C interface of godot_voxelgi's library (its Godot light falloff and area-light integral), imported at load.
+godot_voxelgi_interface = { path = "../godot_voxelgi/interface" }
 wgpu = { version = "=30.0.1", default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
 
 [build-dependencies]

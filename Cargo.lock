@@ -1369,6 +1369,7 @@ dependencies = [
  "anyhow",
  "egui",
  "glam",
+ "godot_voxelgi_interface",
  "render-lab-check",
  "render-lab-core",
  "serde",
@@ -1397,10 +1398,19 @@ dependencies = [
  "anyhow",
  "egui",
  "glam",
+ "godot_voxelgi_interface",
  "render-lab-check",
  "render-lab-core",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "godot_voxelgi_interface"
+version = "0.0.5"
+dependencies = [
+ "glam",
+ "render-lab-core",
 ]
 
 [[package]]

@@ -1,8 +1,10 @@
 //! The Godot VoxelGI investigation (packages/godot_voxelgi/src/godot/voxelgi),
 //! built as the godot_voxelgi package's library. The lab opens it at run time
 //! and calls `godot_voxelgi_negotiate` (manifest.toml's `negotiate`), which
-//! hands the lab the package's handles (lab's src/plugin.rs).
+//! hands the lab the package's handles (lab's src/plugin.rs). It also exports
+//! C functions to other packages' libraries (src/exports.rs, interface/).
 
+mod exports;
 mod godot;
 
 use lab::investigation::Investigation;

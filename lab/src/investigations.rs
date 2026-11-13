@@ -52,13 +52,16 @@ fn unmet(package: &str) -> Option<&'static str> {
         .and_then(|m| m.unmet())
 }
 
-/// Every investigation the packages' libraries hand the lab, with why it cannot run here, if it cannot.
+/// Every investigation the packages' libraries hand the lab, with why it cannot run here, if it cannot: by
+/// package name (the libraries open imports first, which would list an importer after the package it imports).
 fn handed() -> &'static [(&'static dyn Investigation, Option<&'static str>)] {
     static HANDED: OnceLock<Vec<(&'static dyn Investigation, Option<&'static str>)>> =
         OnceLock::new();
     HANDED.get_or_init(|| {
-        libraries()
-            .iter()
+        let mut libraries: Vec<&Library> = libraries().iter().collect();
+        libraries.sort_by_key(|l| l.package);
+        libraries
+            .into_iter()
             .filter_map(|l| Some((l.package, l.loaded.as_ref().ok()?.investigations()?)))
             .flat_map(|(package, f)| f().iter().map(move |i| (*i, unmet(package))))
             .collect()

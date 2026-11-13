@@ -1,0 +1,24 @@
+# The C interface the godot_voxelgi package's library exports to other
+# packages' (the lab's src/plugin/abi.rs): its `repr(C)` types, its functions'
+# types, and the imports an importer names in its negotiation. An importing
+# package depends on this crate, not on godot_voxelgi's, and imports the
+# package in its manifest.
+[package]
+name = "godot_voxelgi_interface"
+version = "0.0.5"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+description = "The C interface of Render Lab's Godot VoxelGI package"
+license = "MIT"
+
+[lib]
+test = false
+doctest = false
+
+[dependencies]
+lab = { package = "render-lab-core", path = "../../../lab" }
+glam = { version = "0.34", features = ["bytemuck"] }
+
+[lints]
+workspace = true

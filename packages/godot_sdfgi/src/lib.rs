@@ -16,4 +16,9 @@ fn investigations() -> &'static [&'static dyn Investigation] {
 
 // The package's negotiation function (manifest.toml's `negotiate`): it hands
 // the lab its handles once the lab's interface version and build match its own.
-lab::negotiate!(godot_sdfgi_negotiate, ["investigations" => investigations as InvestigationsFn]);
+// It imports godot_voxelgi's light falloff and area-light integral (its C interface) before it answers.
+lab::negotiate!(
+    godot_sdfgi_negotiate,
+    ["investigations" => investigations as InvestigationsFn],
+    imports [godot_voxelgi_interface::LTC_DIFFUSE, godot_voxelgi_interface::OMNI_ATTENUATION]
+);
