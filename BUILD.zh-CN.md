@@ -6,7 +6,7 @@
 
 ## 要求
 
-Rust 1.88 或更新版本，以及支持 Vulkan 的 GPU 驱动（Windows 上也可用 Direct3D 12，macOS 上用 Metal）。由 wgpu 选择图形 API；`WGPU_BACKEND`（`vulkan`、`dx12`、`metal`）可指定其一。着色器是 WGSL，因此不需要着色器 SDK。
+Rust 1.100 或更新版本，以及支持 Vulkan 的 GPU 驱动（Windows 上也可用 Direct3D 12，macOS 上用 Metal）。由 wgpu 选择图形 API；`WGPU_BACKEND`（`vulkan`、`dx12`、`metal`）可指定其一。着色器是 WGSL，因此不需要着色器 SDK。
 
 ## 从源码构建
 

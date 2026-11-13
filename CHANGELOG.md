@@ -28,6 +28,11 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
   and method; checking the authors' code against it; and its chapters, from the introduction to the experiments run
   on the viewer's machine and the references).
 
+### Changed
+
+- Rust 1.100 or newer (`rust-version` in every crate): the build relies on Cargo 1.100's layout of `target/`
+  (`build/<package>/<hash>/out`), and Cargo refuses an older toolchain with that message.
+
 ### Fixed
 
 - A source index whose commit is shorter than twelve characters no longer panics the header and the sources card.

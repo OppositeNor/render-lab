@@ -6,7 +6,7 @@
 name = "o3de_lighting"
 version = "0.0.5"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.100"
 publish = false
 description = "Render Lab's investigation of O3DE's lighting model"
 license = "MIT"

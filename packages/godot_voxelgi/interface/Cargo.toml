@@ -7,7 +7,7 @@
 name = "godot_voxelgi_interface"
 version = "0.0.5"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.100"
 publish = false
 description = "The C interface of Render Lab's Godot VoxelGI package"
 license = "MIT"

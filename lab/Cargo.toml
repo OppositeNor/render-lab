@@ -2,7 +2,7 @@
 name = "render-lab-core"
 version = "0.0.5"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.100"
 publish = false
 description = "Render Lab's shared lab: the renderer, recorder, viewer, homepage, and the package loader"
 license = "MIT"

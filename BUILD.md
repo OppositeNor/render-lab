@@ -6,7 +6,7 @@ Paths and commands are relative to the repository root.
 
 ## Requirements
 
-Rust 1.88 or newer and a GPU driver with Vulkan (on Windows, Direct3D 12 also works; on macOS, Metal). wgpu picks
+Rust 1.100 or newer and a GPU driver with Vulkan (on Windows, Direct3D 12 also works; on macOS, Metal). wgpu picks
 the API; `WGPU_BACKEND` (`vulkan`, `dx12`, `metal`) chooses one. The shaders are WGSL, so no shader SDK is needed.
 
 ## Build from a checkout

@@ -2,7 +2,7 @@
 name = "paper_restir"
 version = "0.0.5"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.100"
 publish = false
 description = "Render Lab's investigation of ReSTIR (Bitterli et al. 2020)"
 license = "MIT"

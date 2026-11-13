@@ -227,8 +227,8 @@ lab::negotiate!(my_feature_negotiate, ["investigations" => investigations as Inv
 ### The negotiation, in short
 
 The loader opens the libraries in the packages' order (imports first, `packages::load_all`), fills a C structure,
-`Negotiation` (its size, its interface version, its lab build's fingerprint, a map, and, from version 2, the handles of
-its imports' libraries), and calls the function. `lab::negotiate!` expands in the library: it checks the size, the
+`Negotiation` (its size, its interface version, its lab build's fingerprint, a map, and the handles of its imports'
+libraries), and calls the function. `lab::negotiate!` expands in the library: it checks the size, the
 version, and that the fingerprint is the one the library was compiled against (`lab::plugin::ABI`: the lab's version,
 the compiler, a hash of its sources, its derive macros', render_lab's code (`lab::utility`), and the versions its
 dependencies resolved to in the building workspace's `Cargo.lock`), resolves its C imports (below), and only then

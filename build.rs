@@ -79,15 +79,15 @@ fn install_mingw_runtime() {
     }
 }
 
-/// The binary's directory (`target/<profile>/`): the folder that holds `OUT_DIR`'s
-/// `build/`, `build/<package>-<hash>/out` before Cargo 1.100 and
-/// `build/<package>/<hash>/out` since.
+/// The binary's directory (`target/<profile>/`): the folder that holds
+/// `OUT_DIR`'s `build/` (Cargo's layout: `build/<package>/<hash>/out`).
 fn bin_dir() -> Option<PathBuf> {
     let out = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let dir = out
-        .ancestors()
-        .find(|dir| dir.file_name().is_some_and(|name| name == "build"))
-        .and_then(|build| build.parent())
+    let mut up = out.ancestors();
+    let dir = up
+        .nth(3)
+        .filter(|build| build.file_name().is_some_and(|name| name == "build"))
+        .and_then(|_| up.next())
         .map(PathBuf::from);
     if dir.is_none() {
         println!(

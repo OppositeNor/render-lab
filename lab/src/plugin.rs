@@ -21,7 +21,7 @@
 //! handles are Rust functions, valid only when the library links the very
 //! lab the binary does, which that check ensures.
 //!
-//! Interface version 2 also hands the library its imports: the handles of the
+//! The negotiation also hands the library its imports: the handles of the
 //! libraries of the packages its manifest imports (`abi::RlPackage`), opened
 //! before it. Through them it resolves the C functions it imports from them
 //! (`abi::Import`, named in its `negotiate!`), before it answers; the C ABI
@@ -34,7 +34,7 @@ use abi::{RlBuffer, RlPackage};
 use std::collections::BTreeMap;
 use std::ffi::{CStr, c_char, c_void};
 
-/// The highest interface version this loader speaks.
+/// The interface version this loader speaks; a library speaks the same one.
 pub const INTERFACE_VERSION: u32 = 2;
 
 /// The lab's build: its version, the compiler, and a hash of its sources
@@ -56,14 +56,12 @@ pub const ERROR_HANDLE: i32 = 4;
 /// An import could not be resolved; why is in `message`.
 pub const ERROR_IMPORT: i32 = 5;
 
-/// The loader's side of the negotiation. Fields are only ever added at its
-/// end: a library reads the ones its version has, and refuses a structure
-/// smaller than its own.
+/// The loader's side of the negotiation.
 #[repr(C)]
 pub struct Negotiation {
     /// `size_of::<Negotiation>()` as the loader knows it.
     pub struct_size: usize,
-    /// In: the loader's highest version. Out: the version the library speaks.
+    /// In: the loader's version. Out: the library's (the same).
     pub interface_version: u32,
     /// The loader's lab build (`ABI`), UTF-8.
     pub abi: *const u8,
@@ -74,11 +72,11 @@ pub struct Negotiation {
     /// `NEGOTIATED`, or `ERROR_HANDLE` for a name registered twice.
     pub register:
         unsafe extern "C" fn(map: *mut c_void, name: *const c_char, handle: *const c_void) -> i32,
-    /// Version 2: the libraries of the packages its manifest imports (those
+    /// The libraries of the packages its manifest imports (those
     /// that have one), in the manifest's order.
     pub imports: *const RlPackage,
     pub imports_len: usize,
-    /// Version 2: the loader's buffer for why the library refused.
+    /// The loader's buffer for why the library refused.
     pub message: RlBuffer,
 }
 
@@ -114,10 +112,10 @@ macro_rules! negotiate {
             // Compiled here, against this library's lab: the structure only.
             // SAFETY: the caller's; the size is checked before any other field is read.
             let Some(n) = (unsafe { negotiation.as_mut() }) else { return ERROR_STRUCT };
-            if n.struct_size < ::core::mem::size_of::<$crate::plugin::Negotiation>() {
+            if n.struct_size != ::core::mem::size_of::<$crate::plugin::Negotiation>() {
                 return ERROR_STRUCT;
             }
-            if n.interface_version < INTERFACE_VERSION {
+            if n.interface_version != INTERFACE_VERSION {
                 return ERROR_VERSION;
             }
             n.interface_version = INTERFACE_VERSION;
@@ -238,19 +236,14 @@ pub unsafe fn negotiate(negotiate: NegotiateFn, imports: &[RlPackage]) -> Result
     };
     // SAFETY: the caller's.
     match unsafe { negotiate(&mut negotiation) } {
-        NEGOTIATED
-            if negotiation.interface_version == 0
-                || negotiation.interface_version > INTERFACE_VERSION =>
-        {
-            Err(format!(
-                "it answered interface version {}, and this lab speaks 1 to {INTERFACE_VERSION}",
-                negotiation.interface_version
-            ))
-        }
+        NEGOTIATED if negotiation.interface_version != INTERFACE_VERSION => Err(format!(
+            "it answered interface version {}, and this lab speaks {INTERFACE_VERSION}; rebuild it",
+            negotiation.interface_version
+        )),
         NEGOTIATED => Ok(handles),
         ERROR_STRUCT => Err("it does not know this lab's negotiation structure; rebuild it".into()),
         ERROR_VERSION => Err(format!(
-            "it speaks no interface version up to {INTERFACE_VERSION}; rebuild it"
+            "it does not speak interface version {INTERFACE_VERSION}; rebuild it"
         )),
         ERROR_ABI => Err(format!(
             "it was built against another build of the lab (this one is {ABI}); rebuild it"
@@ -290,8 +283,7 @@ mod tests {
         }
     }
 
-    /// A library of interface version 1: it reads only the structure's first
-    /// fields (the added ones are past them) and registers its handle.
+    /// A library of another interface version: it registers its handle and answers 1.
     unsafe extern "C" fn version_one(n: *mut Negotiation) -> i32 {
         let n = unsafe { &mut *n };
         n.interface_version = 1;
@@ -300,9 +292,9 @@ mod tests {
     }
 
     #[test]
-    fn negotiates_with_version_one() {
-        let handles = unsafe { negotiate(version_one, &[]) }.unwrap();
-        assert!(handles.investigations().unwrap()().is_empty());
+    fn refuses_another_interface_version() {
+        let error = unsafe { negotiate(version_one, &[]) }.err().unwrap();
+        assert!(error.contains("interface version 1"), "{error}");
     }
 
     #[test]

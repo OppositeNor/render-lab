@@ -4,7 +4,7 @@
 name = "render-lab-check"
 version = "0.0.5"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.100"
 publish = false
 description = "Render Lab's build-time checks of a package: its shaders and its text tables"
 license = "MIT"

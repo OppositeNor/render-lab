@@ -6,7 +6,7 @@
 name = "godot_ssr"
 version = "0.0.5"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.100"
 publish = false
 description = "Render Lab's investigation of Godot's screen-space reflections"
 license = "MIT"

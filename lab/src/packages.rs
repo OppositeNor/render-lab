@@ -599,15 +599,12 @@ pub fn bin_dir() -> PathBuf {
 }
 
 /// The binaries' directory (`target/<profile>/`) for a binary in `exe`: a
-/// test runs from `deps/` below it before Cargo 1.100, and from
-/// `build/<package>/<hash>/out/` since; any other binary from it.
+/// test runs from `build/<package>/<hash>/out/` below it (Cargo's layout),
+/// any other binary from it.
 fn binaries_dir(exe: &Path) -> PathBuf {
     let named =
         |dir: Option<&Path>, name: &str| dir.and_then(Path::file_name).is_some_and(|n| n == name);
     let mut up = exe.ancestors();
-    if named(Some(exe), "deps") {
-        return exe.parent().unwrap_or(exe).to_path_buf();
-    }
     if named(Some(exe), "out") && named(up.nth(3), "build") {
         return up.next().unwrap_or(exe).to_path_buf();
     }
@@ -940,10 +937,9 @@ mod tests {
     }
 
     #[test]
-    fn binaries_dir_in_both_build_layouts() {
+    fn binaries_dir_of_a_test_and_a_binary() {
         let release = Path::new("/w/target/release");
         assert_eq!(binaries_dir(release), release);
-        assert_eq!(binaries_dir(&release.join("deps")), release);
         let out = release.join("build/render-lab-core/bf11dd145b9d9a73/out");
         assert_eq!(binaries_dir(&out), release);
         // An `out` folder elsewhere is a binary's own.
