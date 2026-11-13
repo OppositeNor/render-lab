@@ -595,11 +595,23 @@ pub fn bin_dir() -> PathBuf {
         .ok()
         .and_then(|e| e.parent().map(Path::to_path_buf))
         .unwrap_or_default();
-    if exe.file_name().is_some_and(|n| n == "deps") {
-        exe.parent().unwrap().to_path_buf()
-    } else {
-        exe
+    binaries_dir(&exe)
+}
+
+/// The binaries' directory (`target/<profile>/`) for a binary in `exe`: a
+/// test runs from `deps/` below it before Cargo 1.100, and from
+/// `build/<package>/<hash>/out/` since; any other binary from it.
+fn binaries_dir(exe: &Path) -> PathBuf {
+    let named =
+        |dir: Option<&Path>, name: &str| dir.and_then(Path::file_name).is_some_and(|n| n == name);
+    let mut up = exe.ancestors();
+    if named(Some(exe), "deps") {
+        return exe.parent().unwrap_or(exe).to_path_buf();
     }
+    if named(Some(exe), "out") && named(up.nth(3), "build") {
+        return up.next().unwrap_or(exe).to_path_buf();
+    }
+    exe.to_path_buf()
 }
 
 /// Where `package`'s library `name` is: in its `lib/` (a built package),
@@ -925,6 +937,17 @@ mod tests {
             ],
         );
         assert!(scan(&dir, &dir).err().unwrap().contains("part `c`"));
+    }
+
+    #[test]
+    fn binaries_dir_in_both_build_layouts() {
+        let release = Path::new("/w/target/release");
+        assert_eq!(binaries_dir(release), release);
+        assert_eq!(binaries_dir(&release.join("deps")), release);
+        let out = release.join("build/render-lab-core/bf11dd145b9d9a73/out");
+        assert_eq!(binaries_dir(&out), release);
+        // An `out` folder elsewhere is a binary's own.
+        assert_eq!(binaries_dir(Path::new("/w/out")), Path::new("/w/out"));
     }
 
     #[test]
