@@ -1,5 +1,5 @@
 $[Import* std]$[Import* content]
-# ReSTIR 如何照亮一个多光源的房间 {#video subtitle="Bitterli 等人 2020，时空 reservoir 重采样，按论文实现" locale=zh-CN glossary="ReSTIR, RIS, reservoir, MIS, GPU, PDF, R2"}
+# ReSTIR 如何照亮一个多光源的房间 {#video subtitle="Bitterli 等人 2020，时空 reservoir 重采样，按论文实现" locale=zh-CN glossary="ReSTIR, RIS, reservoir, MIS, GPU, PDF, R2, SLLN"}
 
 ## 论文及其问题 {#c1 summary="论文、它要解决的问题、它的解法，以及它的贡献。"}
 
@@ -694,6 +694,8 @@ Talbot 等人最初提出的 RIS，在这里用另一种权重，即目标除以
 这里实验室把流式 RIS 渲染的许多帧取平均，一直平均到结果不再变化，就得到了这张图。
 
 流式 RIS 是无偏的，所以这个平均值没有偏差，帧数足够多时几乎没有噪点。
+
+相互独立、无偏的估计取平均，会稳定在真实值上，这就是强大数定律，strong law of large numbers，简称 SLLN。
 
 这张图叫作参考图。
 

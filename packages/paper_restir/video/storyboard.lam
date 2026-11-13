@@ -1105,7 +1105,7 @@ ${cue "key" {' {glide cameraYaw 26.0 sentence}}}The paper offers both versions, 
 
 Bias and its removal are in section four, and the example is figure seven.
 
-## Experiments on this machine {#c7 number=7 target=102 summary="The paper's comparisons, run on this machine as the video is recorded." sources="still-images, results-setup, biased-vs-unbiased, sample-count"}
+## Experiments on this machine {#c7 number=7 target=108 summary="The paper's comparisons, run on this machine as the video is recorded." sources="still-images, results-setup, biased-vs-unbiased, sample-count"}
 
 ### The comparisons {#c7-methods kind=3d}
 
@@ -1175,6 +1175,10 @@ Here the lab makes that image ${overText
     "by averaging the room over many frames of streaming RIS"}, until the average stops changing.
 
 Streaming RIS is unbiased, so this average has no bias, and enough frames leave almost no noise.
+
+${cue "key" {' {restirAccumulate 0.0}}}That an average of independent, unbiased estimates ${overText
+    {' {restirAccumulateRange 0.0 1.0}}
+    "settles on the true value"} is the strong law of large numbers, or SLLN.
 
 This image is called the reference.
 

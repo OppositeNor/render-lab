@@ -50,6 +50,7 @@
     "BRDF": "B R D F",
     "MIS": "M I S",
     "GPU": "G P U",
+    "SLLN": "S L L N",
     "PDF": "P D F",
     "PDFs": "P D Fs",
     "BVH": "B V H"
