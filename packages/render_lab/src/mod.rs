@@ -13,6 +13,10 @@ pub mod draw;
 pub mod height_field;
 /// Pictures in the viewport's corners.
 pub mod inset;
+/// A map over a range of indices on every core (`par_map`).
+pub mod parallel;
+/// A GPU program's dispatches and their parameters.
+pub mod program;
 /// A selftest's report, its single frames, and its test inputs.
 pub mod selftest;
 /// A package's source index.

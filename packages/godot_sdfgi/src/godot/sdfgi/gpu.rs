@@ -26,6 +26,7 @@
 use super::model::{CASCADE_SIZE, Cascades, Dirty, PROBE_AXIS_COUNT, PROBE_CELLS, Settings};
 use glam::{IVec3, Vec3};
 use lab::investigation::{Element, ProgramCommand, ProgramFrame};
+use lab::utility::program::{dispatch, params};
 
 /// `sdfgi_cascades` (4), the cascade count the resources are made for.
 pub const CASCADES: u32 = 4;
@@ -64,27 +65,12 @@ pub struct Plan {
     last: Option<(Vec3, u64)>,
 }
 
-fn params(words: &[u32]) -> [u32; 16] {
-    let mut p = [0u32; 16];
-    p[..words.len()].copy_from_slice(words);
-    p
-}
-
 fn f(v: f32) -> u32 {
     v.to_bits()
 }
 
 fn i(v: i32) -> u32 {
     v as u32
-}
-
-fn dispatch(pass: &'static str, instance: u32, groups: [u32; 3], words: &[u32]) -> ProgramCommand {
-    ProgramCommand::Dispatch {
-        pass,
-        instance,
-        groups,
-        params: params(words),
-    }
 }
 
 fn threads(n: [u32; 3], local: [u32; 3]) -> [u32; 3] {

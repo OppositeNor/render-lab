@@ -7,6 +7,7 @@
 use glam::Mat4;
 use lab::investigation::{Element, ProgramCommand, ProgramFrame};
 use lab::shot::ShotState;
+use lab::utility::program;
 
 /// The cameras' uniform (RestirScene): clip-to-world, last frame's world-to-clip, last frame's eye.
 pub const SCENE_WORDS: usize = 16 * 2 + 4;
@@ -53,19 +54,9 @@ pub struct Plan {
     averaged: u32,
 }
 
-fn params(words: &[u32]) -> [u32; 16] {
-    let mut p = [0u32; 16];
-    p[..words.len()].copy_from_slice(words);
-    p
-}
-
+/// A dispatch over an image of `size`, in 8 x 8 groups.
 fn dispatch(pass: &'static str, size: [u32; 2], words: &[u32]) -> ProgramCommand {
-    ProgramCommand::Dispatch {
-        pass,
-        instance: 0,
-        groups: [size[0].div_ceil(8), size[1].div_ceil(8), 1],
-        params: params(words),
-    }
+    program::dispatch(pass, 0, program::groups(size, 8), words)
 }
 
 /// The camera a frame of `state` is drawn with at `viewport`: world-to-clip, and the eye.

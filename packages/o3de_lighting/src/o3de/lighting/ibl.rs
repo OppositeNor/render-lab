@@ -14,6 +14,7 @@
 //! THIRD_PARTY.md.
 
 use glam::{DVec3, Vec2, Vec3};
+use lab::utility::parallel::par_map;
 use std::sync::OnceLock;
 
 /// IBLSpecular.preset: 256 x 256 faces; the GGX filter keeps six mips.
@@ -137,7 +138,7 @@ impl Cubemap {
     pub fn from_fn(size: usize, f: impl Fn(Vec3) -> Vec3 + Sync) -> Cubemap {
         Cubemap {
             size,
-            texels: parallel(6 * size * size, |i| {
+            texels: par_map(0..6 * size * size, |i| {
                 f(texel_dir(
                     i / (size * size),
                     (i % size) as f32,
@@ -156,7 +157,7 @@ impl Cubemap {
     /// mean of the block of `self` it covers.
     pub fn box_down(&self, size: usize) -> Cubemap {
         let k = self.size / size;
-        let texels = parallel(6 * size * size, |i| {
+        let texels = par_map(0..6 * size * size, |i| {
             // Each smaller texel is the mean of the k x k texels it covers.
             let (face, u, v) = (i / (size * size), i % size, (i / size) % size);
             let mut sum = Vec3::ZERO;
@@ -205,24 +206,6 @@ impl Cubemap {
         let bottom = self.texel(face, u0, v1).lerp(self.texel(face, u1, v1), w.x);
         top.lerp(bottom, w.y)
     }
-}
-
-/// `f(i)` for every i below `count`, on every core.
-fn parallel(count: usize, f: impl Fn(usize) -> Vec3 + Sync) -> Vec<Vec3> {
-    let mut out = vec![Vec3::ZERO; count];
-    let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
-    let per = count.div_ceil(threads).max(1);
-    std::thread::scope(|scope| {
-        for (chunk, slice) in out.chunks_mut(per).enumerate() {
-            let f = &f;
-            scope.spawn(move || {
-                for (i, texel) in slice.iter_mut().enumerate() {
-                    *texel = f(chunk * per + i);
-                }
-            });
-        }
-    });
-    out
 }
 
 /// CubeMapGen's ImportanceSampleGGX (it takes alpha squared).
@@ -332,7 +315,7 @@ fn prefilter_ggx(source: &[Cubemap], mip: usize, samples: u32) -> Cubemap {
     let alpha = perceptual * perceptual;
     let a2 = alpha * alpha;
     let w0 = source[0].size as f32;
-    let texels = parallel(6 * size * size, |i| {
+    let texels = par_map(0..6 * size * size, |i| {
         // Each texel: GGX samples around its direction, as the view, each read from the source mip its footprint fits.
         let (face, u, v) = (i / (size * size), i % size, (i / size) % size);
         let center = texel_dir(face, u as f32, v as f32, size);
@@ -391,7 +374,7 @@ fn cosine_filter(source: &Cubemap) -> Cubemap {
             )
         })
         .collect();
-    let texels = parallel(6 * size * size, |i| {
+    let texels = par_map(0..6 * size * size, |i| {
         let center = taps[i].0;
         let mut color = Vec3::ZERO;
         let mut total = 0.0f32;

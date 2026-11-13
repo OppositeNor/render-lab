@@ -61,12 +61,7 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
     let index = super::sources::INDEX.get();
     report.check("source index", true, json!({"engine": index.engine.name, "version": index.engine.version, "commit": index.engine.commit, "entries": index.entries.len()}));
 
-    let passed = report.passed();
-    std::fs::write(
-        &options.report,
-        serde_json::to_string_pretty(&json!({"passed": passed, "checks": report.checks}))?,
-    )?;
-    Ok(passed)
+    report.write(&options.report)
 }
 
 /// The cascades (gi.cpp create, update, get_pending_region_data): their sizes, a worked scroll, a diagonal and a

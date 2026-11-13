@@ -12,20 +12,8 @@ use super::storage;
 use super::world::{self, LightSettings, NODE};
 use anyhow::Result;
 use glam::{IVec3, Vec2, Vec3, Vec4};
-use lab::utility::selftest::{Report, request, still_timeline};
+use lab::utility::selftest::{Report, Rng, request, still_timeline};
 use serde_json::json;
-
-/// A small xorshift for sampled checks.
-struct Rng(u64);
-
-impl Rng {
-    fn next(&mut self) -> f32 {
-        self.0 ^= self.0 << 13;
-        self.0 ^= self.0 >> 7;
-        self.0 ^= self.0 << 17;
-        (self.0 >> 40) as f32 / (1u64 << 24) as f32
-    }
-}
 
 fn rel(a: f32, b: f32) -> f32 {
     (a - b).abs() / b.abs().max(1e-3)
@@ -46,13 +34,8 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
     check_story(&mut report)?;
     check_sources(&mut report);
 
-    let passed = report.passed();
-    std::fs::write(
-        &options.report,
-        serde_json::to_string_pretty(&json!({"passed": passed, "checks": report.checks}))?,
-    )?;
     let _ = NODE;
-    Ok(passed)
+    report.write(&options.report)
 }
 
 /// Sections 1 and 2: begin_bake's cube and cells, and the separating-axis test.

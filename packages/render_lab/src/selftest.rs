@@ -36,6 +36,14 @@ impl Report {
     pub fn passed(&self) -> bool {
         self.checks.iter().all(|c| c["passed"] == true)
     }
+
+    /// Writes the JSON report (`{passed, checks}`) to `path`: whether every check passed.
+    pub fn write(&self, path: &std::path::Path) -> anyhow::Result<bool> {
+        let passed = self.passed();
+        let report = json!({"passed": passed, "checks": self.checks});
+        std::fs::write(path, serde_json::to_string_pretty(&report)?)?;
+        Ok(passed)
+    }
 }
 
 /// A one-beat timeline of `width` x `height`, to render single states.

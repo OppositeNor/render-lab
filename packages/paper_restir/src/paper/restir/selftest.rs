@@ -35,12 +35,7 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
         states_ok,
         json!(Demo::ALL.iter().map(|d| d.key()).collect::<Vec<_>>()),
     );
-    let passed = report.passed();
-    std::fs::write(
-        &options.report,
-        serde_json::to_string_pretty(&json!({"passed": passed, "checks": report.checks}))?,
-    )?;
-    Ok(passed)
+    report.write(&options.report)
 }
 
 /// A program image read back as words.

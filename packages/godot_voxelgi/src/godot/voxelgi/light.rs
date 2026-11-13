@@ -748,30 +748,8 @@ pub struct Lit {
     pub passes: usize,
 }
 
-/// Runs `f(cell)` over `range` on all cores, in order.
-pub fn par_map<T: Send + Sync + Copy + Default>(
-    range: std::ops::Range<usize>,
-    f: impl Fn(usize) -> T + Sync,
-) -> Vec<T> {
-    let n = range.len();
-    let threads = std::thread::available_parallelism()
-        .map_or(4, |t| t.get())
-        .min(32);
-    let chunk = n.div_ceil(threads).max(1);
-    let mut out = vec![T::default(); n];
-    std::thread::scope(|s| {
-        for (k, part) in out.chunks_mut(chunk).enumerate() {
-            let f = &f;
-            let start = range.start + k * chunk;
-            s.spawn(move || {
-                for (i, o) in part.iter_mut().enumerate() {
-                    *o = f(start + i);
-                }
-            });
-        }
-    });
-    out
-}
+/// Runs `f(cell)` over a range on all cores, in order (the lab's).
+pub use lab::utility::parallel::par_map;
 
 /// Pass 0's mips and write, or pass 1's, over `outputs` (leaves already set).
 fn mips_and_write(probe: &Probe, params: &Params, outputs: &mut [Vec3]) -> LightTexture {

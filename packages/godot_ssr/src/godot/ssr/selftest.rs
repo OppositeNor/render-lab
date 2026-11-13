@@ -10,30 +10,8 @@ use anyhow::{Result, anyhow};
 use lab::utility::selftest::{Report, request, still_timeline};
 use serde_json::json;
 
-/// An IEEE half float.
-fn half(bits: u16) -> f32 {
-    let sign = if bits & 0x8000 != 0 {
-        -1.0
-    } else {
-        1.0
-    };
-    let exp = ((bits >> 10) & 0x1f) as i32;
-    let man = (bits & 0x3ff) as f32;
-    sign * match exp {
-        // Exponent 0: a subnormal, the mantissa alone in units of 2^-24.
-        0 => man * 2f32.powi(-24),
-        31 => {
-            // Exponent 31 with no mantissa is infinity; with one, NaN.
-            if man == 0.0 {
-                f32::INFINITY
-            } else {
-                f32::NAN
-            }
-        }
-        // Any other: the implicit leading 1, scaled by the unbiased exponent.
-        e => (1.0 + man / 1024.0) * 2f32.powi(e - 15),
-    }
-}
+/// An IEEE half float (an image's texel): the lab's decode.
+use lab::fetch::f16_to_f32 as half;
 
 /// A program image read back as floats.
 fn read(
@@ -107,12 +85,7 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
         json!(Demo::ALL.iter().map(|d| d.key()).collect::<Vec<_>>()),
     );
 
-    let passed = report.passed();
-    std::fs::write(
-        &options.report,
-        serde_json::to_string_pretty(&json!({"passed": passed, "checks": report.checks}))?,
-    )?;
-    Ok(passed)
+    report.write(&options.report)
 }
 
 /// The fade's ceiling (research.md 0.3#1): with the defaults, at most 0.58.

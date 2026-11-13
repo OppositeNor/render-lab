@@ -9,6 +9,7 @@
 
 use glam::{Vec2, Vec3};
 use lab::layout::ObjectData;
+use lab::utility::parallel::par_map;
 use std::sync::OnceLock;
 
 /// Atom/RPI/Math.azsli.
@@ -387,21 +388,11 @@ impl BrdfMap {
     /// The whole texture, on every core.
     pub fn generate() -> BrdfMap {
         let size = BRDF_MAP_SIZE;
-        let mut texels = vec![Vec2::ZERO; size * size];
-        let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
-        let rows_per = size.div_ceil(threads);
-        std::thread::scope(|scope| {
-            for (chunk, rows) in texels.chunks_mut(rows_per * size).enumerate() {
-                scope.spawn(move || {
-                    for (i, texel) in rows.iter_mut().enumerate() {
-                        // Each thread fills a run of rows; row 0 is the highest y (smoothness grows downwards).
-                        let row = chunk * rows_per + i / size;
-                        let x = (i % size) as u32;
-                        let y = (size - 1 - row) as u32;
-                        *texel = brdf_texel(x, y, size as u32);
-                    }
-                });
-            }
+        let texels = par_map(0..size * size, |i| {
+            // Texels row by row; row 0 is the highest y (smoothness grows downwards).
+            let (row, x) = (i / size, (i % size) as u32);
+            let y = (size - 1 - row) as u32;
+            brdf_texel(x, y, size as u32)
         });
         BrdfMap { texels }
     }

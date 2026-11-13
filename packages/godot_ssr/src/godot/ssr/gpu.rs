@@ -6,6 +6,7 @@
 
 use glam::{Mat4, Vec4};
 use lab::investigation::{Element, ProgramCommand, ProgramFrame};
+use lab::utility::program;
 
 /// The best-fit normal table's size (best_fit_normal_texture, render_forward_clustered.cpp:5171-5176).
 pub const BEST_FIT_SIZE: u32 = 1024;
@@ -37,23 +38,9 @@ pub struct Plan {
     best_fit: bool,
 }
 
-fn params(words: &[u32]) -> [u32; 16] {
-    let mut p = [0u32; 16];
-    p[..words.len()].copy_from_slice(words);
-    p
-}
-
-fn threads(size: [u32; 2]) -> [u32; 3] {
-    [size[0].div_ceil(8), size[1].div_ceil(8), 1]
-}
-
+/// A dispatch over an image of `size`, in 8 x 8 groups.
 fn dispatch(pass: &'static str, instance: u32, size: [u32; 2], words: &[u32]) -> ProgramCommand {
-    ProgramCommand::Dispatch {
-        pass,
-        instance,
-        groups: threads(size),
-        params: params(words),
-    }
+    program::dispatch(pass, instance, program::groups(size, 8), words)
 }
 
 /// The SSR size for a view (`internal_size / 2`, at least one texel).
