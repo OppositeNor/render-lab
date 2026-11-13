@@ -586,23 +586,42 @@ pub fn main(app: App) -> Result<()> {
         }
         command => command,
     };
-    let chosen = choose(cli.investigation.as_deref())?;
+    let chosen = choose(cli.investigation.as_deref(), command.draws())?;
     run(command, chosen, &manifest_dir)
 }
 
-/// The investigation `path` names (the first installed when None), made the current one.
-fn choose(path: Option<&str>) -> Result<&'static dyn Investigation> {
+impl Command {
+    /// Whether the command draws frames on the GPU, which an investigation that cannot run here must not.
+    fn draws(&self) -> bool {
+        matches!(
+            self,
+            Command::Home { .. }
+                | Command::ViewerAutotest { .. }
+                | Command::Render { .. }
+                | Command::Selftest { .. }
+                | Command::Experiment { .. }
+        )
+    }
+}
+
+/// The investigation `path` names (the first installed when None), made the current one; one that cannot run
+/// here only for a command that does not `draw`.
+fn choose(path: Option<&str>, draw: bool) -> Result<&'static dyn Investigation> {
     let known: Vec<String> = investigations::all().iter().map(|i| i.path()).collect();
     let path = path
         .map(str::to_string)
         .or_else(|| known.first().cloned())
         .context("no investigation is installed")?;
-    // One that cannot run here says why, rather than being unknown.
-    if let Some((_, why)) = investigations::unavailable()
+    // One that cannot run here says why for a command that draws, and is checked for one that does not.
+    if let Some((i, why)) = investigations::unavailable()
         .into_iter()
         .find(|(i, _)| i.path() == path)
     {
-        anyhow::bail!("investigation `{path}` cannot run on this machine: it {why}");
+        if draw {
+            anyhow::bail!("investigation `{path}` cannot run on this machine: it {why}");
+        }
+        investigation::set(i);
+        return Ok(i);
     }
     let chosen = investigations::find(&path).with_context(|| {
         format!(
