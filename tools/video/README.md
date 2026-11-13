@@ -16,6 +16,7 @@ python3 tools/video/build.py --all                                  # every pack
 | `--prepare-only` | Narration, timeline, captions, and documents (about 15 s once the narration is cached) |
 | `--snapshots-only` | Also the diagrams and one still per beat in the package's `build/video/<lang>/snapshots/` |
 | `--frames A:B` | Renders only those frames (testing; no mux or verification) |
+| `--encoder auto\|nvenc\|x264` | The H.264 encoder. `auto` (the default) uses NVENC, the GPU's own video encoder, when FFmpeg can (one test frame encoded), else x264. NVENC encodes at a constant quantiser of 18, which on the lab's noisy frames matches x264's CRF 18 (SSIM 0.978 against 0.977) in a file about a tenth larger, and takes the encoding off the CPU |
 | `--jobs N` | Renders the video in N parallel frame ranges, each after a second of warm-up frames it does not write, and joins them without re-encoding: the same frames as one render, faster where one render leaves the GPU idle. Each range takes about 1.1 GB of RAM, 1.4 GB for its FFmpeg, and 1.7 GB of video memory; 2 suits a 6 GB GPU |
 | `--skip-render` | Reuses the rendered `video.mp4` |
 | `--verify-only` | Only the checks of an existing build |
@@ -412,7 +413,7 @@ install, point `RENDER_LAB_VIDEO_ENV`, `RENDER_LAB_VOICES`, and `RENDER_LAB_TTS_
 
 ## Verification
 
-The build checks the file (30 fps H.264 at the build's `--resolution`, 1080p by default; BT.709, AAC), its duration against the timeline and the expected range, the
+The build checks the file (30 fps H.264, from either encoder, at the build's `--resolution`, 1080p by default; BT.709, AAC), its duration against the timeline and the expected range, the
 frame count, each chapter within 10% of its budget, a full decode, audio levels, caption line lengths, the render
 report (text at least 24 px, labels inside the viewport and apart), diagram labels, the engine checkout's commit, every relative link in the documents, `render-lab selftest --timeline` (every scene beat
 readable), and the Rust and WGSL layouts. A zh-CN build also checks that it shares the English narration and frames and

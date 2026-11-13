@@ -120,10 +120,13 @@ enum Command {
         /// Write a JSON summary (text sizes, label checks, timing).
         #[arg(long)]
         report: Option<PathBuf>,
+        /// The encoder: h264 (x264), h264-nvenc (the GPU's NVENC), ffv1, or rawvideo.
         #[arg(long, default_value = "h264")]
         codec: String,
+        /// x264's CRF, or NVENC's constant quantiser.
         #[arg(long, default_value_t = 18)]
         crf: u32,
+        /// x264's preset (NVENC uses p7).
         #[arg(long, default_value = "medium")]
         preset: String,
         #[arg(long)]

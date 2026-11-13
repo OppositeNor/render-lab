@@ -147,7 +147,19 @@ def lab(binary: Path, cfg: Config, *args: Any) -> list[Any]:
     return [binary, '--investigation', cfg.investigation, '--listing-style', cfg.listing_style, *args]
 
 
-def render_video(cfg: Config, env: Environment, binary: Path, frames: str | None, resolution: tuple[int, int], jobs: int = 1) -> None:
+def nvenc_works(ffmpeg: Path) -> bool:
+    """Whether FFmpeg can encode H.264 with NVENC here: one frame encoded and thrown away (an FFmpeg built with
+    NVENC still fails without an NVIDIA GPU and driver)."""
+    try:
+        done = subprocess.run([str(ffmpeg), '-nostdin', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=size=256x256', '-frames:v', '1',
+                               '-c:v', 'h264_nvenc', '-f', 'null', '-'], capture_output=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return done.returncode == 0
+
+
+def render_video(cfg: Config, env: Environment, binary: Path, frames: str | None, resolution: tuple[int, int], jobs: int = 1,
+                 encoder: str = 'auto') -> None:
     """Render the timeline to build/video.mp4. With `jobs` above one, the frames are split into that many ranges,
     rendered by as many render-lab processes at once (each range after `WARMUP` frames it does not write, so it starts
     with a whole render's history), and the segments joined without re-encoding."""
@@ -158,6 +170,11 @@ def render_video(cfg: Config, env: Environment, binary: Path, frames: str | None
     # No more ranges than the timeline has room for, each at least ten warm-ups long.
     jobs = max(1, min(jobs, total // (10 * WARMUP) or 1))
     bounds = [total * k // jobs for k in range(jobs + 1)]
+    # NVENC, the GPU's video encoder, when asked for or (auto) when it works here; x264 otherwise.
+    nvenc = encoder == 'nvenc' or (encoder == 'auto' and nvenc_works(env.ffmpeg))
+    if encoder == 'nvenc' and not nvenc_works(env.ffmpeg):
+        raise SystemExit('--encoder nvenc: FFmpeg cannot encode with NVENC here')
+    log(f'Encoder: {"NVENC (h264_nvenc, constant QP 18)" if nvenc else "x264 (CRF 18, preset medium)"}.')
     log('Rendering the timeline with render-lab (every frame streams to FFmpeg)' + (f', in {jobs} parallel ranges.' if jobs > 1 else '.'))
     started = time.time()
     parts: list[tuple[Path, Path, subprocess.Popen[str], list[str]]] = []
@@ -166,7 +183,8 @@ def render_video(cfg: Config, env: Environment, binary: Path, frames: str | None
         video = build / 'video.mp4' if jobs == 1 else build / f'video.part{k}.mp4'
         report = build / 'render-report.json' if jobs == 1 else build / f'render-report.part{k}.json'
         args = lab(binary, cfg, 'render', '--timeline', cfg.timeline(), '--resolution', f'{resolution[0]}x{resolution[1]}', '--output', video,
-                   '--report', report, '--ffmpeg', env.ffmpeg, '--crf', '18', '--preset', 'medium')
+                   '--report', report, '--ffmpeg', env.ffmpeg, '--crf', '18', '--preset', 'medium',
+                   '--codec', 'h264-nvenc' if nvenc else 'h264')
         if frames:
             # A requested range is rendered as it is; a parallel range below also renders a warm-up before its first frame.
             args += ['--frames', frames]

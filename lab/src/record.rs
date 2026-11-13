@@ -114,20 +114,36 @@ pub fn spawn_ffmpeg(
         "-an",
     ]);
     match codec {
-        "h264" => {
+        "h264" | "h264-nvenc" => {
             // setparams tags the frames themselves: raw RGBA input carries no colour
             // properties, and unset frame properties override the encoder options.
             cmd.args(["-vf", "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,setparams=colorspace=bt709:color_primaries=bt709:color_trc=bt709:range=tv"]);
-            cmd.args([
-                "-c:v",
-                "libx264",
-                "-preset",
-                preset,
-                "-crf",
-                &crf.to_string(),
-                "-pix_fmt",
-                "yuv420p",
-            ]);
+            if codec == "h264" {
+                cmd.args([
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    preset,
+                    "-crf",
+                    &crf.to_string(),
+                ]);
+            } else {
+                // NVENC, the GPU's video encoder: a constant quantiser of `crf`, which at 18 matches x264's CRF 18
+                // on the lab's noisy frames (SSIM 0.978 against 0.977) in a file about a tenth larger.
+                cmd.args([
+                    "-c:v",
+                    "h264_nvenc",
+                    "-preset",
+                    "p7",
+                    "-tune",
+                    "hq",
+                    "-rc",
+                    "constqp",
+                    "-qp",
+                    &crf.to_string(),
+                ]);
+            }
+            cmd.args(["-pix_fmt", "yuv420p"]);
             cmd.args([
                 "-colorspace",
                 "bt709",

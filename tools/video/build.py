@@ -111,6 +111,7 @@ def arg_parser() -> argparse.ArgumentParser:
     parser.add_argument('--skip-render', action='store_true', help='reuse the rendered video.mp4')
     parser.add_argument('--verify-only', action='store_true')
     parser.add_argument('--frames', help='render only START:END (testing; the result is not a complete video)')
+    parser.add_argument('--encoder', default='auto', choices=['auto', 'nvenc', 'x264'], help='the H.264 encoder: auto (the default; NVENC, the GPU\'s video encoder, when FFmpeg can use it, else x264), nvenc, or x264')
     parser.add_argument('--jobs', type=int, default=1, help='render in this many parallel ranges, joined into one video (GPU; each takes about 1.1 GB RAM, 1.4 GB for its FFmpeg, and 1.7 GB of video memory)')
     parser.add_argument('--tts-device', default='auto', choices=['auto', 'cuda', 'cpu'])
     parser.add_argument('--listing-style', default='blocks', choices=['blocks', 'text'], help='how the code panel draws pseudo-code listings: blocks (the default) or text')
@@ -244,7 +245,7 @@ def main() -> None:
         log(f'Snapshots in {build / "snapshots"}')
         return
     if not args.skip_render:
-        outputs.render_video(cfg, env, binary, args.frames, args.resolution, args.jobs)
+        outputs.render_video(cfg, env, binary, args.frames, args.resolution, args.jobs, args.encoder)
     if args.frames:
         log('Partial render finished; skipping the mux and the verification.')
         return
