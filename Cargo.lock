@@ -20,14 +20,14 @@ checksum = "366ffbaa4442f4684d91e2cd7c5ea7c4ed8add41959a31447066e279e432b618"
 
 [[package]]
 name = "abi_exporter"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "render-lab-core",
 ]
 
 [[package]]
 name = "abi_importer"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "render-lab-core",
 ]
@@ -1364,7 +1364,7 @@ dependencies = [
 
 [[package]]
 name = "godot_sdfgi"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "egui",
@@ -1379,7 +1379,7 @@ dependencies = [
 
 [[package]]
 name = "godot_ssr"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "egui",
@@ -1393,7 +1393,7 @@ dependencies = [
 
 [[package]]
 name = "godot_voxelgi"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "egui",
@@ -1407,7 +1407,7 @@ dependencies = [
 
 [[package]]
 name = "godot_voxelgi_interface"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "glam",
  "render-lab-core",
@@ -2468,7 +2468,7 @@ dependencies = [
 
 [[package]]
 name = "o3de_lighting"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "egui",
@@ -2846,7 +2846,7 @@ dependencies = [
 
 [[package]]
 name = "paper_restir"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "egui",
@@ -3414,14 +3414,14 @@ dependencies = [
 
 [[package]]
 name = "render-lab"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "render-lab-core",
 ]
 
 [[package]]
 name = "render-lab-check"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "fluent-syntax",
  "naga",
@@ -3431,7 +3431,7 @@ dependencies = [
 
 [[package]]
 name = "render-lab-core"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -3467,7 +3467,7 @@ dependencies = [
 
 [[package]]
 name = "render-lab-derive"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "proc-macro2",
  "quote",

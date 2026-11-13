@@ -2,7 +2,7 @@
 # lab (for its own package, render_lab) and of every package's library.
 [package]
 name = "render-lab-check"
-version = "0.0.5"
+version = "0.0.6"
 edition = "2024"
 rust-version = "1.100"
 publish = false

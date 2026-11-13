@@ -4,7 +4,7 @@
 # the binary, where the lab's tests find it.
 [package]
 name = "abi_importer"
-version = "0.0.5"
+version = "0.0.6"
 edition = "2024"
 rust-version = "1.100"
 publish = false

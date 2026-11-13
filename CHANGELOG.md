@@ -4,6 +4,8 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-11-13
+
 ### Added
 
 - Investigations of papers: a source index may name a `paper` (its title, venue, DOI, and the PDF's SHA-256)
@@ -22,20 +24,49 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
   method on the machine that runs it, and a narrated story in English and Chinese. The knowledge graph gains
   resampled importance sampling, weighted reservoir sampling, and reservoir reuse.
 - Agent skills: the `storytelling` skill is now part of `new-story` (its `references/storytelling.md`, with its
-  examples and its whole-story revision procedure beside it), since every story's narration is written with it.
+  examples and its whole-story revision procedure beside it), since every story's narration is written with it, and
+  so is the guide to teaching a formula (`references/storytelling-formula*.md`).
 - Agent skills: `new-story` now holds what every story shares, with two variants: `new-story-engine` (an engine's
   feature, read from its checkout) and `new-story-paper` (a paper's method: reading its contributions, related work,
   and method; checking the authors' code against it; and its chapters, from the introduction to the experiments run
   on the viewer's machine and the references).
+- C interfaces between packages' libraries (`lab/src/plugin/abi.rs`): a package's library exports C functions with
+  `lab::export!` (each guarded against panics, with a signature beside it) and declares them in an `interface/`
+  crate; a package that imports it names them in its `lab::negotiate!`, and the loader hands it the imported
+  library, so each import is resolved and its signature checked when the importer loads. `render-lab packages` lists
+  what each library resolved. The `packages` skill describes it.
+- Video: `render-lab render --codec h264-nvenc` encodes with NVENC (a constant quantiser of `--crf`), and
+  `tools/video/build.py --encoder` (`auto`, `nvenc`, `x264`) picks it when FFmpeg can use it.
 
 ### Changed
 
 - Rust 1.100 or newer (`rust-version` in every crate): the build relies on Cargo 1.100's layout of `target/`
   (`build/<package>/<hash>/out`), and Cargo refuses an older toolchain with that message.
+- The loader opens the packages' libraries in the packages' order, each after the libraries of the packages it
+  imports; a package whose imported library is refused is refused too, with the reason down the chain, and a cycle
+  of imports is reported with its path. The negotiation is interface version 2 (it hands a library its imports); a
+  library of another version is refused: rebuild it.
+- Godot SDFGI imports Godot VoxelGI's area-light integral and omni-light falloff through VoxelGI's C interface
+  instead of keeping a copy; its selftest reports the same values.
+- Helpers several packages copied are the lab's: `lab::utility::parallel::par_map`, `lab::utility::program`'s
+  dispatch helpers, and `selftest::Report::write`.
+
+### Removed
+
+- Dead code found by an audit: the `lamlet deck` command, the terrain's heightmap source, the dock's unused record
+  and struct-panel controls, and the video tools' JSON-string forms of `animate` and the highlights (typed data
+  only).
 
 ### Fixed
 
 - A source index whose commit is shorter than twelve characters no longer panics the header and the sources card.
+- A package's library built before a change to render_lab's code, the lab's derive macros, or the versions of the
+  lab's dependencies is now refused ("built against another build of the lab") instead of loading against them.
+- Windows: with Cargo 1.100 the binary could not start, because the build put the standard library's DLL and the
+  themes in the wrong folder.
+- Commands that draw frames (`home`, `render`, `selftest`, `experiment`) refuse an investigation that cannot run on
+  the machine, and say why.
+- ReSTIR's video: each recorded frame builds on the one before it (temporal reuse, as in the live view).
 
 ## [0.0.5] - 2026-11-10
 
@@ -127,7 +158,8 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
 
 First release: Linux (x86_64), Windows (x86_64), and macOS (Apple Silicon) packages.
 
-[Unreleased]: https://github.com/OppositeNor/render-lab/compare/v0.0.5...HEAD
+[Unreleased]: https://github.com/OppositeNor/render-lab/compare/v0.0.6...HEAD
+[0.0.6]: https://github.com/OppositeNor/render-lab/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/OppositeNor/render-lab/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/OppositeNor/render-lab/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/OppositeNor/render-lab/compare/v0.0.2...v0.0.3
