@@ -60,6 +60,8 @@ provides it, is checked against the paper and its divergences are recorded and n
 
 ## Phase 1: Reading the paper
 
+**Formula comprehension.** Load `new-story`'s `references/storytelling-formula.md` when the method's core equations are researched, outlined, narrated, or revised. Classify each equation as core, bridge, or reference, then give core equations the complete causal arc and an executable example before the story advances. The paper's stated/derived/lab-choice distinction and citation requirements continue to govern every step.
+
 `references/reading.md`, in order (required; the user's process):
 
 1. The abstract, the introduction, and the conclusion: the problem, the core contributions, the claimed results.

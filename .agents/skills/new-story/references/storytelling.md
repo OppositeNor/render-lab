@@ -19,6 +19,7 @@ reader's own pace (descriptions, inspect text, quiz explanations) follows this f
 | **A passage or chapter** written or rewritten | Write it with "Building a passage"; then map every sentence, fix every fault, and re-map what you edited | this file, `references/storytelling-examples.md` |
 | **A review** flagged a passage, or the user says it is unclear | "Finding and fixing": map it, name each fault, fix by the table, re-check against the ear rules | this file, `references/storytelling-examples.md` |
 | **A whole story** reviewed or revised, or many sentences that carry cues edited | The narration as heard, reviewers per story with every flag verified, cue-safe edits, the translation in step, only facts a rewrite may add, then the checks | this file, `references/storytelling-examples.md`, `references/storytelling-revision.md` |
+| **A formula** taught, not only mentioned (a core estimator, weight, probability, recurrence), or an equation beat flagged as hard to follow | Classify it (core, bridge, reference), give a core one the formula arc with a worked example and a counterfactual, review it with the formula gate; then map its sentences as above | this file, `references/storytelling-formula.md` and the files it names |
 | **The translation** | "In Chinese" below, with the translation's rules (`references/storyboard.md`) | this file |
 
 ## The sentence

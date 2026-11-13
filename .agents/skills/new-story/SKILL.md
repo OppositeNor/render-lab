@@ -1,6 +1,6 @@
 ---
 name: new-story
-description: The process and standard every Render Lab story shares, whatever it explains: an investigation's narrated video (storyboard and demonstrations), from the outline and the knowledge level through demonstrations, sentences and cues, per-chapter reviews from offscreen stills, the fact check, the quiz, and both editions' build; and how every explanation is written, sentence by sentence (the sentence map, its faults and fixes, in English and Chinese). Scales from one cue or sentence to a whole story. Use when asked to create or plan a story or video, outline or restructure chapters, write, adjust, or review narration, cues, animations, or depth, act on feedback about a built video, or write or fix explanatory on-screen text or a passage that is hard to follow; load with it the variant, `new-story-engine` (an engine's feature) or `new-story-paper` (a paper's method). Lamlet syntax is `render-lab-lamlet`'s; the package, port, and index `new-investigation`'s.
+description: The process and standard every Render Lab story shares, whatever it explains: an investigation's narrated video (storyboard and demonstrations), from the outline and knowledge level through demonstrations, sentences, cues, per-chapter reviews from stills, the fact check, the quiz, and both editions' build; and how every explanation is written, sentence by sentence (the sentence map, its faults and fixes, in English and Chinese), and how a core formula is taught (the formula arc). Scales from one cue or sentence to a whole story. Use when asked to create or plan a story or video, outline or restructure chapters, write, adjust, or review narration, cues, animations, or depth, act on feedback about a built video, or write or fix explanatory on-screen text, a passage, or an equation beat that is hard to follow; load with it the variant, `new-story-engine` (an engine's feature) or `new-story-paper` (a paper's method). Lamlet syntax is `render-lab-lamlet`'s; the package, port, and index `new-investigation`'s.
 ---
 
 # A story for an investigation
@@ -73,6 +73,14 @@ is hard to follow, its faults and fixes, and the Chinese form are in `references
 their maps in `references/storytelling-examples.md`; reviewing and revising a whole story's narration at scale (cue-safe
 edits, the translation in step) in `references/storytelling-revision.md`. They sit on top of "Written for the ear"
 (`references/storyboard.md`), whose rules win where the two seem to disagree in narration.
+
+**Mathematical formulas.** When a passage teaches a core equation rather than only mentions one, load
+`references/storytelling-formula.md` as well: it classifies each equation (core, bridge, reference) and gives a core one
+the formula arc, from the problem and the naive failure through each non-obvious term, a worked example, and a
+counterfactual, to the handoff. The arc's planning is in `references/storytelling-formula-arc.md`, its comprehension
+gate in `references/storytelling-formula-review.md`, and a worked design on ReSTIR's weights in
+`references/storytelling-formula-restir.md`. The sentence rules above still apply; a formula's symbol glossary is not a
+substitute for constructing its meaning.
 
 ## Working with agents
 

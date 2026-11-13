@@ -36,6 +36,7 @@ extraction mangles them.
    access) and read the parts the story teaches, citing them there. Write each work's APA reference (7th edition) as
    you list it, from the work itself or its publisher's record, for the index's `references`.
 4. **The method, in detail.** One brief per section (or per step) of the method, each returning:
+   - classify each equation for the stated audience as **core**, **bridge**, or **reference** (`new-story`'s `references/storytelling-formula.md`); for each core equation, record the naive attempt, why the new term is needed, the actual cited derivation and assumptions, one toy instance, a counterfactual, and the next step that uses it;
    - every equation, its terms, what each term is, and the derivation that leads to it;
    - every algorithm, line by line: its inputs, its state, its outputs, what runs per pixel, per frame, or once;
    - every parameter with the value the paper uses and where it says so;
