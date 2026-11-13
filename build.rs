@@ -79,18 +79,30 @@ fn install_mingw_runtime() {
     }
 }
 
-/// The binary's directory (`target/<profile>/`, three folders above `OUT_DIR`).
+/// The binary's directory (`target/<profile>/`): the folder that holds `OUT_DIR`'s
+/// `build/`, `build/<package>-<hash>/out` before Cargo 1.100 and
+/// `build/<package>/<hash>/out` since.
 fn bin_dir() -> Option<PathBuf> {
-    PathBuf::from(env::var("OUT_DIR").unwrap())
+    let out = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let dir = out
         .ancestors()
-        .nth(3)
-        .map(PathBuf::from)
+        .find(|dir| dir.file_name().is_some_and(|name| name == "build"))
+        .and_then(|build| build.parent())
+        .map(PathBuf::from);
+    if dir.is_none() {
+        println!(
+            "cargo:warning=no `build` folder above OUT_DIR ({}): the binary's directory is unknown",
+            out.display()
+        );
+    }
+    dir
 }
 
 /// Copies the standard library's DLL (`std-<hash>.dll`) from the toolchain
 /// to the binary's directory.
 fn install_std_dll(std_dir: &std::path::Path) {
     let Some(bin_dir) = bin_dir() else { return };
+    let mut copied = 0;
     for entry in
         std::fs::read_dir(std_dir).unwrap_or_else(|e| panic!("read {}: {e}", std_dir.display()))
     {
@@ -100,8 +112,15 @@ fn install_std_dll(std_dir: &std::path::Path) {
             let to = bin_dir.join(path.file_name().unwrap());
             std::fs::copy(&path, &to)
                 .unwrap_or_else(|e| panic!("copy {} to {}: {e}", path.display(), to.display()));
+            copied += 1;
         }
     }
+    // Without it beside the binary, Windows cannot start the binary at all.
+    assert!(
+        copied > 0,
+        "no std-*.dll in {}: the binary could not start",
+        std_dir.display()
+    );
 }
 
 /// Copies `themes/*.toml` to `themes/` in the binary's directory.
