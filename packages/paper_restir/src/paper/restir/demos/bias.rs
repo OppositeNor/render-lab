@@ -7,8 +7,9 @@
 //! the biased 1/M, the naive 1/|Z| (Eq. 20-21), or the balance heuristic
 //! (Eq. 22).
 
-use crate::paper::restir::text::tr;
-use lab::frame::FrameContent;
+use crate::paper::restir::text::{tr, tr_with};
+use lab::frame::{FrameContent, Readout};
+use lab::palette;
 use lab::utility::inset::{Corner, Picture, PictureInset};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -230,6 +231,59 @@ struct Show {
     mark: f32,
 }
 
+/// The readout at the marker's place y: the two PDFs there, how many of the M candidates could produce y (|Z(y)|,
+/// Eq. 19), what W divides by, and the two curves' values there. The formula is the narration's to show.
+fn at_marker(c: &Curves, m: usize, weight: Weight, near_zero: bool, y: f32) -> Readout {
+    let x = f64::from(y.clamp(0.0, 0.999));
+    let (flat, step) = (pdf(0, x, near_zero), pdf(1, x, near_zero));
+    let z = m / 2
+        + if step > 0.0 {
+            m / 2
+        } else {
+            0
+        };
+    let bin = ((x * BINS as f64) as usize).min(BINS - 1);
+    let divisor = match weight {
+        Weight::Biased => format!("M = {m}"),
+        Weight::Naive => format!("|Z| = {z}"),
+        Weight::Balance => tr("demos-bias_balance").to_string(),
+    };
+    let row = |text: &str, value: String, color| (text.to_string(), value, color);
+    Readout {
+        title: tr("demos-bias_marker_title").into(),
+        subtitle: tr_with(
+            "demos-bias_marker_subtitle",
+            lab::args!(x = format!("{x:.2}")),
+        ),
+        formula: None,
+        formula_lit: None,
+        rows: vec![
+            row(tr("demos-bias_flat_at"), format!("{flat:.2}"), PDF_COLOR),
+            row(tr("demos-bias_step_at"), format!("{step:.2}"), PDF_COLOR),
+            row(
+                tr("demos-bias_could"),
+                format!("{z} / {m}"),
+                palette::THEME_ACCENT,
+            ),
+            row(tr("demos-bias_divides"), divisor, palette::THEME_ACCENT),
+            row(
+                tr("demos-bias_truth_at"),
+                format!("{:.2}", c.truth[bin]),
+                TRUTH_COLOR,
+            ),
+            row(
+                tr("demos-bias_mean_at"),
+                format!("{:.2}", c.mean_w[bin]),
+                MEAN_COLOR,
+            ),
+        ],
+    }
+}
+
+const PDF_COLOR: egui::Color32 = egui::Color32::from_rgb(PDFS[0], PDFS[1], PDFS[2]);
+const TRUTH_COLOR: egui::Color32 = egui::Color32::from_rgb(120, 200, 255);
+const MEAN_COLOR: egui::Color32 = egui::Color32::from_rgb(255, 196, 90);
+
 pub fn draw(state: &lab::shot::ShotState, content: &mut FrameContent) {
     let m = (state.p("biasCandidates").round() as usize).clamp(2, 20) & !1;
     let weight = Weight::of(state.p("biasWeight"));
@@ -245,6 +299,9 @@ pub fn draw(state: &lab::shot::ShotState, content: &mut FrameContent) {
         (show.reveal * 100.0).round(),
         (show.mark * 200.0).round()
     );
+    if show.mark >= 0.0 {
+        content.readout = Some(at_marker(&c, m, weight, near_zero, show.mark));
+    }
     content.insets.push(PictureInset {
         corner: Corner::TopRight,
         x_axis: tr("demos-bias_axis").to_string(),

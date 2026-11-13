@@ -1,8 +1,8 @@
 //! Spatial reuse at P (Alg. 4 and Alg. 5 lines 16-20): P's k neighbours for the
 //! first round, drawn where they are in the room, green where the geometry test
 //! keeps them and red where it rejects them, each with a line to the sample its
-//! reservoir holds (red where an object blocks it, cpu.rs `visible`); the readout sums the M that P's combined reservoir stands
-//! for. The neighbours are the GPU's (cpu.rs `neighbour`, the frozen seed).
+//! reservoir holds (red where an object blocks it, cpu.rs `visible`); the readout lists each combined reservoir's weight,
+//! p̂ at P times its W times its M, and the combined reservoir's weight sum, M, and W. The neighbours are the GPU's (cpu.rs `neighbour`, the frozen seed).
 
 use super::super::cpu::{self, Reservoir, Rng, Sample, Scene, Surface};
 use super::super::lights::{self, Light};
@@ -115,7 +115,6 @@ pub fn draw(
     };
     let mut sources = vec![(own, s)];
     let kept = neighbours(content, &round, &disc, &scene, &mut sources);
-    let m: f32 = sources.iter().map(|(r, _)| r.m).sum();
     // The reservoir P holds once the sources so far are combined (the GPU's stream, Alg. 4), and its shadow ray.
     let combined = scene.combine(&s, &sources, &mut rng);
     if combined.y.light != cpu::NONE {
@@ -135,21 +134,60 @@ pub fn draw(
     content.readout = Some(Readout {
         title: tr("demos-spatial_title").into(),
         subtitle: tr_with("demos-spatial_subtitle", lab::args!(k = k, kept = kept)),
-        formula: None,
+        formula: Some(tr("formula-combine").into()),
         formula_lit: None,
-        rows: vec![
-            (
-                tr("demos-own_m").into(),
-                format!("{}", own.m as u32),
-                palette::THEME_ACCENT,
-            ),
-            (
-                tr("demos-combined_m").into(),
-                format!("{}", m as u32),
-                palette::SELECTED,
-            ),
-        ],
+        rows: combine_rows(&scene, &s, &sources, &combined),
     });
+}
+
+/// The readout of the round: each source combined so far (the last five) with its weight's three factors, p̂ at P of
+/// its sample, its W, and its M, and their product; then the sum of the weights, M, and W of the combined reservoir.
+fn combine_rows(
+    scene: &Scene,
+    s: &Surface,
+    sources: &[(Reservoir, Surface)],
+    combined: &Reservoir,
+) -> Vec<(String, String, egui::Color32)> {
+    let mut rows = Vec::new();
+    for (i, (r, _)) in sources
+        .iter()
+        .enumerate()
+        .skip(sources.len().saturating_sub(5))
+    {
+        // P's own reservoir first, then the neighbours' in the order they were combined.
+        let label = if i == 0 {
+            tr("demos-source_own").to_string()
+        } else {
+            tr_with("demos-source", lab::args!(i = i)).to_string()
+        };
+        let target = scene.target(s, r.y);
+        rows.push((
+            label,
+            format!(
+                "{target:.3} × {:.2} × {} = {:.2}",
+                r.w,
+                r.m as u32,
+                target * r.w * r.m
+            ),
+            palette::INCIDENT,
+        ));
+    }
+    rows.push((
+        tr("demos-wsum").into(),
+        format!("{:.3}", combined.wsum),
+        palette::INCIDENT,
+    ));
+    rows.push((
+        tr("demos-combined_m").into(),
+        format!("{}", combined.m as u32),
+        palette::THEME_ACCENT,
+    ));
+    rows.push((
+        tr("demos-w").into(),
+        format!("{:.3}", combined.w),
+        palette::SELECTED,
+    ));
+    rows
 }
 
 /// P's round of spatial reuse as the dock sets it: its k neighbours, the first `step` of them combined so far.
@@ -165,7 +203,8 @@ struct Round<'a> {
 }
 
 /// Draws P's neighbours (green if the test keeps them, red if it rejects them, dim until the step reaches them),
-/// each kept one's line to its sample; pushes the kept ones the step has reached onto `sources`, and counts them.
+/// each kept one's line to its sample; pushes the kept ones the step has reached onto `sources`, and counts those
+/// with a sample.
 fn neighbours(
     content: &mut FrameContent,
     round: &Round,
@@ -209,8 +248,8 @@ fn neighbours(
             sources.push((r, sn));
         }
         if r.y.light != cpu::NONE {
-            // The sample the neighbour's reservoir holds, which P may take.
-            kept += 1;
+            // The sample the neighbour's reservoir holds, which P may take; counted once the step has combined it.
+            kept += u32::from(reached);
             let color = if scene.visible(&sn, r.y) {
                 palette::INCIDENT
             } else {

@@ -8,6 +8,7 @@ pub mod bias;
 pub mod reuse;
 pub mod ris;
 pub mod spatial;
+pub mod toy;
 use super::shot::Demo;
 use lab::frame::{FrameContent, Statics};
 use lab::layout::FrameUniforms;
@@ -58,6 +59,7 @@ pub fn build_frame(
         Demo::Ris => ris::draw(state, &mut content, &placed, &statics.meshes),
         Demo::Reuse => reuse::draw(state, &mut content, &placed, &statics.meshes),
         Demo::Bias => bias::draw(state, &mut content),
+        Demo::Toy => toy::draw(state, &mut content),
         Demo::Spatial => spatial::draw(state, &mut content, &placed, &statics.meshes),
         Demo::Room | Demo::Reservoirs | Demo::Reference | Demo::Methods => {}
     }

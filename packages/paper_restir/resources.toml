@@ -121,6 +121,12 @@ source = "demos/methods.toml"
 license = "MIT"
 
 [[resource]]
+id = "demo/toy"
+kind = "file"
+source = "demos/toy.toml"
+license = "MIT"
+
+[[resource]]
 id = "listing/ris"
 kind = "file"
 source = "pseudocode/ris.py"

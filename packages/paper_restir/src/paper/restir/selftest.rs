@@ -24,6 +24,7 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
     check_estimator(&mut report);
     check_reservoir(&mut report);
     check_bias(&mut report);
+    check_toy(&mut report);
     check_passes(&mut report)?;
     check_listings(&mut report);
     sight::check(&mut report, options.timeline.as_deref())?;
@@ -208,6 +209,50 @@ fn check_bias(report: &mut Report) {
     let ok =
         (biased - 0.5).abs() < 0.05 && (naive - 1.0).abs() < 0.05 && (balance - 1.0).abs() < 0.05;
     report.check("the 1D example: biased W is half the inverse PDF where one PDF is zero (Eq. 19); 1/|Z| and the balance heuristic are unbiased (Eq. 20-22)", ok, json!({"biased": biased, "naive": naive, "balance": balance}));
+}
+
+/// The worked example the story narrates (toy.rs): each list's estimate (4/3, 20/3, 12), their average the true total
+/// 4, and the two parts removed (1.5 without dividing by p, 1 without the average); and RIS itself, run on that world
+/// many times (two candidates drawn, one kept by weight, f(y) · W), averaging 4 too.
+fn check_toy(report: &mut Report) {
+    use super::demos::toy::{Drop, average, estimate, kept, lists, weight};
+    let each: Vec<f64> = lists().iter().map(|l| estimate(l, Drop::None)).collect();
+    let means = [Drop::None, Drop::DivideByP, Drop::Average].map(|d| average(d).0);
+    let mut state = 0x9e37_79b9_7f4a_7c15u64;
+    let mut rand = move || {
+        state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        ((state >> 11) as f64) / ((1u64 << 53) as f64)
+    };
+    let runs = 400_000;
+    let mut sum = 0.0;
+    for _ in 0..runs {
+        // Two candidates by the cheap choice (A with 3/4), one kept in proportion to its weight; f(y) / p̂(y) is 1.
+        let x = [rand(), rand()].map(|u| usize::from(u >= 0.75));
+        let w = x.map(|i| weight(i, Drop::None));
+        sum += (w[0] + w[1]) / 2.0;
+    }
+    let simulated = sum / f64::from(runs);
+    // RIS keeps A 6 times in 10 and B 4 times in 10, and W averages one over those chances.
+    let k = kept();
+    let near = |a: f64, b: f64| (a - b).abs() < 1e-9;
+    let ok = near(each[0], 4.0 / 3.0)
+        && near(each[1], 20.0 / 3.0)
+        && near(each[2], 12.0)
+        && near(means[0], 4.0)
+        && near(means[1], 1.5)
+        && near(means[2], 1.0)
+        && (simulated - 4.0).abs() < 0.03
+        && near(k[0].0, 0.6)
+        && near(k[1].0, 0.4)
+        && near(k[0].1, 1.0 / 0.6)
+        && near(k[1].1, 2.5);
+    report.check(
+        "the worked example: estimates 4/3, 20/3, 12 average to 4; without dividing by p 1.5, without the average 1; RIS run on it averages 4; it keeps B 4 times in 10, W then averaging 2.5",
+        ok,
+        json!({"estimates": each, "averages": means, "simulated": simulated, "kept": k}),
+    );
 }
 
 /// The frame's inputs the passes read, read back.

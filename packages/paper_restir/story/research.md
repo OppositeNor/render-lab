@@ -134,6 +134,53 @@ variants were implemented (148:9).
 unshadowed; GGX dielectric over Lambertian. N = 1 unbiased; N = 4 biased (four reservoirs per pixel). Storage per
 reservoir: y, M, W.
 
+## 4a. The equations, classified (`new-story`'s references/storytelling-formula.md)
+
+For this story's audience (Monte Carlo with importance sampling known; RIS, WRS, and reservoir reuse taught):
+
+| Equation | Kind | Beats |
+|---|---|---|
+| f(x)/p(x), the IS estimate (Eq. 3) | reference: recalled in words | c2-is |
+| MIS weights summing to one (Eq. 4) | reference: recalled, used again in c6 | c2-is |
+| w = p̂/p (Eq. 5) | **core** | c2-ris, c2-toy |
+| W = Σw / (M p̂(y)), shading f(y)·W (Eq. 6, Alg. 3 line 8) | **core** | c2-ris, c2-toy; recalled c3-alg3 |
+| WRS replacement chance w/wsum (Eq. 9) | bridge: one rule, shown streaming | c2-wrs |
+| combine weight p̂_P(y)·W·M (Alg. 4 line 4, §4.1) | **core** | c4-combine |
+| k^n M (148:6) | bridge | c4-rounds |
+| E[W given y] = (1/p(y))·abs(Z(y))/M (Eq. 19) | **core** | c6-1d |
+| m = 1/abs(Z) and the balance heuristic (Eqs. 20-22, Alg. 6) | bridge on Eq. 19 | c6-fix, c6-alg6 |
+| p̂(x) = 2 − 2x (Fig. 7) | reference: the example's definition | c6-1d |
+
+**w = p̂/p.** Need: the cheap choice draws candidates on bright lights often, whatever they bring to P. Anchor: P's
+eight candidates (readout: p̂ / p = w per candidate), then the two-sample world (toy.rs). Construct: dividing by p
+takes away the head start a likely candidate has (IS's own reasoning, Eq. 3, applied per candidate: derived, not
+quoted). Worked: A (p 3/4, p̂ 1) gets 4/3, B (p 1/4, p̂ 3) gets 12. Counterfactual: without the division the
+estimates average 1.5, not 4 (lab's illustration). Handoff: the kept candidate is picked by these weights.
+
+**W.** Need: the kept candidate was not drawn by the target, yet it is shaded as if it were (§2.1, Eq. 6). Anchor:
+the same two-sample world, M = 2 (toy values, the lab's own; p̂ = f there, so f(y)/p̂(y) = 1). Worked: lists AA 9/16 →
+4/3, AB 6/16 → 20/3, BB 1/16 → 12; average 4 = f(A) + f(B). Claim type: unbiasedness is the paper's (§2.1, positive
+p and p̂ wherever f ≠ 0); the toy only checks it, and one run is not four. Counterfactual: without the average every
+estimate is 1 (lab's illustration); the average weight estimates the target's total (4), the scale
+the estimate needs. W's second meaning, used by c4 and c6: on average W is one over the chance RIS keeps y (§4.1,
+Eqs. 11-12); in the toy RIS keeps A 6/10 and B 4/10, W then averaging 1/0.6 and 2.5. Handoff: more candidates narrow the spread (c2-ris-more); a reservoir keeps the
+sum and the count W needs (c2-wrs). The selftest checks every number narrated (`check_toy`).
+
+**p̂_P(y)·W·M.** Need: a neighbour's sample enters P's reservoir as a candidate, and a candidate needs target over
+probability, but no probability was recorded. Construct: r.W estimates 1/p (§4.1, stated), the target is P's because
+the weight is P's (§3.2), M lets a reservoir count for its candidates (§4.1). Worked: the spatial readout lists the
+three factors and their product for P's own reservoir and each neighbour combined so far (real values, cpu.rs
+`combine`). Boundary: in round one every M is 32, so M scales all weights alike and changes nothing (stated as the
+lab's observation); it matters for the previous frame's reservoir (c5, the 20× clamp). Handoff: s.W from wsum and the
+summed M, as in Eq. 6 (Alg. 4 line 7).
+
+**Eq. 19.** Need: W must average 1/p(y) (Eqs. 11-12). Anchor: Fig. 7's 1D example (bias.rs, the paper's setup).
+Construct: on the right half only the flat candidates can produce y, but W divides by all M. Worked: the readout at
+the marker (y = 0.6, 20 candidates): 10 of 20 could, true 1/p 2.27, mean W 1.10. Counterfactual and fix: dividing by
+abs(Z) instead brings the mean to the truth (c6-fix readout, abs(Z) = 2 of 4); a near-zero step makes it noisy;
+the balance heuristic steadies it (Eq. 22). Handoff: Alg. 6 counts the M of the reservoirs whose target at y is
+not zero.
+
 ## 5. Results (the paper's own setup; no numbers in narration)
 
 Prototype in Falcor; RTX 2080 Ti (Titan RTX for Amusement Park); timings include sample generation, ray tracing, and

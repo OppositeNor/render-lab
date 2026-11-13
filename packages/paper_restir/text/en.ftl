@@ -85,7 +85,45 @@ shot-spatial = Spatial
 shot-spatial_hint = Click the scene to pick P; its neighbours are green where the geometry test keeps them, red where it rejects them.
 demos-spatial_title = One round at P
 demos-spatial_subtitle = { $kept } of { $k } neighbours combined
-demos-own_m = P's own M
+demos-source_own = P's own
+demos-source = Neighbour { $i }
+formula-combine = { FORMULA("w = \\hat{p}_P(y) \\cdot W \\cdot M", display: "yes") }
+demos-bias_marker_title = At the marker
+demos-bias_marker_subtitle = The place y = { $x }
+demos-bias_flat_at = Flat PDF there
+demos-bias_step_at = Step PDF there
+demos-bias_could = Candidates that could produce y
+demos-bias_divides = W divides by
+demos-bias_balance = each candidate's share of the PDFs
+demos-bias_truth_at = True 1 / p(y)
+demos-bias_mean_at = Mean W
+shot-toy_title = RIS worked by hand
+shot-toy = Worked RIS
+shot-toy_hint = The lab's example, not the paper's: two light samples, A and B, and two candidates. Every list of candidates is shown with its chance and its estimate, and their average beside the true total.
+controls-toy = Worked example
+hints-toy = Two samples and two candidates, every outcome counted.
+controls-toy_step = Step
+help-toyStep = How much of the example is shown: 1 the probabilities, 2 the targets, 3 the weights, 4 to 6 the lists of candidates, 7 their average, 8 how often RIS keeps each sample and the mean of W then.
+controls-toy_drop = Part removed
+help-toyDrop = 0 RIS as the paper writes it; 1 the weights without dividing by p; 2 W without the average of the weights.
+demos-toy_title = RIS by hand
+demos-toy_paper = As the paper writes it
+demos-toy_no_p = Weights without dividing by p
+demos-toy_no_mean = W without the average of the weights
+demos-toy_sample = Sample { $name }
+demos-toy_truth = True total, f(A) + f(B)
+demos-toy_lists = Two candidates
+demos-toy_columns = chance → estimate
+demos-toy_list = Drawn { $list }
+demos-toy_outcome = { $chance } → { $estimate }
+demos-toy_average = Average estimate
+demos-toy_kept = RIS keeps { $name }
+demos-toy_kept_value = chance { $chance }, mean W { $mean }
+demos-toy_bars = The two samples
+demos-toy_axis = A left, B right; bars scaled per kind
+demos-toy_p = p, how often the cheap choice draws it
+demos-toy_phat = p̂ = f, what it brings
+demos-toy_w = w = p̂ / p, its weight
 demos-combined_m = M after the round
 shot-bias_title = Bias, and removing it
 shot-bias = Bias
@@ -99,7 +137,7 @@ help-biasCandidates = M, half drawn from the constant PDF and half from the step
 controls-bias_near_zero = Step nearly zero
 help-biasNearZero = Make the step PDF nearly zero past one half instead of zero, as Fig. 7c does.
 demos-bias_title = RIS's inverse PDF, 1D (after Fig. 7)
-demos-bias_axis = x from 0 to 1; the step PDF stops at the line
+demos-bias_axis = x from 0 to 1; the step stops at the line
 demos-bias_truth = true 1 / p(y), from the histogram
 demos-bias_mean = mean W where y lands
 demos-bias_target = the target p̂(x) = 2 − 2x

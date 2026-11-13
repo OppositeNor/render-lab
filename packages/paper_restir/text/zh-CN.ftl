@@ -85,7 +85,45 @@ shot-spatial = 空间
 shot-spatial_hint = 点击场景选取 P；几何测试保留的邻居为绿色，拒绝的为红色。
 demos-spatial_title = P 处的一轮
 demos-spatial_subtitle = { $k } 个邻居中合并了 { $kept } 个
-demos-own_m = P 自己的 M
+demos-source_own = P 自己的
+demos-source = 邻居 { $i }
+formula-combine = { FORMULA("w = \\hat{p}_P(y) \\cdot W \\cdot M", display: "yes") }
+demos-bias_marker_title = 标记处
+demos-bias_marker_subtitle = 位置 y = { $x }
+demos-bias_flat_at = 那里的均匀 PDF
+demos-bias_step_at = 那里的阶跃 PDF
+demos-bias_could = 能产生 y 的候选
+demos-bias_divides = W 除以
+demos-bias_balance = 每个候选在 PDF 之和中的占比
+demos-bias_truth_at = 真实的 1 / p(y)
+demos-bias_mean_at = W 的平均
+shot-toy_title = 手算一遍 RIS
+shot-toy = 手算 RIS
+shot-toy_hint = 实验室自己的例子，不是论文的：两个光源样本 A 和 B，两个候选。每一种候选组合都列出它的概率和它给出的估计，再把它们的平均和真实总量放在一起比较。
+controls-toy = 手算例子
+hints-toy = 两个样本、两个候选，每种结果都算进去。
+controls-toy_step = 步骤
+help-toyStep = 例子显示到哪一步：1 概率，2 目标，3 权重，4 到 6 各种候选组合，7 它们的平均，8 RIS 留下每个样本的概率，以及这时 W 的平均。
+controls-toy_drop = 去掉的部分
+help-toyDrop = 0 按论文的写法；1 权重不除以 p；2 W 不乘权重的平均。
+demos-toy_title = 手算 RIS
+demos-toy_paper = 按论文的写法
+demos-toy_no_p = 权重不除以 p
+demos-toy_no_mean = W 不乘权重的平均
+demos-toy_sample = 样本 { $name }
+demos-toy_truth = 真实总量 f(A) + f(B)
+demos-toy_lists = 两个候选
+demos-toy_columns = 概率 → 估计
+demos-toy_list = 抽到 { $list }
+demos-toy_outcome = { $chance } → { $estimate }
+demos-toy_average = 估计的平均
+demos-toy_kept = RIS 留下 { $name }
+demos-toy_kept_value = 概率 { $chance }，W 平均 { $mean }
+demos-toy_bars = 两个样本
+demos-toy_axis = 左 A 右 B；每类柱子各自缩放
+demos-toy_p = p，便宜的选法抽到它的概率
+demos-toy_phat = p̂ = f，它带来的光
+demos-toy_w = w = p̂ / p，它的权重
 demos-combined_m = 这一轮之后的 M
 shot-bias_title = 偏差，以及如何消除
 shot-bias = 偏差

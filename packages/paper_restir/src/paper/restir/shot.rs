@@ -15,10 +15,11 @@ pub enum Demo {
     Bias,
     Reuse,
     Methods,
+    Toy,
 }
 
 impl Demo {
-    pub const ALL: [Demo; 8] = [
+    pub const ALL: [Demo; 9] = [
         Demo::Room,
         Demo::Ris,
         Demo::Reservoirs,
@@ -27,6 +28,7 @@ impl Demo {
         Demo::Bias,
         Demo::Reuse,
         Demo::Methods,
+        Demo::Toy,
     ];
 
     pub fn key(self) -> &'static str {
@@ -39,6 +41,7 @@ impl Demo {
             Demo::Reuse => "reuse",
             Demo::Bias => "bias",
             Demo::Spatial => "spatial",
+            Demo::Toy => "toy",
         }
     }
 

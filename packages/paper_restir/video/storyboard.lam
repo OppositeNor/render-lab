@@ -219,7 +219,7 @@ The lab implements the paper's algorithms from its text.
 
 This chapter follows the paper's introduction, on its first two pages.
 
-## Related work {#c2 number=2 target=295 summary="What ReSTIR replaces, and the two ideas it is built from: resampled importance sampling and weighted reservoir sampling." sources="many-lights, hierarchies, tiled, path-reuse, denoisers, eq3, eq4, eq5, eq6, ris-unbiased, ris-converges, wrs, eq9, alg2"}
+## Related work {#c2 number=2 target=425 summary="What ReSTIR replaces, and the two ideas it is built from: resampled importance sampling and weighted reservoir sampling." sources="many-lights, hierarchies, tiled, path-reuse, denoisers, eq3, eq4, eq5, eq6, ris-unbiased, ris-converges, wrs, eq9, alg2"}
 
 ### Other ways to light many lights {#c2-others kind=2d diagram=related focus=OTHERS}
 
@@ -266,7 +266,7 @@ ${cue "key" {opening demoRis panelHidden {append baseRoom {append pickCamera {ap
     {' {restirSeed 1.0} {risStep 1.0}}}}}}}
 ${cue "key" floatPick}
 
-${cue "key" {' {callout "eq3"}}}Both ideas start from importance sampling.
+${cue "key" {' {callout "eq3"}}}The first of these ideas starts from importance sampling.
 
 ${cue "key" {' {glide cameraYaw 28.0 sentence}}}${overText
     {' {pickURange 0.84 0.88}}
@@ -312,6 +312,8 @@ The paper calls that ideal p the target.
 
 It writes the target as p-hat.
 
+The target need not add up to one, so it is not quite a probability.
+
 ${overText
     {' {restirSeedRange 5.0 9.0}}
     "But no one can draw samples in exact proportion to the target"}.
@@ -337,12 +339,22 @@ Each sample is a light and a point on it, one of the guesses from chapter one.
 
 These samples are called candidates.
 
-Then ${overText {' {risWeighRange 0.0 1.0}} "each candidate gets a weight"}, ${formulaSaid f"{w = \frac{\hat{p}(x)}{p(x)}}" "its target divided by the probability it was drawn with"
+The cheap way favours the candidates on the brightest lights.
+
+So those candidates turn up often, whatever they bring to P.
+
+To take away that head start, ${overText {' {risWeighRange 0.0 1.0}} "each candidate gets a weight"}.
+
+The weight is ${formulaSaid f"{w = \frac{\hat{p}(x)}{p(x)}}" "its target divided by the probability it was drawn with"
     {'}}.
+
+A candidate drawn often is divided by a large probability, so each time it turns up, it counts for less.
 
 ${cue "key" {' {glide cameraYaw 30.0 sentence}}}Here ${overText
     {' {pickURange 0.88 0.9}}
     "the brighter a line from P"}, the larger its candidate's weight.
+
+The panel lists each candidate's target, the probability it was drawn with, and the weight between them.
 
 ${cue "key" {' {glide cameraYaw 24.0 sentence}}}Second, P keeps one candidate, ${overText
     {' {risPickRange 0.0 1.0}}
@@ -356,7 +368,7 @@ So the shaded result is multiplied by a correction, ${overText
     {' {lightPhaseRange 0.0 0.03}}
     "the average of all eight weights"}.
 
-${cue "key" {' {callout "ris-unbiased"}}}With that correction, RIS is unbiased, ${overText
+${cue "key" {' {callout "ris-unbiased"}}}With that correction, RIS is unbiased, right on average, ${overText
     {' {restirCandidatesRange 8.0 16.0} {risStepRange 8.0 16.0}}
     "however many candidates it draws"}.
 
@@ -367,6 +379,68 @@ Together with the correction, that division makes a single number, called W.
 So the light at P is ${overText
     {' {lightPhaseRange 0.03 0.06}}
     "what the kept candidate brings, times W"}.
+
+### Two samples, worked by hand {#c2-toy kind=3d}
+
+${cue "key" {opening demoToy panelValues {append baseRoom {append roomCamera {'
+    {toyStep 0.0}
+    {toyDrop 0.0}}}}}}
+${cue "key" floatRoom}
+
+Each part of W has a job, and a world small enough to work by hand shows it.
+
+It has only two light samples, A and B, and it is the lab's example, not the paper's.
+
+The cheap choice draws ${overText {' {toyStepRange 0.0 1.0}} "A three times in four, and B once"}.
+
+But ${overText {' {toyStepRange 1.0 2.0}} "B brings three times as much light as A"}.
+
+Here the target is exactly what each sample brings.
+
+So the true total is four, one from A and three from B.
+
+Dividing by the probability ${overText
+    {' {toyStepRange 2.0 3.0}}
+    "gives A a weight of four thirds, and B a weight of twelve"}.
+
+B is drawn rarely, so its weight is large when it does turn up.
+
+${cue "key" {' {callout "eq6"}}}Now RIS draws two candidates, and keeps one.
+
+${overText {' {toyStepRange 3.0 4.0}} "Two A's come up nine times in sixteen"}, and the estimate is then four thirds.
+
+${overText {' {toyStepRange 4.0 5.0}} "One A and one B come up six times in sixteen"}, and the estimate is then six and two thirds.
+
+It is the same whichever one is kept, because the target here equals what each sample brings.
+
+${overText {' {toyStepRange 5.0 6.0}} "Two B's come up once in sixteen"}, and the estimate is then twelve.
+
+No single estimate is four.
+
+But ${overText
+    {' {toyStepRange 6.0 7.0}}
+    "averaged with these chances, the estimates come to exactly four"}.
+
+${cue "key" {' {callout "ris-unbiased"}}}That is what unbiased means, correct on average, though not in every run.
+
+${overText {' {toyStepRange 7.0 8.0}} "W does one more job"}.
+
+On average, it is one over the chance that RIS keeps the sample.
+
+RIS keeps B four times in ten, and when it does, W averages two and a half.
+
+${cue "key" {' {toyDrop 2.0}}}Without the average of the weights, every estimate is one, far below four.
+
+That average estimates the target's total, four here, and so it puts back the scale.
+
+${cue "key" {' {toyDrop 1.0}}}Without dividing by the probability, the estimates average one and a half.
+
+The rarely drawn B then counts for far too little.
+
+${cue "key" {' {toyDrop 0.0}}}So W needs both, ${formulaSaid f"{W = \frac{\sum w}{M\, \hat{p}(y)}}" "the sum of the weights, over the count M, over the kept candidate's target"
+    {'}}.
+
+With only two candidates, the estimates still spread from four thirds to twelve.
 
 ### More candidates, less noise {#c2-ris-more kind=3d}
 
@@ -536,7 +610,7 @@ So instead of drawing more candidates, the rest of the method reuses the candida
 
 Streaming RIS is in section three point one, and the paper's choices are in section five.
 
-## Spatial reuse {#c4 number=4 target=150 summary="Combining reservoirs, the neighbours each pixel combines, the rounds that multiply its candidates, and the test that rejects some." sources="combine, reweight, weight-meaning, alg4, neighbors-param, spatial, spatial-passes, geometry-test"}
+## Spatial reuse {#c4 number=4 target=190 summary="Combining reservoirs, the neighbours each pixel combines, the rounds that multiply its candidates, and the test that rejects some." sources="combine, reweight, weight-meaning, alg4, neighbors-param, spatial, spatial-passes, geometry-test"}
 
 ### Combining two reservoirs {#c4-combine kind=3d}
 
@@ -558,26 +632,45 @@ ${cue "key" {' {callout "combine"}}}${cue "key" {' {glide cameraYaw 28.0 sentenc
     {' {spatialStepRange 0.0 1.0}}
     "treats each one's kept sample as a single new candidate"}.
 
-${cue "key" {' {callout "reweight"}}}That candidate's weight is ${formulaSaid f"{\hat{p}_P(y) \cdot W \cdot M}" "the target at P, times its reservoir's W, times its M"
-    {'}}.
+A new candidate needs a weight, its target over the chance it was drawn, as in chapter two.
 
-Recall that W stands in for one over the chance that the sample was drawn.
+For a neighbour's sample, that chance is the chance that the neighbour's reservoir kept it.
+
+No one recorded that chance.
+
+${cue "key" {' {callout "weight-meaning"}}}But on average, that reservoir's W is one over it, as the worked example showed.
+
+So the target times W takes the place of the weight.
 
 ${cue "key" {' {glide cameraYaw 22.0 sentence}}}${overText
-    {' {pickURange 0.88 0.86}}
+    {' {pickURange 0.88 0.9}}
     "The target is taken at P"}, because a sample that suits a neighbour may not suit P.
 
-${cue "key" {' {callout "weight-meaning"}}}The factor M makes a reservoir count ${overText
-    {' {restirCandidatesRange 32.0 64.0}}
-    "as much as the candidates behind it"}.
+Times M, P's own reservoir gets back exactly its sum of weights, because W divided that sum by M.
 
-${cue "key" {' {callout "alg4"}}}${cue "key" {' {highlightCode "combine" {' "count"}}}}The combined reservoir ${overText
-    {' {spatialStepRange 1.0 3.0}}
-    "keeps one of the two samples, in proportion to these weights"}.
+So a reservoir counts as much as all the candidates behind it.
 
-It stands for every candidate behind both reservoirs, ${overText
+${cue "key" {' {callout "reweight"}}}So a sample's weight is ${formulaSaid f"{\hat{p}_P(y) \cdot W \cdot M}" "the target at P, times its reservoir's W, times its M"
+    {'}}.
+
+${cue "key" {' panelValues}}${overText
+    {' {spatialStepRange 1.0 2.0}}
+    "The panel works it out for P's own reservoir and each neighbour's"}, factor by factor.
+
+Here every reservoir drew thirty-two candidates, so M scales every weight alike, and changes nothing yet.
+
+It matters in the next chapter, where the frame before can stand for far more.
+
+${cue "key" {' panelCode}}${cue "key" {' {callout "alg4"}}}${cue "key" {'
+    {highlightCode "combine" {' "count"}}}}The combined reservoir ${overText
+        {' {spatialStepRange 2.0 3.0}}
+        "keeps one of the samples, in proportion to these weights"}.
+
+It stands for every candidate behind them, ${overText
     {' {spatialStepRange 3.0 5.0}}
     "so their counts add up"}.
+
+Its W then comes out as in chapter two, from the sum of the weights and the new count.
 
 ### Neighbours in a disc {#c4-neighbours kind=3d}
 
@@ -805,7 +898,7 @@ In order, each pixel draws candidates, ${overText
 
 Temporal and visibility reuse are in section three point two, and the clamp is in section five.
 
-## Bias, and removing it {#c6 number=6 target=222 summary="Why reuse biases RIS, the paper's one-dimensional example, the weights that remove the bias, and the unbiased combination." sources="bias-source, eq12, weight-meaning, eq19, fig7, eq20, naive-m, eq22, talbot-cost, alg6, approx-pdf, unbiased-cost"}
+## Bias, and removing it {#c6 number=6 target=240 summary="Why reuse biases RIS, the paper's one-dimensional example, the weights that remove the bias, and the unbiased combination." sources="bias-source, eq12, weight-meaning, eq19, fig7, eq20, naive-m, eq22, talbot-cost, alg6, approx-pdf, unbiased-cost"}
 
 ### Every pixel has its own target {#c6-source kind=3d}
 
@@ -830,7 +923,7 @@ ${cue "key" {' {callout "eq12"}}}Recall what W does.
 
 It stands in for one over the chance ${overText
     {' {restirSeedRange 5.0 7.0}}
-    "that the kept sample was drawn"}.
+    "that RIS keeps that sample"}.
 
 ${cue "key" {' {callout "weight-meaning"}}}On average, W must equal one over that chance exactly, or the image comes out ${overText
     {' {lightIntensityRange 1.0 0.7}}
@@ -840,7 +933,7 @@ But a neighbour's W was built for the neighbour's target, so for P it may be wro
 
 ### The paper's example in one dimension {#c6-1d kind=3d}
 
-${cue "key" {opening demoBias panelHidden {append baseRoom {append roomCamera {'
+${cue "key" {opening demoBias panelValues {append baseRoom {append roomCamera {'
     {biasWeight 0.0}
     {biasCandidates 2.0}
     {biasNearZero 0.0}
@@ -884,6 +977,13 @@ ${cue "key" {' {callout "eq19"}}}${overText
     {' {biasCandidatesRange 10.0 20.0}}
     "So W comes out half as large as it should"}.
 
+${cue "key" {' {callout "eq19"}}}The paper writes this as ${formulaSaid f"{E[W \mid y] = \frac{1}{p(y)} \cdot \frac{|Z(y)|}{M}}" "on average, W is one over the chance, times the share of the candidates that could produce the sample"
+    {'}}.
+
+${overText
+    {' {biasMarkRange 0.6 0.75}}
+    "At the marker, half the candidates could produce the sample"}, so W averages half of one over the chance.
+
 An image would then come out ${overText {' {lightIntensityRange 1.0 0.6}} "too dark"}.
 
 ${cue "key" {' {callout "approx-pdf"}}}In ReSTIR, each reservoir a pixel combines acts like the step, ${overText
@@ -894,7 +994,7 @@ A neighbour whose surface faces away from a light, or whose view of it is blocke
 
 ### Counting only those that could {#c6-fix kind=3d}
 
-${cue "key" {opening demoBias panelHidden {append baseRoom {append roomCamera {'
+${cue "key" {opening demoBias panelValues {append baseRoom {append roomCamera {'
     {biasWeight 0.0}
     {biasCandidates 4.0}
     {biasNearZero 0.0}}}}}}
@@ -907,6 +1007,8 @@ ${cue "key" {' {callout "eq20"}}}The fix is to divide only by ${overText
 ${cue "key" {' {callout "naive-m"}}}${overText
     {' {biasWeightRange 0.0 1.0}}
     "With that count, the two lines agree"}.
+
+At the marker, W now divides by two, the candidates that could, not by all four.
 
 ${overText
     {' {biasNearZeroRange 0.0 1.0}}

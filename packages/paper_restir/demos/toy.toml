@@ -1,0 +1,20 @@
+# RIS worked by hand: the lab's example of two light samples and two candidates, every outcome counted (toy.rs).
+
+key = "toy"
+title-text = "shot-toy_title"
+tab-text = "shot-toy"
+hint-text = "shot-toy_hint"
+scene = "paper_restir.scene/restir-room"
+listing = "frame"
+resets-camera = true
+
+[camera]
+target = [0.0, 0.9, -0.6]
+yaw = 18.0
+pitch = 14.0
+distance = 4.6
+fov = 55.0
+
+
+[params]
+restirSeed = -1

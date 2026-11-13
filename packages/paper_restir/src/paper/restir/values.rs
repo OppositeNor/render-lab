@@ -60,4 +60,11 @@ pub struct RestirValues {
     /// Whether the step PDF p₂ is nearly zero past one half instead of zero (Fig. 7c).
     #[value(default = 0.0, range = 0.0..=1.0, unit = plain, text = "controls-bias_near_zero", color = palette::SELECTED, label(bias), help = "help-biasNearZero")]
     pub bias_near_zero: f32,
+    /// How much of the worked example is shown (toy.rs): 1 the probabilities p, 2 the targets, 3 the weights, 4 to 6
+    /// the lists of candidates one by one, 7 their average, 8 how often RIS keeps each sample and W's mean then.
+    #[value(default = 8.0, range = 0.0..=8.0, unit = plain, text = "controls-toy_step", color = palette::SELECTED, label(toy), help = "help-toyStep")]
+    pub toy_step: f32,
+    /// The part of W the worked example removes (toy.rs): 0 none, 1 the division by p, 2 the average of the weights.
+    #[value(default = 0.0, range = 0.0..=2.0, unit = index, text = "controls-toy_drop", color = palette::SELECTED, label(toy), help = "help-toyDrop")]
+    pub toy_drop: f32,
 }

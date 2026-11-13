@@ -13,6 +13,7 @@ fn groups(demo: Demo) -> &'static [&'static str] {
         Demo::Spatial => &["pick", "restir", "view", "lights"],
         Demo::Reuse => &["pick", "restir", "view", "lights"],
         Demo::Bias => &["bias", "restir", "view", "lights"],
+        Demo::Toy => &["toy"],
         Demo::Methods => &["restir", "view", "lights"],
         Demo::Room | Demo::Reservoirs | Demo::Reference => &["restir", "view", "lights"],
     }
@@ -25,6 +26,7 @@ fn group(dock: &mut Dock, ui: &mut Ui, label: &str) {
         "restir" => (tr("controls-restir"), tr("hints-restir")),
         "view" => (tr("controls-view_group"), tr("hints-view")),
         "lights" => (tr("controls-lights"), tr("hints-lights")),
+        "toy" => (tr("controls-toy"), tr("hints-toy")),
         _ => (tr("controls-bias"), tr("hints-bias")),
     };
     dock.values(ui, title, Some(hint), label);
