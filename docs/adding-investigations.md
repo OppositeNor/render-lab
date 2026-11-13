@@ -9,6 +9,12 @@ An investigation is a package in `packages/<engine>_<feature>/`: its content, an
 and out of any public copy of the repository unless the engine's license allows it (then credit it in
 [`THIRD_PARTY.md`](../THIRD_PARTY.md)).
 
+Code of one package that another uses crosses between their libraries as C functions: the exporter writes them with
+`lab::export!` and declares them in an `interface/` crate, and the importer imports its package and names them in its
+negotiation, which resolves them when it loads ([`lab/src/plugin/abi.rs`](../lab/src/plugin/abi.rs); the pilot is
+[`packages/godot_voxelgi/interface`](../packages/godot_voxelgi/interface/src/lib.rs)). Engine-neutral helpers that
+several packages share are the lab's own, in `lab::utility`.
+
 An investigation that shades the scene its own way declares it in its package's `shading.toml` (a `shading` resource,
 read at run time into a `SceneShading`; the format is in [`lab/src/shading_file.rs`](../lab/src/shading_file.rs)), and
 registers the functions the file names, which compute rather than declare (its static data, an update's or a program's

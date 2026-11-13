@@ -226,12 +226,38 @@ lab::negotiate!(my_feature_negotiate, ["investigations" => investigations as Inv
 
 ### The negotiation, in short
 
-The loader fills a C structure, `Negotiation` (its size, its interface version, its lab build's fingerprint, and a map),
-and calls the function. `lab::negotiate!` expands in the library: it checks the size, the version, and that the
-fingerprint is the one the library was compiled against (`lab::plugin::ABI`: the lab's version, the compiler, a hash of
-its sources), and only then registers each handle in the map through the loader's `register`. A library built against
+The loader opens the libraries in the packages' order (imports first, `packages::load_all`), fills a C structure,
+`Negotiation` (its size, its interface version, its lab build's fingerprint, a map, and, from version 2, the handles of
+its imports' libraries), and calls the function. `lab::negotiate!` expands in the library: it checks the size, the
+version, and that the fingerprint is the one the library was compiled against (`lab::plugin::ABI`: the lab's version,
+the compiler, a hash of its sources, its derive macros', render_lab's code (`lab::utility`), and the versions its
+dependencies resolved to in the building workspace's `Cargo.lock`), resolves its C imports (below), and only then
+registers each handle in the map through the loader's `register`. A package whose imported library was refused is
+refused too, with the chain. A library built against
 another lab refuses before it runs any lab code; the loader never unloads a library. Handles are looked up by name
 (`Handles::investigations`, `Handles::features`; a library without one has none); a new kind of handle is a new name and type in `lab/src/plugin.rs`, both sides.
+
+### Code another package uses: a C interface
+
+Rust has no stable ABI, so code one package's library shares with another's crosses as C functions
+(`lab/src/plugin/abi.rs`; the pilot: `packages/godot_voxelgi/interface` and `src/exports.rs`, imported by
+`godot_sdfgi`). Code that is engine-neutral and used by several packages belongs in `lab::utility` instead
+(`packages/render_lab/src`: `parallel::par_map`, `program::dispatch`, `selftest::Report::write`); an interface is
+for code that is one package's and that another uses.
+
+- **The exporter** keeps the code, and an `interface/` crate beside its `src/` (a workspace member, depending on the
+  lab and its crates only) with the `repr(C)` types (`lab::c_struct!`: integers, `f32`, fixed arrays, structs of
+  them; no glam types), each function's type, and an `Import` static per function. Its library writes the functions
+  with `lab::export!`: `pub fn <package>_<name>_v<major>(…) -> Result<(), String>` becomes an `extern "C"` symbol
+  that takes the caller's `*mut RlBuffer` last, returns an `RlStatus`, runs its body under `catch_unwind`, and has a
+  `<symbol>_signature` beside it (a fingerprint of its parameters' names, sizes, and alignments). A breaking change
+  is a new major; adding a function adds a symbol. The caller owns every buffer.
+- **The importer** imports the package in its manifest, depends on the interface crate (`path =
+  "../<exporter>/interface"`, never on the exporter's own crate), and names the statics in its negotiation:
+  `lab::negotiate!(sym, [handles], imports [iface::LTC_DIFFUSE, …])`. They are resolved before any handle is
+  registered; a missing symbol or another signature refuses the package at load. `render-lab packages` lists what
+  each library `resolved`.
+- `lab/abi-test/` holds a test exporter and importer the lab's tests load (`src/packages/library_tests.rs`).
 
 ## 6. A local package
 
@@ -285,7 +311,9 @@ instead of `packages/` beside the binary.
 | Message | Meaning |
 |---|---|
 | `imports `x`, which is not a package of packages` | add the package, or fix `import` |
-| `the imports of … form a cycle` | two packages import each other, directly or not |
+| `their imports form a cycle: a -> b -> a` | packages import each other, directly or not: the path |
+| `imports `x`, whose library was not loaded: …` | the imported package's library was refused (the reason follows): fix that one |
+| `it could not resolve an import: … exports no …` / `… has another signature` | the exporter lacks the symbol, or its interface changed: rebuild both against the same interface crate |
 | `` `p.k`: the package `p` does not export `k` `` | add `k` to `p`'s `export`, or name another key |
 | `` names the package `p`, which `import` does not list `` | add `p` to `import` |
 | `exports `k`, which it does not declare` | a typo in `export`, or a missing resource |

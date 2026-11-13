@@ -42,6 +42,10 @@ The precision standard below holds at every depth.
   nothing published may name the engine or reflect the module's contents. Read the module's own `AGENTS.md` files
   first, and the `packages` skill's "A local package".
 - A public investigation never depends on, cites, or names a commercial one.
+- **Code another package already has:** engine-neutral helpers are `lab::utility`'s (add them to
+  `packages/render_lab/src` when two packages need one); a port of the same engine's code that a sibling package
+  already mirrors is imported from it as C functions (its `interface/` crate, the `packages` skill's "Code
+  another package uses"), not copied. Copy only where no interface exists yet, with a header naming the source file.
 - Ask the user where the engine's source is (or read its variable, e.g. `O3DE_SOURCE_DIR`); never write its location
   into a file, since the user may move it. Keep it read-only, and record its version and commit in the source index.
 

@@ -33,7 +33,9 @@ present, read every `AGENTS.md` inside them before working on anything else.** I
   (`src/`, `Cargo.toml`, `build.rs`), and what its tools write (`build/`, git-ignored: timelines, narration, video
   builds). A package's library is a cdylib that depends on the lab, and on crates the lab depends on with the lab's
   versions and no more features (so every crate shares one build of the lab), and defines its negotiation with
-  `lab::negotiate!` (`lab/src/plugin.rs`). It may also come built, in its `lib/`.
+  `lab::negotiate!` (`lab/src/plugin.rs`). It may also come built, in its `lib/`. The one exception: a package may
+  depend on another's `interface/` crate (its `repr(C)` types and imports), to call the C functions that package's
+  library exports, if its manifest imports it (`lab/src/plugin/abi.rs`; the `packages` skill).
 - **Both builds stay clean.** `cargo build --release --locked --offline` (the binary, the lab, and the public packages)
   must produce no warnings, and so must each local package's own workspace, built after it
   (`cargo build --release --locked --offline --manifest-path packages/<name>/Cargo.toml`); the public part alone (the
