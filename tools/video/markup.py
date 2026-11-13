@@ -13,7 +13,7 @@ shot parameter, `callout`,
 (render_lab's Lamlet package writes `highlight*`, `record`, `animate`,
 `imageMark`, points, and the hide lists as typed Data, which this reads
 without a grammar of its own), and the package's actions
-(src/lab/actions.rs): `run=jumpFlood run.seconds=0.5` starts one with its
+(lab/src/actions.rs): `run=jumpFlood run.seconds=0.5` starts one with its
 arguments, `stop` (a list of their names) stops them; and `image=name` (`imageTitle=text-key`,
 `imageCorner=top-left`), an image the investigation publishes, a PNG
 resource, or, with `imageFrom=kind` and `image.<param>=value`, an instance of
@@ -32,7 +32,6 @@ n of `\\lit{n}{…}`, `card=no` for the caption only, `display=yes`,
 """
 from __future__ import annotations
 
-import json
 import math
 import re
 from decimal import Decimal
@@ -265,13 +264,8 @@ def value(data: Any, where: str) -> float | bool | str | list[float] | Range:
 
 
 def highlight_targets(name: str, data: Any, where: str) -> list[Json]:
-    """Canonical scoped highlights from the typed Data helpers or raw JSON."""
-    if isinstance(data, str):
-        # An attribute written as a JSON string is read the way typed Data would be.
-        try:
-            data = json.loads(data)
-        except ValueError:
-            raise MarkupError(f'{where}: {name} needs typed Data or JSON') from None
+    """Canonical scoped highlights from the typed Data helpers (render_lab's `highlightPasses`, `highlightCode`,
+    `highlightFields`)."""
     if name == 'highlightPasses':
         # Passes are a plain list of names, with no listing or record around them.
         names, prefix = data, {'kind': 'pass'}
@@ -300,7 +294,7 @@ def _plain(data: Any) -> Any:
 
 def motion_of(m: Any, where: str) -> Json:
     """A motion as render_lab's `motion` writes it (Data: its kind and its fields, each a name and a value) as the
-    timeline's (`{"path": {"params": …, …}}`, src/lab/animation.rs)."""
+    timeline's (`{"path": {"params": …, …}}`, lab/src/animation.rs)."""
     if not isinstance(m, dict) or not isinstance(m.get('kind'), str) or not isinstance(m.get('fields'), list):
         raise MarkupError(f'{where}: animate is a list of motions, each its kind and fields, not {m!r}')
     return {m['kind']: {f['name']: _plain(f['value']) for f in m['fields']}}
@@ -324,14 +318,9 @@ def cue_key(tag: Tag, where: str, fields: Fields) -> Json:
             part = name.split('.', 1)[1]
             key.setdefault('camera', {})[part] = [number(x, where) for x in v] if part == 'target' and isinstance(v, list) else number(v, where)
         elif name == 'animate':
-            if isinstance(v, str):
-                # An `animate` written as JSON is taken as it is.
-                try:
-                    key['animate'] = json.loads(v)
-                except ValueError as e:
-                    raise MarkupError(f'{where}: animate is JSON: {e}') from None
-            else:
-                key['animate'] = [motion_of(m, where) for m in v]
+            if not isinstance(v, list):
+                raise MarkupError(f'{where}: animate is a list of motions (render_lab\'s `motion`), not {v!r}')
+            key['animate'] = [motion_of(m, where) for m in v]
         elif name in ('blend', 'delay'):
             key[name] = number(v, where)
         elif name == 'ease':
@@ -345,8 +334,7 @@ def cue_key(tag: Tag, where: str, fields: Fields) -> Json:
             key['highlight'] = highlight_targets(name, v, where)
             if name == 'highlightCode':
                 # A code highlight also opens its listing in the code panel.
-                data = json.loads(v) if isinstance(v, str) else v
-                key['code'] = data['listing']
+                key['code'] = v['listing']
         elif name == 'record':
             kind, index = variant(v, where, name)
             if kind in ('none', 'camera') and index is None:

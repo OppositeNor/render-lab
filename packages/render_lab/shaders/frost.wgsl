@@ -1,4 +1,4 @@
-// The homepage's frosted glass (src/lab/frost.rs): the rendered scene is
+// The homepage's frosted glass (lab/src/frost.rs): the rendered scene is
 // halved twice, blurred with a separable Gaussian at quarter resolution, then
 // tinted, grained, and vignetted behind the page. A standalone module: it
 // shares no records with the scene.

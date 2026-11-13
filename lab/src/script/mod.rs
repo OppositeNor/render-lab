@@ -4,7 +4,7 @@
 //!
 //! The engine has `std`, `content`, `present`, the lab's natives (`rl`, natives.rs), the lab's own package
 //! `render_lab` (the resource `render_lab.script/render-lab`, its package's `language/render_lab.lam`), and any
-//! package a command names. `render-lab [--investigation <id>] lamlet ir|deck|vocab` (src/cli.rs) are Lamlet's and
+//! package a command names. `render-lab [--investigation <id>] lamlet ir|vocab` (src/cli.rs) are Lamlet's and
 //! lamlet-present's operations on it; the natives check names against the investigation given. The crates are
 //! re-exported here, so a package's library uses the lab's build of them.
 
@@ -351,18 +351,6 @@ fn lowered(
     result.map_err(|e| e.render())
 }
 
-/// A presentation's deck as JSON (lamlet-present's `deck`): its sections and sentences, with no timing.
-pub fn deck(
-    file: &Path,
-    packages: &[Package],
-    investigation: Option<&'static dyn Investigation>,
-) -> Result<serde_json::Value, String> {
-    let ir = lowered(file, packages, investigation)?;
-    lamlet_present::Deck::from_doc(&ir)
-        .and_then(|d| d.to_json())
-        .map_err(|e| e.render())
-}
-
 /// The cue vocabulary package `name` from a host's keys (lamlet-present's `vocab`; those marked `"typed": true`,
 /// which render_lab writes, are `any` and have none), checked as a presentation
 /// imports it with `std`, `content`, `present`, and these packages, so a name that collides shows now.
@@ -450,23 +438,19 @@ mod tests {
     }
 
     #[test]
-    fn deck_and_vocab() {
-        let dir = scratch("deck");
+    fn vocab_in_a_presentation() {
+        let dir = scratch("vocab");
         let keys =
             r#"[{"name": "intensity", "kind": "float"}, {"name": "camera.yaw", "kind": "float"}]"#;
         let vocabulary = vocab("probe", keys, &[]).unwrap();
         assert!(vocabulary.contains("cameraYaw"));
         let file = write(
             &dir,
-            "deck.lam",
+            "vocab.lam",
             "$[Import* std]$[Import* content]$[Import* present]$[Import* probe]\n# A deck {#top}\n\n${cue \"k\" {' {intensity 0.5}}}Hello there.\n",
         );
-        let deck = deck(&file, &[package("probe", &vocabulary)], None).unwrap();
-        assert_eq!(deck["sentences"][0]["spoken"], "Hello there.");
-        assert_eq!(
-            deck["sentences"][0]["anchors"][0]["attrs"]["intensity"],
-            0.5
-        );
+        let attrs = cue_attrs(&file, &[package("probe", &vocabulary)]).unwrap();
+        assert!(attrs.iter().any(|(key, _)| key == "intensity"), "{attrs:?}");
         // A key whose function std already has collides when the vocabulary is generated.
         assert!(vocab("probe", r#"[{"name": "map", "kind": "float"}]"#, &[]).is_err());
     }

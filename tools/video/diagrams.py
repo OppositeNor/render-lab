@@ -4,7 +4,7 @@ timeline carries it as a `graph_view::Spec`, its text in the edition's
 language). Boxes, and the edges between them:
 
     [[node]]
-    id = "FWD1"                         # what a beat's `focus:` names
+    id = "FWD1"                         # what a beat's `focus=` names
     title-text = "diagram-fwd1-forward" # a key of the package's text (a newline breaks a line)
     dashed = true                       # optional: a dashed box
     image = "o3de_lighting.image/room"  # optional: a PNG resource under its title (one node of
@@ -21,7 +21,7 @@ language). Boxes, and the edges between them:
     dotted = true                       # optional
 
 An edge that closes a cycle is drawn as an arc back. (The frame graph's own
-scene, `graph: frame`, is drawn from the render graph: tools/video/frame_graph.py.)
+scene, `graph=frame`, is drawn from the render graph: tools/video/frame_graph.py.)
 """
 from __future__ import annotations
 
@@ -77,7 +77,7 @@ def load(cfg: Config, name: str) -> Json:
 
 
 def names(spec: Json) -> set[str]:
-    """What a beat's `focus:` may name: its nodes and their rows."""
+    """What a beat's `focus=` may name: its nodes and their rows."""
     return {n['id'] for n in spec['nodes']} | {r['id'] for n in spec['nodes'] for r in n.get('rows', [])}
 
 

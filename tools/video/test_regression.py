@@ -101,7 +101,7 @@ class Regression(unittest.TestCase):
     def test_cache_only_fails_before_creating_a_voice(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             cfg = Config('test', 'en', {}, Path(tmp) / 'package/video')
-            sentence = {'text': 'A sentence.'}
+            sentence = {'at': 'story.lam:3:1'}
             with patch.object(narration, 'spoken', return_value='A sentence.'), \
                     patch.object(narration, 'create_voice') as voice:
                 with self.assertRaisesRegex(RuntimeError, 'narration cache miss'):

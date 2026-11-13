@@ -36,9 +36,6 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
     // Listings: each cites a source entry and a demonstration, and every demonstration has one.
     check_listings(&mut report)?;
 
-    // The Play animations (script/animations.lam): each demonstration's at a grid of times, as the Rust waves set them.
-    check_animations(&mut report)?;
-
     // Every demonstration builds its state.
     let states_ok = Demo::ALL.iter().all(|&d| shot::for_demo(d).demo == d.id());
     report.check(
@@ -882,33 +879,6 @@ fn check_listings(report: &mut Report) -> Result<()> {
     Ok(())
 }
 
-/// The Play animations (script/animations.lam): each demonstration's at a grid of times, as the Rust waves.
-fn check_animations(report: &mut Report) -> Result<()> {
-    let mut differ = Vec::new();
-    let mut samples = 0;
-    for demo in Demo::ALL {
-        for k in 0..=80 {
-            // Every quarter second for 20 seconds, the script's animation must set what the Rust wave sets.
-            let t = k as f32 * 0.25;
-            let expected = lab::utility::demo::animation(shot::demos(), &reference_clip(demo), t);
-            let mut state = shot::for_demo(demo);
-            let written =
-                lab::script::runtime::animate(demo.id(), t, &mut state).unwrap_or_default();
-            samples += 1;
-            let same = expected.len() == written.len()
-                && expected.iter().all(|(name, v)| {
-                    written.iter().any(|w| w == name)
-                        && (state.p(name) - v).abs() <= 1e-4 * v.abs().max(1.0)
-                });
-            if !same {
-                differ.push(json!({"demo": demo.key(), "t": t, "rust": expected, "script": written.iter().map(|w| (w.clone(), state.p(w))).collect::<Vec<_>>()}));
-            }
-        }
-    }
-    report.check("the Play animations (script/animations.lam) set what the Rust waves set, within 1e-4, at 81 times of every demonstration", differ.is_empty(), json!({"samples": samples, "differ": differ.iter().take(10).collect::<Vec<_>>()}));
-    Ok(())
-}
-
 /// The story's actions (script/logic.lam): jumpFlood, started at frame 30, steps the flood every 0.5 s.
 fn check_actions(report: &mut Report) -> Result<()> {
     let mut timeline = still_timeline(64, 64);
@@ -1263,23 +1233,4 @@ fn check_probe_maps(
         sum_cpu > 0.0 && relative < 0.10,
         json!({"gpu_total": sum_gpu, "cpu_total": sum_cpu, "relative_difference": relative}),
     );
-}
-
-/// The Play animations the Rust code had (each a wave), which script/animations.lam must reproduce.
-fn reference_clip(demo: Demo) -> lab::animation::Clip {
-    let wave = |param: &str, center: f32, amplitude: f32, period: f32| {
-        lab::animation::Motion::Wave(lab::animation::Wave::new(param, center, amplitude, period))
-    };
-    lab::animation::Clip(match demo {
-        Demo::Room => vec![wave("sdfgiMix", 0.5, 0.5, 10.0)],
-        // The camera walks along x, so cascade 0 jumps one probe each 1.6 m.
-        Demo::Cascades | Demo::Regions => vec![wave("cameraX", 0.0, 4.0, 20.0)],
-        Demo::Voxels => vec![wave("cutHeight", 2.0, 2.0, 12.0)],
-        Demo::Field => vec![wave("sliceHeight", 1.2, 1.0, 14.0)],
-        Demo::Occlusion => vec![wave("occlusionShell", 11.0, 11.0, 12.0)],
-        Demo::Light => vec![wave("lightX", 0.0, 2.6, 14.0)],
-        Demo::Probes => vec![wave("rayFrames", 15.0, 15.0, 16.0)],
-        Demo::Maps => vec![wave("frames", 30.0, 30.0, 16.0)],
-        Demo::Pixel => vec![wave("pixelZ", 0.0, 2.6, 16.0)],
-    })
 }

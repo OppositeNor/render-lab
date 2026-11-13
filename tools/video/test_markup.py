@@ -31,16 +31,14 @@ def key(tag: markup.Tag) -> dict:
 
 
 class CueKey(unittest.TestCase):
-    def test_scoped_highlights_accept_data_and_raw_json(self) -> None:
-        import json
+    def test_scoped_highlights_read_data(self) -> None:
         for name, data, expected in [
             ('highlightPasses', ['ssrTrace'], [{'kind': 'pass', 'name': 'ssrTrace'}]),
             ('highlightCode', {'listing': 'trace', 'tags': ['edge']}, [{'kind': 'code', 'listing': 'trace', 'tag': 'edge'}]),
             ('highlightFields', {'record': 'CameraData', 'fields': ['worldToView']}, [{'kind': 'field', 'record': 'CameraData', 'field': 'worldToView'}]),
         ]:
-            for value in (data, json.dumps(data)):
-                self.assertEqual(markup.highlight_targets(name, value, 'x'), expected)
-        for data in ('ssrTrace', [1], [''], {'name': 'ssrTrace'}):
+            self.assertEqual(markup.highlight_targets(name, data, 'x'), expected)
+        for data in ('ssrTrace', '["ssrTrace"]', [1], [''], {'name': 'ssrTrace'}):
             with self.assertRaises(markup.MarkupError):
                 markup.highlight_targets('highlightPasses', data, 'x')
 

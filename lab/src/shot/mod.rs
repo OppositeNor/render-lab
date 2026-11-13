@@ -528,13 +528,4 @@ impl std::ops::IndexMut<&str> for ShotState {
     }
 }
 
-/// The fields a newly selected record highlights in the struct panel.
-pub fn default_highlight(record: RecordRef) -> Vec<String> {
-    let fields: &[&str] = match record {
-        RecordRef::Object { .. } => &["localToWorld", "worldExtent"],
-        _ => &[],
-    };
-    fields.iter().map(|s| s.to_string()).collect()
-}
-
 pub use crate::animation::camera_drift;

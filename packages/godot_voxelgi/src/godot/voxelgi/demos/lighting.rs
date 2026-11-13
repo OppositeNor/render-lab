@@ -44,7 +44,7 @@ pub(super) fn light_demo(state: &ShotState, w: &World, content: &mut FrameConten
         row(tr("demos-normal_word"), v3(normal), palette::NORMAL),
     ];
     let mut total = Vec3::ZERO;
-    for (k, lt) in lights.iter().enumerate() {
+    for lt in &lights {
         let name = if lt.kind == light::LIGHT_TYPE_AREA {
             tr("demos-panel")
         } else {
@@ -75,7 +75,6 @@ pub(super) fn light_demo(state: &ShotState, w: &World, content: &mut FrameConten
         );
         total += v;
         rows.extend(omni_rows);
-        let _ = k;
     }
     if step >= 4 {
         // The cell's whole light and the bytes the write pass stores for it.

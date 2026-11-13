@@ -266,8 +266,8 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
   `render-lab actions`), `image` (`inset`) with `imageTitle`, `imageCorner`, `imageFrom` and `image.<param>`,
   `imageGraph` and `imageShow`, and `imageHide` (images, `render-lab images`, `render-lab graph`), `blend`, `delay`
   (seconds), `ease` (`easing`: `smooth` by default, `linear`, `in`, `out`, `inOut`, or `sine`), and `animate`
-  (`motion`), motions as Data (render_lab's `motion`, read by `markup.motion_of` into the timeline's form below; a raw
-  `{attr "animate" "…"}` may still give them as a JSON String; `lab/src/animation.rs`), each driving its channels until a later key sets
+  (`motion`), motions as Data (render_lab's `motion`, read by `markup.motion_of` into the timeline's form below;
+  `lab/src/animation.rs`), each driving its channels until a later key sets
   them; a channel is a shot parameter or `camera.x`, `camera.y`, `camera.z` (the target), `camera.yaw`,
   `camera.pitch`, `camera.distance`, or `camera.fov` (or the same of `freeCamera`):
   - `{"path": {"params": [...], "through": [[...], ...], "seconds": ...}}` runs from the channels' values through the

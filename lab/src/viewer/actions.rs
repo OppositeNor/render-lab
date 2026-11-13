@@ -163,12 +163,6 @@ impl App {
                 self.stop();
                 self.state.camera = camera;
             }
-            ViewerAction::SetRecord(record) if interactive => {
-                if std::mem::discriminant(&record) != std::mem::discriminant(&self.state.record) {
-                    self.state.highlight = shot::default_highlight(record);
-                }
-                self.state.record = record;
-            }
             ViewerAction::SetHighlight(fields) if interactive => self.state.highlight = fields,
             ViewerAction::SetPanel(mode) if interactive => self.state.panel = mode,
             ViewerAction::ResetParameters if interactive => {

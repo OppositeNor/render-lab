@@ -80,8 +80,7 @@ fn read(renderer: &lab::renderer::Renderer, name: &str) -> Result<Image> {
 }
 
 /// One surface near the middle of the room: the floor in front of the teapot, facing up.
-fn floor_surface(state: &ShotState) -> Surface {
-    let _ = state;
+fn floor_surface() -> Surface {
     Surface {
         position: Vec3::new(0.3, 0.0, -0.6),
         distance: 4.0,
@@ -99,7 +98,7 @@ fn check_estimator(report: &mut Report) {
     let state = shot::for_demo(Demo::Room);
     let lights = lights::place(&state);
     let cdf = lights::cdf(&lights);
-    let s = floor_surface(&state);
+    let s = floor_surface();
     let mut scene = Scene {
         lights: &lights,
         cdf: &cdf,

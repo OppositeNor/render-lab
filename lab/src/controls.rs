@@ -12,7 +12,7 @@ use crate::camera::OrbitCamera;
 use crate::i18n::{args, tr, tr_with};
 use crate::investigation;
 use crate::palette;
-use crate::shot::{PanelMode, RecordRef, ShotState};
+use crate::shot::ShotState;
 use crate::ui::{self, DockTab, Ink, UiInput, ViewerAction, ViewerChrome};
 use crate::values::{self, Entry, Reflect, Type, Value};
 use egui::{Color32, FontId, Rect, RichText, Stroke, Ui, pos2, vec2};
@@ -27,10 +27,6 @@ pub const AXES: [(&str, Color32); 3] = [
 ];
 
 pub use crate::values::Unit;
-
-/// The records the Layouts demonstration can show: struct, element count,
-/// and the record reference of element `i`.
-type RecordKind = (&'static str, usize, fn(u32) -> RecordRef);
 
 pub struct Dock<'a> {
     pub state: &'a ShotState,
@@ -204,93 +200,6 @@ impl Dock<'_> {
         {
             self.actions.push(ViewerAction::ResetParameters);
         }
-    }
-
-    /// Any element of any record buffer, its struct panel mode, and the highlighted field.
-    pub fn layouts(&mut self, ui: &mut Ui) {
-        let statics = self.input.statics;
-        let kinds: [RecordKind; 2] = [
-            ("ObjectData", statics.scene.objects.len(), |i| {
-                RecordRef::Object { index: i }
-            }),
-            ("CameraData", 1, |_| RecordRef::Camera),
-        ];
-        let (kind, index) = match self.state.record {
-            RecordRef::Object { index } => (0, index),
-            RecordRef::Camera => (1, 0),
-            RecordRef::None => (0, 0),
-        };
-        let (name, count, make) = kinds[kind];
-        self.group(
-            ui,
-            tr("controls-record"),
-            Some(tr("controls-record_hint")),
-            |d, ui| {
-                egui::ComboBox::from_id_salt("struct")
-                    .selected_text(name)
-                    .width(250.0)
-                    .show_ui(ui, |ui| {
-                        for (other, _, make) in kinds {
-                            if ui.selectable_label(other == name, other).clicked() && other != name
-                            {
-                                d.actions.push(ViewerAction::SetRecord(make(0)));
-                            }
-                        }
-                    });
-                if count > 1 {
-                    d.rows(ui, "record", |d, ui| {
-                        d.index(ui, "index", Some(index), count, make)
-                    });
-                }
-            },
-        );
-        self.group(
-            ui,
-            tr("controls-struct_panel"),
-            Some(tr("controls-struct_panel_hint")),
-            |d, ui| {
-                for (mode, label) in [
-                    (PanelMode::Declaration, tr("controls-declaration")),
-                    (PanelMode::Values, tr("controls-values")),
-                    (PanelMode::Memory, tr("controls-memory")),
-                ] {
-                    if ui.selectable_label(d.state.panel == mode, label).clicked() {
-                        d.actions.push(ViewerAction::SetPanel(mode));
-                    }
-                }
-            },
-        );
-        let fields: Vec<String> = statics
-            .layouts
-            .get(name)
-            .map(|s| s.fields.iter().map(|f| f.name.clone()).collect())
-            .unwrap_or_default();
-        let none = tr("controls-none");
-        self.group(
-            ui,
-            tr("controls-highlight"),
-            Some(tr("controls-highlight_hint")),
-            |d, ui| {
-                let current = d.state.highlight.first().cloned();
-                egui::ComboBox::from_id_salt("highlight")
-                    .selected_text(current.clone().unwrap_or_else(|| none.to_string()))
-                    .width(250.0)
-                    .show_ui(ui, |ui| {
-                        if ui.selectable_label(current.is_none(), none).clicked() {
-                            d.actions.push(ViewerAction::SetHighlight(Vec::new()));
-                        }
-                        for field in &fields {
-                            if ui
-                                .selectable_label(current.as_ref() == Some(field), field.as_str())
-                                .clicked()
-                            {
-                                d.actions
-                                    .push(ViewerAction::SetHighlight(vec![field.clone()]));
-                            }
-                        }
-                    });
-            },
-        );
     }
 
     /// The camera's values labelled `view` (src/camera.rs).
@@ -628,35 +537,6 @@ impl Dock<'_> {
     pub fn slider(&mut self, ui: &mut Ui, param: &'static str, row: SliderRow) {
         if let Some(v) = self.number(ui, param, row, self.state.p(param)) {
             self.actions.push(ViewerAction::SetParam(param, v));
-        }
-    }
-
-    /// A slider over the elements of a record buffer (`samples[i]`).
-    pub fn index(
-        &mut self,
-        ui: &mut Ui,
-        label: &str,
-        current: Option<u32>,
-        count: usize,
-        make: fn(u32) -> RecordRef,
-    ) {
-        if count == 0 {
-            return;
-        }
-        let value = current.unwrap_or(0).min(count as u32 - 1) as f32;
-        if let Some(v) = self.number(
-            ui,
-            label,
-            SliderRow {
-                label,
-                color: palette::SELECTED,
-                range: 0.0..=(count - 1) as f32,
-                unit: Unit::Index,
-            },
-            value,
-        ) {
-            self.actions
-                .push(ViewerAction::SetRecord(make(v.round() as u32)));
         }
     }
 }

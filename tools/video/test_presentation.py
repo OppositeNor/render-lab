@@ -30,7 +30,7 @@ $[# leaves 42289]
 ### One beat {#c1-one kind=3d sources=key-c}
 
 ${cue "key" {' {attr "demo" "room"} {attr "camera.target" {' 0.0 1.0 2.0}} {attr "camera.yaw" 30.0} {attr "opacity" 1.0} {attr "param.formula" 2.0} {attr "viewMode" "ggxD"} {attr "lightOn" false}}}
-${cue "key" {' {attr "animate" "[{\"path\": {\"params\": [\"camera.yaw\"], \"through\": [[10], [20]], \"seconds\": \"beat\"}}]"}}}
+${cue "key" {' {attr "animate" {' {. kind {toData "path"} fields {toData {' {. name {toData "params"} value {toData {' "camera.yaw"}}} {. name {toData "through"} value {toData {' {' 10} {' 20}}}} {. name {toData "seconds"} value {toData "beat"}}}}}}}}}
 
 Diffuse: a sentence that looks like a property, ${cue "key" {' {attr "callout" "key-a"}}}with a cue, and $$5.
 

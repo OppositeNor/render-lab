@@ -71,12 +71,12 @@ def localize(board: Board, translation: dict[str, Any]) -> Board:
             for s, translated in zip(sentences, t['narration']):
                 # Each sentence keeps its English (it is spoken) and gains the Chinese it shows.
                 s = dict(s)
-                shown, text = translated['shown'], translated['text']
+                shown, at = translated['shown'], translated['at']
                 # Formulas are shown in both languages: the same LaTeX, as many times.
                 english, chinese = markup.sentence(s).formulas, shown.formulas
                 if sorted(english) != sorted(chinese):
                     raise RuntimeError(f'translation: beat {beat["id"]}: the sentence {shown.caption!r} has formulas {chinese}, the English {english}')
-                s['text'], s['shown'] = text, shown
+                s['at'], s['shown'] = at, shown
                 if 'source' in translated:
                     s['shownSource'] = translated['source']
                 narration.append(s)

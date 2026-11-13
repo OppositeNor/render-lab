@@ -319,9 +319,6 @@ fn eye(content: &FrameContent) -> Vec3 {
 // ---------------------------------------------------------------------------
 // The frame.
 
-/// The investigation's far plane.
-pub const FAR_PLANE: f32 = 200.0;
-
 fn objects_for(state: &ShotState, statics: &Statics, demo: Demo) -> Vec<lab::layout::ObjectData> {
     let mut objects = statics.scene.records();
     objects[ids::SPHERE].albedo_roughness[3] = state.p("sphereRoughness");
@@ -374,7 +371,6 @@ pub fn build_frame(
         ],
         view_params: [1.0, 0.0, 0.0, 0.0],
     };
-    let _ = FAR_PLANE;
     let mut content = FrameContent::new(objects, uniforms);
     let w = world::world();
     match demo {
@@ -1195,9 +1191,8 @@ fn pixel_demo(state: &ShotState, w: &World, content: &mut FrameContent) {
         let shown = state.p("conesShown").round() as usize;
         let steps = state.p("coneSteps").round() as usize;
         // The first `conesShown` diffuse cones and the specular one, each to `coneSteps` steps.
-        for (i, (dir, _w, st, _c)) in cones.diffuse.iter().enumerate().take(shown) {
+        for (dir, _w, st, _c) in cones.diffuse.iter().take(shown) {
             draw_cone_world(content, &inst, cones.position, *dir, st, steps, 0.9);
-            let _ = i;
         }
         if state.p("specCone") > 0.5
             && let Some((dir, _tan, st, _c)) = &cones.specular

@@ -1,6 +1,6 @@
 // Open 3D Engine (Atom) StandardPBR direct lighting, ported to WGSL for the
-// lab's scene pass. Composed after the scene module (src/lab/shaders.rs,
-// `SceneShading` in src/lab/investigation.rs), so SceneVaryings, SceneOutput,
+// lab's scene pass. Composed after the scene module (lab/src/shaders.rs,
+// `SceneShading` in lab/src/investigation.rs), so SceneVaryings, SceneOutput,
 // gFrame, gObjects, and common.wgsl are in scope.
 //
 // Ported from the Open 3D Engine, Copyright Contributors to the Open 3D Engine

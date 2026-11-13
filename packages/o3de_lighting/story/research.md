@@ -1337,7 +1337,7 @@ Facts below were read from the lab (read-only), paths relative to the Render Lab
 
 ### 10.6 Occlusion
 
-- No AO pass in the lab; `ambientVisibility` is a cheap analytic occlusion from spheres and boxes (`common.wgsl:499-521`), not SSAO. O3DE's SSAO (half-res depth, 52 samples, blur, upsample, modulate; R6.07-R6.27) needs an investigation chain with a linear-depth target (a pre-pass is optional, `investigation.rs:88-92`) and R8_UNORM-style targets, and resolved single-sample inputs (the chain's outputs are multisampled, `renderer.rs:228`).
+- No AO pass in the lab. O3DE's SSAO (half-res depth, 52 samples, blur, upsample, modulate; R6.07-R6.27) needs an investigation chain with a linear-depth target (a pre-pass is optional, `investigation.rs:88-92`) and R8_UNORM-style targets, and resolved single-sample inputs (the chain's outputs are multisampled, `renderer.rs:228`).
 - Material AO maps do not exist on lab objects (section 10.3).
 
 ### 10.7 Light through surfaces

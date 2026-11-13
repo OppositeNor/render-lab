@@ -269,7 +269,7 @@ enum Command {
         #[arg(long, required = true, num_args = 1..)]
         check: Vec<PathBuf>,
     },
-    /// Lamlet and lamlet-present, from the versions the lab pins (src/script/): `ir`, `deck`, `vocab`. Every
+    /// Lamlet and lamlet-present, from the versions the lab pins (src/script/): `ir`, `vocab`. Every
     /// document may import `std`, `content`, `present`, and render_lab's package `render_lab`. Diagnostics go to
     /// stderr with the document's line, and the exit status is 1.
     #[command(subcommand)]
@@ -325,15 +325,6 @@ enum LamletCommand {
         /// key list, `--keys` on `lamlet present`'s commands; `render-lab story keys` writes the lab's).
         #[arg(long)]
         keys: Option<PathBuf>,
-        /// Write it to this file instead of stdout.
-        #[arg(short, long)]
-        out: Option<PathBuf>,
-    },
-    /// A presentation's deck as JSON, with no timing (`lamlet present deck`).
-    Deck {
-        file: PathBuf,
-        #[arg(long = "package", value_name = "NAME=PATH", value_parser = parse_package)]
-        packages: Vec<(String, PathBuf)>,
         /// Write it to this file instead of stdout.
         #[arg(short, long)]
         out: Option<PathBuf>,
@@ -401,17 +392,6 @@ fn lamlet(
             write(
                 out,
                 script::ir(&file, &read(packages)?, investigation, keys.as_deref())?,
-            )
-        }
-        LamletCommand::Deck {
-            file,
-            packages,
-            out,
-        } => {
-            let deck = script::deck(&file, &read(packages)?, investigation)?;
-            write(
-                out,
-                serde_json::to_string_pretty(&deck).map_err(|e| e.to_string())? + "\n",
             )
         }
         LamletCommand::Toml { file, name, out } => {

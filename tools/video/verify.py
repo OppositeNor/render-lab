@@ -29,7 +29,7 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def check_links(cfg: Config, index: Json, generated: list[Path]) -> list[Json]:
+def check_links(cfg: Config, generated: list[Path]) -> list[Json]:
     """Every relative link resolves from its document."""
     build = cfg.build()
     results: list[Json] = []
@@ -120,7 +120,7 @@ def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Js
     check('every rendered frame: text >= 24 px, labels inside the viewport, no overlaps',
           render.get('min_text_pt', 0) >= 24 and render.get('max_label_overlaps', 1) == 0 and render.get('max_labels_outside', 1) == 0,
           {k: render.get(k) for k in ('frames', 'min_text_pt', 'max_label_overlaps', 'max_labels_outside', 'frames_with_label_issues', 'seconds', 'gpu')})
-    links = check_links(cfg, index, [build / 'verification-report.md', build / 'verification-report.json', cfg.video()])
+    links = check_links(cfg, [build / 'verification-report.md', build / 'verification-report.json', cfg.video()])
     check('every relative link resolves; no home-directory paths', all(link['ok'] for link in links),
           {'links': len(links), 'problems': [link for link in links if not link['ok']]})
     # The paper must be the PDF the index was read from; an engine's (or a paper's code's) checkout, the recorded commit.

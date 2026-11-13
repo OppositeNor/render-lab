@@ -1,4 +1,4 @@
-"""A 2D scene that presents the frame graph: a beat's `graph: <name>`.
+"""A 2D scene that presents the frame graph: a beat's `graph=<name>`.
 
 The package's `graphs/<name>.toml` (its resource `graph/<name>`, which the
 viewer's DAG panel groups its passes by too) groups the frame's passes (and resources)
@@ -7,12 +7,12 @@ language, and the lab draws the scene from its live render graph
 (lab/src/graph/scene.rs `FrameGraph::scene_graph`, in lab/src/diagram.rs): a box
 per section holding its passes, an edge wherever a pass of one section writes
 what a pass of another reads, the edges a longer path implies left out. A
-beat's `focus:` names sections (the box lit) or passes and resources (their
+beat's `focus=` names sections (the box lit) or passes and resources (their
 row lit). A section of nothing the lab's frame runs (built offline, once, or
 on the CPU, or not ported) is a dashed box, joined by the edges it declares.
 
     [[section]]
-    id = "CULL"                  # what a beat's `focus:` names
+    id = "CULL"                  # what a beat's `focus=` names
     title-text = "frame-cull"    # a key of the package's text
     passes = ["o3deLightCullingTilePrepareCS", "o3deLightCullingCS"]
 
@@ -90,7 +90,7 @@ def load(cfg: Config, name: str) -> Json:
 
 
 def names(scene: Json) -> set[str]:
-    """What a beat's `focus:` may name: sections, their passes and resources."""
+    """What a beat's `focus=` may name: sections, their passes and resources."""
     return {s['id'] for s in scene['sections']} | {m for s in scene['sections'] for m in s.get('passes', []) + s.get('resources', [])}
 
 

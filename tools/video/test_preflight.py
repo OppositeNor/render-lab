@@ -30,6 +30,22 @@ Before ${cue "key" {' ATTRS}}after.
 '''
 
 
+def data(value: Any) -> str:
+    """`value` as a Lamlet Data literal: strings, numbers, lists, and records of them."""
+    if isinstance(value, dict):
+        return '{. ' + ' '.join(f'{k} {data(v)}' for k, v in value.items()) + '}'
+    if isinstance(value, list):
+        return "{toData {' " + ' '.join(data(v) for v in value) + '}}'
+    return '{toData ' + json.dumps(value) + '}'
+
+
+def animate(*motions: tuple[str, Json]) -> str:
+    """An `animate` attribute of motions as render_lab's `motion` writes them (each its kind and its fields), so a
+    test can give a motion render_lab's own functions would refuse."""
+    written = [{'kind': kind, 'fields': [{'name': k, 'value': v} for k, v in fields.items()]} for kind, fields in motions]
+    return "{attr \"animate\" {' " + ' '.join(data(m) for m in written) + '}}'
+
+
 @unittest.skipUnless(lamlet.BINARY.exists(), 'build the host and its public packages first')
 class Preflight(unittest.TestCase):
     @classmethod
@@ -50,8 +66,10 @@ class Preflight(unittest.TestCase):
             ('{attr "image" "sample"} {attr "imageGraph" "missing.resource"}', 'story.image'),
             ('{attr "panel" "typo"}', 'story.option'),
             ('{attr "camera.target" {\' 1.0 2.0}}', 'story.key'),
-            ('{attr "animate" "[{\\"orbit\\":{\\"params\\":[\\"camera.x\\",\\"camera.y\\"],\\"center\\":[0],\\"seconds\\":\\"sentence\\",\\"degrees\\":90}}]"}', 'story.motion'),
-            ('{attr "animate" "[{\\"path\\":{\\"params\\":[\\"camera.yaw\\"],\\"through\\":[[1]],\\"seconds\\":\\"beat\\"}},{\\"wave\\":{\\"param\\":\\"camera.yaw\\",\\"amplitude\\":1,\\"period\\":2}}]"}', 'story.motion.duplicate'),
+            # A motion render_lab's `orbit` would refuse (one centre value for two channels) reaches the host's check.
+            (animate(('orbit', {'params': ['camera.x', 'camera.y'], 'center': [0.0], 'seconds': 'sentence', 'degrees': 90.0})), 'story.motion'),
+            (animate(('path', {'params': ['camera.yaw'], 'through': [[1.0]], 'seconds': 'beat'}),
+                     ('wave', {'param': 'camera.yaw', 'amplitude': 1.0, 'period': 2.0})), 'story.motion.duplicate'),
         ]
         for attrs, code in cases:
             with self.subTest(code=code, attrs=attrs):
@@ -71,8 +89,7 @@ class Preflight(unittest.TestCase):
                 self.assertGreater(diagnostic['column'], 1)
 
     def test_symbolic_motion_is_retained(self) -> None:
-        motion = [{'path': {'params': ['camera.yaw'], 'through': [[20.0]], 'seconds': 'sentence'}}]
-        board = self.board('{attr "animate" ' + json.dumps(json.dumps(motion)) + '}')
+        board = self.board(animate(('path', {'params': ['camera.yaw'], 'through': [[20.0]], 'seconds': 'sentence'})))
         data = preflight.normalized(board)
         self.assertEqual(data['cues'][0]['key']['animate'][0]['path']['seconds'], 'sentence')
         self.assertNotIn('frame', data['cues'][0]['key'])

@@ -7,23 +7,18 @@
 //!
 //! The lab has one terrain (`terrain()`), as it has one teapot mesh; the
 //! objects of shape SHAPE_TERRAIN in a scene are instances of it. Its heights
-//! come from a `HeightSource`: given samples, or (opt-in, internal) fractal
-//! Perlin noise with a fixed seed, which makes the same terrain on every run.
+//! come from a `HeightSource`: fractal Perlin noise with a fixed seed, which
+//! makes the same terrain on every run.
 
 use glam::{Vec2, Vec3};
 use std::sync::OnceLock;
 
-/// What a terrain's heights are made from.
-pub enum HeightSource {
-    /// Row-major heights, `resolution` × `resolution`, rows along +Z.
-    #[allow(dead_code)] // the lab's terrain is generated; a heightmap is the other way in
-    Samples(Vec<f32>),
-    /// Fractal Perlin noise (`perlin::fbm`), scaled into `TerrainDesc::height`.
-    Perlin {
-        seed: u64,
-        octaves: u32,
-        frequency: f32,
-    },
+/// What a terrain's heights are made from: fractal Perlin noise
+/// (`perlin::fbm`), scaled into `TerrainDesc::height`.
+pub struct HeightSource {
+    pub seed: u64,
+    pub octaves: u32,
+    pub frequency: f32,
 }
 
 pub struct TerrainDesc {
@@ -61,37 +56,31 @@ impl Terrain {
     pub fn build(desc: TerrainDesc) -> Terrain {
         let n = desc.resolution as usize;
         assert!(n >= 2, "a terrain needs at least 2 × 2 vertices");
-        let heights = match desc.source {
-            HeightSource::Samples(samples) => {
-                assert_eq!(samples.len(), n * n, "terrain samples");
-                samples
-            }
-            HeightSource::Perlin {
-                seed,
-                octaves,
-                frequency,
-            } => {
-                let noise = perlin::Perlin::new(seed);
-                let raw: Vec<f64> = (0..n * n)
-                    .map(|k| {
-                        let (i, j) = (k % n, k / n);
-                        let x = -desc.half_size.x as f64
-                            + 2.0 * desc.half_size.x as f64 * i as f64 / (n - 1) as f64;
-                        let z = -desc.half_size.y as f64
-                            + 2.0 * desc.half_size.y as f64 * j as f64 / (n - 1) as f64;
-                        noise.fbm(x * frequency as f64, z * frequency as f64, octaves)
-                    })
-                    .collect();
-                let (lo, hi) = raw
-                    .iter()
-                    .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &v| {
-                        (lo.min(v), hi.max(v))
-                    });
-                raw.iter()
-                    .map(|&v| ((v - lo) / (hi - lo).max(1e-9) * desc.height as f64) as f32)
-                    .collect()
-            }
-        };
+        let HeightSource {
+            seed,
+            octaves,
+            frequency,
+        } = desc.source;
+        let noise = perlin::Perlin::new(seed);
+        let raw: Vec<f64> = (0..n * n)
+            .map(|k| {
+                let (i, j) = (k % n, k / n);
+                let x = -desc.half_size.x as f64
+                    + 2.0 * desc.half_size.x as f64 * i as f64 / (n - 1) as f64;
+                let z = -desc.half_size.y as f64
+                    + 2.0 * desc.half_size.y as f64 * j as f64 / (n - 1) as f64;
+                noise.fbm(x * frequency as f64, z * frequency as f64, octaves)
+            })
+            .collect();
+        let (lo, hi) = raw
+            .iter()
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &v| {
+                (lo.min(v), hi.max(v))
+            });
+        let heights: Vec<f32> = raw
+            .iter()
+            .map(|&v| ((v - lo) / (hi - lo).max(1e-9) * desc.height as f64) as f32)
+            .collect();
         let min_height = heights.iter().copied().fold(f32::INFINITY, f32::min);
         let max_height = heights.iter().copied().fold(f32::NEG_INFINITY, f32::max);
         Terrain {
@@ -156,47 +145,6 @@ impl Terrain {
             [(i, j), (i, j + 1), (i + 1, j + 1)],
             [(i, j), (i + 1, j + 1), (i + 1, j)],
         ]
-    }
-
-    /// The surface height under a local XZ point (clamped to the grid), on the raster triangles.
-    pub fn height_at(&self, x: f32, z: f32) -> f32 {
-        let c = self.cell_size();
-        let fx = ((x + self.half_size.x) / c.x).clamp(0.0, self.cells() as f32);
-        let fz = ((z + self.half_size.y) / c.y).clamp(0.0, self.cells() as f32);
-        let (i, j) = (
-            (fx as u32).min(self.cells() - 1),
-            (fz as u32).min(self.cells() - 1),
-        );
-        let (u, v) = (fx - i as f32, fz - j as f32);
-        let (h00, h10, h01, h11) = (
-            self.h(i, j),
-            self.h(i + 1, j),
-            self.h(i, j + 1),
-            self.h(i + 1, j + 1),
-        );
-        if v >= u {
-            h00 + (h11 - h01) * u + (h01 - h00) * v
-        } else {
-            h00 + (h10 - h00) * u + (h11 - h10) * v
-        }
-    }
-
-    /// The vertex normals under a local XZ point (clamped to the grid), blended bilinearly.
-    pub fn normal_at(&self, x: f32, z: f32) -> Vec3 {
-        let c = self.cell_size();
-        let fx = ((x + self.half_size.x) / c.x).clamp(0.0, self.cells() as f32);
-        let fz = ((z + self.half_size.y) / c.y).clamp(0.0, self.cells() as f32);
-        let (i, j) = (
-            (fx as u32).min(self.cells() - 1),
-            (fz as u32).min(self.cells() - 1),
-        );
-        let (u, v) = (fx - i as f32, fz - j as f32);
-        let n = |a: u32, b: u32| self.vertex_normal(a, b);
-        (n(i, j) * (1.0 - u) * (1.0 - v)
-            + n(i + 1, j) * u * (1.0 - v)
-            + n(i, j + 1) * (1.0 - u) * v
-            + n(i + 1, j + 1) * u * v)
-            .normalize()
     }
 
     /// Closest hit of a local-space ray: the cells under the ray in order

@@ -1,5 +1,5 @@
 # Hills of the lab's terrain under the sky, lit by a large panel high above
-# them standing in for the sun (src/lab/scene.rs reads it; the format is in
+# them standing in for the sun (lab/src/scene.rs reads it; the format is in
 # study-room.lam, the TOML its scenes are read as).
 
 title-text = "scene-terrain"
@@ -14,7 +14,7 @@ reflection-strength = 1.0
 ggx-samples = 16
 exposure = 1.0
 
-# The heightfield (src/lab/terrain.rs): rolling hills, 20 m across and up to
+# The heightfield (lab/src/terrain.rs): rolling hills, 20 m across and up to
 # 4 m high, from fractal Perlin noise.
 [terrain]
 resolution = 97

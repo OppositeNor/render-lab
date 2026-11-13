@@ -386,7 +386,7 @@ def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, in
                 sentence = parsed(inlines, at, fields, source=source)
                 if not any(char.isalnum() for char in sentence.spoken):
                     raise DiagnosticError('story.narration.empty', 'a narration paragraph needs spoken text', source, beat=beat_id, field='narration')
-                narration.append({'text': at, 'source': source, 'paragraph': len(narration) + 1, 'parsed': sentence})
+                narration.append({'at': at, 'source': source, 'paragraph': len(narration) + 1, 'parsed': sentence})
             if keys:
                 beat['keys'] = keys
                 beat['keySources'] = key_sources
@@ -423,7 +423,7 @@ def load_translation(path: Path) -> Json:
                 sentence = parsed(paragraph['inlines'], where(paragraph, path), None, translation=True, source=source)
                 if not sentence.caption.strip():
                     raise DiagnosticError('story.narration.empty', 'a translation paragraph needs displayed text', source, beat=beat_heading['id'], field='narration')
-                narration.append({'text': where(paragraph, path), 'shown': sentence, 'source': source})
+                narration.append({'at': where(paragraph, path), 'shown': sentence, 'source': source})
             if not narration:
                 raise DiagnosticError('story.narration.empty', 'a translated beat needs narration', location(beat_heading, {'file': str(path)}), beat=beat_heading['id'], field='narration')
             translation['beats'][beat_heading.get('id') or ''] = {'headline': plain(beat_heading['inlines'], at), 'narration': narration,

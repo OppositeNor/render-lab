@@ -56,7 +56,7 @@ struct FrameUniforms {
 }
 
 // The Utah teapot's triangles, in its local space, under a bounding-volume
-// hierarchy (src/lab/mesh.rs builds it). Shadow and reflection rays traverse it
+// hierarchy (lab/src/mesh.rs builds it). Shadow and reflection rays traverse it
 // in intersectMesh (common.wgsl). Not shown in the struct panel.
 struct MeshNode {
     boundsMin: vec3<f32>,

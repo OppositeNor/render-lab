@@ -59,7 +59,6 @@ impl Timeline {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-#[allow(dead_code)] // endFrame is part of the timeline schema; frames are looked up by start.
 pub struct TimelineChapter {
     pub number: u32,
     pub title: String,

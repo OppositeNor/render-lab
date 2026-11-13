@@ -495,30 +495,6 @@ fn directIrradiance(p: vec3<f32>, n: vec3<f32>, selfObject: u32) -> vec3<f32> {
     return gFrame.lightColor.rgb * gFrame.lightCenterRadiance.w * sum * area / 16.0;
 }
 
-// Cheap analytic occlusion from the sphere and boxes, for contact shading.
-fn ambientVisibility(p: vec3<f32>, n: vec3<f32>, selfObject: u32) -> f32 {
-    var visibility = 1.0;
-    let count = gFrame.counts.x;
-    for (var i = 0u; i < count; i++) {
-        if (i == selfObject) {
-            continue;
-        }
-        let o = gObjects[i];
-        if (!occludesLight(o) || o.shapeKind == SHAPE_TERRAIN) {
-            continue;
-        }
-        let toC = o.worldCenter - p;
-        let d2 = dot(toC, toC);
-        var r = 0.8 * min(min(o.worldExtent.x, o.worldExtent.y), o.worldExtent.z);
-        if (o.shapeKind == SHAPE_SPHERE) {
-            r = o.boundingRadius;
-        }
-        let cosA = dot(n, toC) * inverseSqrt(max(d2, 1e-6));
-        visibility *= 1.0 - saturate(cosA) * saturate(r * r / max(d2, 1e-6)) * 0.85;
-    }
-    return visibility;
-}
-
 // The lab's environment (lab/src/environment.rs) along `dir` at one level:
 // bilinear between texel centres, wrapping around the vertical axis and
 // clamped at the poles, filtered by hand so it matches the CPU's lookup.

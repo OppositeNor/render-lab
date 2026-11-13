@@ -93,7 +93,6 @@ fn room_objects() -> &'static [lab::layout::ObjectData] {
 
 /// A picture view's frame: its canvas scene (`statics`), its own camera, and a dark room around it.
 fn canvas_content(
-    state: &ShotState,
     statics: &Statics,
     camera: &lab::camera::OrbitCamera,
     viewport: [f32; 2],
@@ -118,7 +117,6 @@ fn canvas_content(
         counts: [objects.len() as u32, 0, 0, 0],
         view_params: [1.0, 1.0, 0.0, 0.0],
     };
-    let _ = state;
     let mut content = FrameContent::new(objects, uniforms);
     // A dark room around the picture, so the sky never shows behind it, from any side.
     content.draw.cuboid(
@@ -154,7 +152,7 @@ fn field_view(
 ) -> FrameContent {
     let own = state.view_state(FIELD);
     let camera = state.own_camera(FIELD, rest_camera(&state.camera));
-    let mut content = canvas_content(&own, statics, &camera, viewport, pixel_scale, time);
+    let mut content = canvas_content(statics, &camera, viewport, pixel_scale, time);
     let rest = rest_camera(&state.camera).camera_data(viewport);
     // The main view's data (a data link), seen as the main camera saw it.
     let Some(screen) = cpu::screen_in(lab::view::ViewId::MAIN, &state.camera.camera_data(viewport))
@@ -261,9 +259,8 @@ fn profile_view(
     pixel_scale: f32,
     time: f32,
 ) -> FrameContent {
-    let own = state.view_state(PROFILE);
     let camera = state.own_camera(PROFILE, rest_camera(&state.camera));
-    let mut content = canvas_content(&own, statics, &camera, viewport, pixel_scale, time);
+    let mut content = canvas_content(statics, &camera, viewport, pixel_scale, time);
     let rest = rest_camera(&state.camera).camera_data(viewport);
     let Some(screen) = cpu::screen_in(lab::view::ViewId::MAIN, &state.camera.camera_data(viewport))
     else {

@@ -1,5 +1,5 @@
 """From the storyboard and the measured narration to the timeline the lab
-renders (src/lab/shot.rs `Timeline`): sentences placed one after another,
+renders (lab/src/shot/timeline.rs `Timeline`): sentences placed one after another,
 chapters stretched to their time budgets with extra pauses, shot keys at
 beat starts and at the words their cues stand before (markup.py), and
 captions timed by their words.
@@ -116,7 +116,7 @@ def plan_chapter(chapter: Json, durations: Durations, pacing: Pacing) -> tuple[f
         # The natural length: each beat's lead, tail, and hold, and each sentence's speech and gap.
         natural += pacing.lead + pacing.tail + beat.get('hold', 0.0)
         for s in sentences_of(beat):
-            natural += durations[s['text']][1] + pacing.gap
+            natural += durations[s['at']][1] + pacing.gap
             # A sentence with cues gets a larger share of the extra pauses, for its cues to play.
             weights.append(pacing.taggedWeight if markup.tagged(s) else 1.0)
     # The budget's shortfall is shared out as extra pauses, each capped; what the caps leave over is returned.
@@ -152,7 +152,7 @@ def budget_rows(timeline: Json, board: Board, plans: dict[int, Json]) -> list[Js
 
 
 def motion_seconds(motion: Json, frame: int, ends: dict[str, int], fps: int, source: str) -> Json:
-    """A motion (src/lab/animation.rs) with its `seconds` in seconds: `"sentence"`
+    """A motion (lab/src/animation.rs) with its `seconds` in seconds: `"sentence"`
     or `"beat"` runs it from its key to the end of the sentence or the beat."""
     if len(motion) != 1 or next(iter(motion)) not in ('path', 'orbit', 'wave'):
         raise RuntimeError(f'{source}: a motion is one of path, orbit, or wave, not {sorted(motion)}')
@@ -321,7 +321,7 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
             pending: list[tuple[list[tuple[Json, int]], int]] = []
             for s in sentences_of(beat):
                 # Each sentence is placed at the cursor: its speech, its captions, and its tags' keys.
-                narration = durations[s['text']]
+                narration = durations[s['at']]
                 path, seconds, rate = narration.path, narration.seconds, narration.rate
                 start = cursor
                 end = start + int(math.ceil(seconds * fps))

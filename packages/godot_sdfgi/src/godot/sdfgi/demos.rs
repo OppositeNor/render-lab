@@ -65,28 +65,6 @@ pub fn cascades(state: &ShotState) -> Cascades {
     model::follow(settings, ORIGIN, &path)
 }
 
-/// The investigation's far plane: the lab's camera stops at 60 m, and the
-/// cascades reach 205 m, so its frames draw out to 1 km.
-pub const FAR_PLANE: f32 = 1000.0;
-
-/// `camera` with its projection rebuilt for `FAR_PLANE` (the lab's reversed
-/// depth, far then near, as lab/src/camera.rs builds it).
-fn far_camera(mut camera: lab::layout::CameraData) -> lab::layout::CameraData {
-    // The same camera with a far plane at FAR_PLANE, so the farthest cascades fit in its depth.
-    let aspect = camera.viewport_size[0] / camera.viewport_size[1].max(1.0);
-    let proj = glam::camera::rh::proj::directx::perspective(
-        camera.vertical_fov,
-        aspect,
-        FAR_PLANE,
-        camera.near_plane,
-    );
-    let view = glam::Mat4::from_cols_array_2d(&camera.world_to_view);
-    camera.view_to_clip = proj.to_cols_array_2d();
-    camera.world_to_clip = (proj * view).to_cols_array_2d();
-    camera.far_plane = FAR_PLANE;
-    camera
-}
-
 const CASCADE_COLORS: [Color32; 4] = [
     palette::AXIS_Y,
     palette::AABB,
@@ -126,7 +104,7 @@ pub fn build_frame(
     let demo = Demo::of(state.demo);
     let objects = objects_for(state, statics);
     let lighting = statics.scene.lighting;
-    let camera = far_camera(state.camera.camera_data(viewport));
+    let camera = state.camera.camera_data(viewport);
     let uniforms = FrameUniforms {
         camera,
         light_center_radiance: lighting

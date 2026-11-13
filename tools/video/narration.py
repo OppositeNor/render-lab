@@ -283,7 +283,7 @@ def speak(voice: Any, text: str, syn_config: Any) -> tuple[bytes, int, list[floa
 
 
 def synthesize(cfg: Config, env: Environment, device: str, sentences: list[dict[str, Any]], *, cached_only: bool = False) -> Durations:
-    """The narration of every sentence, keyed by the sentence's (shown) text."""
+    """The narration of every sentence, keyed by where the sentence is written (its `at`, file:line:col)."""
     audio = cfg.audio_cache
     audio.mkdir(parents=True, exist_ok=True)
     voice = None
@@ -323,12 +323,9 @@ def synthesize(cfg: Config, env: Environment, device: str, sentences: list[dict[
             tag_words: list[int] = []
             if parsed.tags:
                 phonemizer = phonemizer or create_phonemizer(env, audio)
-                tag_words = marks(cfg, phonemizer, parsed, len(words), repr(sentence['text'][:60]))
+                tag_words = marks(cfg, phonemizer, parsed, len(words), sentence['at'])
             measured = Narration(target, seconds, rate, words, tag_words)
-            if sentence['text'] in durations and durations[sentence['text']][:3] != measured[:3]:
-                # The same text twice must give the same narration, since timings are keyed by text.
-                raise RuntimeError(f'two sentences share the text {sentence["text"]!r} but not their narration')
-            durations[sentence['text']] = measured
+            durations[sentence['at']] = measured
             if (i + 1) % 25 == 0 or i + 1 == len(sentences):
                 log(f'Narration {i + 1}/{len(sentences)} sentences')
     finally:

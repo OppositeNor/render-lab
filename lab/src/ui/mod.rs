@@ -410,7 +410,6 @@ pub enum ViewerAction {
     ToggleTimeline,
     SetParam(&'static str, f32),
     SetCamera(crate::camera::OrbitCamera),
-    SetRecord(crate::shot::RecordRef),
     SetHighlight(Vec<String>),
     SetPanel(PanelMode),
     /// The dock's values back to the demonstration's defaults.
@@ -679,7 +678,6 @@ pub fn draw(
             draw_viewer_chrome(ctx, &ink, input, viewer, &mut report, feature_panel);
         }
     }
-    let _ = scene_beat;
     if let Some(index) = input.stamp {
         draw_stamp(&painter, l, index);
     }

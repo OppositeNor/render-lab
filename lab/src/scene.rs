@@ -508,7 +508,7 @@ pub fn terrain_table(id: SceneId) -> anyhow::Result<crate::terrain::TerrainDesc>
         resolution: int(Some(get("resolution")?), "resolution")? as u32,
         half_size: Vec2::new(number(half.get(0).unwrap())?, number(half.get(1).unwrap())?),
         height: number(get("height")?)?,
-        source: crate::terrain::HeightSource::Perlin {
+        source: crate::terrain::HeightSource {
             seed: int(perlin.get("seed"), "seed")? as u64,
             octaves: int(perlin.get("octaves"), "octaves")? as u32,
             frequency: number(perlin.get("frequency").context("`frequency` is missing")?)?,
