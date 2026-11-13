@@ -237,7 +237,7 @@ The lab implements the paper's algorithms from its text.
 
 This chapter follows the paper's introduction, on its first two pages.
 
-## Related work {#c2 number=2 target=425 summary="What ReSTIR replaces, and the two ideas it is built from: resampled importance sampling and weighted reservoir sampling." sources="many-lights, hierarchies, tiled, path-reuse, denoisers, eq3, eq4, eq5, eq6, ris-unbiased, ris-converges, wrs, eq9, alg2"}
+## Related work {#c2 number=2 target=447 summary="What ReSTIR replaces, and the two ideas it is built from: resampled importance sampling and weighted reservoir sampling." sources="many-lights, hierarchies, tiled, path-reuse, denoisers, eq3, eq4, eq5, eq6, ris-unbiased, ris-converges, reservoir-history, wrs, eq9, alg2"}
 
 ### Other ways to light many lights {#c2-others kind=2d diagram=related focus=OTHERS}
 
@@ -503,7 +503,17 @@ A GPU cannot afford ${overText
     {' {restirCandidatesRange 8.0 32.0} {risStepRange 8.0 32.0}}
     "such a list for every pixel"}.
 
-${cue "key" {' {callout "wrs"}}}Weighted reservoir sampling picks one item from a stream, a sequence that arrives one item at a time and is seen only once.
+${cue "key" {' {restirCandidates 8.0} {risStep 0.0}}}What RIS needs is a way to pick ${overText
+    {' {risStepRange 0.0 4.0}}
+    "while the candidates arrive, one at a time"}, without storing them.
+
+${cue "key" {' {callout "reservoir-history"}}}${cue "key" {' {glide cameraYaw 24.0 sentence}}}The same problem came up decades ago, with data stored on tape drives.
+
+Reservoir sampling, from the early 1980s, picks data from a tape at random ${overText
+    {' {risStepRange 4.0 8.0}}
+    "in a single pass"}, without rewinding or storing it all.
+
+${cue "key" {' {callout "wrs"}}}Its weighted form, weighted reservoir sampling, picks one item from a stream, a sequence that arrives one item at a time and is seen only once.
 
 ${cue "key" {' {callout "alg2"}}}${cue "key" {' {restirCandidates 8.0} {risStep 0.0}}}It keeps a small record of three things, ${overText
     {' {risStepRange 0.0 2.0}}
@@ -533,7 +543,7 @@ ${cue "key" {' {callout "combine"}}}${cue "key" {' {glide cameraDistance 3.3 sen
 
 That merge is what will let pixels share.
 
-### Where to read it {#c2-sources kind=2d sources="many-lights, hierarchies, tiled, path-reuse, denoisers, eq3, eq4, eq5, eq6, ris-unbiased, ris-converges, wrs, eq9, alg2"}
+### Where to read it {#c2-sources kind=2d sources="many-lights, hierarchies, tiled, path-reuse, denoisers, eq3, eq4, eq5, eq6, ris-unbiased, ris-converges, reservoir-history, wrs, eq9, alg2"}
 
 The related work is in section seven, and these two ideas are in section two.
 
