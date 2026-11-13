@@ -97,11 +97,17 @@ ${cue "key" {' {restirView 1.0}}}This method instead shares the guesses each pix
     "which say which lights to pick"}.
 
 ${cue "key" {' {restirView 0.0}}}Sharing that, rather than colours, is what ${overText
-    {' {restirUnbiasedRange 0.0 1.0}}
+    {'
+        {restirUnbiasedRange 0.0 1.0}
+        {restirSpatialPassesRange 2.0 1.0}
+        {restirNeighboursRange 5.0 3.0}}
     "makes an unbiased version possible"}, one that is correct on average.
 
 ${cue "key" {' {callout "biased-mode"}}}The paper also gives a biased version, which ${overText
-    {' {restirUnbiasedRange 1.0 0.0}}
+    {'
+        {restirUnbiasedRange 1.0 0.0}
+        {restirSpatialPassesRange 1.0 2.0}
+        {restirNeighboursRange 3.0 5.0}}
     "reaches the same quality faster"}.
 
 But the biased version darkens the edges of objects a little.
@@ -145,19 +151,31 @@ ${cue "key" floatRoom}
 
 ${cue "key" {' {callout "pdfs-not-colors"}}}Third, the paper shows where that combining introduces bias.
 
-It also gives ${overText {' {restirUnbiasedRange 0.0 1.0}} "a weight that removes the bias"}.
+It also gives ${overText
+    {'
+        {restirUnbiasedRange 0.0 1.0}
+        {restirSpatialPassesRange 2.0 1.0}
+        {restirNeighboursRange 5.0 3.0}}
+    "a weight that removes the bias"}.
 
 ### On the GPU {#c1-c-gpu kind=3d}
 
 ${cue "key" {opening demoRoom panelHidden {append baseRoom {append roomCamera {'
-    {restirUnbiased 1.0}}}}}}
+    {restirUnbiased 1.0}
+    {restirSpatialPasses 1.0}
+    {restirNeighbours 3.0}}}}}}
 ${cue "key" floatRoom}
 
 ${cue "key" {' {callout "biased-mode"}}}Fourth, the method ${overText
     {' {lightPhaseRange 0.0 0.04}}
     "runs on the GPU in real time"}.
 
-It comes in ${overText {' {restirUnbiasedRange 1.0 0.0}} "a biased and an unbiased form"}.
+It comes in ${overText
+    {'
+        {restirUnbiasedRange 1.0 0.0}
+        {restirSpatialPassesRange 1.0 2.0}
+        {restirNeighboursRange 3.0 5.0}}
+    "a biased and an unbiased form"}.
 
 ### The passes of a frame {#c1-map kind=3d}
 
@@ -740,7 +758,10 @@ ${cue "key" {' {restirView 0.0}}}${overText
 ${cue "key" {' {callout "spatial-passes"}}}${overText
     {' {restirSpatialPassesRange 4.0 2.0}}
     "The paper uses two rounds"}, or ${overText
-        {' {restirSpatialPassesRange 2.0 1.0} {restirUnbiasedRange 0.0 1.0}}
+        {'
+            {restirSpatialPassesRange 2.0 1.0}
+            {restirNeighboursRange 8.0 3.0}
+            {restirUnbiasedRange 0.0 1.0}}
         "one in its unbiased version"}.
 
 ### Neighbours across an edge {#c4-test kind=3d}
@@ -1128,7 +1149,10 @@ Then look at the panel, for ${overText
     "how little time the new passes add"}.
 
 ${cue "key" {' {callout "biased-vs-unbiased"}}}${overText
-    {' {restirUnbiasedRange 0.0 1.0} {restirSpatialPassesRange 3.0 1.0}}
+    {'
+        {restirUnbiasedRange 0.0 1.0}
+        {restirSpatialPassesRange 3.0 1.0}
+        {restirNeighboursRange 5.0 3.0}}
     "Last comes the unbiased version"}, with its extra shadow rays in the spatial pass.
 
 The paper reports that ${overText
@@ -1233,7 +1257,10 @@ ${overText
 for the cost of only a few shadow rays.
 
 ${overText
-    {' {restirUnbiasedRange 0.0 1.0}}
+    {'
+        {restirUnbiasedRange 0.0 1.0}
+        {restirSpatialPassesRange 2.0 1.0}
+        {restirNeighboursRange 5.0 3.0}}
     "Third, reuse stays unbiased only when W counts every reservoir that could have produced a sample"}.
 
 ### Where to read it {#c8-sources kind=2d sources="conclusion, limitations, screen-space"}

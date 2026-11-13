@@ -10,7 +10,7 @@ use super::shot::{self, Demo};
 use anyhow::{Result, anyhow};
 use glam::{UVec2, Vec3};
 use lab::shot::ShotState;
-use lab::utility::selftest::{Report, request, still_timeline};
+use lab::utility::selftest::{Report, request, request_at, still_timeline};
 use serde_json::json;
 
 mod sight;
@@ -26,6 +26,7 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
     check_bias(&mut report);
     check_toy(&mut report);
     check_passes(&mut report)?;
+    check_unbiased_history(&mut report)?;
     check_listings(&mut report);
     sight::check(&mut report, options.timeline.as_deref())?;
     let states_ok = Demo::ALL.iter().all(|&d| shot::for_demo(d).demo == d.id());
@@ -393,6 +394,56 @@ fn check_passes(report: &mut Report) -> Result<()> {
             json!({"pixels": qs.len(), "agree": agree, "seed": seed}),
         );
     }
+    Ok(())
+}
+
+/// Frames of history the unbiased check runs.
+const HISTORY_FRAMES: u64 = 200;
+/// The largest W the check allows: the paper's setting stays near 1e2 in this room.
+const W_BOUND: f32 = 1e6;
+
+/// Unbiased reuse with temporal history, as the story runs it: Alg. 6 with the paper's unbiased setting (one
+/// round of k = 3, 148:10 §5) and visibility reuse. After many frames every reservoir's W must stay finite and
+/// below W_BOUND; two rounds of five neighbours instead let W run away (past 1e32 here, to infinity in a larger
+/// image), which the story therefore never shows.
+fn check_unbiased_history(report: &mut Report) -> Result<()> {
+    let mut state = shot::for_demo(Demo::Room);
+    for (key, value) in [
+        ("restirTemporal", 1.0),
+        ("restirSpatialPasses", 1.0),
+        ("restirNeighbours", 3.0),
+        ("restirUnbiased", 1.0),
+        ("restirVisibilityReuse", 1.0),
+        ("restirSeed", -1.0),
+    ] {
+        state.set(key, value);
+    }
+    let (mut renderer, _) = render(&state)?;
+    let still = still_timeline(SIZE[0], SIZE[1]);
+    for frame in 1..=HISTORY_FRAMES {
+        // Each frame reuses the last one's reservoirs, with a new seed.
+        let request = lab::renderer::FrameRequest {
+            history: true,
+            ..request_at(&state, &still, frame)
+        };
+        renderer.render_frame(request, None);
+    }
+    let reservoirs = read(&renderer, "resA")?;
+    let mut finite = true;
+    let mut largest = 0.0f32;
+    for y in 0..SIZE[1] as i32 {
+        for x in 0..SIZE[0] as i32 {
+            // Every pixel's W after the last frame: finite, and its largest value recorded.
+            let w = Reservoir::unpack(reservoirs.texel([x, y])).w;
+            finite &= w.is_finite();
+            largest = largest.max(w);
+        }
+    }
+    report.check(
+        &format!("unbiased reuse over {HISTORY_FRAMES} frames of history (Alg. 6, one round of three neighbours): every W stays finite and below {W_BOUND:e}"),
+        finite && largest < W_BOUND,
+        json!({"frames": HISTORY_FRAMES, "largestW": largest}),
+    );
     Ok(())
 }
 
