@@ -167,6 +167,9 @@ reads = ["direct", "accumR", "accumG", "accumB"]
 plan = "plan"
 # A frame drawn alone first draws the shot eight times, so its temporal reuse has frames before it.
 warmup = 8
+# A recording builds each frame of a beat on the one before it, as the live view does; only a beat's first frame
+# (or a frame after a gap) is drawn alone.
+record-history = true
 scene-uses = [
     { binding = 1, resource = "direct", access = "load" },
     { binding = 2, resource = "accumR", access = "load" },
