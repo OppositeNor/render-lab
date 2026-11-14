@@ -10,7 +10,7 @@ use egui::{RichText, Ui};
 pub(super) fn status_strip(ui: &mut Ui, view: &ExperimentView, asked: &mut Vec<Asked>) {
     ui.set_max_width(330.0);
     let sides = if view.reference {
-        tr_with("experiments-status_reference", args!(count = view.differ))
+        tr_with("experiments-status_reference", args!(count = view.ab.len()))
     } else {
         tr("experiments-status_no_reference").to_string()
     };

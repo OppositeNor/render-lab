@@ -27,7 +27,7 @@ use crate::ui::DockTab;
 use crate::values::{self, Entry};
 use crate::view::ViewId;
 use anyhow::Result;
-use changes::changed_group;
+use changes::{AbRow, ab_group, ab_rows, changed_group};
 use compare::{compare_group, measurement_grid};
 use dock::values;
 use egui::{Ui, vec2};
@@ -156,8 +156,8 @@ struct ExperimentView {
     frame_ms: (f64, f64),
     /// Seconds the scene data has been rebuilding (`Investigation::scene_data`).
     rebuilding: Option<f32>,
-    /// How many values the reference and the live state set differently.
-    differ: usize,
+    /// The values the reference and the live state set differently.
+    ab: Vec<AbRow>,
     /// The dock edits the reference (its view is focused), not the live state.
     editing_reference: bool,
     /// The changed values carry over to the next demonstration.
@@ -244,9 +244,10 @@ impl Experiments {
             timings: self.timings.clone(),
             frame_ms: self.frame_ms,
             rebuilding: self.rebuilding,
-            differ: reference
+            ab: reference
                 .as_ref()
-                .map_or(0, |r| crate::experiment::changes(r, input.state).len()),
+                .map(|r| ab_rows(r, input.state))
+                .unwrap_or_default(),
             editing_reference: reference.is_some() && input.focus == reference.as_ref(),
             carry: self.carries(),
             stale: self.stale(input.state),
@@ -526,6 +527,15 @@ fn tools(dock: &mut Dock, ui: &mut Ui, view: &ExperimentView, asked: &mut Vec<As
         .flat_map(|e| e.channels().into_iter().map(move |c| (*e, c)))
         .filter(|(_, c)| dock.changed(c))
         .collect();
+
+    if view.reference {
+        dock.group(
+            ui,
+            tr("experiments-ab"),
+            Some(tr("experiments-ab_hint")),
+            |_, ui| ab_group(ui, &view.ab),
+        );
+    }
 
     dock.group(
         ui,

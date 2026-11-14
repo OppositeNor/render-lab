@@ -119,7 +119,7 @@ pub(super) fn values(dock: &mut Dock, ui: &mut Ui) {
 /// The filter's group: the filter (kept in egui's memory) and the presentation's toggle. The filter, and whether
 /// the presentation was shown before this frame.
 fn filter_group(dock: &mut Dock, ui: &mut Ui) -> (String, bool) {
-    let filter_id = egui::Id::unique("experiments-filter");
+    let filter_id = filter_id();
     let shown_id = egui::Id::unique("experiments-presentation");
     let mut filter = ui
         .data(|d| d.get_temp::<String>(filter_id))
@@ -160,6 +160,16 @@ fn filter_group(dock: &mut Dock, ui: &mut Ui) -> (String, bool) {
         ui.data_mut(|d| d.insert_temp(shown_id, !shown_before));
     }
     (filter, shown_before)
+}
+
+/// The filter's place in egui's memory.
+fn filter_id() -> egui::Id {
+    egui::Id::unique("experiments-filter")
+}
+
+/// The dock's filter set to `key`, so the dock shows only the values it matches: the one of that key.
+pub(super) fn show_only(ui: &Ui, key: &str) {
+    ui.data_mut(|data| data.insert_temp(filter_id(), key.to_string()));
 }
 
 /// The engine's settings, a column per label (its package's name for the group, `controls-<label>`).
