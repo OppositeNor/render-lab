@@ -63,7 +63,11 @@ pub(super) fn point(d: &Data, label: &str) -> Result<Vec3, String> {
 
 /// `#rrggbb`, or a colour of the lab's theme by name: `text`, `textDim`, `textFaint`, `accent`.
 pub(super) fn color(d: &Data) -> Result<Color32, String> {
-    let s = text(d, "color")?;
+    color_named(text(d, "color")?)
+}
+
+/// The colour `s` names: `#rrggbb`, or a colour of the lab's theme by name.
+pub(super) fn color_named(s: &str) -> Result<Color32, String> {
     use crate::palette;
     match s {
         "text" => return Ok(palette::text()),

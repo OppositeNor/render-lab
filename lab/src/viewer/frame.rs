@@ -173,6 +173,7 @@ impl App {
                 state: &state,
                 scene_type: shown.kind,
                 diagram: shown.diagram.as_ref().map(OwnedDiagram::borrowed),
+                math: shown.math.as_deref(),
                 beat_sources: &shown.sources,
                 notices: shown.notices,
                 references: shown.references,
@@ -377,7 +378,7 @@ impl App {
     /// (playing, moving from the beat before or building up; paused, settled), its sources, its chapter, its
     /// fade, and whether it is the notices.
     fn beat_shown(&self) -> BeatShown {
-        let (kind, diagram, sources, chapter, fade, notices, references) = match (
+        let (kind, diagram, sources, chapter, fade, notices, references, math) = match (
             &self.timeline,
             self.timeline_playing() || self.paused_page(),
         ) {
@@ -403,9 +404,19 @@ impl App {
                     fade,
                     beat.notices,
                     beat.references,
+                    beat.math.clone(),
                 )
             }
-            _ => (SceneType::ThreeD, None, Vec::new(), 0, 0.0, false, false),
+            _ => (
+                SceneType::ThreeD,
+                None,
+                Vec::new(),
+                0,
+                0.0,
+                false,
+                false,
+                None,
+            ),
         };
         BeatShown {
             kind,
@@ -415,6 +426,7 @@ impl App {
             fade,
             notices,
             references,
+            math,
         }
     }
 
@@ -563,4 +575,6 @@ struct BeatShown {
     fade: f32,
     notices: bool,
     references: bool,
+    /// The math scene the beat shows (src/math/), by name.
+    math: Option<String>,
 }

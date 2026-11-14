@@ -67,7 +67,9 @@ one):
 - an action, `{Action Args}`, which a story runs (`{run "name"}`) with its arguments as the record `Args`, at the
   seconds since the story started it;
 - an animation, `Animation`, the values at a demonstration's time in seconds (its `animation` in the demo's
-  TOML).
+  TOML);
+- a math scene, `Math`, what the canvas draws at its time in seconds, named by its binding (a story's
+  `kind=2d math=<name>` beat, or a demonstration's `math`; below, and `render_lab_math`).
 
 A hook's type must be exactly one of these: ascribe it (`{: {^ {t} …} Overlay}`). A script's function that returns
 what a hook returns but takes something else, or that is generic, fails the script; a helper's name starts with `_`.
@@ -317,3 +319,94 @@ $[# textColor "text"]
 $[# textDimColor "textDim"]
 $[# textFaintColor "textFaint"]
 $[# accentColor "accent"]
+
+Math scenes
+
+A math scene (a `kind=2d math=<name>` beat of a story, or a demonstration's `math`) is drawn on a canvas in the
+middle of the frame instead of the 3D scene: a plane in canvas units, 8 high and as wide as the frame's aspect
+makes it, its origin at the centre and +y up, as manim's frame is. A scene is a hook, `Math`, that returns what
+to draw at its time; the library `render_lab_math` (packages/render_lab/language/math.lam) builds it from
+formulas, text, shapes, and figures, and animates it by the values a story sweeps.
+
+What the lab draws on the canvas (lab/src/math/), each with an `id` that the library's transforms match by (the
+lab ignores it):
+
+- a part of a formula (`tex`): the LaTeX of the whole formula, which part (`-1` the whole, `0` its ink outside
+  the `\lit{n}{…}` terms, `n` term n), where the whole formula's centre is, its size (an em, in canvas units),
+  its colour and alpha, how much of it is written (`wipe`, 0 to 1 from the left), and the box the part covers
+  (`lo`, `hi`, in canvas units about `at`: what the library lays out by, and what the wipe runs across);
+- a text (`text`): written out, or a key of the package's text table (`key`), centred on `at`, an em `size` high,
+  with the box it covers;
+- a rectangle (`rect`), filled and outlined (an alpha of 0 leaves either out), `width` pixels at 1080p, its
+  corners rounded by `radius` canvas units;
+- a path (`path`) through its points, drawn up to the fraction `drawn` of its length, ending in an arrow or
+  dashed;
+- a band (`band`): the area between two lines of as many points (under a curve, between two);
+- a dot (`dot`), `radius` canvas units;
+- the frame (`frame`): the part of the canvas the frame shows, its centre and its height (8 when no scene sets
+  it; the last one counts).
+$[# _MathTex [% {Struct {'
+    {Field "id" String}
+    {Field "latex" String}
+    {Field "part" Int}
+    {Field "at" Vec2}
+    {Field "size" Float}
+    {Field "color" String}
+    {Field "alpha" Float}
+    {Field "wipe" Float}
+    {Field "lo" Vec2}
+    {Field "hi" Vec2}}}]]
+$[# _MathText [% {Struct {'
+    {Field "id" String}
+    {Field "text" String}
+    {Field "key" Bool}
+    {Field "at" Vec2}
+    {Field "size" Float}
+    {Field "color" String}
+    {Field "alpha" Float}
+    {Field "lo" Vec2}
+    {Field "hi" Vec2}}}]]
+$[# _MathRect [% {Struct {'
+    {Field "id" String}
+    {Field "lo" Vec2}
+    {Field "hi" Vec2}
+    {Field "fill" String}
+    {Field "fillAlpha" Float}
+    {Field "stroke" String}
+    {Field "strokeAlpha" Float}
+    {Field "width" Float}
+    {Field "radius" Float}}}]]
+$[# _MathPath [% {Struct {'
+    {Field "id" String}
+    {Field "points" {List Vec2}}
+    {Field "color" String}
+    {Field "alpha" Float}
+    {Field "width" Float}
+    {Field "drawn" Float}
+    {Field "arrow" Bool}
+    {Field "dashed" Bool}}}]]
+$[# _MathBand [% {Struct {'
+    {Field "id" String}
+    {Field "top" {List Vec2}}
+    {Field "bottom" {List Vec2}}
+    {Field "color" String}
+    {Field "alpha" Float}}}]]
+$[# _MathDot [% {Struct {'
+    {Field "id" String}
+    {Field "at" Vec2}
+    {Field "radius" Float}
+    {Field "color" String}
+    {Field "alpha" Float}}}]]
+$[# _MathFrame [% {Struct {' {Field "center" Vec2} {Field "height" Float}}}]]
+$[# Mob [% {Variant {'
+    {Field "tex" _MathTex}
+    {Field "text" _MathText}
+    {Field "rect" _MathRect}
+    {Field "path" _MathPath}
+    {Field "band" _MathBand}
+    {Field "dot" _MathDot}
+    {Field "frame" _MathFrame}}}]]
+
+A math scene, found by its type: what the canvas shows at its time in seconds (the beat's or the demonstration's),
+named by its binding (`math = "toyMath"` in a demonstration, `math=toyMath` on a beat).
+$[# Math [% {Fn {' Float} {List Mob}}]]

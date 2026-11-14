@@ -389,6 +389,7 @@ impl Recording<'_> {
             state: &state,
             scene_type: beat.kind,
             diagram: timeline.diagram_at(f),
+            math: beat.math.as_deref(),
             beat_sources: &beat.sources,
             notices: beat.notices,
             references: beat.references,

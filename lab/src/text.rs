@@ -21,7 +21,8 @@ pub fn canvas_for(width: u32, height: u32, ui_scale: f32) -> (f32, Vec2) {
     (scale, vec2(width as f32 / scale, height as f32 / scale))
 }
 
-pub fn install_fonts(ctx: &egui::Context) {
+/// The lab's fonts: DejaVu, and Source Han Sans for Chinese, in every family.
+pub fn font_definitions() -> egui::FontDefinitions {
     let mut fonts = egui::FontDefinitions::default();
     // Chinese text falls back to Source Han Sans (SIL OFL 1.1) in every family.
     for (name, id) in [
@@ -68,7 +69,11 @@ pub fn install_fonts(ctx: &egui::Context) {
             "SourceHanSans-Bold".into(),
         ],
     );
-    ctx.set_fonts(fonts);
+    fonts
+}
+
+pub fn install_fonts(ctx: &egui::Context) {
+    ctx.set_fonts(font_definitions());
     ctx.all_styles_mut(|style| {
         use egui::TextStyle::*;
         for (text_style, size, family) in [

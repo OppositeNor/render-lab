@@ -369,7 +369,7 @@ def write_script(cfg: Config, board: Json, index: Json, timeline: Json) -> None:
                 lines += [f'*{when} · {w["graph"]} `{beat["graph"]}.toml`*', ''] + frame_graph.markdown(frame_graph.load(cfg, beat['graph']))
             elif presentation.is_diagram(beat):
                 lines += [f'*{when} · {w["diagram"]} `{beat["diagram"]}.toml`*', ''] + diagrams.markdown(diagrams.load(cfg, beat['diagram']))
-            elif presentation.is_3d(beat):
+            elif presentation.is_3d(beat) or presentation.is_math(beat):
                 demo = next((k['demo'] for k in beat.get('keys', []) if 'demo' in k), None)
                 lines += [f'*{when} · {w["demo"]}{": " + demos.get(demo, demo) if demo else ""}*', '']
             else:

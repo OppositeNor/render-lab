@@ -427,7 +427,8 @@ pub fn heading_keys(translation: bool) -> Vec<Value> {
         kind["options"] = json!(["3d", "2d"]);
         kind["closed"] = json!(true);
         out.push(kind);
-        for name in ["diagram", "graph"] {
+        // A 2d beat's diagram, the frame graph's scene, or a math scene of the package's scripts (src/math/).
+        for name in ["diagram", "graph", "math"] {
             out.push(heading(name, "text", &[3], None));
         }
         for name in ["focus", "sources"] {

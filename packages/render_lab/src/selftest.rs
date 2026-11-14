@@ -72,6 +72,7 @@ pub fn request_at<'a>(
         state,
         scene_type: SceneType::ThreeD,
         diagram: None,
+        math: None,
         beat_sources: &[],
         notices: false,
         references: false,

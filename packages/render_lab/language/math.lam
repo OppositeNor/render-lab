@@ -1,0 +1,9 @@
+render_lab's math animation library
+===================================
+
+The library that builds math scenes (lab/src/math/), which the lab's canvas draws: written in the next change.
+
+$[Import* std]$[Import* render_lab_runtime]$[ImportAs rl_runtime rt]
+
+Fn([Float, Float], Vec2). A point on the canvas.
+$[# {v2 x y} {: {. x x y y} Vec2}]

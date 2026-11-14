@@ -53,6 +53,7 @@ pub mod knowledge;
 pub mod layered;
 pub mod layout;
 pub mod loading;
+pub mod math;
 pub mod mesh;
 pub mod metrics;
 pub mod packages;

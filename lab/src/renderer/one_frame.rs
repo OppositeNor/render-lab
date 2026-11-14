@@ -67,6 +67,16 @@ fn lit_boxes(request: &FrameRequest) -> Vec<(String, String)> {
         .unwrap_or_default()
 }
 
+/// The math scene the frame shows (src/math/): a 2D beat's, or on a 3D frame the demonstration's, at the frame's
+/// time.
+fn math_scene(request: &FrameRequest) -> Option<crate::math::Scene> {
+    let name = match request.scene_type {
+        SceneType::TwoD => request.math?,
+        SceneType::ThreeD => crate::math::demo_scene(request.state)?,
+    };
+    crate::script::runtime::math_scene(name, request.state, request.time)
+}
+
 /// The main camera's own view, in the viewport's lower right corner, at its shape.
 fn main_corner(layout: &Layout) -> egui::Rect {
     let v = layout.viewport;
@@ -729,6 +739,7 @@ impl Renderer {
                 title: None,
             })
             .collect();
+        let math = math_scene(&request);
         // egui pass content.
         let mut raw = request.raw_input;
         raw.screen_rect = Some(egui::Rect::from_min_size(egui::Pos2::ZERO, layout.canvas));
@@ -746,6 +757,7 @@ impl Renderer {
             textures: &self.textures,
             scene_type: request.scene_type,
             diagram: request.diagram,
+            math: math.as_ref(),
             diagram_pictures: &diagram_pictures,
             beat_sources: request.beat_sources,
             notices: request.notices,

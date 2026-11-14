@@ -68,6 +68,9 @@ pub struct DemoSpec {
     /// Its Play animation in the package's scripts (`animation = "playSurface"`, src/script/runtime.rs), applied
     /// after the investigation's own (`Investigation::animation`).
     pub animation: Option<&'static str>,
+    /// The math scene the viewer shows in place of the 3D scene (`math = "toyMath"`, a `Math` hook of the
+    /// package's scripts, src/math/), the dock's values driving it.
+    pub math: Option<&'static str>,
 }
 
 /// An investigation's demonstrations and parameters.
@@ -388,6 +391,7 @@ impl Demos {
             scene,
             listing: string(table, "listing")?.map(leak),
             animation: string(table, "animation")?.map(leak),
+            math: string(table, "math")?.map(leak),
             frame: frame_size(table)?,
             resets_camera: table
                 .get("resets-camera")

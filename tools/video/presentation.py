@@ -17,7 +17,7 @@ loader turns the document into the storyboard the builder reads.
 
 - The level-1 heading is the video: its text is the title, its attributes the rest of the header (`subtitle`,
   `fps`, `width`, ...; a value that reads as JSON is that value). Level 2 is a chapter (`number`, `target` in
-  seconds, `summary`, `sources`), level 3 a beat: its id, and `kind` (`3d` or `2d`), `diagram`, `graph`, `focus`,
+  seconds, `summary`, `sources`), level 3 a beat: its id, and `kind` (`3d` or `2d`), `diagram`, `graph`, `math`, `focus`,
   `sources`, and `hold`.
 - Before a beat's first sentence, a paragraph of cues only sets the beat's keys, one key per cue.
 - Each other paragraph is one sentence. Its prose is CommonMark; `$` is written `$$`.
@@ -96,6 +96,11 @@ def is_3d(beat: Json) -> bool:
     return beat['kind'] == '3d'
 
 
+def is_math(beat: Json) -> bool:
+    """A 2D beat that shows a math scene of the package's scripts (`math:`, lab/src/math/)."""
+    return beat['kind'] == '2d' and 'math' in beat
+
+
 def is_diagram(beat: Json) -> bool:
     """A 2D beat that shows an image: its diagram, or the frame graph (`graph:`)."""
     return beat['kind'] == '2d' and ('diagram' in beat or 'graph' in beat)
@@ -103,7 +108,7 @@ def is_diagram(beat: Json) -> bool:
 
 def is_card(beat: Json) -> bool:
     """A 2D beat that shows its sources card."""
-    return beat['kind'] == '2d' and not is_diagram(beat)
+    return beat['kind'] == '2d' and not is_diagram(beat) and not is_math(beat)
 
 
 # ---------------------------------------------------------------------------
@@ -345,12 +350,14 @@ def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, in
             kind = props['kind']
             beat: Json = {'id': beat_id, 'kind': kind, 'headline': plain(beat_heading['inlines'], at)}
             beat.update(metadata(props))
-            if kind == '2d' and not {'diagram', 'graph', 'sources', 'references'} & set(props):
-                raise PresentationError(f'{path}: {beat_id}: a 2d beat shows a diagram (diagram=), the frame graph (graph=), a sources card (sources=), or the references (references=true)')
-            if 'diagram' in props and 'graph' in props:
-                raise PresentationError(f'{path}: {beat_id}: a beat shows a diagram or the frame graph, not both')
+            if kind == '2d' and not {'diagram', 'graph', 'math', 'sources', 'references'} & set(props):
+                raise PresentationError(f'{path}: {beat_id}: a 2d beat shows a diagram (diagram=), the frame graph (graph=), a math scene (math=), a sources card (sources=), or the references (references=true)')
+            if len({'diagram', 'graph', 'math'} & set(props)) > 1:
+                raise PresentationError(f'{path}: {beat_id}: a beat shows one of a diagram, the frame graph, and a math scene')
+            if 'math' in props and kind != '2d':
+                raise PresentationError(f'{path}: {beat_id}: a math scene (math=) is a 2d beat\'s')
             # `hold` is lamlet-present's own heading attribute, kept as written (headings.py checks it is a number).
-            for name in ('diagram', 'graph', 'hold', 'focus', 'sources'):
+            for name in ('diagram', 'graph', 'math', 'hold', 'focus', 'sources'):
                 if name in props:
                     beat[name] = markup.number(props[name], at) if name == 'hold' else props[name]
             # A 2d beat may show the works the story cites, the source index's references (a paper's story ends on them).

@@ -146,6 +146,9 @@ pub struct TimelineBeat {
     /// drawn as a diagram the lab makes from the live graph (once).
     #[serde(default)]
     pub graph: Option<crate::graph::GraphScene>,
+    /// A 2D scene that shows a math scene of the package's scripts (src/math/), by name.
+    #[serde(default)]
+    pub math: Option<String>,
     #[serde(skip)]
     diagram_graph: std::sync::OnceLock<Result<crate::graph_view::Graph, String>>,
     #[serde(default)]

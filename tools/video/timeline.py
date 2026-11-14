@@ -312,7 +312,7 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
         plans[chapter['number']] = {'natural': natural, 'extraPauses': sum(extras), 'leftover': leftover}
         chapter_start = frame
         sentence_index = 0
-        scene_beats = [b for b in chapter['beats'] if presentation.is_3d(b)] or chapter['beats']
+        scene_beats = [b for b in chapter['beats'] if presentation.is_3d(b) or presentation.is_math(b)] or chapter['beats']
         leftover_per_beat = leftover / len(scene_beats)
         for beat in chapter['beats']:
             beat_start = frame
@@ -363,6 +363,9 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
                 # The lab draws the frame graph as the scene's sections group it (lab/src/graph/).
                 entry['graph'] = frame_graph.load(cfg, beat['graph'])
                 entry['focus'] = beat.get('focus', [])
+            elif presentation.is_math(beat):
+                # The lab draws the package's math scene on the canvas (lab/src/math/), driven by the beat's keys.
+                entry['math'] = beat['math']
             elif presentation.is_diagram(beat):
                 # The lab draws the diagram (lab/src/diagram.rs), its focus nodes lit.
                 entry['diagram'] = diagrams.load(cfg, beat['diagram'])

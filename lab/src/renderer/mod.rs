@@ -172,6 +172,8 @@ pub struct FrameRequest<'a> {
     pub scene_type: SceneType,
     /// The diagram a 2D scene shows (src/diagram.rs).
     pub diagram: Option<crate::diagram::BeatDiagram<'a>>,
+    /// The math scene a 2D scene shows (src/math/), by name.
+    pub math: Option<&'a str>,
     pub beat_sources: &'a [String],
     /// A 2D scene of the legal notices (`TimelineBeat::notices`).
     pub notices: bool,
@@ -610,7 +612,11 @@ impl Renderer {
             // A 2D page (a diagram, a sources card) takes the room of the panel too.
             let three_d = scene_type == SceneType::ThreeD;
             let shown = crate::ui::windows::Shown {
-                scene: dock && three_d && crate::entity::any(state, &self.statics),
+                // A demonstration's math scene has no entities of the 3D scene to list.
+                scene: dock
+                    && three_d
+                    && crate::math::demo_scene(state).is_none()
+                    && crate::entity::any(state, &self.statics),
                 controls: dock,
                 panel: panel && three_d,
                 wide,

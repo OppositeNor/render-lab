@@ -12,9 +12,9 @@
 //! - its natives, `<package>_natives` (`Investigation::script_natives`), and the lab's, `rl` and `rl_runtime`.
 //!
 //! The lab finds the hooks by their types (runtime.lam): overlays (`Overlay`), click handlers (`ClickHandler`),
-//! actions (`{Action Args}`), animations (`Animation`). A hook keeps nothing between calls: it is a function of
-//! what the lab passes and of what it reads, and it returns a description (shapes, or values to set) that the lab
-//! checks whole and then applies. While a hook runs, natives read the call's context: the shot (`state`), the
+//! actions (`{Action Args}`), animations (`Animation`), math scenes (`Math`, src/math/). A hook keeps nothing
+//! between calls: it is a function of what the lab passes and of what it reads, and it returns a description
+//! (shapes, mobs, or values to set) that the lab checks whole and then applies. While a hook runs, natives read the call's context: the shot (`state`), the
 //! frame it draws (`frame`, `frame_data`), and the scene's statics (`statics`).
 //!
 //! Lamlet's engine, documents, and instances are not `Send`, and every hook runs on the thread that draws or
@@ -39,8 +39,10 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+mod math;
 mod overlays;
 mod writes;
+pub use math::*;
 pub use overlays::*;
 pub use writes::*;
 
@@ -460,6 +462,10 @@ pub struct Runtime {
     clicks: BTreeMap<String, Hook>,
     actions: BTreeMap<String, (Hook, Vec<ScriptArg>)>,
     animations: BTreeMap<String, Hook>,
+    /// The math scenes (src/math/), by name.
+    maths: BTreeMap<String, Hook>,
+    /// Each math scene's last mobs that drew: what the viewer keeps showing while it fails.
+    last_math: BTreeMap<String, crate::math::Scene>,
     /// Each overlay's last shapes that drew, by view: what the viewer keeps showing while it fails.
     last: BTreeMap<(usize, Option<&'static str>), Vec<Shape>>,
     /// The failing hooks and their messages, shown until the next call of the hook succeeds.
@@ -506,6 +512,7 @@ pub fn engine(investigation: &'static dyn Investigation) -> Result<(Engine, Sour
     natives::register(&mut engine, Some(investigation)).map_err(|e| e.render())?;
     register(&mut engine).map_err(|e| e.render())?;
     register_frame_natives(&mut engine).map_err(|e| e.render())?;
+    register_math_natives(&mut engine).map_err(|e| e.render())?;
     investigation
         .script_natives(engine.natives_mut())
         .map_err(|e| format!("{}'s natives: {}", investigation.path(), e.render()))?;
@@ -518,8 +525,10 @@ pub fn engine(investigation: &'static dyn Investigation) -> Result<(Engine, Sour
         .declarations(package)
         .map_err(|e| e.render())?;
     let (library_file, library) = resource_text(LIBRARY)?;
+    let (math_file, math) = resource_text(MATH_LIBRARY)?;
     let mut reserved = declared(lamlet::package::STD_SOURCE);
     reserved.extend(declared(&library));
+    reserved.extend(declared(&math));
     reserved.extend(declared(&package_stubs));
     let (values, skipped) = values_source(package, &reserved);
     let mut packages = vec![
@@ -528,6 +537,11 @@ pub fn engine(investigation: &'static dyn Investigation) -> Result<(Engine, Sour
             name: LIBRARY_PACKAGE.into(),
             file: library_file,
             source: library,
+        },
+        Package {
+            name: MATH_PACKAGE.into(),
+            file: math_file,
+            source: math,
         },
         Package {
             name: NATIVES.into(),
@@ -615,6 +629,7 @@ fn wrong_hook(
 ) -> Result<(), String> {
     let Some(returns) = [
         (&types.shapes, "Shape"),
+        (&types.mobs, "Mob"),
         (&types.rows, "Row"),
         (&types.writes, "Write"),
     ]
@@ -647,6 +662,7 @@ fn wrong_hook(
 /// The types a hook's signature is told by, from the runtime library.
 struct HookTypes {
     shapes: TypeDesc,
+    mobs: TypeDesc,
     rows: TypeDesc,
     writes: TypeDesc,
     click: TypeDesc,
@@ -667,6 +683,7 @@ impl HookTypes {
             .map_err(|e| e.render())?;
         Ok(HookTypes {
             shapes: TypeDesc::List(Rc::new(library_type(&library, "Shape")?)),
+            mobs: TypeDesc::List(Rc::new(library_type(&library, "Mob")?)),
             rows: TypeDesc::List(Rc::new(library_type(&library, "Row")?)),
             writes: TypeDesc::List(Rc::new(library_type(&library, "Write")?)),
             click: library_type(&library, "Click")?,
@@ -696,6 +713,8 @@ impl Runtime {
             clicks: BTreeMap::new(),
             actions: BTreeMap::new(),
             animations: BTreeMap::new(),
+            maths: BTreeMap::new(),
+            last_math: BTreeMap::new(),
             last: BTreeMap::new(),
             errors: BTreeMap::new(),
             reported: BTreeSet::new(),
@@ -760,6 +779,12 @@ impl Runtime {
         match params.as_slice() {
             [TypeDesc::Float] if *ret == types.shapes => self.overlays.push(hook),
             [TypeDesc::Float] if *ret == types.rows => self.readouts.push(hook),
+            [TypeDesc::Float] if *ret == types.mobs => {
+                if taken(&self.maths) {
+                    return Err(format!("{key}: a second math scene `{named}`"));
+                }
+                self.maths.insert(named, hook);
+            }
             [p] if *ret == types.writes && *p == types.click => {
                 if taken(&self.clicks) {
                     return Err(format!("{key}: a second click handler `{named}`"));
@@ -806,9 +831,17 @@ impl Runtime {
                 a.key
             ));
         }
-        // A demonstration's animation is one of the scripts'.
+        // A demonstration's animation and math scene are the scripts'.
         if let Some(demos) = investigation.demo_specs() {
             for spec in &demos.specs {
+                if let Some(name) = spec.math.filter(|n| !self.maths.contains_key(*n)) {
+                    let known: Vec<&str> = self.maths.keys().map(String::as_str).collect();
+                    return Err(format!(
+                        "demonstration `{}`: no math scene `{name}` in the scripts (theirs: {})",
+                        spec.id.key(),
+                        crate::story_refs::names_or_none(&known)
+                    ));
+                }
                 if let Some(name) = spec.animation.filter(|n| !self.animations.contains_key(*n)) {
                     let known: Vec<&str> = self.animations.keys().map(String::as_str).collect();
                     return Err(format!(
@@ -830,6 +863,7 @@ impl Runtime {
             Kind::Click(name) => self.clicks.get(name),
             Kind::Action(name) => self.actions.get(name).map(|a| &a.0),
             Kind::Animation(name) => self.animations.get(name),
+            Kind::Math(name) => self.maths.get(name),
         }
     }
 
@@ -903,6 +937,7 @@ enum Kind {
     Click(String),
     Action(String),
     Animation(String),
+    Math(String),
 }
 
 impl std::fmt::Display for Kind {
@@ -913,6 +948,7 @@ impl std::fmt::Display for Kind {
             Kind::Click(n) => write!(f, "click handler `{n}`"),
             Kind::Action(n) => write!(f, "action `{n}`"),
             Kind::Animation(n) => write!(f, "animation `{n}`"),
+            Kind::Math(n) => write!(f, "math scene `{n}`"),
         }
     }
 }
@@ -996,6 +1032,11 @@ pub fn check() -> Result<Vec<String>, String> {
         r.animations
             .iter()
             .map(|(n, h)| format!("animation {n} ({})", r.modules[h.module].name)),
+    );
+    hooks.extend(
+        r.maths
+            .iter()
+            .map(|(n, h)| format!("math {n} ({})", r.modules[h.module].name)),
     );
     Ok(hooks)
 }

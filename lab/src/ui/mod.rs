@@ -601,6 +601,8 @@ pub struct UiInput<'a> {
     pub scene_type: SceneType,
     /// The diagram a 2D scene shows (src/diagram.rs).
     pub diagram: Option<crate::diagram::BeatDiagram<'a>>,
+    /// The math scene the canvas shows (src/math/): a 2D beat's, or the demonstration's in place of its scene.
+    pub math: Option<&'a crate::math::Scene>,
     /// The frame graph scene's lit boxes' pictures (src/renderer/ captures them).
     pub diagram_pictures: &'a [crate::diagram::Picture],
     pub beat_sources: &'a [String],
@@ -659,6 +661,21 @@ pub fn draw(
     let feature_panel = scene_beat
         && matches!(&chrome, Chrome::Viewer(v) if v.feature_panel().is_some_and(|l| !(l.yields && frame_panel)) && !(v.timeline_mode && v.playing));
     match input.scene_type {
+        SceneType::ThreeD if input.math.is_some() => {
+            // A demonstration's math scene covers its 3D scene; the panel beside it stays.
+            draw_math_view(&ink, l.viewport, input.math);
+            if let Some(content) = input.content.filter(|_| !feature_panel) {
+                draw_story_panel(
+                    ctx,
+                    &ink,
+                    input,
+                    content,
+                    &mut chrome,
+                    recording,
+                    &mut report,
+                );
+            }
+        }
         SceneType::ThreeD => {
             // A recording's picture reaches the frame's edges: no border.
             draw_view_frames(&ink, input, &chrome, &mut report);
@@ -691,6 +708,7 @@ pub fn draw(
             }
         }
         // A 2D scene: the beat's diagram, its sources card, the notices, or the references.
+        SceneType::TwoD if input.math.is_some() => draw_math_view(&ink, l.content, input.math),
         SceneType::TwoD if input.diagram.is_none() && input.notices => {
             draw_notices_card(&ink, input)
         }
@@ -995,6 +1013,15 @@ fn draw_story_panel(
 }
 
 /// A 2D beat's diagram, or a paused timeline's diagram panel (zoomed, panned, its boxes moved).
+/// A math scene's canvas over `rect`, on the background (src/math/).
+fn draw_math_view(ink: &Ink, rect: Rect, scene: Option<&crate::math::Scene>) {
+    ink.painter
+        .rect_filled(rect, CornerRadius::ZERO, palette::background());
+    if let Some(scene) = scene {
+        crate::math::draw(ink, rect, scene);
+    }
+}
+
 fn draw_diagram_beat(ctx: &egui::Context, ink: &Ink, input: &UiInput, chrome: &mut Chrome) {
     let l = &input.layout;
     if let Some(diagram) = input.diagram {

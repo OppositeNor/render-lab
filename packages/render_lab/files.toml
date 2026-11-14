@@ -98,3 +98,11 @@ id = "script/runtime"
 kind = "file"
 source = "language/runtime.lam"
 license = "MIT"
+
+# render_lab's math animation library (lab/src/math/, the `render-lab-math` skill): scripts import it as
+# `render_lab_math` to build math scenes.
+[[resource]]
+id = "script/math"
+kind = "file"
+source = "language/math.lam"
+license = "MIT"
