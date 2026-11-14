@@ -8,7 +8,7 @@ use crate::palette;
 use egui::{RichText, Ui, vec2};
 
 /// The A/B comparison group: the reference set, swapped, or cleared; how it is shown (a wipe's split, a
-/// difference's gain); and Measure.
+/// difference's gain); Measure, and the reference paused.
 pub(super) fn compare_group(
     d: &mut Dock,
     ui: &mut Ui,
@@ -48,7 +48,14 @@ pub(super) fn compare_group(
                     Compare::Difference => tr("experiments-compare_difference"),
                     Compare::Reference => tr("experiments-compare_reference"),
                 };
-                if ui.selectable_label(view.compare == mode, label).clicked() {
+                let response = ui.selectable_label(view.compare == mode, label);
+                // B alone still renders A, so that its history stays warm: its hint says so.
+                let response = if mode == Compare::Off {
+                    response.on_hover_text(tr("experiments-compare_off_hint"))
+                } else {
+                    response
+                };
+                if response.clicked() {
                     asked.push(Asked::SetCompare(mode));
                 }
             }
@@ -92,13 +99,23 @@ pub(super) fn compare_group(
         } else {
             egui::Button::new(tr("experiments-measure"))
         };
-        if ui
-            .add(measure)
-            .on_hover_text(tr("experiments-measure_hint"))
-            .clicked()
-        {
-            asked.push(Asked::Measure);
-        }
+        ui.horizontal(|ui| {
+            // A paused reference has no image to measure against.
+            if ui
+                .add_enabled(!view.paused, measure)
+                .on_hover_text(tr("experiments-measure_hint"))
+                .clicked()
+            {
+                asked.push(Asked::Measure);
+            }
+            if ui
+                .selectable_label(view.paused, tr("experiments-pause_reference"))
+                .on_hover_text(tr("experiments-pause_reference_hint"))
+                .clicked()
+            {
+                asked.push(Asked::PauseReference(!view.paused));
+            }
+        });
     });
 }
 

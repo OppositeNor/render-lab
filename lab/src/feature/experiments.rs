@@ -40,6 +40,10 @@ use status::status_strip;
 /// The tab.
 pub const TAB: DockTab = DockTab("experiments");
 
+/// The frames a reference that starts rendering is shown as warming up: a second at 60 frames a second, while
+/// its history builds up.
+const WARM_FRAMES: u32 = 60;
+
 pub struct ExperimentsFeature;
 
 impl Feature for ExperimentsFeature {
@@ -69,7 +73,7 @@ impl Feature for ExperimentsFeature {
 
     /// `viewer-experiments[:<demo>]` (the tab), `viewer-compare[:<demo>]` (a reference set, an engine setting
     /// moved, a wipe, a measurement), `viewer-compare-stale[:<demo>]` (then a value changed),
-    /// `viewer-compare-drag[:<demo>]` (its wipe dragged),
+    /// `viewer-compare-drag[:<demo>]` (its wipe dragged), `viewer-compare-paused[:<demo>]` (A paused, resumed),
     /// `viewer-experiments-overwrite[:<demo>]` (saved twice, Home), `viewer-experiments-session[:<demo>]` (the
     /// carry off, then on).
     fn pages(&self) -> &'static [Page] {
@@ -85,6 +89,10 @@ impl Feature for ExperimentsFeature {
             Page {
                 name: "viewer-compare-drag",
                 help: "[:<demo>] (that comparison's wipe line dragged through the viewer's input)",
+            },
+            Page {
+                name: "viewer-compare-paused",
+                help: "[:<demo>] (that comparison's reference paused, then resumed: warming up)",
             },
             Page {
                 name: "viewer-compare-stale",
@@ -144,6 +152,8 @@ enum Asked {
     CancelPending,
     /// Carry the changed values to the next demonstration, or not.
     SetCarry(bool),
+    /// Stop rendering the reference, or render it again (its history then starts over).
+    PauseReference(bool),
 }
 
 /// What the tools show of the experiment.
@@ -170,6 +180,9 @@ struct ExperimentView {
     carry: bool,
     /// The measurement's states or size have changed since it was taken.
     stale: bool,
+    /// The reference is not rendered; or it renders again and its history is still building up.
+    paused: bool,
+    warming: bool,
     /// The session holds changes no experiment file has, and the name it was last saved or loaded as.
     unsaved: bool,
     saved: Option<String>,
@@ -226,6 +239,10 @@ struct Experiments {
     measured: Option<Measured>,
     /// The live view's size at the last frame.
     viewport: Option<[u32; 2]>,
+    /// The reference is not rendered (no comparison asked of the frame).
+    paused: bool,
+    /// How many frames in a row the reference has rendered.
+    reference_frames: u32,
     /// The tab has been shown, or the viewer opened on it: from then on, its changes can go unsaved.
     used: bool,
     /// The experiment as last saved or loaded, and whether the session differs from it (`track_unsaved`).
@@ -259,6 +276,8 @@ impl Experiments {
             editing_reference: reference.is_some() && input.focus == reference.as_ref(),
             carry: self.carries(),
             stale: self.stale(input.state),
+            paused: self.paused,
+            warming: s.reference.is_some() && !self.paused && self.reference_frames < WARM_FRAMES,
             unsaved: self.unsaved,
             saved: self.saved.as_ref().map(|s| s.name.clone()),
             pending: self.pending.clone(),
@@ -353,6 +372,7 @@ impl Experiments {
             Asked::ReplacePreset(name) => self.save(name, true, host),
             Asked::CancelPending => self.pending = None,
             Asked::SetCarry(carry) => s.carry = Some(carry),
+            Asked::PauseReference(paused) => self.paused = paused,
             Asked::LoadPreset(i) if interactive => self.load_preset(i, false, host),
             Asked::LoadPresetDiscarding(i) if interactive => self.load_preset(i, true, host),
             _ => {}
@@ -437,12 +457,13 @@ impl FeatureState for Experiments {
         self.asked.extend(asked);
     }
 
-    /// The reference drawn while the live state is (not on a timeline), and timings while the tab is in use.
+    /// The reference drawn while the live state is (not on a timeline, not paused), and timings while the tab
+    /// is in use.
     fn frame_request(&self, state: &ShotState, frame: &FrameInfo) -> FrameAsk {
         let s = &self.session;
         let compare = s
             .reference_state(state)
-            .filter(|_| !frame.timeline_mode)
+            .filter(|_| !frame.timeline_mode && !self.paused)
             .map(|reference| CompareRequest {
                 reference,
                 mode: s.compare,
@@ -466,6 +487,12 @@ impl FeatureState for Experiments {
         self.opened_here = frame.opened == Some(TAB);
         self.used |= self.opened_here;
         self.viewport = renderer.viewport_size();
+        // Each frame the reference renders counts; a frame without it starts its history over.
+        if self.session.reference.is_some() && !self.paused && !frame.timeline_mode {
+            self.reference_frames = self.reference_frames.saturating_add(1);
+        } else {
+            self.reference_frames = 0;
+        }
     }
 
     fn view_state(&self, view: ViewId, live: &ShotState) -> Option<ShotState> {

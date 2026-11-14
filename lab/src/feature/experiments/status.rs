@@ -15,6 +15,12 @@ pub(super) fn status_strip(ui: &mut Ui, view: &ExperimentView, asked: &mut Vec<A
         tr("experiments-status_no_reference").to_string()
     };
     ui.label(RichText::new(sides).color(palette::text()));
+    // A paused reference is not rendered; one rendering again builds its history up.
+    if view.paused && view.reference {
+        ui.label(RichText::new(tr("experiments-status_paused")).color(palette::accent()));
+    } else if view.warming {
+        ui.label(RichText::new(tr("experiments-status_warming")).color(palette::accent()));
+    }
     let (editing, color) = if view.editing_reference {
         (
             tr("experiments-status_editing_reference"),

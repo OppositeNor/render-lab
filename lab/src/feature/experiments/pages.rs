@@ -14,7 +14,8 @@ impl Experiments {
     /// first sets it as the reference, moves one engine setting (else any ranged value) to its other end,
     /// compares them with a wipe, and measures them before the fifteenth; `viewer-compare-stale` then puts the
     /// value back before the sixteenth, so the measurement no longer shows the live state;
-    /// `viewer-compare-drag` drags the wipe's line instead of measuring (`drag_step`).
+    /// `viewer-compare-drag` drags the wipe's line instead of measuring (`drag_step`); `viewer-compare-paused`
+    /// pauses the reference at the sixth and resumes it at the fourteenth, so it is still warming up.
     /// `viewer-experiments-session` changes demonstrations (`session_step`).
     pub(super) fn page_step(
         &mut self,
@@ -30,7 +31,11 @@ impl Experiments {
         }
         let stale_page = page == "viewer-compare-stale";
         let drag_page = page == "viewer-compare-drag";
-        let compare = page == "viewer-compare" || stale_page || drag_page;
+        let paused_page = page == "viewer-compare-paused";
+        let compare = page == "viewer-compare" || stale_page || drag_page || paused_page;
+        if paused_page && (step == 6 || step == 14) {
+            self.pause_step(step == 6, host);
+        }
         if drag_page && let Some(next) = self.drag_step(step, host) {
             return Ok(next);
         }
@@ -59,7 +64,17 @@ impl Experiments {
                     m.psnr, m.ssim, m.flip
                 ));
             }
-            if compare && !drag_page {
+            if paused_page {
+                let n = self.reference_frames;
+                self.report.push(format!(
+                    "A rendered {n} frames since, {}",
+                    if n < super::WARM_FRAMES {
+                        "warming up"
+                    } else {
+                        "warm"
+                    }
+                ));
+            } else if compare && !drag_page {
                 let state = host.state().clone();
                 let status = match (self.session.measurement.is_some(), self.stale(&state)) {
                     (false, _) => "no measurement",
@@ -70,7 +85,7 @@ impl Experiments {
             }
             return Ok(Snapshot::Done(self.report.join("; ")));
         }
-        if compare && !drag_page && step == 15 {
+        if compare && !drag_page && !paused_page && step == 15 {
             self.measure(host);
         }
         if stale_page
@@ -232,6 +247,22 @@ impl Experiments {
             }
         }
         Some(Snapshot::Render)
+    }
+
+    /// `viewer-compare-paused`: the reference paused (`pause`) or resumed, and whether the last frame drew it.
+    fn pause_step(&mut self, pause: bool, host: &mut dyn Host) {
+        let drawn = host
+            .renderer()
+            .and_then(|r| r.read_view(crate::renderer::ViewKind::Reference))
+            .is_some();
+        self.paused = pause;
+        let did = if pause {
+            "paused"
+        } else {
+            "resumed"
+        };
+        self.report
+            .push(format!("A {did} (the frame before drew A: {drawn})"));
     }
 
     /// For the session page's report: whether the carry is on, and whether the moved value kept its value

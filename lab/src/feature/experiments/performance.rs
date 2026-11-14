@@ -39,6 +39,12 @@ pub(super) fn performance_group(d: &mut Dock, ui: &mut Ui, view: &ExperimentView
         d.actions
             .push(ViewerAction::SelectTab(crate::feature::graph::TAB));
     }
+    // While the reference renders, the frame holds it too: the times count both views.
+    if view.reference && !view.paused {
+        ui.label(
+            RichText::new(tr("experiments-timings_include_reference")).color(palette::accent()),
+        );
+    }
     egui::Grid::new("experiment-timings")
         .num_columns(3)
         .spacing(vec2(10.0, 2.0))
