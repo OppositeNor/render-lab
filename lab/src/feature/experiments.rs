@@ -12,6 +12,7 @@ mod performance;
 mod presets;
 mod saving;
 mod status;
+mod wipe;
 
 use super::{
     DemoChange, Feature, FeatureLayout, FeatureState, FrameAsk, FrameInfo, Host, Page, PanelUi,
@@ -68,6 +69,7 @@ impl Feature for ExperimentsFeature {
 
     /// `viewer-experiments[:<demo>]` (the tab), `viewer-compare[:<demo>]` (a reference set, an engine setting
     /// moved, a wipe, a measurement), `viewer-compare-stale[:<demo>]` (then a value changed),
+    /// `viewer-compare-drag[:<demo>]` (its wipe dragged),
     /// `viewer-experiments-overwrite[:<demo>]` (saved twice, Home), `viewer-experiments-session[:<demo>]` (the
     /// carry off, then on).
     fn pages(&self) -> &'static [Page] {
@@ -79,6 +81,10 @@ impl Feature for ExperimentsFeature {
             Page {
                 name: "viewer-compare",
                 help: "[:<demo>] (that viewer with a reference set and compared, a wipe)",
+            },
+            Page {
+                name: "viewer-compare-drag",
+                help: "[:<demo>] (that comparison's wipe line dragged through the viewer's input)",
             },
             Page {
                 name: "viewer-compare-stale",
@@ -212,6 +218,8 @@ struct Experiments {
     /// A snapshot page's report line, and what a page keeps between its steps (a file's first contents).
     report: Vec<String>,
     report_page: String,
+    /// The drag page's split and camera before its drag.
+    page_drag: Option<(f32, crate::camera::OrbitCamera)>,
     /// The viewer opened on this tab (the homepage's Experiment button).
     opened_here: bool,
     /// What the session's measurement measured.
@@ -377,6 +385,11 @@ impl FeatureState for Experiments {
 
     fn marked(&self) -> bool {
         self.unsaved
+    }
+
+    /// The wipe's line, grabbed in the viewport (src/feature/experiments/wipe.rs).
+    fn overlay(&mut self, panel: &mut super::StoryPanel) {
+        self.wipe(panel);
     }
 
     fn dock(&mut self, dock: &mut Dock, ui: &mut Ui) -> bool {

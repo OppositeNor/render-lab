@@ -45,6 +45,8 @@ impl App {
             KeyCode::Space => self.apply(ViewerAction::TogglePlay),
             KeyCode::ArrowLeft if self.timeline_mode => self.skip(-SKIP_SECONDS),
             KeyCode::ArrowRight if self.timeline_mode => self.skip(SKIP_SECONDS),
+            // Shift+Right is left to the features (it nudges the experiment's wipe).
+            KeyCode::ArrowRight if self.modifiers.shift => {}
             KeyCode::ArrowRight | KeyCode::Period => self.apply(ViewerAction::Step),
             KeyCode::KeyR => self.apply(ViewerAction::Reset),
             KeyCode::KeyT => self.apply(ViewerAction::ToggleTimeline),

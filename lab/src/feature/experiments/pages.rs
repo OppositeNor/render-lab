@@ -13,7 +13,8 @@ impl Experiments {
     /// One step of `page`. The demonstration at its defaults, rendered over eighteen frames; `viewer-compare`
     /// first sets it as the reference, moves one engine setting (else any ranged value) to its other end,
     /// compares them with a wipe, and measures them before the fifteenth; `viewer-compare-stale` then puts the
-    /// value back before the sixteenth, so the measurement no longer shows the live state.
+    /// value back before the sixteenth, so the measurement no longer shows the live state;
+    /// `viewer-compare-drag` drags the wipe's line instead of measuring (`drag_step`).
     /// `viewer-experiments-session` changes demonstrations (`session_step`).
     pub(super) fn page_step(
         &mut self,
@@ -28,7 +29,11 @@ impl Experiments {
             return self.overwrite_step(step, host);
         }
         let stale_page = page == "viewer-compare-stale";
-        let compare = page == "viewer-compare" || stale_page;
+        let drag_page = page == "viewer-compare-drag";
+        let compare = page == "viewer-compare" || stale_page || drag_page;
+        if drag_page && let Some(next) = self.drag_step(step, host) {
+            return Ok(next);
+        }
         if step == 0 {
             let defaults = host.default_state(host.state().demo);
             *host.state_mut() = defaults;
@@ -54,7 +59,7 @@ impl Experiments {
                     m.psnr, m.ssim, m.flip
                 ));
             }
-            if compare {
+            if compare && !drag_page {
                 let state = host.state().clone();
                 let status = match (self.session.measurement.is_some(), self.stale(&state)) {
                     (false, _) => "no measurement",
@@ -65,7 +70,7 @@ impl Experiments {
             }
             return Ok(Snapshot::Done(self.report.join("; ")));
         }
-        if compare && step == 15 {
+        if compare && !drag_page && step == 15 {
             self.measure(host);
         }
         if stale_page
@@ -188,6 +193,45 @@ impl Experiments {
             _ => {}
         }
         Ok(Snapshot::Settle)
+    }
+
+    /// `viewer-compare-drag`'s drag of the wipe's line through the viewer's input, below the views' titles:
+    /// the pointer onto the line (step 4), pressed (5), moved a fifth of the view's width to the right in five
+    /// steps (6 to 10), and released (11); then the split and the camera reported (12). None: not a drag step.
+    fn drag_step(&mut self, step: usize, host: &mut dyn Host) -> Option<Snapshot> {
+        const BY: f32 = 0.2;
+        if !(4..=12).contains(&step) {
+            return None;
+        }
+        let [x, y, w, h] = host
+            .renderer()?
+            .frame_layout()
+            .viewport_px()
+            .map(|v| v as f32);
+        let (split, camera) = *self
+            .page_drag
+            .get_or_insert((self.session.split, host.state().camera));
+        let at = |share: f32| [x + w * (split + share * BY), y + h * 0.6];
+        match step {
+            4 => host.pointer(at(0.0), None),
+            5 => host.pointer(at(0.0), Some(true)),
+            6..=10 => host.pointer(at((step - 5) as f32 / 5.0), None),
+            11 => host.pointer(at(1.0), Some(false)),
+            _ => {
+                let kept = if host.state().camera == camera {
+                    "camera kept"
+                } else {
+                    "camera moved"
+                };
+                self.report.push(format!(
+                    "wipe dragged: split {split:.3} → {:.3} (expected {:.3}), {kept}",
+                    self.session.split,
+                    split + BY
+                ));
+                return Some(Snapshot::Settle);
+            }
+        }
+        Some(Snapshot::Render)
     }
 
     /// For the session page's report: whether the carry is on, and whether the moved value kept its value

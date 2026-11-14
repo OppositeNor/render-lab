@@ -262,6 +262,9 @@ pub trait Host {
     fn captions(&self) -> (Option<String>, Option<String>);
     /// An action for the viewer, applied once the features are done.
     fn act(&mut self, action: ViewerAction);
+    /// The pointer moved to `at` (the window's pixels) through the viewer's input, and the left button pressed
+    /// (true) or released there: a snapshot page's drag.
+    fn pointer(&mut self, at: [f32; 2], press: Option<bool>);
 }
 
 /// The lab's own features, in no order (`Feature::order` orders their tabs).

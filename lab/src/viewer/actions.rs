@@ -388,6 +388,13 @@ impl crate::feature::Host for App {
         self.feature_actions.push(action);
     }
 
+    fn pointer(&mut self, at: [f32; 2], press: Option<bool>) {
+        self.cursor_moved(Vec2::from(at));
+        if let Some(pressed) = press {
+            self.mouse_button(MouseButton::Left, pressed);
+        }
+    }
+
     fn tab(&self) -> DockTab {
         self.tab
     }
