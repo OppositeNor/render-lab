@@ -77,6 +77,51 @@ impl WindowId {
     }
 }
 
+/// A layout for a task, chosen in the Windows menu: its windows' places, the tab it shows, and the panel it
+/// puts up. The user's own layout stays (`layout.toml`) and comes back as the menu's Custom.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Preset {
+    /// The view large: the panel collapsed, the Controls below.
+    Explore,
+    /// The Experiments tab with its panel open, the Controls taller for its values.
+    Experiment,
+    /// The Frame graph tab, its DAG in the wide panel.
+    Debug,
+}
+
+impl Preset {
+    pub const ALL: [Preset; 3] = [Preset::Explore, Preset::Experiment, Preset::Debug];
+
+    /// Its name in snapshot files and reports.
+    pub fn key(self) -> &'static str {
+        match self {
+            Preset::Explore => "explore",
+            Preset::Experiment => "experiment",
+            Preset::Debug => "debug",
+        }
+    }
+
+    /// Its name in the Windows menu.
+    pub fn label(self) -> &'static str {
+        match self {
+            Preset::Explore => crate::i18n::tr("window-preset_explore"),
+            Preset::Experiment => crate::i18n::tr("window-preset_experiment"),
+            Preset::Debug => crate::i18n::tr("window-preset_debug"),
+        }
+    }
+
+    /// Its windows' places: the defaults, the panel collapsed (Explore) or the Controls taller (Experiment).
+    pub fn layout(self) -> crate::config::ViewerLayout {
+        let mut layout = crate::config::ViewerLayout::default();
+        match self {
+            Preset::Explore => layout.window_mut(WindowId::Panel).collapsed = true,
+            Preset::Experiment => layout.window_mut(WindowId::Controls).size = 300.0,
+            Preset::Debug => {}
+        }
+        layout
+    }
+}
+
 /// The edge a window is docked to, or none (it floats).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Dock {

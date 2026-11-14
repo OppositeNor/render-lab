@@ -355,6 +355,27 @@ fn windows_menu(ui: &mut egui::Ui, l: &Layout, viewer: &mut ViewerChrome) {
             }
         }
         ui.separator();
+        // The task layouts, and the user's own.
+        for preset in windows::Preset::ALL {
+            if ui
+                .radio(viewer.preset == Some(preset), preset.label())
+                .clicked()
+            {
+                viewer
+                    .actions
+                    .push(ViewerAction::LayoutPreset(Some(preset)));
+                ui.close();
+            }
+        }
+        if ui
+            .radio(viewer.preset.is_none(), tr("window-preset_custom"))
+            .on_hover_text(tr("window-preset_custom_hint"))
+            .clicked()
+        {
+            viewer.actions.push(ViewerAction::LayoutPreset(None));
+            ui.close();
+        }
+        ui.separator();
         let reset = ui.button(tr("controls-reset_layout"));
         viewer.widgets.push(("reset-layout".into(), reset.rect));
         if reset

@@ -209,6 +209,9 @@ pub struct App {
     confirm: Option<crate::ui::Confirm>,
     /// The help card is open.
     help: bool,
+    /// The task layout shown (src/ui/windows.rs `Preset`), and the user's own layout it stands in for.
+    preset: Option<crate::ui::windows::Preset>,
+    custom: Option<crate::config::ViewerLayout>,
     pub ui_has_pointer: bool,
     egui_events: Vec<egui::Event>,
     modifiers: egui::Modifiers,
@@ -316,6 +319,8 @@ impl App {
             gizmo_drag: None,
             confirm: None,
             help: false,
+            preset: None,
+            custom: None,
             ui_has_pointer: false,
             egui_events: Vec::new(),
             modifiers: egui::Modifiers::default(),

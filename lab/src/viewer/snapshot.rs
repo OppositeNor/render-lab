@@ -232,8 +232,9 @@ pub fn snapshot_layout(options: ViewerOptions, png: &std::path::Path) -> Result<
                 .join("; ")
         })
         .unwrap_or_else(|e| format!("{e:#}"));
+    let presets = layout_presets(&mut app, (&gpu, &buffer, size), png, &settings)?;
     eprintln!(
-        "viewer layout: {} ({}x{}); before: {}; {}; after: {}; saved to {}: {saved}",
+        "viewer layout: {} ({}x{}); before: {}; {}; after: {}; saved to {}: {saved}; {presets}",
         png.display(),
         size[0],
         size[1],
@@ -243,6 +244,61 @@ pub fn snapshot_layout(options: ViewerOptions, png: &std::path::Path) -> Result<
         settings.display()
     );
     Ok(())
+}
+
+/// After `snapshot_layout`'s drags: each task layout of the Windows menu shown and written beside `png`
+/// (`X-<preset>.png`), then Custom; what each shows, whether the settings file stayed as the drags left it,
+/// and whether Custom brought the dragged layout back.
+fn layout_presets(
+    app: &mut App,
+    (gpu, buffer, size): (&Gpu, &wgpu::Buffer, [u32; 2]),
+    png: &std::path::Path,
+    settings: &std::path::Path,
+) -> Result<String> {
+    use crate::readback::{read_rgba, write_png};
+    let written = std::fs::read_to_string(settings).unwrap_or_default();
+    let dragged = app.layout;
+    let mut report = Vec::new();
+    for preset in crate::ui::windows::Preset::ALL {
+        app.apply(ViewerAction::LayoutPreset(Some(preset)));
+        settle(app, buffer, 4)?;
+        let path = png.with_file_name(format!(
+            "{}-{}.png",
+            png.file_stem().and_then(|s| s.to_str()).unwrap_or("layout"),
+            preset.key()
+        ));
+        write_png(
+            &path,
+            size[0],
+            size[1],
+            &read_rgba(&gpu.device, &gpu.queue, buffer, size),
+        )?;
+        let l = app.renderer().frame_layout();
+        report.push(format!(
+            "{}: tab {}, viewport {:.0}x{:.0}",
+            preset.key(),
+            app.tab.0,
+            l.viewport.width(),
+            l.viewport.height()
+        ));
+    }
+    let kept = std::fs::read_to_string(settings).unwrap_or_default() == written;
+    app.apply(ViewerAction::LayoutPreset(None));
+    let back = app.layout == dragged;
+    report.push(format!(
+        "settings file {}; Custom {}",
+        if kept {
+            "unchanged"
+        } else {
+            "changed"
+        },
+        if back {
+            "brought the dragged layout back"
+        } else {
+            "did not bring it back"
+        }
+    ));
+    Ok(report.join("; "))
 }
 
 /// The viewer's camera driven offscreen through its own input handlers (`home --snapshot X.png --page

@@ -333,6 +333,7 @@ impl App {
             selected: self.selected.clone(),
             confirm: self.confirm.clone(),
             help: self.help,
+            preset: self.preset,
             gizmo: crate::ui::GizmoView {
                 mode: self.gizmo_mode,
                 hover: self.gizmo_hover,

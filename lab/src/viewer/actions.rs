@@ -102,11 +102,19 @@ impl App {
                 self.gizmo_hover = None;
             }
             ViewerAction::SetGizmo(mode) => self.gizmo_mode = mode,
-            ViewerAction::SaveLayout => self.save_layout(),
+            // A window changed by hand: the layout is the user's own again, and written.
+            ViewerAction::SaveLayout => {
+                self.preset = None;
+                self.custom = None;
+                self.save_layout();
+            }
             ViewerAction::ResetLayout => {
+                self.preset = None;
+                self.custom = None;
                 self.layout = Default::default();
                 self.save_layout();
             }
+            ViewerAction::LayoutPreset(preset) => self.layout_preset(preset),
             ViewerAction::SetNarration(volume, finished) => {
                 self.narration = volume;
                 if let Some(a) = self.audio.as_mut() {
@@ -268,6 +276,36 @@ impl App {
 
     /// Write the windows' places to the settings file, the other settings as it has them; docked sizes as
     /// the layout kept them (within the window).
+    /// Show a task's layout, its tab, and its panel, the user's own layout kept aside and not written; none:
+    /// the user's own layout back.
+    fn layout_preset(&mut self, preset: Option<crate::ui::windows::Preset>) {
+        use crate::ui::windows::Preset;
+        let Some(preset) = preset else {
+            if let Some(custom) = self.custom.take() {
+                self.layout = custom;
+            }
+            self.preset = None;
+            return;
+        };
+        if self.preset.is_none() {
+            self.custom = Some(self.layout);
+        }
+        self.layout = preset.layout();
+        self.preset = Some(preset);
+        // The tab it shows, if the investigation has its feature; the Frame graph's with its DAG.
+        let tab = match preset {
+            Preset::Explore => DockTab::default(),
+            Preset::Experiment => crate::feature::experiments::TAB,
+            Preset::Debug => crate::feature::graph::TAB,
+        };
+        if self.features.feature(tab.0).is_some() || tab == DockTab::default() {
+            self.apply_now(ViewerAction::SelectTab(tab));
+        }
+        if preset == Preset::Debug && self.features.feature(tab.0).is_some() {
+            self.apply_now(ViewerAction::SetPanel(crate::shot::PanelMode::Dag));
+        }
+    }
+
     pub(super) fn save_layout(&mut self) {
         if let Some(r) = self.renderer.as_ref() {
             let l = r.frame_layout();

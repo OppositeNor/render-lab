@@ -441,6 +441,8 @@ pub enum ViewerAction {
     Confirm(bool),
     /// Open or close the help card: what the viewer's context accepts (src/bindings.rs).
     ToggleHelp,
+    /// A task's layout (src/ui/windows.rs `Preset`), or the user's own again (none).
+    LayoutPreset(Option<windows::Preset>),
 }
 
 /// An action held until the user confirms it: it would discard what a feature holds unsaved
@@ -568,6 +570,8 @@ pub struct ViewerChrome {
     pub confirm: Option<Confirm>,
     /// The help card is open (src/ui/help_card.rs).
     pub help: bool,
+    /// The task layout shown, if any (else the user's own).
+    pub preset: Option<windows::Preset>,
 }
 
 impl ViewerChrome {
