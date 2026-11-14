@@ -65,7 +65,8 @@ impl Feature for ExperimentsFeature {
     }
 
     /// `viewer-experiments[:<demo>]` (the tab), `viewer-compare[:<demo>]` (a reference set, an engine setting
-    /// moved, a wipe, a measurement), `viewer-experiments-session[:<demo>]` (the carry off, then on).
+    /// moved, a wipe, a measurement), `viewer-compare-stale[:<demo>]` (then a value changed),
+    /// `viewer-experiments-session[:<demo>]` (the carry off, then on).
     fn pages(&self) -> &'static [Page] {
         &[
             Page {
@@ -75,6 +76,10 @@ impl Feature for ExperimentsFeature {
             Page {
                 name: "viewer-compare",
                 help: "[:<demo>] (that viewer with a reference set and compared, a wipe)",
+            },
+            Page {
+                name: "viewer-compare-stale",
+                help: "[:<demo>] (that comparison measured, then a value changed: the measurement stale)",
             },
             Page {
                 name: "viewer-experiments-session",
@@ -144,6 +149,38 @@ struct ExperimentView {
     editing_reference: bool,
     /// The changed values carry over to the next demonstration.
     carry: bool,
+    /// The measurement's states or size have changed since it was taken.
+    stale: bool,
+}
+
+/// What a measurement measured: the live state, the reference's, and the views' size in pixels.
+struct Measured {
+    live: ShotState,
+    reference: ShotState,
+    size: [u32; 2],
+}
+
+impl Measured {
+    /// The measurement no longer shows `live` against `reference` at `size`: a scene's field of either
+    /// differs (its demonstration, cameras, frame size, values; not what the panel or a story shows over it),
+    /// or the size does.
+    fn stale(
+        &self,
+        live: &ShotState,
+        reference: Option<&ShotState>,
+        size: Option<[u32; 2]>,
+    ) -> bool {
+        let scene = |a: &ShotState, b: &ShotState| {
+            a.demo == b.demo
+                && a.camera == b.camera
+                && a.free_camera == b.free_camera
+                && a.frame == b.frame
+                && a.values == b.values
+        };
+        !scene(&self.live, live)
+            || !reference.is_some_and(|r| r.values == self.reference.values)
+            || size != Some(self.size)
+    }
 }
 
 /// The viewer's experiment, what the renderer last measured, and what the tools asked.
@@ -158,6 +195,10 @@ struct Experiments {
     report: Vec<String>,
     /// The viewer opened on this tab (the homepage's Experiment button).
     opened_here: bool,
+    /// What the session's measurement measured.
+    measured: Option<Measured>,
+    /// The live view's size at the last frame.
+    viewport: Option<[u32; 2]>,
 }
 
 impl Experiments {
@@ -181,7 +222,17 @@ impl Experiments {
                 .map_or(0, |r| crate::experiment::changes(r, input.state).len()),
             editing_reference: reference.is_some() && input.focus == reference.as_ref(),
             carry: self.carries(),
+            stale: self.stale(input.state),
         }
+    }
+
+    /// The session has a measurement, and it no longer shows the live state against the reference.
+    fn stale(&self, live: &ShotState) -> bool {
+        self.session.measurement.is_some()
+            && self
+                .measured
+                .as_ref()
+                .is_none_or(|m| m.stale(live, self.session.reference.as_ref(), self.viewport))
     }
 
     /// The changed values carry over to the next demonstration: as the tab's carry is set, else in a viewer
@@ -202,6 +253,7 @@ impl Experiments {
 
     /// Measure the live view against the reference's, as the last frame drew them (src/metrics.rs).
     fn measure(&mut self, host: &mut dyn Host) {
+        let live = host.state().clone();
         let Some(renderer) = host.renderer() else {
             return;
         };
@@ -218,6 +270,11 @@ impl Experiments {
                     &display,
                     Some((&ref_linear, &linear)),
                 ));
+                self.measured = self.session.reference.clone().map(|reference| Measured {
+                    live,
+                    reference,
+                    size: [display.width as u32, display.height as u32],
+                });
                 self.session.message = None;
             }
             _ => self.session.message = Some(tr("experiments-measure_needs_reference").to_string()),
@@ -397,6 +454,7 @@ impl FeatureState for Experiments {
         self.frame_ms = frame.frame_ms;
         self.rebuilding = renderer.rebuilding();
         self.opened_here = frame.opened == Some(TAB);
+        self.viewport = renderer.viewport_size();
     }
 
     fn view_state(&self, view: ViewId, live: &ShotState) -> Option<ShotState> {

@@ -85,8 +85,15 @@ pub(super) fn compare_group(
                 asked.push(Asked::SetGain(v));
             }
         });
+        // A stale measurement calls for another: the button is drawn in the accent.
+        let measure = if view.stale {
+            egui::Button::new(RichText::new(tr("experiments-measure")).color(palette::accent()))
+                .stroke(egui::Stroke::new(1.5, palette::accent()))
+        } else {
+            egui::Button::new(tr("experiments-measure"))
+        };
         if ui
-            .button(tr("experiments-measure"))
+            .add(measure)
             .on_hover_text(tr("experiments-measure_hint"))
             .clicked()
         {
@@ -96,9 +103,15 @@ pub(super) fn compare_group(
 }
 
 /// The last measurement against the reference, if there is one: PSNR, SSIM, FLIP, MSE, relMSE, the mean
-/// luminances.
+/// luminances; dimmed under a note when the states or the size changed since.
 pub(super) fn measurement_grid(ui: &mut Ui, view: &ExperimentView) {
     if let Some(m) = view.measurement {
+        let (names, values) = if view.stale {
+            ui.label(RichText::new(tr("experiments-measure_stale")).color(palette::accent()));
+            (palette::text_faint(), palette::text_faint())
+        } else {
+            (palette::text_dim(), palette::text())
+        };
         egui::Grid::new("experiment-measurement")
             .num_columns(2)
             .spacing(vec2(10.0, 2.0))
@@ -112,8 +125,8 @@ pub(super) fn measurement_grid(ui: &mut Ui, view: &ExperimentView) {
                     ("L̄ A", m.luminance_reference),
                     ("L̄ B", m.luminance),
                 ] {
-                    ui.label(RichText::new(name).color(palette::text_dim()));
-                    ui.label(RichText::new(readout(value)).color(palette::text()));
+                    ui.label(RichText::new(name).color(names));
+                    ui.label(RichText::new(readout(value)).color(values));
                     ui.end_row();
                 }
             });

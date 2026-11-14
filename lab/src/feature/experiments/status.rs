@@ -1,5 +1,5 @@
-//! The Experiments panel's status: what A and B are, which of them the dock edits, and whether the changes
-//! carry over to the next demonstration.
+//! The Experiments panel's status: what A and B are, which of them the dock edits, whether the measurement is
+//! current, and whether the changes carry over to the next demonstration.
 
 use super::{Asked, ExperimentView};
 use crate::i18n::{args, tr, tr_with};
@@ -24,6 +24,15 @@ pub(super) fn status_strip(ui: &mut Ui, view: &ExperimentView, asked: &mut Vec<A
         (tr("experiments-status_editing_live"), palette::text_dim())
     };
     ui.label(RichText::new(editing).color(color));
+    let (measured, color) = match (view.measurement.is_some(), view.stale) {
+        (false, _) => (tr("experiments-status_measure_none"), palette::text_dim()),
+        (true, false) => (
+            tr("experiments-status_measure_current"),
+            palette::text_dim(),
+        ),
+        (true, true) => (tr("experiments-status_measure_stale"), palette::accent()),
+    };
+    ui.label(RichText::new(measured).color(color));
     let mut carry = view.carry;
     if ui
         .checkbox(&mut carry, tr("experiments-carry"))

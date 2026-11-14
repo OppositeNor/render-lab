@@ -583,6 +583,11 @@ impl Renderer {
         &self.last_views
     }
 
+    /// The live view's size in pixels, once a frame made its targets.
+    pub fn viewport_size(&self) -> Option<[u32; 2]> {
+        self.viewport.as_ref().map(|v| v.size)
+    }
+
     /// `viewer`: the interactive viewer's layout, its windows where the user left them (`user_layout`,
     /// src/ui/windows.rs); `dock`: with its Controls and Scene windows (not while a timeline plays).
     /// With `values`, the panel shows (a feature's own, `FeatureLayout::panel`) whatever the state's panel mode.

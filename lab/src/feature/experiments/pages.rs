@@ -12,8 +12,9 @@ use anyhow::Result;
 impl Experiments {
     /// One step of `page`. The demonstration at its defaults, rendered over eighteen frames; `viewer-compare`
     /// first sets it as the reference, moves one engine setting (else any ranged value) to its other end,
-    /// compares them with a wipe, and measures them before the fifteenth. `viewer-experiments-session` changes
-    /// demonstrations (`session_step`).
+    /// compares them with a wipe, and measures them before the fifteenth; `viewer-compare-stale` then puts the
+    /// value back before the sixteenth, so the measurement no longer shows the live state.
+    /// `viewer-experiments-session` changes demonstrations (`session_step`).
     pub(super) fn page_step(
         &mut self,
         page: &str,
@@ -23,7 +24,8 @@ impl Experiments {
         if page == "viewer-experiments-session" {
             return Ok(self.session_step(step, host));
         }
-        let compare = page == "viewer-compare";
+        let stale_page = page == "viewer-compare-stale";
+        let compare = page == "viewer-compare" || stale_page;
         if step == 0 {
             let defaults = host.default_state(host.state().demo);
             *host.state_mut() = defaults;
@@ -49,10 +51,28 @@ impl Experiments {
                     m.psnr, m.ssim, m.flip
                 ));
             }
+            if compare {
+                let state = host.state().clone();
+                let status = match (self.session.measurement.is_some(), self.stale(&state)) {
+                    (false, _) => "no measurement",
+                    (true, false) => "measurement current",
+                    (true, true) => "measurement stale",
+                };
+                self.report.push(status.into());
+            }
             return Ok(Snapshot::Done(self.report.join("; ")));
         }
         if compare && step == 15 {
             self.measure(host);
+        }
+        if stale_page
+            && step == 16
+            && let Some(e) = ranged_entry()
+        {
+            // The moved value goes back to its default: the live state is no longer the one measured.
+            let default = host.default_state(host.state().demo).p(e.key);
+            host.set_value(e.key, default);
+            self.report.push(format!("{} back to {default}", e.key));
         }
         Ok(Snapshot::Settle)
     }
