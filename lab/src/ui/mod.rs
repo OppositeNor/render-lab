@@ -663,7 +663,7 @@ pub fn draw(
     match input.scene_type {
         SceneType::ThreeD if input.math.is_some() => {
             // A demonstration's math scene covers its 3D scene; the panel beside it stays.
-            draw_math_view(&ink, l.viewport, input.math);
+            draw_math_view(&ink, l, l.viewport, input);
             if let Some(content) = input.content.filter(|_| !feature_panel) {
                 draw_story_panel(
                     ctx,
@@ -708,7 +708,7 @@ pub fn draw(
             }
         }
         // A 2D scene: the beat's diagram, its sources card, the notices, or the references.
-        SceneType::TwoD if input.math.is_some() => draw_math_view(&ink, l.content, input.math),
+        SceneType::TwoD if input.math.is_some() => draw_math_view(&ink, l, l.content, input),
         SceneType::TwoD if input.diagram.is_none() && input.notices => {
             draw_notices_card(&ink, input)
         }
@@ -1012,16 +1012,42 @@ fn draw_story_panel(
     }
 }
 
-/// A 2D beat's diagram, or a paused timeline's diagram panel (zoomed, panned, its boxes moved).
-/// A math scene's canvas over `rect`, on the background (src/math/).
-fn draw_math_view(ink: &Ink, rect: Rect, scene: Option<&crate::math::Scene>) {
-    ink.painter
-        .rect_filled(rect, CornerRadius::ZERO, palette::background());
-    if let Some(scene) = scene {
-        crate::math::draw(ink, rect, scene);
+/// A math scene's canvas over `rect` (in a recording, a 2D beat's over the whole frame clear of the tag and the
+/// subtitles), on the background (src/math/), above a band at the bottom where the beat's callout goes, so the
+/// citation never covers the scene and the canvas keeps one place whether it shows or not.
+fn draw_math_view(ink: &Ink, l: &Layout, rect: Rect, input: &UiInput) {
+    // In a recording a 2D beat's canvas takes the whole frame between the tag above and the subtitles below (a 2D
+    // page leaves no panel beside it); a demonstration's keeps to its viewport.
+    let area = if l.video {
+        Rect::from_min_max(
+            pos2(24.0, VIDEO_TOP),
+            pos2(l.canvas.x - 24.0, l.canvas.y - VIDEO_BOTTOM),
+        )
+        .intersect(if input.scene_type == SceneType::TwoD {
+            Rect::EVERYTHING
+        } else {
+            rect
+        })
+    } else {
+        rect
+    };
+    for r in [rect, area] {
+        ink.painter
+            .rect_filled(r, CornerRadius::ZERO, palette::background());
+    }
+    let canvas = Rect::from_min_max(area.min, pos2(area.max.x, area.max.y - CALLOUT_BAND));
+    if let Some(scene) = input.math {
+        crate::math::draw(ink, canvas, scene);
+    }
+    if let Some(key) = &input.state.callout {
+        draw_callout(ink, l, key, &[]);
     }
 }
 
+/// The band at the bottom of a math scene's view left for its callout.
+const CALLOUT_BAND: f32 = 72.0;
+
+/// A 2D beat's diagram, or a paused timeline's diagram panel (zoomed, panned, its boxes moved).
 fn draw_diagram_beat(ctx: &egui::Context, ink: &Ink, input: &UiInput, chrome: &mut Chrome) {
     let l = &input.layout;
     if let Some(diagram) = input.diagram {

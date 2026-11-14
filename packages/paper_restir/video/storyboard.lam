@@ -398,67 +398,78 @@ So the light at P is ${overText
     {' {lightPhaseRange 0.03 0.06}}
     "what the kept candidate brings, times W"}.
 
-### Two samples, worked by hand {#c2-toy kind=3d}
+### Two samples, worked by hand {#c2-toy kind=2d math=toyMath}
 
-${cue "key" {opening demoToy panelValues {append baseRoom {append roomCamera {'
-    {toyStep 0.0}
-    {toyDrop 0.0}}}}}}
-${cue "key" floatRoom}
+${cue "key" {' {toyStage 0.0} {toyDrop 0.0}}}
 
-Each part of W has a job, and a world small enough to work by hand shows it.
+Each part of W has a job, and ${overText
+    {' {toyStageRange 0.0 1.0}}
+    "a world small enough to work by hand shows it"}.
 
 It has only two light samples, A and B, and it is the lab's example, not the paper's.
 
-The cheap choice draws ${overText {' {toyStepRange 0.0 1.0}} "A three times in four, and B once"}.
+The cheap choice draws ${overText {' {toyStageRange 1.0 2.0}} "A three times in four, and B once"}.
 
-But ${overText {' {toyStepRange 1.0 2.0}} "B brings three times as much light as A"}.
+But ${overText {' {toyStageRange 2.0 3.0}} "B brings three times as much light as A"}.
 
-Here the target is exactly what each sample brings.
+${overText {' {toyStageRange 3.0 4.0}} "Here the target is exactly what each sample brings"}.
 
-So the true total is four, one from A and three from B.
+So the true total is ${overText {' {toyStageRange 4.0 5.0}} "four, one from A and three from B"}.
 
 Dividing by the probability ${overText
-    {' {toyStepRange 2.0 3.0}}
+    {' {toyStageRange 5.0 6.0}}
     "gives A a weight of four thirds, and B a weight of twelve"}.
 
-B is drawn rarely, so its weight is large when it does turn up.
+B is drawn rarely, ${overText
+    {' {toyStageRange 6.0 7.0}}
+    "so its weight is large when it does turn up"}.
 
-${cue "key" {' {callout "eq6"}}}Now RIS draws two candidates, and keeps one.
+${cue "key" {' {callout "eq6"}}}Now RIS ${overText
+    {' {toyStageRange 7.0 8.0}}
+    "draws two candidates, and keeps one"}.
 
-${overText {' {toyStepRange 3.0 4.0}} "Two A's come up nine times in sixteen"}, and the estimate is then four thirds.
+${overText {' {toyStageRange 8.0 9.0}} "Two A's come up nine times in sixteen"}, and the estimate is then four thirds.
 
-${overText {' {toyStepRange 4.0 5.0}} "One A and one B come up six times in sixteen"}, and the estimate is then six and two thirds.
+${overText {' {toyStageRange 9.0 10.0}} "One A and one B come up six times in sixteen"}, and the estimate is then six and two thirds.
 
-It is the same whichever one is kept, because the target here equals what each sample brings.
+It is the same whichever one is kept, ${overText
+    {' {toyStageRange 10.0 11.0}}
+    "because the target here equals what each sample brings"}.
 
-${overText {' {toyStepRange 5.0 6.0}} "Two B's come up once in sixteen"}, and the estimate is then twelve.
+${overText {' {toyStageRange 11.0 12.0}} "Two B's come up once in sixteen"}, and the estimate is then twelve.
 
-No single estimate is four.
+${overText {' {toyStageRange 12.0 13.0}} "No single estimate is four"}.
 
 But ${overText
-    {' {toyStepRange 6.0 7.0}}
+    {' {toyStageRange 13.0 14.0}}
     "averaged with these chances, the estimates come to exactly four"}.
 
-${cue "key" {' {callout "ris-unbiased"}}}That is what unbiased means, correct on average, though not in every run.
+${cue "key" {' {callout "ris-unbiased"}}}That is what unbiased means, ${overText
+    {' {toyStageRange 14.0 15.0}}
+    "correct on average"}, though not in every run.
 
-${overText {' {toyStepRange 7.0 8.0}} "W does one more job"}.
+${overText {' {toyStageRange 15.0 16.0}} "W does one more job"}.
 
-On average, it is one over the chance that RIS keeps the sample.
+On average, ${overText
+    {' {toyStageRange 16.0 17.0}}
+    "it is one over the chance that RIS keeps the sample"}.
 
-RIS keeps B four times in ten, and when it does, W averages two and a half.
+${overText {' {toyStageRange 17.0 18.0}} "RIS keeps B four times in ten"}, and when it does, W averages two and a half.
 
-${cue "key" {' {toyDrop 2.0}}}Without the average of the weights, every estimate is one, far below four.
+${overText {' {toyStageRange 18.0 18.6}} "Without the average of the weights"}, every estimate is one, far below four.
 
-That average estimates the target's total, four here, and so it puts back the scale.
+That average estimates the target's total, ${overText {' {toyStageRange 18.6 19.0}} "four here"}, and so it puts back the scale.
 
-${cue "key" {' {toyDrop 1.0}}}Without dividing by the probability, the estimates average one and a half.
+${overText {' {toyStageRange 19.0 20.0}} "Without dividing by the probability"}, the estimates average one and a half.
 
-The rarely drawn B then counts for far too little.
+${overText {' {toyStageRange 20.0 21.0}} "The rarely drawn B then counts for far too little"}.
 
-${cue "key" {' {toyDrop 0.0}}}So W needs both, ${formulaSaid f"{W = \frac{\sum w}{M\, \hat{p}(y)}}" "the sum of the weights, over the count M, over the kept candidate's target"
+${overText {' {toyStageRange 21.0 22.0}} "So W needs both"}, ${formulaSaid f"{W = \frac{\sum w}{M\, \hat{p}(y)}}" "the sum of the weights, over the count M, over the kept candidate's target"
     {'}}.
 
-With only two candidates, the estimates still spread from four thirds to twelve.
+With only two candidates, ${overText
+    {' {toyStageRange 22.0 23.0}}
+    "the estimates still spread from four thirds to twelve"}.
 
 ### More candidates, less noise {#c2-ris-more kind=3d}
 

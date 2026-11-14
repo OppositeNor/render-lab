@@ -17,6 +17,7 @@ pub mod demos;
 pub mod gpu;
 pub mod lights;
 pub mod pseudocode;
+pub mod script;
 pub mod selftest;
 pub mod shot;
 pub mod sources;
@@ -86,6 +87,14 @@ impl Investigation for Restir {
 
     fn text(&self, key: &'static str) -> &'static str {
         text::tr_key(key)
+    }
+
+    /// The worked example's numbers, for its math scene (script.rs).
+    fn script_natives(
+        &self,
+        natives: &mut lab::script::lamlet::embed::NativeRegistry,
+    ) -> Result<(), lab::script::lamlet::embed::Error> {
+        script::register(natives)
     }
 
     fn backdrop(&self, t: f32) -> Option<ShotState> {

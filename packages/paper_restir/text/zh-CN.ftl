@@ -106,6 +106,11 @@ controls-toy_step = 步骤
 help-toyStep = 例子显示到哪一步：1 概率，2 目标，3 权重，4 到 6 各种候选组合，7 它们的平均，8 RIS 留下每个样本的概率，以及这时 W 的平均。
 controls-toy_drop = 去掉的部分
 help-toyDrop = 0 按论文的写法；1 权重不除以 p；2 W 不乘权重的平均。
+controls-toy_stage = 阶段
+help-toyStage = 手算例子的数学动画进行到哪一步，故事里每句话一个阶段：两个样本、它们的权重、每种两个候选的组合及其平均、RIS 留下 B 的频率，以及 W 去掉各部分后的样子。
+toymath-sum = 权重之和
+toymath-count = 候选个数
+toymath-target = 留下那个的目标
 demos-toy_title = 手算 RIS
 demos-toy_paper = 按论文的写法
 demos-toy_no_p = 权重不除以 p
@@ -119,11 +124,6 @@ demos-toy_outcome = { $chance } → { $estimate }
 demos-toy_average = 估计的平均
 demos-toy_kept = RIS 留下 { $name }
 demos-toy_kept_value = 概率 { $chance }，W 平均 { $mean }
-demos-toy_bars = 两个样本
-demos-toy_axis = 左 A 右 B；每类柱子各自缩放
-demos-toy_p = p，便宜的选法抽到它的概率
-demos-toy_phat = p̂ = f，它带来的光
-demos-toy_w = w = p̂ / p，它的权重
 demos-combined_m = 这一轮之后的 M
 shot-bias_title = 偏差，以及如何消除
 shot-bias = 偏差

@@ -106,6 +106,11 @@ controls-toy_step = Step
 help-toyStep = How much of the example is shown: 1 the probabilities, 2 the targets, 3 the weights, 4 to 6 the lists of candidates, 7 their average, 8 how often RIS keeps each sample and the mean of W then.
 controls-toy_drop = Part removed
 help-toyDrop = 0 RIS as the paper writes it; 1 the weights without dividing by p; 2 W without the average of the weights.
+controls-toy_stage = Stage
+help-toyStage = How far the worked example's math scene has come, one stage per sentence of the story: the samples, their weights, every list of two candidates and their average, how often RIS keeps B, and W without each of its parts.
+toymath-sum = the sum of the weights
+toymath-count = the count
+toymath-target = the kept one's target
 demos-toy_title = RIS by hand
 demos-toy_paper = As the paper writes it
 demos-toy_no_p = Weights without dividing by p
@@ -119,11 +124,6 @@ demos-toy_outcome = { $chance } → { $estimate }
 demos-toy_average = Average estimate
 demos-toy_kept = RIS keeps { $name }
 demos-toy_kept_value = chance { $chance }, mean W { $mean }
-demos-toy_bars = The two samples
-demos-toy_axis = A left, B right; bars scaled per kind
-demos-toy_p = p, how often the cheap choice draws it
-demos-toy_phat = p̂ = f, what it brings
-demos-toy_w = w = p̂ / p, its weight
 demos-combined_m = M after the round
 shot-bias_title = Bias, and removing it
 shot-bias = Bias

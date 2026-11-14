@@ -92,6 +92,13 @@ class Presentation(unittest.TestCase):
         self.assertEqual((two['kind'], two['diagram'], two['focus']), ('2d', 'frame', ['A', 'B']))
         self.assertTrue(presentation.is_3d(one) and presentation.is_diagram(two) and not presentation.is_card(two))
 
+    def test_math_beats(self) -> None:
+        # A 2d beat may show a math scene of the package's scripts, by name; its cues set values as any beat's.
+        board = self.load(STORY.replace(' diagram=frame focus="A, B"', ' math=toyMath'))
+        two = board['chapters'][0]['beats'][1]
+        self.assertEqual((two['kind'], two['math']), ('2d', 'toyMath'))
+        self.assertTrue(presentation.is_math(two) and not presentation.is_diagram(two) and not presentation.is_card(two))
+
     def test_sentences_are_parsed(self) -> None:
         one = self.load(STORY)['chapters'][0]['beats'][0]
         first, second, third = (markup.sentence(s) for s in one['narration'])
@@ -176,6 +183,11 @@ class Presentation(unittest.TestCase):
         # A 2d beat shows a diagram, the frame graph, or a sources card.
         with self.assertRaisesRegex(presentation.PresentationError, 'a 2d beat shows'):
             self.load(STORY.replace(' diagram=frame focus="A, B"', ''))
+        # A 2d beat shows one subject; a math scene is a 2d beat's.
+        with self.assertRaisesRegex(presentation.PresentationError, 'one of a diagram'):
+            self.load(STORY.replace(' diagram=frame focus="A, B"', ' diagram=frame math=scene focus="A, B"'))
+        with self.assertRaisesRegex(presentation.PresentationError, "is a 2d beat's"):
+            self.load(STORY.replace('kind=3d', 'kind=3d math=scene'))
         # A point cue sets its values at once; a range blends them.
         with self.assertRaisesRegex(presentation.PresentationError, 'blends over a range'):
             self.load(STORY.replace('{cue "key" {\' {attr "opacity" 1.0}}}', '{cue "key" {\' {attr "opacity" {. from 0.0 to 1.0}}}}'))

@@ -9,13 +9,11 @@
 use crate::paper::restir::text::{tr, tr_with};
 use lab::frame::{FrameContent, Readout};
 use lab::palette;
-use lab::utility::inset::{Corner, Picture, PictureInset};
-use std::sync::Arc;
 
 /// The cheap choice's chance of each sample, in quarters: A 3/4, B 1/4.
-const QUARTERS: [u32; 2] = [3, 1];
+pub const QUARTERS: [u32; 2] = [3, 1];
 /// What each sample brings, f, which is also the target p̂.
-const BRINGS: [f64; 2] = [1.0, 3.0];
+pub const BRINGS: [f64; 2] = [1.0, 3.0];
 /// The samples' names, as the narration says them.
 const NAMES: [&str; 2] = ["A", "B"];
 
@@ -136,44 +134,6 @@ pub fn kept() -> [(f64, f64); 2] {
     [0, 1].map(|i| (chance[i], w_sum[i] / chance[i]))
 }
 
-/// The bars of the two samples: p, p̂, and w, each kind scaled to its larger value, shown as far as `step` reaches.
-fn bars(step: f32, drop: Drop, size: [usize; 2]) -> Vec<u8> {
-    let (w, h) = (size[0], size[1]);
-    let mut rgba: Vec<u8> = [22u8, 26, 32, 255].repeat(w * h);
-    let kinds: [(f32, [f64; 2], [u8; 3]); 3] = [
-        (1.0, [p(0), p(1)], PDF),
-        (2.0, BRINGS, TARGET),
-        (3.0, [weight(0, drop), weight(1, drop)], WEIGHT),
-    ];
-    let group = w / 2;
-    let bar = group / 5;
-    for (k, (shown, values, color)) in kinds.iter().enumerate() {
-        // Each kind's bar for A in the left half, for B in the right, once the step has reached it.
-        if step < *shown {
-            continue;
-        }
-        let top = values[0].max(values[1]);
-        for (i, v) in values.iter().enumerate() {
-            let height = ((v / top) * (h as f64 - 16.0)) as usize;
-            let x0 = i * group + bar + k * (bar + bar / 4);
-            for y in h - height..h {
-                for x in x0..(x0 + bar).min(w) {
-                    rgba[4 * (y * w + x)..4 * (y * w + x) + 3].copy_from_slice(color);
-                }
-            }
-        }
-    }
-    rgba
-}
-
-const PDF: [u8; 3] = [130, 210, 150];
-const TARGET: [u8; 3] = [205, 205, 210];
-const WEIGHT: [u8; 3] = [120, 200, 255];
-
-fn color(c: [u8; 3]) -> egui::Color32 {
-    egui::Color32::from_rgb(c[0], c[1], c[2])
-}
-
 /// The samples' rows, as far as `step` reaches: p, then p̂ = f, then w.
 fn sample_rows(step: f32, drop: Drop, rows: &mut Vec<(String, String, egui::Color32)>) {
     for (i, name) in NAMES.iter().enumerate() {
@@ -273,24 +233,5 @@ pub fn draw(state: &lab::shot::ShotState, content: &mut FrameContent) {
         formula: (step >= 7.0 && drop == Drop::None).then(|| tr("formula-ris").into()),
         formula_lit: None,
         rows,
-    });
-    let size = [360usize, 180];
-    content.insets.push(PictureInset {
-        corner: Corner::TopRight,
-        x_axis: tr("demos-toy_axis").to_string(),
-        lines: vec![
-            (tr("demos-toy_p").to_string(), color(PDF)),
-            (tr("demos-toy_phat").to_string(), color(TARGET)),
-            (tr("demos-toy_w").to_string(), color(WEIGHT)),
-        ],
-        ..PictureInset::new(
-            tr("demos-toy_bars"),
-            Picture::Pixels {
-                key: format!("restir-toy-{}-{drop:?}", step.floor()),
-                size,
-                rgba: Arc::new(bars(step, drop, size)),
-            },
-            [360.0, 180.0],
-        )
     });
 }
