@@ -213,6 +213,8 @@ pub struct App {
     /// The gizmo's handle under the pointer, and the drag of one (src/gizmo.rs) with the entity it moves.
     gizmo_hover: Option<crate::gizmo::Handle>,
     gizmo_drag: Option<(crate::gizmo::Drag, crate::entity::Entity)>,
+    /// An action waiting for the user's answer: it would discard what a feature holds unsaved.
+    confirm: Option<crate::ui::Confirm>,
     pub ui_has_pointer: bool,
     egui_events: Vec<egui::Event>,
     modifiers: egui::Modifiers,
@@ -318,6 +320,7 @@ impl App {
             gizmo_mode: crate::gizmo::Mode::Move,
             gizmo_hover: None,
             gizmo_drag: None,
+            confirm: None,
             ui_has_pointer: false,
             egui_events: Vec::new(),
             modifiers: egui::Modifiers::default(),

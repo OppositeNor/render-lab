@@ -4,7 +4,28 @@
 use super::*;
 
 impl App {
+    /// Do `action`; one that would discard what a feature holds unsaved (leaving, the values reset) waits for
+    /// the user's answer instead (`ViewerAction::Confirm`).
     pub fn apply(&mut self, action: ViewerAction) {
+        if let ViewerAction::Confirm(yes) = action {
+            // The held action is done on yes, dropped on no.
+            if let Some(confirm) = self.confirm.take()
+                && yes
+            {
+                self.apply_now(confirm.action);
+            }
+            return;
+        }
+        if matches!(action, ViewerAction::Home | ViewerAction::ResetParameters)
+            && let Some(message) = self.features.states().find_map(|s| s.unsaved())
+        {
+            self.confirm = Some(crate::ui::Confirm { action, message });
+            return;
+        }
+        self.apply_now(action);
+    }
+
+    fn apply_now(&mut self, action: ViewerAction) {
         let interactive = !self.timeline_playing();
         match action {
             ViewerAction::SelectDemo(d) => self.select_demo(d),
@@ -95,20 +116,23 @@ impl App {
                     self.start_audio();
                 }
             }
-            ViewerAction::SetSpeed(speed) => {
-                // Playing, the timeline goes on from where it is at the new speed, the narration with it.
-                if self.timeline_playing() {
-                    let total = self.timeline.as_ref().map_or(0, |t| t.total_frames);
-                    self.timeline_frame = self
-                        .anchored_frame(Instant::now())
-                        .min(total.saturating_sub(1));
-                    self.speed = speed;
-                    self.start_audio();
-                } else {
-                    self.speed = speed;
-                }
-            }
+            ViewerAction::SetSpeed(speed) => self.set_speed(speed),
             action => self.apply_edit(action, interactive),
+        }
+    }
+
+    /// The timeline's and the narration's speed.
+    fn set_speed(&mut self, speed: f32) {
+        // Playing, the timeline goes on from where it is at the new speed, the narration with it.
+        if self.timeline_playing() {
+            let total = self.timeline.as_ref().map_or(0, |t| t.total_frames);
+            self.timeline_frame = self
+                .anchored_frame(Instant::now())
+                .min(total.saturating_sub(1));
+            self.speed = speed;
+            self.start_audio();
+        } else {
+            self.speed = speed;
         }
     }
 

@@ -435,6 +435,43 @@ pub enum ViewerAction {
     Select(Option<String>),
     /// What the selected entity's gizmo does (src/gizmo.rs).
     SetGizmo(crate::gizmo::Mode),
+    /// The question the viewer asked before an action that discards what a feature holds unsaved (`Confirm`)
+    /// answered: true does the action, false drops it.
+    Confirm(bool),
+}
+
+/// An action held until the user confirms it: it would discard what a feature holds unsaved
+/// (`FeatureState::unsaved`), and the message asking whether to.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Confirm {
+    pub action: ViewerAction,
+    pub message: String,
+}
+
+/// `confirm`'s question in place of the button that asked it: the message, Discard, and Cancel, read left to
+/// right in a row laid out either way.
+pub fn confirm_row(ui: &mut egui::Ui, confirm: &Confirm, actions: &mut Vec<ViewerAction>) {
+    let mut items = [None, Some(true), Some(false)];
+    if ui.layout().main_dir() == egui::Direction::RightToLeft {
+        items.reverse();
+    }
+    for item in items {
+        match item {
+            None => {
+                ui.label(egui::RichText::new(&confirm.message).color(crate::palette::accent()));
+            }
+            Some(yes) => {
+                let label = if yes {
+                    tr("ui-discard")
+                } else {
+                    tr("ui-cancel")
+                };
+                if ui.button(label).clicked() {
+                    actions.push(ViewerAction::Confirm(yes));
+                }
+            }
+        }
+    }
 }
 
 /// The selected entity's gizmo, as the UI draws it.
@@ -524,6 +561,8 @@ pub struct ViewerChrome {
     /// The entity selected in the Scene window (src/entity.rs `Entity::id`), and its gizmo.
     pub selected: Option<String>,
     pub gizmo: GizmoView,
+    /// An action waiting for the user's answer (Home, the values reset), drawn where its button is.
+    pub confirm: Option<Confirm>,
 }
 
 impl ViewerChrome {

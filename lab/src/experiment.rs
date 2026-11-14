@@ -1010,12 +1010,14 @@ pub fn presets() -> Vec<Preset> {
 
 /// Save `experiment` among the user's experiments; the path written.
 pub fn save_user(experiment: &Experiment) -> Result<PathBuf> {
+    write(&user_file(&experiment.name)?, experiment)
+}
+
+/// The file an experiment named `name` is saved to among the user's (it may not exist).
+pub fn user_file(name: &str) -> Result<PathBuf> {
     let dir = user_dir(investigation::current())
         .context("no settings folder (XDG_CONFIG_HOME or HOME)")?;
-    write(
-        &dir.join(format!("{}.toml", file_name(&experiment.name))),
-        experiment,
-    )
+    Ok(dir.join(format!("{}.toml", file_name(name))))
 }
 
 /// Write `experiment` to `path` (its folder made), through a temporary file.

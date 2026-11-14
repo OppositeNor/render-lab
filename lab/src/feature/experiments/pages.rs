@@ -1,7 +1,7 @@
-//! The Experiments tab's snapshot pages: the tab, a comparison with a reference, and the session carried
-//! across demonstrations.
+//! The Experiments tab's snapshot pages: the tab, a comparison with a reference, the session carried across
+//! demonstrations, and saving over a file.
 
-use super::Experiments;
+use super::{Experiments, Pending};
 use crate::experiment::Compare;
 use crate::feature::{Host, Snapshot};
 use crate::investigation;
@@ -23,6 +23,9 @@ impl Experiments {
     ) -> Result<Snapshot> {
         if page == "viewer-experiments-session" {
             return Ok(self.session_step(step, host));
+        }
+        if page == "viewer-experiments-overwrite" {
+            return self.overwrite_step(step, host);
         }
         let stale_page = page == "viewer-compare-stale";
         let compare = page == "viewer-compare" || stale_page;
@@ -116,6 +119,75 @@ impl Experiments {
             8.. => Snapshot::Done(self.report.join("; ")),
             _ => Snapshot::Settle,
         }
+    }
+
+    /// `viewer-experiments-overwrite`: an experiment saved under the page's own name, a value moved, and saved
+    /// again under it, which asks to replace the file and leaves it as it was (step 0); Home, which asks to
+    /// discard the unsaved change (step 2); both questions shown, then Replace, which writes the file, and the
+    /// file removed (step 8). A file of that name the page did not write is left alone.
+    fn overwrite_step(&mut self, step: usize, host: &mut dyn Host) -> Result<Snapshot> {
+        const NAME: &str = "render-lab-snapshot-overwrite";
+        let path = crate::experiment::user_file(NAME)?;
+        let read = || std::fs::read_to_string(&path).unwrap_or_default();
+        match step {
+            0 => {
+                if path.exists() {
+                    return Ok(Snapshot::Done(format!(
+                        "{} exists: left alone, nothing checked",
+                        path.display()
+                    )));
+                }
+                let defaults = host.default_state(host.state().demo);
+                *host.state_mut() = defaults;
+                self.save(NAME.into(), false, host);
+                let first = read();
+                move_far(host);
+                self.save(NAME.into(), false, host);
+                let asked = matches!(&self.pending, Some(Pending::Replace(n)) if n == NAME);
+                self.report.push(format!(
+                    "saved; saved again: {}, file {}",
+                    if asked {
+                        "asked to replace"
+                    } else {
+                        "not asked"
+                    },
+                    if read() == first {
+                        "unchanged"
+                    } else {
+                        "changed"
+                    }
+                ));
+                self.report_page = first;
+            }
+            2 => {
+                host.act(ViewerAction::Home);
+                self.report.push(format!(
+                    "Home: {}",
+                    if self.unsaved {
+                        "asked to discard"
+                    } else {
+                        "nothing unsaved"
+                    }
+                ));
+            }
+            8 => {
+                // The questions are on the last frame drawn; Replace now writes the file, which then goes.
+                self.save(NAME.into(), true, host);
+                let replaced = read() != self.report_page;
+                std::fs::remove_file(&path).ok();
+                self.report.push(format!(
+                    "Replace: file {}; removed",
+                    if replaced {
+                        "written"
+                    } else {
+                        "unchanged"
+                    }
+                ));
+                return Ok(Snapshot::Done(self.report.join("; ")));
+            }
+            _ => {}
+        }
+        Ok(Snapshot::Settle)
     }
 
     /// For the session page's report: whether the carry is on, and whether the moved value kept its value

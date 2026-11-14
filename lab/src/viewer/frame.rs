@@ -331,6 +331,7 @@ impl App {
                 .filter(|(_, failed, at)| *failed || at.elapsed().as_secs_f32() < 4.0)
                 .map(|(t, f, _)| (t.clone(), *f)),
             selected: self.selected.clone(),
+            confirm: self.confirm.clone(),
             gizmo: crate::ui::GizmoView {
                 mode: self.gizmo_mode,
                 hover: self.gizmo_hover,

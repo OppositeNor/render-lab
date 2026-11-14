@@ -1,7 +1,8 @@
-//! The Experiments panel's experiment files: saved under a name, listed, and loaded.
+//! The Experiments panel's experiment files: saved under a name, listed, and loaded; replacing a file or
+//! discarding unsaved changes asked first, in the row that asked.
 
-use super::{Asked, ExperimentView};
-use crate::i18n::tr;
+use super::{Asked, ExperimentView, Pending};
+use crate::i18n::{args, tr, tr_with};
 use crate::palette;
 use egui::{RichText, Ui};
 
@@ -34,6 +35,11 @@ pub(super) fn presets_group(ui: &mut Ui, view: &ExperimentView, asked: &mut Vec<
             asked.push(Asked::SavePreset(name.trim().to_string()));
         }
     });
+    if let Some(Pending::Replace(name)) = &view.pending {
+        let question = tr_with("experiments-replace_question", args!(name = name.clone()));
+        let replace = Asked::ReplacePreset(name.clone());
+        question_row(ui, &question, tr("experiments-replace"), replace, asked);
+    }
     for (i, preset) in view.presets.iter().enumerate() {
         let shipped = matches!(preset.source, crate::experiment::Source::Shipped(_));
         let label = if shipped {
@@ -48,8 +54,26 @@ pub(super) fn presets_group(ui: &mut Ui, view: &ExperimentView, asked: &mut Vec<
         {
             asked.push(Asked::LoadPreset(i));
         }
+        if view.pending == Some(Pending::Load(i)) {
+            let question = tr("experiments-discard_unsaved");
+            let load = Asked::LoadPresetDiscarding(i);
+            question_row(ui, question, tr("experiments-load_anyway"), load, asked);
+        }
     }
     if let Some(message) = &view.message {
         ui.add(egui::Label::new(RichText::new(message).color(palette::text_dim())).wrap());
     }
+}
+
+/// A question in the row under what asked it: the question, the button that goes ahead (`yes`), and Cancel.
+fn question_row(ui: &mut Ui, question: &str, yes: &str, then: Asked, asked: &mut Vec<Asked>) {
+    ui.horizontal_wrapped(|ui| {
+        ui.label(RichText::new(question).color(palette::accent()));
+        if ui.button(yes).clicked() {
+            asked.push(then);
+        }
+        if ui.button(tr("ui-cancel")).clicked() {
+            asked.push(Asked::CancelPending);
+        }
+    });
 }

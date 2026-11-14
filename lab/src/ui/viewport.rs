@@ -310,7 +310,14 @@ fn viewer_controls(ui: &mut egui::Ui, input: &UiInput, viewer: &mut ViewerChrome
     }
     ui.separator();
     windows_menu(ui, l, viewer);
-    if ui
+    // Leaving would discard unsaved work: the question stands where Home was.
+    if let Some(confirm) = viewer
+        .confirm
+        .clone()
+        .filter(|c| c.action == ViewerAction::Home)
+    {
+        super::confirm_row(ui, &confirm, &mut viewer.actions);
+    } else if ui
         .button(tr("ui-home"))
         .on_hover_text(tr("ui-home_hint"))
         .clicked()

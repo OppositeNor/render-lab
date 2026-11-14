@@ -133,6 +133,15 @@ pub trait FeatureState: Send {
     fn set_value(&mut self, _view: ViewId, _key: &'static str, _value: f32) -> bool {
         false
     }
+    /// What leaving the viewer or resetting its values would discard of it, as the question asking whether
+    /// to (none: nothing unsaved).
+    fn unsaved(&self) -> Option<String> {
+        None
+    }
+    /// Its tab's label is marked (something of it needs the user's attention: unsaved work).
+    fn marked(&self) -> bool {
+        false
+    }
     /// The viewer changed the demonstration: `host.state()` is the new one's defaults.
     fn demo_selected(&mut self, _change: &DemoChange, _host: &mut dyn Host) {}
     /// One step of a snapshot page (`Feature::pages`): `page` its name, `args` what follows its `:`, `step`
@@ -375,11 +384,21 @@ impl Features {
         self.features().find(|f| f.id() == id)
     }
 
-    /// The dock's tabs, in their order: the features' that have one, a timeline's only while it is shown.
+    /// The dock's tabs, in their order: the features' that have one, a timeline's only while it is shown; a
+    /// marked one's label ends in a dot (`FeatureState::marked`).
     pub fn tabs(&self, timeline: bool) -> Vec<(DockTab, String)> {
-        self.features()
-            .filter(|f| timeline || !f.timeline())
-            .filter_map(|f| Some((DockTab(f.id()), f.label()?)))
+        self.held
+            .iter()
+            .filter(|h| h.available && (timeline || !h.feature.timeline()))
+            .filter_map(|h| {
+                let label = h.feature.label()?;
+                let label = if h.state.marked() {
+                    format!("{label} •")
+                } else {
+                    label
+                };
+                Some((DockTab(h.feature.id()), label))
+            })
             .collect()
     }
 

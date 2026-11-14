@@ -10,6 +10,7 @@ mod dock;
 mod pages;
 mod performance;
 mod presets;
+mod saving;
 mod status;
 
 use super::{
@@ -18,7 +19,7 @@ use super::{
 };
 use crate::controls::{Dock, SLIDER_WIDTH};
 use crate::experiment::{Compare, Preset, Session};
-use crate::i18n::{args, tr, tr_with};
+use crate::i18n::tr;
 use crate::investigation;
 use crate::renderer::{CompareRequest, Renderer, ViewKind};
 use crate::shot::ShotState;
@@ -32,6 +33,7 @@ use dock::values;
 use egui::{Ui, vec2};
 use performance::performance_group;
 use presets::presets_group;
+use saving::{Pending, Saved};
 use status::status_strip;
 
 /// The tab.
@@ -66,7 +68,8 @@ impl Feature for ExperimentsFeature {
 
     /// `viewer-experiments[:<demo>]` (the tab), `viewer-compare[:<demo>]` (a reference set, an engine setting
     /// moved, a wipe, a measurement), `viewer-compare-stale[:<demo>]` (then a value changed),
-    /// `viewer-experiments-session[:<demo>]` (the carry off, then on).
+    /// `viewer-experiments-overwrite[:<demo>]` (saved twice, Home), `viewer-experiments-session[:<demo>]` (the
+    /// carry off, then on).
     fn pages(&self) -> &'static [Page] {
         &[
             Page {
@@ -80,6 +83,10 @@ impl Feature for ExperimentsFeature {
             Page {
                 name: "viewer-compare-stale",
                 help: "[:<demo>] (that comparison measured, then a value changed: the measurement stale)",
+            },
+            Page {
+                name: "viewer-experiments-overwrite",
+                help: "[:<demo>] (an experiment saved twice under one name: the Replace question, and Home's)",
             },
             Page {
                 name: "viewer-experiments-session",
@@ -119,10 +126,16 @@ enum Asked {
     SetGain(f32),
     /// Measure the live image against the reference's (src/metrics.rs).
     Measure,
-    /// Save the experiment under this name among the user's.
+    /// Save the experiment under this name among the user's (asking first when that replaces a file).
     SavePreset(String),
-    /// Load one of the experiments the tab lists.
+    /// Save it under this name, replacing the user's file of that name.
+    ReplacePreset(String),
+    /// Load one of the experiments the tab lists (asking first when that discards unsaved changes).
     LoadPreset(usize),
+    /// Load it, discarding the unsaved changes.
+    LoadPresetDiscarding(usize),
+    /// Neither replace nor discard: the question withdrawn.
+    CancelPending,
     /// Carry the changed values to the next demonstration, or not.
     SetCarry(bool),
 }
@@ -151,6 +164,11 @@ struct ExperimentView {
     carry: bool,
     /// The measurement's states or size have changed since it was taken.
     stale: bool,
+    /// The session holds changes no experiment file has, and the name it was last saved or loaded as.
+    unsaved: bool,
+    saved: Option<String>,
+    /// A question the tools ask before replacing a file or discarding unsaved changes.
+    pending: Option<Pending>,
 }
 
 /// What a measurement measured: the live state, the reference's, and the views' size in pixels.
@@ -191,14 +209,23 @@ struct Experiments {
     frame_ms: (f64, f64),
     rebuilding: Option<f32>,
     asked: Vec<Asked>,
-    /// A snapshot page's report line.
+    /// A snapshot page's report line, and what a page keeps between its steps (a file's first contents).
     report: Vec<String>,
+    report_page: String,
     /// The viewer opened on this tab (the homepage's Experiment button).
     opened_here: bool,
     /// What the session's measurement measured.
     measured: Option<Measured>,
     /// The live view's size at the last frame.
     viewport: Option<[u32; 2]>,
+    /// The tab has been shown, or the viewer opened on it: from then on, its changes can go unsaved.
+    used: bool,
+    /// The experiment as last saved or loaded, and whether the session differs from it (`track_unsaved`).
+    saved: Option<Saved>,
+    unsaved: bool,
+    /// The current demonstration's defaults, kept while it stays.
+    defaults: Option<ShotState>,
+    pending: Option<Pending>,
 }
 
 impl Experiments {
@@ -223,6 +250,9 @@ impl Experiments {
             editing_reference: reference.is_some() && input.focus == reference.as_ref(),
             carry: self.carries(),
             stale: self.stale(input.state),
+            unsaved: self.unsaved,
+            saved: self.saved.as_ref().map(|s| s.name.clone()),
+            pending: self.pending.clone(),
         }
     }
 
@@ -281,30 +311,6 @@ impl Experiments {
         }
     }
 
-    /// Open an experiment file: its demonstration, camera, and base values,
-    /// and its reference (with a comparison) when it has one.
-    fn load(&mut self, preset: &Preset, host: &mut dyn Host) -> Result<()> {
-        let experiment = preset.load()?;
-        experiment.check()?;
-        let demo = experiment.start_demo()?;
-        let mut state = host.default_state(demo);
-        experiment.apply(&mut state, &experiment.base)?;
-        self.session.reference = match experiment.reference_values() {
-            Some(values) => {
-                let mut reference = state.clone();
-                experiment.apply(&mut reference, &values)?;
-                Some(reference)
-            }
-            None => None,
-        };
-        if self.session.reference.is_some() && self.session.compare == Compare::Off {
-            self.session.compare = Compare::Wipe;
-        }
-        self.session.measurement = None;
-        host.set_state(state);
-        Ok(())
-    }
-
     fn apply(&mut self, asked: Asked, host: &mut dyn Host) {
         let interactive = host.interactive();
         let s = &mut self.session;
@@ -334,33 +340,12 @@ impl Experiments {
             Asked::SetSplit(split) => s.split = split.clamp(0.0, 1.0),
             Asked::SetGain(gain) => s.gain = gain.clamp(1.0, 64.0),
             Asked::Measure => self.measure(host),
-            Asked::SavePreset(name) => {
-                let defaults = host.default_state(host.state().demo);
-                let experiment = crate::experiment::Experiment::capture(
-                    &name,
-                    host.state(),
-                    &defaults,
-                    s.reference.as_ref(),
-                );
-                s.message = Some(match crate::experiment::save_user(&experiment) {
-                    Ok(path) => tr_with(
-                        "experiments-saved",
-                        args!(path = path.display().to_string()),
-                    ),
-                    Err(e) => format!("{e:#}"),
-                });
-                s.presets = crate::experiment::presets();
-            }
+            Asked::SavePreset(name) => self.save(name, false, host),
+            Asked::ReplacePreset(name) => self.save(name, true, host),
+            Asked::CancelPending => self.pending = None,
             Asked::SetCarry(carry) => s.carry = Some(carry),
-            Asked::LoadPreset(i) if interactive => {
-                if let Some(preset) = s.presets.get(i).cloned() {
-                    let message = match self.load(&preset, host) {
-                        Ok(()) => tr_with("experiments-loaded", args!(name = preset.name.clone())),
-                        Err(e) => format!("{e:#}"),
-                    };
-                    self.session.message = Some(message);
-                }
-            }
+            Asked::LoadPreset(i) if interactive => self.load_preset(i, false, host),
+            Asked::LoadPresetDiscarding(i) if interactive => self.load_preset(i, true, host),
             _ => {}
         }
     }
@@ -374,12 +359,23 @@ impl Experiments {
 impl FeatureState for Experiments {
     fn selected(&mut self, _host: &mut dyn Host) {
         self.session.presets = crate::experiment::presets();
+        self.used = true;
     }
 
     fn update(&mut self, host: &mut dyn Host) {
         for asked in std::mem::take(&mut self.asked) {
             self.apply(asked, host);
         }
+        self.track_unsaved(host);
+    }
+
+    fn unsaved(&self) -> Option<String> {
+        self.unsaved
+            .then(|| tr("experiments-discard_unsaved").to_string())
+    }
+
+    fn marked(&self) -> bool {
+        self.unsaved
     }
 
     fn dock(&mut self, dock: &mut Dock, ui: &mut Ui) -> bool {
@@ -454,6 +450,7 @@ impl FeatureState for Experiments {
         self.frame_ms = frame.frame_ms;
         self.rebuilding = renderer.rebuilding();
         self.opened_here = frame.opened == Some(TAB);
+        self.used |= self.opened_here;
         self.viewport = renderer.viewport_size();
     }
 

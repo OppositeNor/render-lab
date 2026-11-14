@@ -42,6 +42,8 @@ pub struct Dock<'a> {
     pub(crate) defaults: Option<ShotState>,
     /// The dock's tabs (the viewer's features', src/feature/), with their labels.
     tabs: Vec<(DockTab, String)>,
+    /// The values reset, waiting for the user's answer (`ViewerChrome::confirm`).
+    confirm: Option<ui::Confirm>,
 }
 
 /// The Controls window (src/ui/windows.rs): the tabs, with the buttons that act on the demonstration at
@@ -165,6 +167,10 @@ impl<'a> Dock<'a> {
             widgets: Vec::new(),
             defaults: None,
             tabs: viewer.features.tabs(viewer.timeline_mode),
+            confirm: viewer
+                .confirm
+                .clone()
+                .filter(|c| c.action == ViewerAction::ResetParameters),
         }
     }
 }
@@ -192,6 +198,11 @@ impl Dock<'_> {
             .clicked()
         {
             self.actions.push(ViewerAction::ToggleFreeCamera);
+        }
+        // Resetting would discard unsaved work: the question stands where the button was.
+        if let Some(confirm) = &self.confirm {
+            ui::confirm_row(ui, confirm, &mut self.actions);
+            return;
         }
         let reset = ui.add(egui::Button::new(tr("controls-reset_parameters")));
         if reset
