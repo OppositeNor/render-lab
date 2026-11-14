@@ -12,7 +12,9 @@ use egui::{Color32, Pos2, Rect, Vec2, vec2};
 use std::sync::Arc;
 
 mod draw;
+mod layout;
 pub use draw::draw;
+pub use layout::{LAYOUTS, layout as graph_layout};
 
 /// The canvas's height in canvas units when no scene sets its frame.
 pub const FRAME_HEIGHT: f32 = 8.0;
@@ -240,6 +242,43 @@ pub fn text_width(text: &str) -> f32 {
     })
 }
 
+/// `count` numbers in [0, 1) drawn in proportion to `masses` (even bins across [0, 1)), seeded: each a uniform
+/// number (a seeded xorshift) through the inverse of the masses' running total, linear within its bin.
+pub fn samples_from(masses: &[f64], seed: u64, count: usize) -> Result<Vec<f64>, String> {
+    if masses.iter().any(|m| m.is_nan() || *m < 0.0) {
+        return Err("a distribution's masses are not negative".into());
+    }
+    let total: f64 = masses.iter().sum();
+    if total <= 0.0 {
+        return Err("a distribution's masses are not all 0".into());
+    }
+    let mut cdf = Vec::with_capacity(masses.len());
+    let mut run = 0.0;
+    for m in masses {
+        run += m / total;
+        cdf.push(run);
+    }
+    let mut state = seed.wrapping_mul(0x9e37_79b9_7f4a_7c15) | 1;
+    let bins = masses.len() as f64;
+    Ok((0..count)
+        .map(|_| {
+            // xorshift64*, then the first bin whose running total reaches it, and the place within that bin.
+            state ^= state >> 12;
+            state ^= state << 25;
+            state ^= state >> 27;
+            let u = (state.wrapping_mul(0x2545_f491_4f6c_dd1d) >> 11) as f64 / (1u64 << 53) as f64;
+            let i = cdf.partition_point(|c| *c < u).min(masses.len() - 1);
+            let before = if i == 0 {
+                0.0
+            } else {
+                cdf[i - 1]
+            };
+            let within = ((u - before) / (cdf[i] - before).max(1e-12)).clamp(0.0, 1.0);
+            (i as f64 + within) / bins
+        })
+        .collect())
+}
+
 /// The formula `latex` typeset for drawing at about `px` pixels an em: sizes are rounded to twelfths of an octave
 /// (about 6 %), so a zoom typesets each size once, and the drawing scales the rest of the way.
 pub fn typeset_near(latex: &str, px: f32) -> Result<(Arc<Formula>, f32), String> {
@@ -266,6 +305,16 @@ mod tests {
         assert!(a.0.x < 0.0 && bb.1.x > 0.0);
         assert!(a.0.y < a.1.y && a.1.y > 0.0 && a.0.y < 0.3);
         assert!(b.width > bb.1.x - a.0.x);
+    }
+
+    #[test]
+    fn samples_follow_their_masses() {
+        let s = samples_from(&[1.0, 3.0], 7, 4000).unwrap();
+        let right = s.iter().filter(|x| **x >= 0.5).count() as f64 / s.len() as f64;
+        assert!((right - 0.75).abs() < 0.03, "{right}");
+        assert!(s.iter().all(|x| (0.0..1.0).contains(x)));
+        assert_eq!(s, samples_from(&[1.0, 3.0], 7, 4000).unwrap());
+        assert!(samples_from(&[0.0, 0.0], 1, 1).is_err());
     }
 
     #[test]

@@ -1,9 +1,1007 @@
 render_lab's math animation library
 ===================================
 
-The library that builds math scenes (lab/src/math/), which the lab's canvas draws: written in the next change.
+A math scene draws mathematics on a canvas in the middle of the frame (lab/src/math/, runtime.lam's `Mob`): a
+formula built term by term, numbers flying from a table into it, a curve redrawn as its parameter moves. Its
+ideas come from manim (the Manim Community's library): objects on a plane of canvas units (8 high, as wide as the
+frame's aspect makes it, the origin at the centre, +y up), laid out by their measured sizes, and animations that
+move, write, and transform them.
+
+What differs from manim: a scene keeps nothing between frames. It is a function of its time and of the values
+the lab gives it (the investigation's values package), so a story's cue sweeps a value (`toyStepRange 3.0 4.0`)
+and the scene draws that value's moment, and the viewer can replay or drag it. Each animation here therefore
+takes its progress `t`, 0 to 1, rather than running for a duration: `{write {phase step 3.0 4.0} formula}` writes
+a formula while `step` goes from 3 to 4. Manim's `ValueTracker` with `always_redraw` is the only model.
+
+Everything is procedural: a figure is made by code from functions and data (a curve from its function, a table
+from its rows, a graph's layout from its edges), never placed by hand-typed coordinates or loaded as a picture.
+
+A figure is a list of mobs (`List(Mob)`): the transforms below map over it, and `append` joins two. Each mob has an
+`id`; a formula's parts and a figure's pieces are named, so `transform` can match what is the same in two
+figures.
 
 $[Import* std]$[Import* render_lab_runtime]$[ImportAs rl_runtime rt]
 
+Points and boxes
+
 Fn([Float, Float], Vec2). A point on the canvas.
 $[# {v2 x y} {: {. x x y y} Vec2}]
+The canvas's centre.
+$[# origin [% {v2 0.0 0.0}]]
+Fn([Vec2, Vec2], Vec2). The sum.
+$[# {add2 a b} {v2 {+ {.x a} {.x b}} {+ {.y a} {.y b}}}]
+Fn([Vec2, Vec2], Vec2). The difference.
+$[# {sub2 a b} {v2 {- {.x a} {.x b}} {- {.y a} {.y b}}}]
+Fn([Vec2, Float], Vec2). Scaled by `s`.
+$[# {scale2 a s} {v2 {* {.x a} s} {* {.y a} s}}]
+Fn([Vec2, Vec2, Float], Vec2). From `a` at 0 to `b` at 1.
+$[# {lerp2 a b t} {v2 {lerp {.x a} {.x b} t} {lerp {.y a} {.y b} t}}]
+Fn([Vec2, Vec2], Float). The distance between two points.
+$[# {dist2 a b} [# d {sub2 a b}] {sqrt {+ {* {.x d} {.x d}} {* {.y d} {.y d}}}}]
+
+A box on the canvas: its lower left and upper right corners.
+$[# Box [% {Struct {' {Field "lo" Vec2} {Field "hi" Vec2}}}]]
+Fn([Vec2, Vec2], Box). A box.
+$[# {box lo hi} {: {. lo lo hi hi} Box}]
+Fn([Box], Vec2). Its centre.
+$[# {boxCenter b} {lerp2 {.lo b} {.hi b} 0.5}]
+Fn([Box], Float). Its width.
+$[# {boxWidth b} {- {.x {.hi b}} {.x {.lo b}}}]
+Fn([Box], Float). Its height.
+$[# {boxHeight b} {- {.y {.hi b}} {.y {.lo b}}}]
+Fn([Box, Float], Box). Grown by `pad` on every side.
+$[# {padded b pad} {box {sub2 {.lo b} {v2 pad pad}} {add2 {.hi b} {v2 pad pad}}}]
+Fn([Box, Box], Box). The box around both.
+$[# {boxUnion b c} {box
+    {v2 {min {.x {.lo b}} {.x {.lo c}}} {min {.y {.lo b}} {.y {.lo c}}}}
+    {v2 {max {.x {.hi b}} {.x {.hi c}}} {max {.y {.hi b}} {.y {.hi c}}}}}]
+Fn([List(Vec2)], Box). The box around points (at least one).
+$[# {boxAround points} {fold
+    {tail points}
+    {box {head points} {head points}}
+    {^ {b p} {boxUnion b {box p p}}}}]
+
+Mobs
+
+Fn([String, String, Int, Vec2, Float, String, Float, Vec2, Vec2], Mob). A formula's part, its box `lo`, `hi`.
+$[# {_texMob id latex part at size color alpha lo hi} {: {#tex {.
+    id id
+    latex latex
+    part part
+    at at
+    size size
+    color color
+    alpha alpha
+    wipe 1.0
+    lo lo
+    hi hi}} Mob}]
+$[# {_textMob id text key at size color}
+    [# w {* size {rt::textWidth text key}}]
+    {: {#text {.
+        id id
+        text text
+        key key
+        at at
+        size size
+        color color
+        alpha 1.0
+        lo {v2 {- {.x at} {/ w 2.0}} {- {.y at} {* size 0.6}}}
+        hi {v2 {+ {.x at} {/ w 2.0}} {+ {.y at} {* size 0.6}}}}} Mob}]
+
+Fn([String, String, Float, String, List(String), List(String)], List(Mob)). A formula, centred on the origin, an em
+`size` canvas units: its ink outside the `\lit{n}{…}` terms (named `id`, in `color`), then each term n (named
+the n-th of `names`, in the n-th of `colors`; past their ends, `id.n` and `color`). Display style.
+$[# {texParts id latex size color names colors}
+    [# measured {rt::texBox latex}]
+    [# parts {.parts measured}]
+    [# {_named n} {!if {<= n {length names}} {nth names {- n 1}} {++ id {++ "." {str n}}}}]
+    [# {_colored n} {!if {<= n {length colors}} {nth colors {- n 1}} color}]
+    {map
+        {range 0 {length parts}}
+        {^ {n}
+            [# b {nth parts n}]
+            {_texMob
+                {!if {= n 0} id {_named n}}
+                latex
+                n
+                origin
+                size
+                {!if {= n 0} color {_colored n}}
+                1.0
+                {scale2 {.lo b} size}
+                {scale2 {.hi b} size}}}}]
+Fn([String, String, Float, String], List(Mob)). A formula in one colour (its terms named `id.n`).
+$[# {tex id latex size color} {texParts id latex size color {'} {'}}]
+
+Fn([String, String, Float, String], List(Mob)). A line of text, written out (a number, a symbol), centred on the
+origin, an em `size` high.
+$[# {words id text size color} {' {_textMob id text false origin size color}}]
+Fn([String, String, Float, String], List(Mob)). A line of the package's text `key` (`textKey`), in the viewer's
+language.
+$[# {caption id key size color} {' {_textMob id key true origin size color}}]
+
+Fn([Float, Int], String). A number with `digits` decimals, as LaTeX (a minus sign, not a hyphen).
+$[# {numberLatex x digits} {!if {< x 0.0} f"{-${fixed {neg x} digits}}" {fixed x digits}}]
+Fn([String, Float, Int, Float, String], List(Mob)). A number typeset as a formula: count it by drawing it at a
+value that moves (`{number "w" {lerp 0.0 12.0 t} 2 0.5 color}`).
+$[# {number id x digits size color} {tex id {numberLatex x digits} size color}]
+Fn([Int, Int], String). A fraction `n/d` as LaTeX, in lowest terms (a whole number when `d` divides `n`).
+$[# {fractionLatex n d}
+    [# {_gcd a b} {!if {= b 0} a {_gcd b {% a b}}}]
+    [# g {_gcd {abs n} {abs d}}]
+    [# p {div n g}]
+    [# q {div d g}]
+    {!if {= q 1} {str p} f"{\frac{${str p}}{${str q}}}"}]
+
+Fn([String, Box, String, Float, String, Float, Float, Float], Mob). A rectangle: filled (`fillAlpha` 0 leaves the
+fill out), outlined `width` pixels (0 leaves it out), its corners rounded by `radius` canvas units.
+$[# {rectMob id b fill fillAlpha stroke strokeAlpha width radius} {: {#rect {.
+    id id
+    lo {.lo b}
+    hi {.hi b}
+    fill fill
+    fillAlpha fillAlpha
+    stroke stroke
+    strokeAlpha strokeAlpha
+    width width
+    radius radius}} Mob}]
+Fn([String, Box, String, Float], List(Mob)). A filled rectangle.
+$[# {filled id b color alpha} {' {rectMob id b color alpha color 0.0 0.0 0.0}}]
+Fn([String, Box, String, Float], List(Mob)). A rectangle's outline, `width` pixels, slightly rounded.
+$[# {outlined id b color width} {' {rectMob id b color 0.0 color 1.0 width 0.06}}]
+
+Fn([String, List(Vec2), String, Float, Bool, Bool], Mob). A path through `points`, `width` pixels.
+$[# {pathMob id points color width arrow dashed} {: {#path {.
+    id id
+    points points
+    color color
+    alpha 1.0
+    width width
+    drawn 1.0
+    arrow arrow
+    dashed dashed}} Mob}]
+Fn([String, Vec2, Vec2, String, Float], List(Mob)). A line.
+$[# {line id a b color width} {' {pathMob id {' a b} color width false false}}]
+Fn([String, Vec2, Vec2, String, Float], List(Mob)). An arrow from `a` to `b`.
+$[# {arrowLine id a b color width} {' {pathMob id {' a b} color width true false}}]
+Fn([String, Vec2, Vec2, String, Float], List(Mob)). A dashed line.
+$[# {dashedLine id a b color width} {' {pathMob id {' a b} color width false true}}]
+Fn([String, List(Vec2), String, Float], List(Mob)). A path through points (a curve, sampled).
+$[# {pathThrough id points color width} {' {pathMob id points color width false false}}]
+Fn([String, List(Vec2), List(Vec2), String, Float], List(Mob)). The area between two lines of as many points.
+$[# {bandBetween id top bottom color alpha} {'
+    {: {#band {. id id top top bottom bottom color color alpha alpha}} Mob}}]
+Fn([String, Vec2, Float, String], List(Mob)). A dot `radius` canvas units across, at `at`.
+$[# {dotAt id at radius color} {'
+    {: {#dot {. id id at at radius radius color color alpha 1.0}} Mob}}]
+
+Measuring a figure
+
+Fn([Mob], Option(Box)). The box a mob covers (none for the frame).
+$[# {_mobBox m} {!case m
+    {tex r {some {box {add2 {.at r} {.lo r}} {add2 {.at r} {.hi r}}}}}
+    {text r {some {box {.lo r} {.hi r}}}}
+    {rect r {some {box {.lo r} {.hi r}}}}
+    {path r {!if {isEmpty {.points r}} none {some {boxAround {.points r}}}}}
+    {band r {!if {isEmpty {.top r}} none {some {boxAround {append {.top r} {.bottom r}}}}}}
+    {dot r {some {box
+        {sub2 {.at r} {v2 {.radius r} {.radius r}}}
+        {add2 {.at r} {v2 {.radius r} {.radius r}}}}}}
+    {frame r none}}]
+Fn([List(Mob)], Box). The box around a figure (a box of no size at the origin when it has nothing to measure).
+$[# {boxOf mobs}
+    [# boxes {fold mobs {'} {^ {acc m} {caseOption {_mobBox m} {^ {} acc} {^ {b} {cons b acc}}}}}]
+    {!if {isEmpty boxes} {box origin origin} {fold {tail boxes} {head boxes} boxUnion}}]
+Fn([List(Mob)], Vec2). A figure's centre.
+$[# {centerOf mobs} {boxCenter {boxOf mobs}}]
+Fn([List(Mob)], Float). A figure's width.
+$[# {widthOf mobs} {boxWidth {boxOf mobs}}]
+Fn([List(Mob)], Float). A figure's height.
+$[# {heightOf mobs} {boxHeight {boxOf mobs}}]
+Fn([Mob], String). A mob's name (the frame's is empty).
+$[# {idOf m} {!case m
+    {tex r {.id r}}
+    {text r {.id r}}
+    {rect r {.id r}}
+    {path r {.id r}}
+    {band r {.id r}}
+    {dot r {.id r}}
+    {frame r ""}}]
+Fn([List(Mob), String], List(Mob)). The mobs named `id`.
+$[# {withId mobs id} {filter mobs {^ {m} {= {idOf m} id}}}]
+
+The frame
+
+The part of the canvas the frame shows: its centre and its height, as manim's camera frame.
+$[# Frame [% {Struct {' {Field "center" Vec2} {Field "height" Float}}}]]
+Fn([Vec2, Float], Frame). A frame.
+$[# {frameAt center height} {: {. center center height height} Frame}]
+The whole canvas: 8 high about the origin.
+$[# fullFrame [% {frameAt {v2 0.0 0.0} 8.0}]]
+The canvas's width when the frame is 8 high, at 16:9.
+$[# canvasWidth [% {/ {* 8.0 16.0} 9.0}]]
+Fn([List(Mob), Float], Frame). The frame around a figure, with `pad` canvas units around it, at 16:9.
+$[# {frameOn mobs pad}
+    [# b {padded {boxOf mobs} pad}]
+    {frameAt {boxCenter b} {max {boxHeight b} {/ {* {boxWidth b} 9.0} 16.0}}}]
+Fn([Frame, Frame, Float], Frame). From one frame to another, smoothly, at `t` (its height by its logarithm, so
+a zoom runs at an even pace).
+$[# {frameBetween a b t}
+    [# s {smooth {clamp t 0.0 1.0}}]
+    {frameAt {lerp2 {.center a} {.center b} s} {exp {lerp {ln {.height a}} {ln {.height b}} s}}}]
+Fn([Frame], List(Mob)). The frame as the scene's mob (the last one a scene returns counts).
+$[# {showFrame f} {' {: {#frame {. center {.center f} height {.height f}}} Mob}}]
+
+Moving a figure
+
+Fn([List(Mob), Fn([Vec2], Vec2), Float], List(Mob)). Every point of a figure mapped by `f`, and its sizes (an
+em, a dot, a corner) scaled by `s`. Widths of lines stay in pixels, as manim's strokes do.
+$[# {mapped mobs f s} {map mobs {^ {m} {: {!case m
+    {tex r {#tex {.lo=
+        {.hi= {.size= {.at= r {f {.at r}}} {* {.size r} s}} {scale2 {.hi r} s}}
+        {scale2 {.lo r} s}}}}
+    {text r {#text {.lo=
+        {.hi= {.size= {.at= r {f {.at r}}} {* {.size r} s}} {f {.hi r}}}
+        {f {.lo r}}}}}
+    {rect r {#rect {.radius= {.lo= {.hi= r {f {.hi r}}} {f {.lo r}}} {* {.radius r} s}}}}
+    {path r {#path {.points= r {map {.points r} f}}}}
+    {band r {#band {.bottom= {.top= r {map {.top r} f}} {map {.bottom r} f}}}}
+    {dot r {#dot {.radius= {.at= r {f {.at r}}} {* {.radius r} s}}}}
+    {frame r {#frame r}}} Mob}}}]
+Fn([List(Mob), Vec2], List(Mob)). Moved by `d`.
+$[# {shift mobs d} {mapped mobs {^ {p} {add2 p d}} 1.0}]
+Fn([List(Mob), Vec2], List(Mob)). Moved so its centre is at `p`.
+$[# {moveTo mobs p} {shift mobs {sub2 p {centerOf mobs}}}]
+Fn([List(Mob), Vec2, Float], List(Mob)). Scaled by `s` about `c`.
+$[# {scaleAbout mobs c s} {mapped mobs {^ {p} {add2 c {scale2 {sub2 p c} s}}} s}]
+Fn([List(Mob), Float], List(Mob)). Scaled by `s` about its centre.
+$[# {scaled mobs s} {scaleAbout mobs {centerOf mobs} s}]
+Fn([List(Mob), Box], List(Mob)). Moved and scaled (evenly) from where it is into the box `b`: centred on it, as
+high as it (or as wide, whichever fits).
+$[# {fitInto mobs b}
+    [# from {boxOf mobs}]
+    [# s {min
+        {/ {boxHeight b} {max {boxHeight from} 0.0001}}
+        {/ {boxWidth b} {max {boxWidth from} 0.0001}}}]
+    {moveTo {scaled mobs s} {boxCenter b}}]
+
+The four sides a figure can be put on.
+$[# Side [% {Variant {'
+    {Field "right" Unit}
+    {Field "left" Unit}
+    {Field "up" Unit}
+    {Field "down" Unit}}}]]
+$[# right [% {: {#right unit} Side}]]
+$[# left [% {: {#left unit} Side}]]
+$[# up [% {: {#up unit} Side}]]
+$[# down [% {: {#down unit} Side}]]
+Fn([Side], Vec2). A side's direction.
+$[# {sideDir side} {!case side
+    {right u {v2 1.0 0.0}}
+    {left u {v2 -1.0 0.0}}
+    {up u {v2 0.0 1.0}}
+    {down u {v2 0.0 -1.0}}}]
+Fn([List(Mob), List(Mob), Side, Float], List(Mob)). Moved beside `anchor`, on its `side`, `gap` canvas units
+from it, centred on it along that side (manim's `next_to`).
+$[# {nextTo mobs anchor side gap}
+    [# a {boxOf anchor}]
+    [# m {boxOf mobs}]
+    [# c {boxCenter a}]
+    [# target {!case side
+        {right u {v2 {+ {+ {.x {.hi a}} gap} {/ {boxWidth m} 2.0}} {.y c}}}
+        {left u {v2 {- {- {.x {.lo a}} gap} {/ {boxWidth m} 2.0}} {.y c}}}
+        {up u {v2 {.x c} {+ {+ {.y {.hi a}} gap} {/ {boxHeight m} 2.0}}}}
+        {down u {v2 {.x c} {- {- {.y {.lo a}} gap} {/ {boxHeight m} 2.0}}}}}]
+    {moveTo mobs target}]
+Fn([List(Mob), Side, Float], List(Mob)). Moved to an edge of the whole canvas (8 high, 16:9), `margin` from it,
+centred along it (manim's `to_edge`).
+$[# {toEdge mobs side margin}
+    [# m {boxOf mobs}]
+    [# c {centerOf mobs}]
+    {moveTo mobs {!case side
+        {right u {v2 {- {- {/ canvasWidth 2.0} margin} {/ {boxWidth m} 2.0}} {.y c}}}
+        {left u {v2 {+ {+ {/ canvasWidth -2.0} margin} {/ {boxWidth m} 2.0}} {.y c}}}
+        {up u {v2 {.x c} {- {- 4.0 margin} {/ {boxHeight m} 2.0}}}}
+        {down u {v2 {.x c} {+ {+ -4.0 margin} {/ {boxHeight m} 2.0}}}}}}]
+Fn([List(List(Mob)), Float], List(List(Mob))). Figures side by side, left to right, `gap` apart, their centres
+on one line, the whole row centred on the origin (manim's `arrange(RIGHT)`).
+$[# {inRow figures gap}
+    [# widths {map figures widthOf}]
+    [# total {+ {fold widths 0.0 +} {* gap {float {- {length figures} 1}}}}]
+    {.second {fold figures
+        {pair {/ total -2.0} {'}}
+        {^ {acc f}
+            [# w {widthOf f}]
+            {pair
+                {+ {+ {.first acc} w} gap}
+                {append {.second acc} {' {moveTo f {v2 {+ {.first acc} {/ w 2.0}} 0.0}}}}}}}}]
+Fn([List(List(Mob)), Float], List(List(Mob))). Figures one under another, top to bottom, `gap` apart, centred
+on one vertical line, the whole column centred on the origin (manim's `arrange(DOWN)`).
+$[# {inColumn figures gap}
+    [# total {+ {fold {map figures heightOf} 0.0 +} {* gap {float {- {length figures} 1}}}}]
+    {.second {fold figures
+        {pair {/ total 2.0} {'}}
+        {^ {acc f}
+            [# h {heightOf f}]
+            {pair
+                {- {- {.first acc} h} gap}
+                {append {.second acc} {' {moveTo f {v2 0.0 {- {.first acc} {/ h 2.0}}}}}}}}}}]
+
+Colour and opacity
+
+Fn([List(Mob), Float], List(Mob)). Its opacity multiplied by `k`.
+$[# {faded mobs k} {map mobs {^ {m} {: {!case m
+    {tex r {#tex {.alpha= r {* {.alpha r} k}}}}
+    {text r {#text {.alpha= r {* {.alpha r} k}}}}
+    {rect r {#rect {.strokeAlpha= {.fillAlpha= r {* {.fillAlpha r} k}} {* {.strokeAlpha r} k}}}}
+    {path r {#path {.alpha= r {* {.alpha r} k}}}}
+    {band r {#band {.alpha= r {* {.alpha r} k}}}}
+    {dot r {#dot {.alpha= r {* {.alpha r} k}}}}
+    {frame r {#frame r}}} Mob}}}]
+Fn([List(Mob), String], List(Mob)). Recoloured (a rectangle's fill and outline both).
+$[# {tinted mobs color} {map mobs {^ {m} {: {!case m
+    {tex r {#tex {.color= r color}}}
+    {text r {#text {.color= r color}}}
+    {rect r {#rect {.stroke= {.fill= r color} color}}}
+    {path r {#path {.color= r color}}}
+    {band r {#band {.color= r color}}}
+    {dot r {#dot {.color= r color}}}
+    {frame r {#frame r}}} Mob}}}]
+Fn([List(Mob), String], List(Mob)). Renamed: every mob called `id` (a figure that stands for one thing).
+$[# {renamed mobs id} {map mobs {^ {m} {: {!case m
+    {tex r {#tex {.id= r id}}}
+    {text r {#text {.id= r id}}}
+    {rect r {#rect {.id= r id}}}
+    {path r {#path {.id= r id}}}
+    {band r {#band {.id= r id}}}
+    {dot r {#dot {.id= r id}}}
+    {frame r {#frame r}}} Mob}}}]
+
+Progress and rate functions
+
+An animation's progress `t` runs from 0 to 1. Each animation eases it itself with `smooth` (manim's default rate
+function); these give the others, and split one value into the stages of a sequence.
+
+Fn([Float, Float, Float], Float). How far `x` is from `a` to `b`, 0 before and 1 after: one stage of a value
+that steps a sequence (`{phase step 3.0 4.0}` runs while `step` goes from 3 to 4; manim's `Succession`).
+$[# {phase x a b} {clamp {/ {- x a} {- b a}} 0.0 1.0}]
+Fn([Float], Float). There and back: 0 at both ends, 1 in the middle, smoothly (manim's `there_and_back`).
+$[# {thereAndBack t} {smooth {- 1.0 {abs {- {* 2.0 {clamp t 0.0 1.0}} 1.0}}}}]
+Fn([Float], Float). Starting from rest, ending at speed (manim's `rush_into`).
+$[# {rushInto t} {* 2.0 {smooth {/ {clamp t 0.0 1.0} 2.0}}}]
+Fn([Float], Float). Starting at speed, ending at rest (manim's `rush_from`).
+$[# {rushFrom t} {- {* 2.0 {smooth {+ {/ {clamp t 0.0 1.0} 2.0} 0.5}}} 1.0}]
+Fn([Float, Int, Int, Float], Float). The progress of the `i`-th of `n` animations that start one after another,
+each `lag` of one's length after the one before, at the whole group's progress `t` (manim's `LaggedStart`).
+$[# {lagged t i n lag}
+    [# total {+ 1.0 {* lag {float {- n 1}}}}]
+    {clamp {- {* t total} {* lag {float i}}} 0.0 1.0}]
+
+Animations
+
+Each takes its progress `t` (0 to 1) and the figure, and gives the figure at that moment.
+
+Fn([Float, List(Mob)], List(Mob)). Fades in while rising a little into place (manim's `FadeIn(shift=UP)`).
+$[# {fadeIn t mobs}
+    [# s {smooth {clamp t 0.0 1.0}}]
+    {!if {<= s 0.0} {'} {faded {shift mobs {v2 0.0 {* -0.25 {- 1.0 s}}}} s}}]
+Fn([Float, List(Mob)], List(Mob)). Fades out while rising a little away.
+$[# {fadeOut t mobs}
+    [# s {smooth {clamp t 0.0 1.0}}]
+    {!if {>= s 1.0} {'} {faded {shift mobs {v2 0.0 {* 0.25 s}}} {- 1.0 s}}}]
+Fn([Mob, Float], Mob). One mob written to the fraction `s`: a formula's part wiped in from the left, a path
+drawn along its length, anything else faded in.
+$[# {_writtenTo m s} {: {!case m
+    {tex r {#tex {.wipe= r s}}}
+    {path r {#path {.drawn= r s}}}
+    {text r {#text {.alpha= r {* {.alpha r} s}}}}
+    {rect r {#rect {.strokeAlpha= {.fillAlpha= r {* {.fillAlpha r} s}} {* {.strokeAlpha r} s}}}}
+    {band r {#band {.alpha= r {* {.alpha r} s}}}}
+    {dot r {#dot {.alpha= r {* {.alpha r} s}}}}
+    {frame r {#frame r}}} Mob}]
+Fn([Float, List(Mob)], List(Mob)). Written in, mob by mob from the first, each starting before the last ends
+(manim's `Write`; a formula's parts are its mobs, so it writes left to right as its parts are ordered).
+$[# {write t mobs}
+    [# n {length mobs}]
+    [# s {clamp t 0.0 1.0}]
+    {filter
+        {map
+            {zip {range 0 n} mobs}
+            {^ {e} {_writtenTo {.second e} {smooth {lagged s {.first e} n 0.4}}}}}
+        {^ {m} {!case m
+            {tex r {> {.wipe r} 0.0}}
+            {path r {> {.drawn r} 0.0}}
+            {text r {> {.alpha r} 0.0}}
+            {rect r {!or {> {.fillAlpha r} 0.0} {> {.strokeAlpha r} 0.0}}}
+            {band r {> {.alpha r} 0.0}}
+            {dot r {> {.alpha r} 0.0}}
+            {frame r true}}}}]
+Fn([Float, List(Mob)], List(Mob)). Drawn all at once (manim's `Create`): paths along their length, the rest
+faded in.
+$[# {create t mobs}
+    [# s {smooth {clamp t 0.0 1.0}}]
+    {!if {<= s 0.0} {'} {map mobs {^ {m} {_writtenTo m s}}}}]
+Fn([Float, List(Mob), Side], List(Mob)). Grown out of one side of its box (manim's `GrowFromEdge`): a bar rises
+from its axis with `down`.
+$[# {growFrom t mobs side}
+    [# s {smooth {clamp t 0.0 1.0}}]
+    [# b {boxOf mobs}]
+    {!if {<= s 0.0}
+        {'}
+        {mapped mobs
+            {^ {p} {!case side
+                {down u {v2 {.x p} {+ {.y {.lo b}} {* s {- {.y p} {.y {.lo b}}}}}}}
+                {up u {v2 {.x p} {+ {.y {.hi b}} {* s {- {.y p} {.y {.hi b}}}}}}}
+                {left u {v2 {+ {.x {.lo b}} {* s {- {.x p} {.x {.lo b}}}}} {.y p}}}
+                {right u {v2 {+ {.x {.hi b}} {* s {- {.x p} {.x {.hi b}}}}} {.y p}}}}}
+            1.0}}]
+Fn([Float, List(Mob), String], List(Mob)). Pointed at: scaled up and lit in `color`, then back (manim's
+`Indicate`).
+$[# {indicate t mobs color}
+    [# s {thereAndBack t}]
+    [# grown {scaled mobs {+ 1.0 {* 0.2 s}}}]
+    {!if {<= s 0.0} mobs {append {faded grown {- 1.0 s}} {faded {tinted grown color} s}}}]
+Fn([Float, List(Mob), String], List(Mob)). An outline drawn around the figure, then faded (manim's
+`Circumscribe`): the figure with it.
+$[# {circumscribe t mobs color}
+    [# b {padded {boxOf mobs} 0.15}]
+    [# corners {'
+        {v2 {.x {.lo b}} {.y {.hi b}}}
+        {.hi b}
+        {v2 {.x {.hi b}} {.y {.lo b}}}
+        {.lo b}
+        {v2 {.x {.lo b}} {.y {.hi b}}}}]
+    [# drawn {smooth {phase t 0.0 0.6}}]
+    [# alpha {- 1.0 {smooth {phase t 0.6 1.0}}}]
+    {!if {!or {<= t 0.0} {>= t 1.0}}
+        mobs
+        {append mobs {faded
+            {' {_writtenTo {pathMob "circumscribe" corners color 3.0 false false} drawn}}
+            alpha}}}]
+Fn([Float, List(Mob), String], List(Mob)). Struck out: a line drawn across the figure, which dims to half (a term
+a counterfactual leaves out).
+$[# {crossOut t mobs color}
+    [# s {smooth {clamp t 0.0 1.0}}]
+    [# b {padded {boxOf mobs} 0.08}]
+    {!if {<= s 0.0}
+        mobs
+        {append
+            {faded mobs {- 1.0 {* 0.5 s}}}
+            {' {_writtenTo {pathMob "cross" {' {.lo b} {.hi b}} color 3.0 false false} s}}}}]
+
+Fn([List(Mob), Box, Box], List(Mob)). A figure carried from the box `a` to the box `b`: moved, and scaled by their
+heights.
+$[# {_carried mobs a b}
+    [# s {/ {max {boxHeight b} 0.0001} {max {boxHeight a} 0.0001}}]
+    [# ca {boxCenter a}]
+    [# cb {boxCenter b}]
+    {mapped mobs {^ {p} {add2 cb {scale2 {sub2 p ca} s}}} s}]
+Fn([Box, Box, Float], Box). From one box to another.
+$[# {_boxBetween a b s} {box {lerp2 {.lo a} {.lo b} s} {lerp2 {.hi a} {.hi b} s}}]
+Fn([Float, List(Mob), List(Mob)], List(Mob)). One figure turned into another (manim's `TransformMatchingTex`):
+the pieces named alike in both move (and scale) from where they are in the first to where they are in the second,
+each cross-fading into its new form; the first's other pieces fade out, the second's fade in. Pieces named ""
+never match.
+$[# {transform t from to}
+    [# s {smooth {clamp t 0.0 1.0}}]
+    [# {_ids mobs} {filter
+        {unique {map mobs idOf}}
+        {^ {i} {!and {!= i ""} {not {isEmpty {withId mobs i}}}}}}]
+    [# fromIds {_ids from}]
+    [# toIds {_ids to}]
+    [# shared {filter fromIds {^ {i} {contains toIds i}}}]
+    [# {_isShared m} {!and {!= {idOf m} ""} {contains shared {idOf m}}}]
+    [# moving {flatten {map shared {^ {i}
+        [# a {withId from i}]
+        [# b {withId to i}]
+        [# ba {boxOf a}]
+        [# bb {boxOf b}]
+        [# now {_boxBetween ba bb s}]
+        {append
+            {faded {_carried a ba now} {min 1.0 {* 2.0 {- 1.0 s}}}}
+            {faded {_carried b bb now} {min 1.0 {* 2.0 s}}}}}}}]
+    [# leaving {filter from {^ {m} {not {_isShared m}}}}]
+    [# coming {filter to {^ {m} {not {_isShared m}}}}]
+    {!if {<= s 0.0}
+        from
+        {!if {>= s 1.0} to {flatten {' {fadeOut s leaving} moving {fadeIn s coming}}}}}]
+Fn([Float, List(Mob), List(Mob)], List(Mob)). A copy of `source` flying into `target`'s place and turning into
+it; `source` stays (manim's `TransformFromCopy`). Draw `source` beside it.
+$[# {fromCopy t source target}
+    [# s {smooth {clamp t 0.0 1.0}}]
+    [# a {boxOf source}]
+    [# b {boxOf target}]
+    [# now {_boxBetween a b s}]
+    {!if {<= s 0.0}
+        {'}
+        {!if {>= s 1.0}
+            target
+            {append
+                {faded {_carried source a now} {min 1.0 {* 2.0 {- 1.0 s}}}}
+                {faded {_carried target b now} {min 1.0 {* 2.0 s}}}}}}]
+
+Axes and number lines
+
+A range of numbers on an axis: from `lo` to `hi`, a tick every `step`.
+$[# Range [% {Struct {' {Field "lo" Float} {Field "hi" Float} {Field "step" Float}}}]]
+Fn([Float, Float, Float], Range). A range of an axis.
+$[# {axisRange lo hi step} {: {. lo lo hi hi step step} Range}]
+Fn([Range], List(Float)). The range's ticks, from `lo` to `hi` (a rounding short of `hi` counts).
+$[# {ticksOf r}
+    [# n {floor {+ {/ {- {.hi r} {.lo r}} {.step r}} 0.0001}}]
+    {map {range 0 {+ n 1}} {^ {i} {+ {.lo r} {* {.step r} {float i}}}}}]
+Fn([Float], String). A tick's label: a whole number without decimals, a tenth with one, else with two.
+$[# {tickLatex x}
+    [# {_near a} {< {abs {- a {float {round a}}}} 0.000001}]
+    {!if {_near x} {str {round x}} {numberLatex x {!if {_near {* x 10.0}} 1 2}}}]
+
+Axes: where they are on the canvas (a box), the ranges they show, and how a point of theirs maps to the canvas.
+Every figure drawn on them (`plot`, `area`, `riemann`, `histogram`, `dotOn`) takes them, so moving the axes
+moves what is on them.
+$[# Axes [% {Struct {' {Field "box" Box} {Field "x" Range} {Field "y" Range}}}]]
+Fn([Box, Range, Range], Axes). Axes filling `b`.
+$[# {axesIn b x y} {: {. box b x x y y} Axes}]
+Fn([Axes, Float, Float], Vec2). The canvas point of the axes' point (x, y).
+$[# {onAxes ax x y}
+    [# b {.box ax}]
+    {v2
+        {lerp {.x {.lo b}} {.x {.hi b}} {/ {- x {.lo {.x ax}}} {- {.hi {.x ax}} {.lo {.x ax}}}}}
+        {lerp {.y {.lo b}} {.y {.hi b}} {/ {- y {.lo {.y ax}}} {- {.hi {.y ax}} {.lo {.y ax}}}}}}]
+Fn([Axes, Float], Float). The axes' y clamped to their range.
+$[# {_clampY ax y} {clamp y {.lo {.y ax}} {.hi {.y ax}}}]
+Fn([Axes, Float], Float). Where the x axis crosses: y = 0 when the range holds it, else its bottom.
+$[# {_baseY ax} {_clampY ax 0.0}]
+
+Fn([String, Axes, String, Float, Bool, Bool], List(Mob)). The axes drawn: each axis an arrow through its range (at
+the other's zero, or its edge), ticks, and (`labelX`, `labelY`) each tick's number, `size` canvas units an em.
+$[# {axesFigure id ax color size labelX labelY}
+    [# y0 {_baseY ax}]
+    [# x0 {clamp 0.0 {.lo {.x ax}} {.hi {.x ax}}}]
+    [# tick 0.08]
+    [# xAxis {'
+        {pathMob
+            {++ id ".x"}
+            {' {onAxes ax {.lo {.x ax}} y0} {add2 {onAxes ax {.hi {.x ax}} y0} {v2 0.25 0.0}}}
+            color
+            2.0
+            true
+            false}}]
+    [# yAxis {'
+        {pathMob
+            {++ id ".y"}
+            {' {onAxes ax x0 {.lo {.y ax}}} {add2 {onAxes ax x0 {.hi {.y ax}}} {v2 0.0 0.25}}}
+            color
+            2.0
+            true
+            false}}]
+    [# xTicks {flatten {map
+        {ticksOf {.x ax}}
+        {^ {x}
+            [# p {onAxes ax x y0}]
+            [# mark {line {++ id ".xtick"} {add2 p {v2 0.0 tick}} {sub2 p {v2 0.0 tick}} color 2.0}]
+            {!if labelX
+                {append mark {moveTo
+                    {tex {++ id ".xlabel"} {tickLatex x} size color}
+                    {sub2 p {v2 0.0 {+ tick {* size 0.7}}}}}}
+                mark}}}}]
+    [# yTicks {flatten {map
+        {ticksOf {.y ax}}
+        {^ {y}
+            [# p {onAxes ax x0 y}]
+            [# mark {line {++ id ".ytick"} {add2 p {v2 tick 0.0}} {sub2 p {v2 tick 0.0}} color 2.0}]
+            [# label {tex {++ id ".ylabel"} {tickLatex y} size color}]
+            {!if labelY
+                {append mark {moveTo label {sub2 p {v2
+                    {+ {+ tick 0.1} {/ {widthOf label} 2.0}}
+                    0.0}}}}
+                mark}}}}]
+    {flatten {' xAxis yAxis xTicks yTicks}}]
+Fn([String, Range, Vec2, Vec2, String, Float], List(Mob)). A number line from `a` to `b` on the canvas, its range's
+ticks numbered, `size` an em (an axis alone).
+$[# {numberLine id r a b color size}
+    [# ax {axesIn {box a {v2 {.x b} {+ {.y a} 1.0}}} r {axisRange 0.0 1.0 1.0}}]
+    [# ticks {flatten {map
+        {ticksOf r}
+        {^ {x}
+            [# p {onAxes ax x 0.0}]
+            {append
+                {line {++ id ".tick"} {add2 p {v2 0.0 0.1}} {sub2 p {v2 0.0 0.1}} color 2.0}
+                {moveTo
+                    {tex {++ id ".label"} {tickLatex x} size color}
+                    {sub2 p {v2 0.0 {+ 0.1 {* size 0.7}}}}}}}}}]
+    {append {line {++ id ".line"} a b color 2.0} ticks}]
+Fn([Range, Vec2, Vec2, Float], Vec2). Where `x` is on a number line from `a` to `b`.
+$[# {onLine r a b x} {lerp2 a b {/ {- x {.lo r}} {- {.hi r} {.lo r}}}}]
+
+Functions
+
+A curve is sampled where it bends: 32 even steps, each halved again while the curve's middle strays from the chord
+by more than a hundredth of a canvas unit, at most four times (so a frame's cost has a bound). It breaks where it
+leaves the axes' range, and where it jumps: two samples a twentieth of a canvas unit apart across but half a unit
+apart up or down (what refining a discontinuity leaves).
+
+Fn([Axes, Fn([Float], Float), Float, Float, Float, Float, Int], List(Vec2)). The points after (x0, y0) up to and
+with (x1, y1), refined.
+$[# {_refine ax f x0 y0 x1 y1 depth}
+    [# xm {/ {+ x0 x1} 2.0}]
+    [# ym {f xm}]
+    [# chord {lerp2 {onAxes ax x0 y0} {onAxes ax x1 y1} 0.5}]
+    {!if {!and {> depth 0} {> {dist2 chord {onAxes ax xm ym}} 0.01}}
+        {append {_refine ax f x0 y0 xm ym {- depth 1}} {_refine ax f xm ym x1 y1 {- depth 1}}}
+        {' {v2 x1 y1}}}]
+Fn([Axes, Fn([Float], Float), Float, Float], List(Vec2)). A function's samples from `a` to `b`, in the axes' own
+numbers, refined where it bends.
+$[# {samplesOf ax f a b}
+    [# n 32]
+    [# xs {map {range 0 {+ n 1}} {^ {i} {lerp a b {/ {float i} {float n}}}}}]
+    [# first {head xs}]
+    {.second {fold
+        {tail xs}
+        {pair {v2 first {f first}} {' {v2 first {f first}}}}
+        {^ {acc x}
+            [# last {.first acc}]
+            [# y {f x}]
+            {pair {v2 x y} {append {.second acc} {_refine ax f {.x last} {.y last} x y 4}}}}}}]
+Fn([Axes, List(Vec2)], List(List(Vec2))). Samples cut into the runs that stay in the axes' range and do not jump,
+each mapped to the canvas.
+$[# {_runs ax points}
+    [# yr {.y ax}]
+    [# {_steep a b}
+        [# d {sub2 {onAxes ax {.x b} {.y b}} {onAxes ax {.x a} {.y a}}}]
+        {!and {> {abs {.y d}} 0.5} {< {abs {.x d}} 0.05}}]
+    [# {_inside p} {!and {>= {.y p} {- {.lo yr} 0.0001}} {<= {.y p} {+ {.hi yr} 0.0001}}}]
+    [# cut {fold points
+        {pair {'} {'}}
+        {^ {acc p}
+            [# runs {.first acc}]
+            [# current {.second acc}]
+            [# jumps {!if {isEmpty current} false {_steep {nth current {- {length current} 1}} p}}]
+            {!if {!and {_inside p} {not jumps}}
+                {pair runs {append current {' p}}}
+                {pair
+                    {!if {< {length current} 2} runs {append runs {' current}}}
+                    {!if {_inside p} {' p} {'}}}}}}]
+    [# all {!if {< {length {.second cut}} 2} {.first cut} {append {.first cut} {' {.second cut}}}}]
+    {map all {^ {run} {map run {^ {p} {onAxes ax {.x p} {.y p}}}}}}]
+Fn([String, Axes, Fn([Float], Float), Float, Float, String, Float], List(Mob)). The graph of `f` from `a` to `b` on
+the axes, `width` pixels (manim's `Axes.plot`); `create` draws it along its length.
+$[# {plot id ax f a b color width} {map
+    {_runs ax {samplesOf ax f a b}}
+    {^ {run} {pathMob id run color width false false}}}]
+Fn([String, Axes, Fn([Float], Vec2), Float, Float, Int, String, Float], List(Mob)). A curve in the plane, `g` of a
+parameter from `a` to `b` in `n` even steps, in the axes' numbers (manim's `ParametricFunction`).
+$[# {parametric id ax g a b n color width}
+    [# points {map {range 0 {+ n 1}} {^ {i} {g {lerp a b {/ {float i} {float n}}}}}}]
+    {map {_runs ax points} {^ {run} {pathMob id run color width false false}}}]
+Fn([String, Axes, Fn([Float], Float), Float, Float, String, Float], List(Mob)). The area between the graph of `f`
+and the x axis, from `a` to `b` (manim's `get_area`), its height clamped to the axes.
+$[# {area id ax f a b color alpha}
+    [# n 64]
+    [# xs {map {range 0 {+ n 1}} {^ {i} {lerp a b {/ {float i} {float n}}}}}]
+    {bandBetween id
+        {map xs {^ {x} {onAxes ax x {_clampY ax {f x}}}}}
+        {map xs {^ {x} {onAxes ax x {_baseY ax}}}}
+        color
+        alpha}]
+Fn([String, Axes, Fn([Float], Float), Fn([Float], Float), Float, Float, String, Float], List(Mob)). The area
+between two graphs from `a` to `b`.
+$[# {areaBetween id ax f g a b color alpha}
+    [# n 64]
+    [# xs {map {range 0 {+ n 1}} {^ {i} {lerp a b {/ {float i} {float n}}}}}]
+    {bandBetween id
+        {map xs {^ {x} {onAxes ax x {_clampY ax {f x}}}}}
+        {map xs {^ {x} {onAxes ax x {_clampY ax {g x}}}}}
+        color
+        alpha}]
+Fn([String, Axes, Fn([Float], Float), Float, Float, Int, String, Float], List(Mob)). `n` bars under the graph of
+`f` from `a` to `b`, each as high as `f` at its middle (manim's `get_riemann_rectangles`): their area is the
+midpoint sum, which nears the integral as `n` grows. Each bar is named `id.i`, so `write` raises them in turn.
+$[# {riemann id ax f a b n color alpha}
+    [# w {/ {- b a} {float n}}]
+    {map
+        {range 0 n}
+        {^ {i}
+            [# x0 {+ a {* w {float i}}}]
+            [# x1 {+ x0 w}]
+            [# y {_clampY ax {f {+ x0 {/ w 2.0}}}}]
+            [# y0 {_baseY ax}]
+            {rectMob
+                {++ id {++ "." {str i}}}
+                {box {onAxes ax x0 {min y y0}} {onAxes ax x1 {max y y0}}}
+                color
+                alpha
+                color
+                1.0
+                1.5
+                0.0}}}]
+Fn([Fn([Float], Float), Float], Float). The slope of `f` at `x` (a central difference).
+$[# {slopeOf f x} [# h 0.0001] {/ {- {f {+ x h}} {f {- x h}}} {* 2.0 h}}]
+Fn([String, Axes, Fn([Float], Float), Float, Float, String], List(Mob)). The tangent to the graph of `f` at `x`,
+`length` long in the axes' x numbers.
+$[# {tangentAt id ax f x length color}
+    [# k {slopeOf f x}]
+    [# d {/ length 2.0}]
+    {line id {onAxes ax {- x d} {- {f x} {* k d}}} {onAxes ax {+ x d} {+ {f x} {* k d}}} color 2.5}]
+Fn([String, Axes, Fn([Float], Float), Float, Float, String], List(Mob)). A dot on the graph of `f` at `x`
+(sweep `x` and it rides the curve).
+$[# {dotOn id ax f x radius color} {dotAt id {onAxes ax x {_clampY ax {f x}}} radius color}]
+Fn([String, Axes, Fn([Float], Float), Float, String], List(Mob)). A dashed line down from the graph of `f` at `x` to
+the x axis (manim's `get_vertical_line`).
+$[# {dropLine id ax f x color} {dashedLine id
+    {onAxes ax x {_clampY ax {f x}}}
+    {onAxes ax x {_baseY ax}}
+    color
+    2.0}]
+Fn([List(Mob), Axes, Fn([Float], Float), Float, Float], List(Mob)). A label moved beside the graph of `f` at `x`,
+`gap` above it, on the side the curve leaves clear: up and left where it rises, up and right where it falls
+(manim's `get_graph_label`).
+$[# {curveLabel label ax f x gap}
+    [# p {onAxes ax x {_clampY ax {f x}}}]
+    [# dx {+ gap {/ {widthOf label} 2.0}}]
+    {moveTo label {add2 p {v2
+        {!if {> {slopeOf f x} 0.0} {neg dx} dx}
+        {+ gap {/ {heightOf label} 2.0}}}}}]
+
+Samples
+
+Seeded numbers, the same in every frame and every run: what a scene draws from a distribution.
+
+Fn([Int, Int], Float). The `i`-th of a seed's uniform numbers in [0, 1) (std's stable `hash`).
+$[# {uniform seed i} {/ {float {% {hash {pair seed i}} 16777216}} 16777216.0}]
+Fn([Int, Int], List(Float)). `count` uniform numbers in [0, 1).
+$[# {uniforms seed count} {map {range 0 count} {^ {i} {uniform seed i}}}]
+Fn([Int, Int], List(Float)). `count` stratified numbers in [0, 1): one in each of `count` even strata, jittered.
+$[# {stratified seed count} {map
+    {range 0 count}
+    {^ {i} {/ {+ {float i} {uniform seed i}} {float count}}}}]
+Fn([Fn([Float], Float), Float, Float, Int, Int], List(Float)). `count` numbers from `lo` to `hi` drawn in
+proportion to `f` (not negative, not all 0), seeded: `f` tabulated in 256 bins, drawn from by inverting their
+running total (`rl_runtime/samplesFrom`).
+$[# {drawnFrom f lo hi seed count}
+    [# bins 256]
+    [# w {/ {- hi lo} {float bins}}]
+    [# masses {map {range 0 bins} {^ {i} {max 0.0 {f {+ lo {* w {+ {float i} 0.5}}}}}}}]
+    {map {rt::samplesFrom masses seed count} {^ {u} {+ lo {* {- hi lo} u}}}}]
+Fn([String, Axes, List(Float), Float, Float, Int, String, Float], List(Mob)). A histogram of samples on the axes,
+`bins` bars from `lo` to `hi`, each as high as its density (its share over its width), so it lies on the curve of
+the density it was drawn from. Each bar is named `id.i`.
+$[# {histogram id ax samples lo hi bins color alpha}
+    [# w {/ {- hi lo} {float bins}}]
+    [# n {float {max 1 {length samples}}}]
+    {map
+        {range 0 bins}
+        {^ {i}
+            [# x0 {+ lo {* w {float i}}}]
+            [# count {length {filter samples {^ {s} {!and {>= s x0} {< s {+ x0 w}}}}}}]
+            [# h {_clampY ax {/ {/ {float count} n} w}}]
+            {rectMob
+                {++ id {++ "." {str i}}}
+                {box {onAxes ax x0 {_baseY ax}} {onAxes ax {+ x0 w} h}}
+                color
+                alpha
+                color
+                1.0
+                1.0
+                0.0}}}]
+Fn([Float, List(List(Mob))], List(Mob)). The first `count` figures of a list, the next one fading in as `count`
+passes its index (sweep a count and the newest arrives while the earlier stay).
+$[# {firstOf count figures} {flatten {map
+    {zip {range 0 {length figures}} figures}
+    {^ {e}
+        [# k {- count {float {.first e}}}]
+        {!if {<= k 0.0} {'} {!if {>= k 1.0} {.second e} {fadeIn k {.second e}}}}}}}]
+
+Bars, braces, and areas
+
+Fn([String, List(Float), Float, Box, List(String), Float], List(List(Mob))). Bars for values, side by side in
+`b`, each as high as its value over `top` (the value the box's height stands for), `gap` (a fraction of a bar)
+between them, in its colour (the last colour when they run out). Each bar is named `id.i`; `growFrom … down`
+raises one.
+$[# {bars id values top b colors gap}
+    [# n {length values}]
+    [# slot {/ {boxWidth b} {float n}}]
+    [# w {* slot {- 1.0 gap}}]
+    {map
+        {zip {range 0 n} values}
+        {^ {e}
+            [# i {.first e}]
+            [# x0 {+ {+ {.x {.lo b}} {* slot {float i}}} {/ {- slot w} 2.0}}]
+            [# h {* {boxHeight b} {/ {.second e} top}}]
+            [# color {nth colors {min i {- {length colors} 1}}}]
+            {'
+                {rectMob
+                    {++ id {++ "." {str i}}}
+                    {box {v2 x0 {.y {.lo b}}} {v2 {+ x0 w} {+ {.y {.lo b}} h}}}
+                    color
+                    0.9
+                    color
+                    1.0
+                    0.0
+                    0.04}}}}]
+
+Fn([Float], Float). A brace's depth along it, 0 to 1 (`u` from 0 to 1): it curls out to half at each end and to
+its whole depth at its tip in the middle.
+$[# {_braceDepth u}
+    [# v {!if {> u 0.5} {- 1.0 u} u}]
+    {+
+        {* 0.5 {smooth {clamp {/ v 0.1} 0.0 1.0}}}
+        {* 0.5 {smooth {clamp {/ {- v 0.38} 0.12} 0.0 1.0}}}}]
+Fn([String, List(Mob), Side, Float, String], List(Mob)). A curly brace along one side of a figure (manim's `Brace`),
+`gap` from it; `braceTip` gives where its label goes.
+$[# {brace id mobs side gap color}
+    [# b {boxOf mobs}]
+    [# depth 0.22]
+    [# n 48]
+    [# {_point u}
+        [# d {* depth {_braceDepth u}}]
+        {!case side
+            {down u2 {v2 {lerp {.x {.lo b}} {.x {.hi b}} u} {- {- {.y {.lo b}} gap} d}}}
+            {up u2 {v2 {lerp {.x {.lo b}} {.x {.hi b}} u} {+ {+ {.y {.hi b}} gap} d}}}
+            {left u2 {v2 {- {- {.x {.lo b}} gap} d} {lerp {.y {.lo b}} {.y {.hi b}} u}}}
+            {right u2 {v2 {+ {+ {.x {.hi b}} gap} d} {lerp {.y {.lo b}} {.y {.hi b}} u}}}}]
+    {'
+        {pathMob id
+            {map {range 0 {+ n 1}} {^ {i} {_point {/ {float i} {float n}}}}}
+            color
+            2.5
+            false
+            false}}]
+Fn([String, List(Mob), Side, Float, String, List(Mob)], List(Mob)). A brace and its label beyond its tip.
+$[# {braceLabel id mobs side gap color label}
+    [# br {brace id mobs side gap color}]
+    {append br {nextTo label br side 0.12}}]
+
+Fn([String, List(Float), List(Float), Box, List(String), Float], List(Mob)). Probabilities as areas (a mosaic): the
+box split into columns as wide as `across`'s shares and rows as high as `down`'s (top to bottom), each cell a
+rectangle named `id.i.j` (column i, row j) whose area is the product of its two shares, in the colour of its
+column (the last colour when they run out), `gap` canvas units apart.
+$[# {areaSquare id across down b colors gap}
+    [# {_starts shares} {.second {fold shares
+        {pair 0.0 {'}}
+        {^ {acc s} {pair {+ {.first acc} s} {append {.second acc} {' {.first acc}}}}}}}]
+    [# xs {_starts across}]
+    [# ys {_starts down}]
+    [# W {boxWidth b}]
+    [# H {boxHeight b}]
+    {flatten {map
+        {range 0 {length across}}
+        {^ {i} {map
+            {range 0 {length down}}
+            {^ {j}
+                [# x0 {+ {.x {.lo b}} {* W {nth xs i}}}]
+                [# x1 {+ x0 {* W {nth across i}}}]
+                [# y1 {- {.y {.hi b}} {* H {nth ys j}}}]
+                [# y0 {- y1 {* H {nth down j}}}]
+                {rectMob
+                    {++ id {++ "." {++ {str i} {++ "." {str j}}}}}
+                    {box
+                        {v2 {+ x0 {/ gap 2.0}} {+ y0 {/ gap 2.0}}}
+                        {v2 {- x1 {/ gap 2.0}} {- y1 {/ gap 2.0}}}}
+                    {nth colors {min i {- {length colors} 1}}}
+                    0.85
+                    {nth colors {min i {- {length colors} 1}}}
+                    1.0
+                    0.0
+                    0.03}}}}}}]
+
+Tables
+
+A table laid out from its rows, as `table` measures it: each cell placed, and where each cell is.
+$[# Table [% {Struct {'
+    {Field "cells" {List {List {List Mob}}}}
+    {Field "rules" {List Mob}}
+    {Field "boxes" {List {List Box}}}}}]]
+Fn([String, List(List(List(Mob))), Float, String], Table). A table of cells (`rows`, each a list of figures, any
+size), every column as wide as its widest cell and every row as high as its highest, `pad` canvas units around
+each cell's content, centred on the origin; a rule under the first row and after the first column (headers), in
+`color` (manim's `Table`, `MathTable`).
+$[# {table id rows pad color}
+    [# columns {fold rows 0 {^ {n r} {max n {length r}}}}]
+    [# widths {map
+        {range 0 columns}
+        {^ {c} {fold rows 0.0 {^ {w r} {!if {< c {length r}} {max w {widthOf {nth r c}}} w}}}}}]
+    [# heights {map rows {^ {r} {fold r 0.0 {^ {h cell} {max h {heightOf cell}}}}}}]
+    [# W {fold {map widths {^ {w} {+ w {* 2.0 pad}}}} 0.0 +}]
+    [# H {fold {map heights {^ {h} {+ h {* 2.0 pad}}}} 0.0 +}]
+    [# {_starts sizes} {.second {fold sizes
+        {pair 0.0 {'}}
+        {^ {acc s} {pair
+            {+ {+ {.first acc} s} {* 2.0 pad}}
+            {append {.second acc} {' {.first acc}}}}}}}]
+    [# xs {_starts widths}]
+    [# ys {_starts heights}]
+    [# boxes {map
+        {range 0 {length rows}}
+        {^ {r} {map
+            {range 0 columns}
+            {^ {c}
+                [# x0 {+ {/ W -2.0} {nth xs c}}]
+                [# y1 {- {/ H 2.0} {nth ys r}}]
+                {box
+                    {v2 x0 {- y1 {+ {nth heights r} {* 2.0 pad}}}}
+                    {v2 {+ x0 {+ {nth widths c} {* 2.0 pad}}} y1}}}}}}]
+    [# cells {map
+        {range 0 {length rows}}
+        {^ {r} {map
+            {range 0 {length {nth rows r}}}
+            {^ {c} {moveTo {nth {nth rows r} c} {boxCenter {nth {nth boxes r} c}}}}}}}]
+    [# under {- {/ H 2.0} {+ {nth heights 0} {* 2.0 pad}}}]
+    [# after {+ {/ W -2.0} {+ {nth widths 0} {* 2.0 pad}}}]
+    [# rules {append
+        {line {++ id ".rule"} {v2 {/ W -2.0} under} {v2 {/ W 2.0} under} color 1.5}
+        {line {++ id ".rule"} {v2 after {/ H 2.0}} {v2 after {/ H -2.0}} color 1.5}}]
+    {: {. cells cells rules rules boxes boxes} Table}]
+Fn([Table, Vec2], Table). A table moved by `d`.
+$[# {tableShifted t d} {: {.
+    cells {map {.cells t} {^ {r} {map r {^ {c} {shift c d}}}}}
+    rules {shift {.rules t} d}
+    boxes {map {.boxes t} {^ {r} {map r {^ {b} {box {add2 {.lo b} d} {add2 {.hi b} d}}}}}}} Table}]
+Fn([Table, Int, Int], List(Mob)). A cell's figure, as placed.
+$[# {cellOf t row column} {nth {nth {.cells t} row} column}]
+Fn([Table, Int], List(Mob)). A row's cells, as placed.
+$[# {rowOf t row} {flatten {nth {.cells t} row}}]
+Fn([Table, Int], List(Mob)). A column's cells, as placed (rows shorter than it give none).
+$[# {columnOf t column} {flatten {map
+    {.cells t}
+    {^ {r} {!if {< column {length r}} {nth r column} {'}}}}}]
+Fn([Table, Int, Int, String, Float], List(Mob)). A cell's highlight, its box filled (draw it before the table).
+$[# {cellLit t row column color alpha} {filled "cell"
+    {nth {nth {.boxes t} row} column}
+    color
+    alpha}]
+Fn([Table], List(Mob)). The whole table: rules and cells.
+$[# {tableFigure t} {append {.rules t} {flatten {map {.cells t} flatten}}}]
+
+Graphs
+
+A graph laid out by `graph`: its nodes' figures placed, its edges drawn between them, and where each node is.
+$[# Graph [% {Struct {'
+    {Field "nodes" {List {List Mob}}}
+    {Field "edges" {List {List Mob}}}
+    {Field "at" {List Vec2}}}}]]
+Fn([String, List(List(Mob)), List({first: Int, second: Int}), String, Box, Bool, String, Int], Graph). A graph
+(manim's `Graph` and `DiGraph`): each node a figure (centred on the origin), placed by the `layout` (`circular`,
+`grid`, `bipartite`, `tree`, `layered`, or `spring`, seeded by `seed`; lab/src/math/layout.rs) in the box `b`,
+and each edge (from, to) a line or, `directed`, an arrow from the edge of one node's box to the other's, in
+`color`. Each node's figure keeps its names; edge k is named `id.k`.
+$[# {graph id nodes edges layout b directed color seed}
+    [# unit {rt::graphLayout {length nodes} edges layout seed}]
+    [# at {map unit {^ {p} {v2
+        {lerp {.x {.lo b}} {.x {.hi b}} {/ {+ {.x p} 1.0} 2.0}}
+        {lerp {.y {.lo b}} {.y {.hi b}} {/ {+ {.y p} 1.0} 2.0}}}}}]
+    [# placed {map {zip at nodes} {^ {e} {moveTo {.second e} {.first e}}}}]
+    [# {_radius fig} {+ 0.08 {/ {max {widthOf fig} {heightOf fig}} 2.0}}]
+    [# drawn {map
+        {zip {range 0 {length edges}} edges}
+        {^ {e}
+            [# a {nth at {.first {.second e}}}]
+            [# c {nth at {.second {.second e}}}]
+            [# d {dist2 a c}]
+            [# ra {/ {_radius {nth placed {.first {.second e}}}} {max d 0.0001}}]
+            [# rc {/ {_radius {nth placed {.second {.second e}}}} {max d 0.0001}}]
+            {'
+                {pathMob
+                    {++ id {++ "." {str {.first e}}}}
+                    {' {lerp2 a c ra} {lerp2 c a rc}}
+                    color
+                    2.0
+                    directed
+                    false}}}}]
+    {: {. nodes placed edges drawn at at} Graph}]
+Fn([Graph], List(Mob)). The whole graph: edges under nodes.
+$[# {graphFigure g} {append {flatten {.edges g}} {flatten {.nodes g}}}]
+Fn([Float, List(Mob), Float, String], List(Mob)). A dot travelling along an edge (or any path) at `t`, `radius`
+canvas units: what flows along it.
+$[# {flowAlong t edge radius color} {flatten {map edge {^ {m} {!case m
+    {path r {!if {< {length {.points r}} 2}
+        {'}
+        {dotAt "flow"
+            {lerp2 {head {.points r}} {nth {.points r} 1} {smooth {clamp t 0.0 1.0}}}
+            radius
+            color}}}
+    {tex r {'}}
+    {text r {'}}
+    {rect r {'}}
+    {band r {'}}
+    {dot r {'}}
+    {frame r {'}}}}}}]

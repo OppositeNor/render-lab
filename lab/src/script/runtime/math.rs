@@ -27,7 +27,8 @@ crate::lamlet_record! {
     }
 }
 
-/// Registers the natives the math library measures by (`rl_runtime/tex-box`, `rl_runtime/text-width`).
+/// Registers the natives the math library measures, lays out, and samples by (`rl_runtime/tex-box`,
+/// `rl_runtime/text-width`, `rl_runtime/graph-layout`, `rl_runtime/samples-from`).
 pub(super) fn register_math_natives(engine: &mut Engine) -> Result<(), lamlet::embed::Error> {
     let r = engine.natives_mut();
     r.function("rl_runtime/tex-box", |_, (latex,): (String,)| {
@@ -49,6 +50,27 @@ pub(super) fn register_math_natives(engine: &mut Engine) -> Result<(), lamlet::e
         Ok(crate::math::text_width(&shown) as f64)
     })
     .doc("Fn([String, Bool], Float). The width in em of a line of text, written out or (`key`) the package's text of that key, in the viewer's language.")
+    .register()?;
+    r.function(
+        "rl_runtime/graph-layout",
+        |_, (count, edges, layout, seed): (i64, Vec<(i64, i64)>, String, i64)| {
+            let edges: Vec<(usize, usize)> = edges
+                .into_iter()
+                .map(|(a, b)| (a.max(0) as usize, b.max(0) as usize))
+                .collect();
+            let points = crate::math::graph_layout(count.max(0) as usize, &edges, &layout, seed as u64)?;
+            Ok(points.iter().map(|p| V2(*p)).collect::<Vec<_>>())
+        },
+    )
+    .doc("Fn([Int, List({first: Int, second: Int}), String, Int], List(Vec2)). Where each of `count` nodes goes in a graph layout (`circular`, `grid`, `bipartite`, `tree`, `layered`, `spring`; lab/src/math/layout.rs), from its edges (from, to) and, for `spring`, a seed: in [-1, 1] on both axes, +y up.")
+    .register()?;
+    r.function(
+        "rl_runtime/samples-from",
+        |_, (masses, seed, count): (Vec<f64>, i64, i64)| {
+            crate::math::samples_from(&masses, seed as u64, count.max(0) as usize)
+        },
+    )
+    .doc("Fn([List(Float), Int, Int], List(Float)). `count` numbers in [0, 1) drawn in proportion to `masses` (the masses of even bins across [0, 1), none negative, not all 0), seeded: the inverse of their running total, linear within a bin.")
     .register()?;
     Ok(())
 }
