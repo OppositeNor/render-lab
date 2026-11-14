@@ -1,13 +1,16 @@
 //! The Experiments tab (src/experiment.rs): every value of the investigation in the dock, and the experiment's
 //! tools in the panel right of the viewport (the changed values, the A/B comparison with a reference, the
-//! measurement, the performance, the experiment files). The homepage's Experiment button opens it; a viewer
-//! opened so carries the changed values from one demonstration to the next.
+//! measurement, the performance, the experiment files), under a status of the session. The homepage's
+//! Experiment button opens it; the changed values carry from one demonstration to the next while the tab's
+//! carry is on, as it starts in a viewer opened so.
 
 mod changes;
 mod compare;
 mod dock;
+mod pages;
 mod performance;
 mod presets;
+mod status;
 
 use super::{
     DemoChange, Feature, FeatureLayout, FeatureState, FrameAsk, FrameInfo, Host, Page, PanelUi,
@@ -20,7 +23,7 @@ use crate::investigation;
 use crate::renderer::{CompareRequest, Renderer, ViewKind};
 use crate::shot::ShotState;
 use crate::ui::DockTab;
-use crate::values::{self, Entry, Reflect};
+use crate::values::{self, Entry};
 use crate::view::ViewId;
 use anyhow::Result;
 use changes::changed_group;
@@ -29,6 +32,7 @@ use dock::values;
 use egui::{Ui, vec2};
 use performance::performance_group;
 use presets::presets_group;
+use status::status_strip;
 
 /// The tab.
 pub const TAB: DockTab = DockTab("experiments");
@@ -61,7 +65,7 @@ impl Feature for ExperimentsFeature {
     }
 
     /// `viewer-experiments[:<demo>]` (the tab), `viewer-compare[:<demo>]` (a reference set, an engine setting
-    /// moved, a wipe, a measurement).
+    /// moved, a wipe, a measurement), `viewer-experiments-session[:<demo>]` (the carry off, then on).
     fn pages(&self) -> &'static [Page] {
         &[
             Page {
@@ -71,6 +75,11 @@ impl Feature for ExperimentsFeature {
             Page {
                 name: "viewer-compare",
                 help: "[:<demo>] (that viewer with a reference set and compared, a wipe)",
+            },
+            Page {
+                name: "viewer-experiments-session",
+                help: "[:<demo>] (the tab with its carry off, as Explore opens it: a value changed across two \
+                       demonstrations, then with the carry on)",
             },
         ]
     }
@@ -109,6 +118,8 @@ enum Asked {
     SavePreset(String),
     /// Load one of the experiments the tab lists.
     LoadPreset(usize),
+    /// Carry the changed values to the next demonstration, or not.
+    SetCarry(bool),
 }
 
 /// What the tools show of the experiment.
@@ -127,6 +138,12 @@ struct ExperimentView {
     frame_ms: (f64, f64),
     /// Seconds the scene data has been rebuilding (`Investigation::scene_data`).
     rebuilding: Option<f32>,
+    /// How many values the reference and the live state set differently.
+    differ: usize,
+    /// The dock edits the reference (its view is focused), not the live state.
+    editing_reference: bool,
+    /// The changed values carry over to the next demonstration.
+    carry: bool,
 }
 
 /// The viewer's experiment, what the renderer last measured, and what the tools asked.
@@ -139,11 +156,15 @@ struct Experiments {
     asked: Vec<Asked>,
     /// A snapshot page's report line.
     report: Vec<String>,
+    /// The viewer opened on this tab (the homepage's Experiment button).
+    opened_here: bool,
 }
 
 impl Experiments {
-    fn view(&self) -> ExperimentView {
+    /// What the tools show, `input` the frame's UI input (the live state, the focused view's).
+    fn view(&self, input: &crate::ui::UiInput) -> ExperimentView {
         let s = &self.session;
+        let reference = s.reference_state(input.state);
         ExperimentView {
             reference: s.reference.is_some(),
             compare: s.compare,
@@ -155,7 +176,18 @@ impl Experiments {
             timings: self.timings.clone(),
             frame_ms: self.frame_ms,
             rebuilding: self.rebuilding,
+            differ: reference
+                .as_ref()
+                .map_or(0, |r| crate::experiment::changes(r, input.state).len()),
+            editing_reference: reference.is_some() && input.focus == reference.as_ref(),
+            carry: self.carries(),
         }
+    }
+
+    /// The changed values carry over to the next demonstration: as the tab's carry is set, else in a viewer
+    /// opened on the tab.
+    fn carries(&self) -> bool {
+        self.session.carry.unwrap_or(self.opened_here)
     }
 
     fn set_reference(&mut self, host: &mut dyn Host) {
@@ -262,6 +294,7 @@ impl Experiments {
                 });
                 s.presets = crate::experiment::presets();
             }
+            Asked::SetCarry(carry) => s.carry = Some(carry),
             Asked::LoadPreset(i) if interactive => {
                 if let Some(preset) = s.presets.get(i).cloned() {
                     let message = match self.load(&preset, host) {
@@ -302,7 +335,7 @@ impl FeatureState for Experiments {
         crate::paint::panel_card(panel.ink.painter, rect, 12);
         let inner = rect.shrink2(vec2(16.0, 12.0));
         let mut asked = Vec::new();
-        let view = self.view();
+        let view = self.view(panel.input);
         let dock = &mut *panel.dock;
         egui::Area::new(egui::Id::unique("viewer-value-panel"))
             .fixed_pos(inner.min)
@@ -328,7 +361,10 @@ impl FeatureState for Experiments {
                     .max_height(inner.height())
                     .auto_shrink([false, true])
                     .show(ui, |ui| {
-                        ui.vertical(|ui| tools(dock, ui, &view, &mut asked));
+                        ui.vertical(|ui| {
+                            status_strip(ui, &view, &mut asked);
+                            tools(dock, ui, &view, &mut asked);
+                        });
                     });
             });
         self.asked.extend(asked);
@@ -360,6 +396,7 @@ impl FeatureState for Experiments {
             .unwrap_or_default();
         self.frame_ms = frame.frame_ms;
         self.rebuilding = renderer.rebuilding();
+        self.opened_here = frame.opened == Some(TAB);
     }
 
     fn view_state(&self, view: ViewId, live: &ShotState) -> Option<ShotState> {
@@ -385,9 +422,13 @@ impl FeatureState for Experiments {
         true
     }
 
-    /// The values changed so far carry over to the next demonstration; so do the reference's: its changes from
-    /// the old demonstration's defaults, over the new one's.
+    /// While the carry is on, the values changed so far carry over to the next demonstration; so do the
+    /// reference's: its changes from the old demonstration's defaults, over the new one's.
     fn demo_selected(&mut self, change: &DemoChange, host: &mut dyn Host) {
+        self.opened_here = change.opened == Some(TAB);
+        if !self.carries() {
+            return;
+        }
         let carried = crate::experiment::changes(change.old, change.old_defaults);
         let reference = self
             .session
@@ -407,9 +448,7 @@ impl FeatureState for Experiments {
         }
     }
 
-    /// The demonstration at its defaults, rendered over eighteen frames; `viewer-compare` first sets it as the
-    /// reference, moves one engine setting (else any ranged value) to its other end, compares them with a
-    /// wipe, and measures them before the fifteenth.
+    /// A snapshot page's steps (src/feature/experiments/pages.rs).
     fn snapshot(
         &mut self,
         page: &str,
@@ -417,59 +456,7 @@ impl FeatureState for Experiments {
         step: usize,
         host: &mut dyn Host,
     ) -> Result<Snapshot> {
-        let compare = page == "viewer-compare";
-        if step == 0 {
-            let defaults = host.default_state(host.state().demo);
-            *host.state_mut() = defaults;
-            if compare {
-                // The comparison page: the defaults as the reference, then one ranged value moved to its far end.
-                self.set_reference(host);
-                let entries = values::list();
-                let camera = crate::camera::OrbitCamera::schema();
-                let ranged = |e: &&Entry| {
-                    e.range.is_some()
-                        && e.components.is_empty()
-                        && e.choices.is_none()
-                        && !camera.iter().any(|c| std::ptr::eq(c, *e))
-                };
-                let entry = entries
-                    .iter()
-                    .find(|e| e.engine.is_some() && ranged(e))
-                    .or_else(|| entries.iter().find(|e| ranged(e) && !e.labels.is_empty()));
-                if let Some(e) = entry {
-                    // The value goes to whichever end of its range is farther from where it is.
-                    let (lo, hi) = e.range.expect("ranged");
-                    let now = host.state().p(e.key);
-                    let to = if (now - lo).abs() > (now - hi).abs() {
-                        lo
-                    } else {
-                        hi
-                    };
-                    host.set_value(e.key, to);
-                    self.report
-                        .push(format!("reference compared with {} {now} → {to}", e.key));
-                }
-                self.session.compare = Compare::Wipe;
-                // A setting baked into the scene data: its build waited for, so the snapshot shows it.
-                let state = host.state().clone();
-                if let Some(renderer) = host.renderer() {
-                    renderer.prepare_scene_data(&state);
-                }
-            }
-        }
-        if step == 18 {
-            if let Some(m) = self.session.measurement {
-                self.report.push(format!(
-                    "PSNR {:.2} dB, SSIM {:.4}, FLIP {:.4}",
-                    m.psnr, m.ssim, m.flip
-                ));
-            }
-            return Ok(Snapshot::Done(self.report.join("; ")));
-        }
-        if compare && step == 15 {
-            self.measure(host);
-        }
-        Ok(Snapshot::Settle)
+        self.page_step(page, step, host)
     }
 }
 

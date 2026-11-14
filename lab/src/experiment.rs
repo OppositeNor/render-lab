@@ -1105,6 +1105,9 @@ pub struct Session {
     pub message: Option<String>,
     /// The experiments offered, read when the tab opens and after a save.
     pub presets: Vec<Preset>,
+    /// Whether the changed values carry over to the next demonstration, as set in the tab; none: as the viewer
+    /// opened (on the tab, they carry).
+    pub carry: Option<bool>,
 }
 
 impl Default for Session {
@@ -1117,6 +1120,7 @@ impl Default for Session {
             measurement: None,
             message: None,
             presets: Vec::new(),
+            carry: None,
         }
     }
 }

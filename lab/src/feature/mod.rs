@@ -133,7 +133,7 @@ pub trait FeatureState: Send {
     fn set_value(&mut self, _view: ViewId, _key: &'static str, _value: f32) -> bool {
         false
     }
-    /// The viewer opened on its tab changed the demonstration: `host.state()` is the new one's defaults.
+    /// The viewer changed the demonstration: `host.state()` is the new one's defaults.
     fn demo_selected(&mut self, _change: &DemoChange, _host: &mut dyn Host) {}
     /// One step of a snapshot page (`Feature::pages`): `page` its name, `args` what follows its `:`, `step`
     /// the step's number (0 first). The viewer does what the step returns, then asks for the next.
@@ -190,8 +190,10 @@ pub struct ShowTab<'a> {
     pub actions: &'a mut Vec<ViewerAction>,
 }
 
-/// A change of demonstration in a viewer opened on a feature's tab.
+/// A change of demonstration in the viewer.
 pub struct DemoChange<'a> {
+    /// The tab the viewer opened on.
+    pub opened: Option<DockTab>,
     /// The state before, and its demonstration's defaults.
     pub old: &'a ShotState,
     pub old_defaults: &'a ShotState,

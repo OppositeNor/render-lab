@@ -8,28 +8,22 @@ impl App {
         let demo = demo.into();
         self.intro = None;
         self.stop_audio();
-        // Opened on a feature's tab, the feature sees the change (the experiment carries the changed values over).
-        let before = self.options.tab.map(|tab| {
-            let old = self.state.clone();
-            let old_defaults = self.default_state(old.demo);
-            (tab, old, old_defaults)
-        });
+        let old = self.state.clone();
+        let old_defaults = self.default_state(old.demo);
         self.state = self.default_state(demo);
-        if let Some((tab, old, old_defaults)) = before {
-            let defaults = self.state.clone();
-            self.with_features(|features, host| {
-                if let Some(state) = features.state_mut(tab.0) {
-                    state.demo_selected(
-                        &crate::feature::DemoChange {
-                            old: &old,
-                            old_defaults: &old_defaults,
-                            defaults: &defaults,
-                        },
-                        host,
-                    );
-                }
-            });
-        }
+        let defaults = self.state.clone();
+        let change = crate::feature::DemoChange {
+            opened: self.options.tab,
+            old: &old,
+            old_defaults: &old_defaults,
+            defaults: &defaults,
+        };
+        // Every feature sees the change (the experiment may carry the changed values over).
+        self.with_features(|features, host| {
+            for state in features.states_mut() {
+                state.demo_selected(&change, host);
+            }
+        });
         self.demo_time = 0.0;
         self.drift_from = 0.0;
         self.playing = false;
