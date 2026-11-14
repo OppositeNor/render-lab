@@ -96,6 +96,7 @@ impl App {
                 self.leaving = true;
             }
             ViewerAction::Window(id, change) => self.change_window(id, change),
+            ViewerAction::ToggleHelp => self.help = !self.help,
             ViewerAction::Select(id) => {
                 self.selected = id;
                 self.gizmo_hover = None;

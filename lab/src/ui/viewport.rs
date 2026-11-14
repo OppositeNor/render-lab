@@ -310,6 +310,13 @@ fn viewer_controls(ui: &mut egui::Ui, input: &UiInput, viewer: &mut ViewerChrome
     }
     ui.separator();
     windows_menu(ui, l, viewer);
+    if ui
+        .add(egui::Button::new("?").selected(viewer.help))
+        .on_hover_text(tr("help-button_hint"))
+        .clicked()
+    {
+        viewer.actions.push(ViewerAction::ToggleHelp);
+    }
     // Leaving would discard unsaved work: the question stands where Home was.
     if let Some(confirm) = viewer
         .confirm

@@ -19,6 +19,7 @@ pub use render_lab_derive::{Choice, Values, actions};
 pub mod actions;
 pub mod animation;
 pub mod audio;
+pub mod bindings;
 pub mod camera;
 pub mod cli;
 pub mod code_view;

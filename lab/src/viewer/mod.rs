@@ -72,16 +72,8 @@ const AUDIO_START_DELAY: std::time::Duration = std::time::Duration::from_millis(
 const SKIP_SECONDS: i64 = 10;
 const SKIP_NOTICE: std::time::Duration = std::time::Duration::from_millis(900);
 
-/// The fly camera (the right button held): the keys that move it, its speed in metres a second at first and
-/// its range (the wheel changes it while flying), and how much faster Shift moves it.
-const FLY_KEYS: [KeyCode; 6] = [
-    KeyCode::KeyW,
-    KeyCode::KeyA,
-    KeyCode::KeyS,
-    KeyCode::KeyD,
-    KeyCode::KeyQ,
-    KeyCode::KeyE,
-];
+/// The fly camera (the right button held; its keys are src/bindings.rs's): its speed in metres a second at
+/// first and its range (the wheel changes it while flying), and how much faster Shift moves it.
 const FLY_SPEED: f32 = 2.5;
 const FLY_SPEED_MIN: f32 = 0.1;
 const FLY_SPEED_MAX: f32 = 50.0;
@@ -215,6 +207,8 @@ pub struct App {
     gizmo_drag: Option<(crate::gizmo::Drag, crate::entity::Entity)>,
     /// An action waiting for the user's answer: it would discard what a feature holds unsaved.
     confirm: Option<crate::ui::Confirm>,
+    /// The help card is open.
+    help: bool,
     pub ui_has_pointer: bool,
     egui_events: Vec<egui::Event>,
     modifiers: egui::Modifiers,
@@ -321,6 +315,7 @@ impl App {
             gizmo_hover: None,
             gizmo_drag: None,
             confirm: None,
+            help: false,
             ui_has_pointer: false,
             egui_events: Vec::new(),
             modifiers: egui::Modifiers::default(),

@@ -28,6 +28,7 @@ pub use crate::config::ViewerLayout;
 mod code;
 mod dag_panel;
 mod graph_panel;
+mod help_card;
 mod knowledge_panel;
 mod panel;
 mod resource_panel;
@@ -438,6 +439,8 @@ pub enum ViewerAction {
     /// The question the viewer asked before an action that discards what a feature holds unsaved (`Confirm`)
     /// answered: true does the action, false drops it.
     Confirm(bool),
+    /// Open or close the help card: what the viewer's context accepts (src/bindings.rs).
+    ToggleHelp,
 }
 
 /// An action held until the user confirms it: it would discard what a feature holds unsaved
@@ -563,6 +566,8 @@ pub struct ViewerChrome {
     pub gizmo: GizmoView,
     /// An action waiting for the user's answer (Home, the values reset), drawn where its button is.
     pub confirm: Option<Confirm>,
+    /// The help card is open (src/ui/help_card.rs).
+    pub help: bool,
 }
 
 impl ViewerChrome {
@@ -1127,6 +1132,7 @@ fn draw_viewer_chrome(
     }
     viewer.actions.extend(overlay.actions);
     viewer.ui_has_pointer |= overlay.pointer;
+    help_card::draw_help_card(ctx, input, viewer);
     viewer.popups.draw(ctx, l.canvas);
     viewer.ui_has_pointer |= ctx.egui_wants_pointer_input();
 }

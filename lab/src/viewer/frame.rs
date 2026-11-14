@@ -332,6 +332,7 @@ impl App {
                 .map(|(t, f, _)| (t.clone(), *f)),
             selected: self.selected.clone(),
             confirm: self.confirm.clone(),
+            help: self.help,
             gizmo: crate::ui::GizmoView {
                 mode: self.gizmo_mode,
                 hover: self.gizmo_hover,

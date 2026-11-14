@@ -5,23 +5,15 @@ use super::*;
 
 impl App {
     pub fn key(&mut self, code: KeyCode, event_loop: Option<&ActiveEventLoop>) {
-        const DEMO_KEYS: [KeyCode; 12] = [
-            KeyCode::Digit1,
-            KeyCode::Digit2,
-            KeyCode::Digit3,
-            KeyCode::Digit4,
-            KeyCode::Digit5,
-            KeyCode::Digit6,
-            KeyCode::Digit7,
-            KeyCode::Digit8,
-            KeyCode::Digit9,
-            KeyCode::Digit0,
-            KeyCode::Minus,
-            KeyCode::Equal,
-        ];
+        use crate::bindings as b;
+        // The help card open, Esc closes it, and F1 toggles it whatever covers the viewer.
+        if code == b::HELP || (code == b::BACK && self.help) {
+            self.apply(ViewerAction::ToggleHelp);
+            return;
+        }
         // What a feature shows full screen (the DAG, the knowledge graph) takes the keys; Esc closes it.
         if self.features.covered(&self.state) {
-            if code == KeyCode::Escape {
+            if code == b::BACK {
                 self.features.uncover(&self.state);
             }
             return;
@@ -29,7 +21,7 @@ impl App {
         // The keys choose among the shown scene's demonstrations.
         let investigation = investigation::current();
         let demos = investigation.scene_demos(investigation.demo_scene(self.state.demo));
-        if let Some(d) = DEMO_KEYS
+        if let Some(d) = b::DEMOS
             .iter()
             .position(|k| *k == code)
             .and_then(|i| demos.get(i))
@@ -38,21 +30,21 @@ impl App {
             return;
         }
         // Flying (the right button held), the movement keys are the camera's.
-        if self.flying().is_some() && FLY_KEYS.contains(&code) {
+        if self.flying().is_some() && b::FLY_KEYS.contains(&code) {
             return;
         }
         match code {
-            KeyCode::Space => self.apply(ViewerAction::TogglePlay),
-            KeyCode::ArrowLeft if self.timeline_mode => self.skip(-SKIP_SECONDS),
-            KeyCode::ArrowRight if self.timeline_mode => self.skip(SKIP_SECONDS),
+            b::PLAY => self.apply(ViewerAction::TogglePlay),
+            b::SKIP_BACK if self.timeline_mode => self.skip(-SKIP_SECONDS),
+            b::SKIP_ON if self.timeline_mode => self.skip(SKIP_SECONDS),
             // Shift+Right is left to the features (it nudges the experiment's wipe).
-            KeyCode::ArrowRight if self.modifiers.shift => {}
-            KeyCode::ArrowRight | KeyCode::Period => self.apply(ViewerAction::Step),
-            KeyCode::KeyR => self.apply(ViewerAction::Reset),
-            KeyCode::KeyT => self.apply(ViewerAction::ToggleTimeline),
-            KeyCode::KeyC => self.apply(ViewerAction::ToggleFreeCamera),
-            KeyCode::KeyF => self.focus_selected(),
-            KeyCode::Escape => {
+            b::STEP if self.modifiers.shift => {}
+            b::STEP | b::STEP_ALSO => self.apply(ViewerAction::Step),
+            b::RESET => self.apply(ViewerAction::Reset),
+            b::TIMELINE => self.apply(ViewerAction::ToggleTimeline),
+            b::FREE_CAMERA => self.apply(ViewerAction::ToggleFreeCamera),
+            b::FOCUS => self.focus_selected(),
+            b::BACK => {
                 if let Some(el) = event_loop {
                     self.exit = ViewerExit::Back;
                     el.exit();
@@ -204,10 +196,10 @@ impl App {
         // Left orbits (Shift: pans), middle pans; held right flies: the pointer turns the view about the eye.
         let shift = self.modifiers.shift;
         self.move_camera(drag.view, |camera| match drag.button {
-            MouseButton::Left if shift => camera.pan(delta, height),
-            MouseButton::Left => camera.orbit(delta),
-            MouseButton::Right => camera.look(delta),
-            MouseButton::Middle => camera.pan(delta, height),
+            crate::bindings::ORBIT if shift => camera.pan(delta, height),
+            crate::bindings::ORBIT => camera.orbit(delta),
+            crate::bindings::FLY => camera.look(delta),
+            crate::bindings::PAN => camera.pan(delta, height),
             _ => {}
         });
     }
@@ -349,7 +341,7 @@ impl App {
     pub(super) fn flying(&self) -> Option<ViewId> {
         self.drag
             .as_ref()
-            .filter(|d| d.button == MouseButton::Right && d.inset.is_none())
+            .filter(|d| d.button == crate::bindings::FLY && d.inset.is_none())
             .map(|d| d.view)
             .filter(|v| *v == ViewId::FREE || !self.timeline_playing())
     }
@@ -357,11 +349,12 @@ impl App {
     /// One frame of the fly camera: `dt` seconds of the held keys' motion.
     pub(super) fn fly_step(&mut self, dt: f32) {
         let Some(view) = self.flying() else { return };
-        let held = |codes: &[KeyCode]| self.held.iter().any(|k| codes.contains(k)) as i32 as f32;
+        use crate::bindings as b;
+        let held = |code: KeyCode| self.held.contains(&code) as i32 as f32;
         let axis = glam::Vec3::new(
-            held(&[KeyCode::KeyD]) - held(&[KeyCode::KeyA]),
-            held(&[KeyCode::KeyE]) - held(&[KeyCode::KeyQ]),
-            held(&[KeyCode::KeyW]) - held(&[KeyCode::KeyS]),
+            held(b::FLY_RIGHT) - held(b::FLY_LEFT),
+            held(b::FLY_UP) - held(b::FLY_DOWN),
+            held(b::FLY_FORWARD) - held(b::FLY_BACK),
         );
         if axis == glam::Vec3::ZERO {
             return;

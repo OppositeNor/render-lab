@@ -214,6 +214,9 @@ fn home_snapshot(options: &home::HomeOptions, page: &str, png: &Path) -> Result<
                 png,
             )
         }
+        _ if page == "viewer-help" || page.starts_with("viewer-help:") => {
+            home::snapshot_help(options, page.strip_prefix("viewer-help:"), png)
+        }
         _ if page == "viewer-free" || page.starts_with("viewer-free:") => {
             home::snapshot_free(options, page.strip_prefix("viewer-free:"), png)
         }

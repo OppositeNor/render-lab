@@ -239,6 +239,12 @@ pub fn snapshot_camera(options: &HomeOptions, png: &Path) -> Result<()> {
     viewer::snapshot_camera(viewer_options, png)
 }
 
+/// The viewer offscreen with its help card open in a context (`viewer::snapshot_help`).
+pub fn snapshot_help(options: &HomeOptions, context: Option<&str>, png: &Path) -> Result<()> {
+    let viewer_options = opened_by(options, |investigation| Choice::Explore { investigation });
+    viewer::snapshot_help(viewer_options, context, png)
+}
+
 /// The viewer offscreen with its Scene window open and an entity's gizmo dragged (`viewer::snapshot_scene`).
 pub fn snapshot_scene(
     options: &HomeOptions,

@@ -71,6 +71,7 @@ enum Command {
         /// viewer-scene[:<entity>][@move|rotate|scale] (the Scene window open, an entity selected, its gizmo dragged), or
         /// viewer-camera (the camera's modes driven through the input handlers and checked: orbit, pan, fly), or
         /// viewer-free[:<demo>] (the free camera on: the main camera and its view cone seen from beside it), or
+        /// viewer-help[:viewport|entity|graph] (the help card open: what that context accepts), or
         /// select-knowledge (the selection page with the chosen feature's knowledge graph full screen),
         /// or a page of a viewer feature's (src/feature/; --help lists them).
         #[arg(long, default_value = "title")]

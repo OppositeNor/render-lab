@@ -651,6 +651,53 @@ fn hold_key(
     Ok(app.state.camera)
 }
 
+/// The viewer offscreen with its help card open (`home --snapshot … --page viewer-help[:<context>]`): in the
+/// view (`viewport`, the default), with the first object that moves selected (`entity`), or with the frame
+/// graph's DAG in the panel (`graph`); the card lists what each context it is in accepts.
+pub fn snapshot_help(
+    options: ViewerOptions,
+    context: Option<&str>,
+    png: &std::path::Path,
+) -> Result<()> {
+    use crate::readback::{read_rgba, readback_buffer, write_png};
+    let (mut app, gpu, size) = offscreen_app(
+        ViewerOptions {
+            settings: None,
+            ..options
+        },
+        None,
+    )?;
+    app.state = app.default_state(app.state.demo);
+    let buffer = readback_buffer(&gpu.device, size[0], size[1]);
+    settle(&mut app, &buffer, 2)?;
+    let context = context.unwrap_or("viewport");
+    match context {
+        "viewport" => {}
+        "entity" => {
+            let entities = crate::entity::list(&app.state, &app.renderer().statics);
+            let chosen = pick_entity(&entities, None)?;
+            app.apply(ViewerAction::Select(Some(chosen.id.clone())));
+        }
+        "graph" => app.apply(ViewerAction::SetPanel(crate::shot::PanelMode::Dag)),
+        other => anyhow::bail!("viewer-help:{other}: the contexts are viewport, entity, graph"),
+    }
+    app.apply(ViewerAction::ToggleHelp);
+    settle(&mut app, &buffer, 4)?;
+    write_png(
+        png,
+        size[0],
+        size[1],
+        &read_rgba(&gpu.device, &gpu.queue, &buffer, size),
+    )?;
+    eprintln!(
+        "viewer help: {} ({}x{}); the card open in the {context} context",
+        png.display(),
+        size[0],
+        size[1]
+    );
+    Ok(())
+}
+
 /// The entity `entity` names (its `Entity::id`), or the first that moves and shows.
 fn pick_entity(
     entities: &[crate::entity::Entity],
