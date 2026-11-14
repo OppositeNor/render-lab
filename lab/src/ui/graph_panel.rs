@@ -474,20 +474,20 @@ pub(crate) fn draw_graph_panel(panel: &GraphPanel) -> Option<GraphPick> {
     let grid_x = x + name_width + 8.0;
     let grid_width = (right - time_width - 8.0 - grid_x).max(40.0);
     let column = grid_width / view.resources.len().max(1) as f32;
-    let pointer = ctx.input(|i| i.pointer.hover_pos());
-    let clicked = ctx.input(|i| i.pointer.primary_clicked());
-    let cell_of = |p: Pos2| -> Option<(usize, usize)> {
-        if p.x < grid_x || p.x >= grid_x + grid_width || p.y < y || p.y >= y + rows * row {
-            return None;
-        }
-        Some((
-            ((p.y - y) / row) as usize,
-            ((p.x - grid_x) / column) as usize,
-        ))
-    };
-    let hovered = pointer
-        .and_then(cell_of)
-        .filter(|&(r, c)| view.uses.iter().any(|u| u.0 == r && u.1 == c));
+    // Each use's cell, a response each: the pointer hovers and clicks it, the keyboard focuses and presses it.
+    let cells: Vec<(usize, usize)> = view.uses.iter().map(|u| (u.0, u.1)).collect();
+    let rects: Vec<Rect> = cells
+        .iter()
+        .map(|&(r, c)| {
+            Rect::from_min_size(
+                pos2(grid_x + c as f32 * column, y + r as f32 * row),
+                vec2(column, row),
+            )
+        })
+        .collect();
+    let responses = interact_rects(ctx, "graph-grid", &rects);
+    let at = |hit: fn(&egui::Response) -> bool| responses.iter().position(hit).map(|i| cells[i]);
+    let hovered = at(|r| r.hovered() || r.has_focus());
     let inspected = view
         .inspected
         .as_deref()
@@ -519,11 +519,16 @@ pub(crate) fn draw_graph_panel(panel: &GraphPanel) -> Option<GraphPick> {
     // The footer: the cell hovered (or inspected), then the legend.
     let fy = rect.max.y - 16.0 - footer + 8.0;
     grid_footer(ink, view, hovered.or(inspected), (x, right), fy);
-    let pick = pointer
-        .and_then(cell_of)
-        .filter(|_| clicked)
-        .filter(|&(r, c)| view.uses.iter().any(|u| u.0 == r && u.1 == c));
-    pick.map(|(r, c)| {
+    // A use focused by the keyboard is ringed in the accent.
+    if let Some(i) = responses.iter().position(|r| r.has_focus()) {
+        painter.rect_stroke(
+            rects[i],
+            CornerRadius::same(3),
+            Stroke::new(2.0, palette::accent()),
+            StrokeKind::Inside,
+        );
+    }
+    at(|r| r.clicked()).map(|(r, c)| {
         GraphPick::Inspect(format!("{}.{}", view.nodes[r].name, view.resources[c].name))
     })
 }
@@ -815,13 +820,23 @@ pub(super) fn graph_header(panel: &GraphPanel, place: GraphPlace) -> (f32, Optio
     let mut pick = None;
     let mut buttons_left = right;
     if interactive {
-        let pointer = ctx.input(|i| i.pointer.hover_pos());
-        let clicked = ctx.input(|i| i.pointer.primary_clicked());
         let buttons = header_buttons(panel, place);
-        for (label, active, action) in buttons {
-            let size = ink.measure(label, 24.0, FontFamily::Proportional) + vec2(20.0, 8.0);
-            let button = Rect::from_min_size(pos2(buttons_left - size.x, y + 2.0), size);
-            let hovered = pointer.is_some_and(|p| button.contains(p));
+        // Each button's place, right to left; then a response each, for the pointer and the keyboard.
+        let rects: Vec<Rect> = buttons
+            .iter()
+            .map(|(label, ..)| {
+                let size = ink.measure(label, 24.0, FontFamily::Proportional) + vec2(20.0, 8.0);
+                let button = Rect::from_min_size(pos2(buttons_left - size.x, y + 2.0), size);
+                buttons_left = button.min.x - 8.0;
+                button
+            })
+            .collect();
+        let responses = interact_rects(ctx, ("graph-header", place as u8), &rects);
+        for ((label, active, action), (button, response)) in
+            buttons.into_iter().zip(rects.iter().zip(&responses))
+        {
+            let button = *button;
+            let hovered = response.hovered();
             let fill = if active {
                 palette::highlight_row()
             } else if hovered {
@@ -830,12 +845,14 @@ pub(super) fn graph_header(panel: &GraphPanel, place: GraphPlace) -> (f32, Optio
                 Color32::TRANSPARENT
             };
             ink.painter.rect_filled(button, CornerRadius::same(6), fill);
-            ink.painter.rect_stroke(
-                button,
-                CornerRadius::same(6),
-                Stroke::new(1.0, palette::border()),
-                StrokeKind::Inside,
-            );
+            // Focused by the keyboard, the button is ringed in the accent.
+            let ring = if response.has_focus() {
+                Stroke::new(2.0, palette::accent())
+            } else {
+                Stroke::new(1.0, palette::border())
+            };
+            ink.painter
+                .rect_stroke(button, CornerRadius::same(6), ring, StrokeKind::Inside);
             ink.text(
                 button.center(),
                 Align2::CENTER_CENTER,
@@ -848,10 +865,9 @@ pub(super) fn graph_header(panel: &GraphPanel, place: GraphPlace) -> (f32, Optio
                     palette::text_dim()
                 },
             );
-            if hovered && clicked && !active {
+            if response.clicked() && !active {
                 pick = Some(action);
             }
-            buttons_left = button.min.x - 8.0;
         }
     }
     ink.text(
@@ -876,6 +892,34 @@ pub(super) fn graph_header(panel: &GraphPanel, place: GraphPlace) -> (f32, Optio
         palette::text_dim(),
     );
     (y + 36.0, pick)
+}
+
+/// Places the pointer and the keyboard can use, over a panel that is painted rather than laid out: an area
+/// over `rects` (named by `salt`), and a response each that hovers, takes the focus (Tab), and clicks (the
+/// pointer, or Enter and Space while focused).
+fn interact_rects(
+    ctx: &egui::Context,
+    salt: impl std::hash::Hash + std::fmt::Debug,
+    rects: &[Rect],
+) -> Vec<egui::Response> {
+    let Some(bounds) = rects.iter().copied().reduce(|a, b| a.union(b)) else {
+        return Vec::new();
+    };
+    egui::Area::new(egui::Id::unique(salt))
+        .fixed_pos(bounds.min)
+        .order(egui::Order::Foreground)
+        .constrain(false)
+        .fade_in(false)
+        .show(ctx, |ui| {
+            // The area covers them all, so that its layer is the one under the pointer there.
+            ui.allocate_rect(bounds, egui::Sense::hover());
+            rects
+                .iter()
+                .enumerate()
+                .map(|(i, r)| ui.interact(*r, ui.scope_id().with(i), egui::Sense::click()))
+                .collect()
+        })
+        .inner
 }
 
 /// The header's buttons, right to left: full screen (or close), the resources, the DAG, the grid, the WGSL
