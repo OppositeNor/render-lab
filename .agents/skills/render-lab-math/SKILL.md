@@ -10,7 +10,7 @@ term by term, the numbers of a worked example flying from a table into it, a cur
 The canvas and its drawing are the lab's (`lab/src/math/`, the `Mob`s of
 `packages/render_lab/language/runtime.lam`); the library that builds scenes is `render_lab_math`
 (`packages/render_lab/language/math.lam`), which a package's scripts import. The worked example is ReSTIR's
-`toyMath` (`packages/paper_restir/script/math.lam`, chapter 2's beat `c2-toy`).
+`toyMath` (`packages/paper_restir/script/toy.lam`, chapter 2's beat `c2-toy`).
 
 Read `render-lab-lamlet` first for the language, scripts, and storyboards; this skill is what is specific to math
 scenes.

@@ -10,7 +10,7 @@
 //! Streams of candidates are drawn from it and run through the lab's reservoir (cpu.rs `Reservoir::update_with`,
 //! demos/ris.rs `trace`).
 
-use super::cpu::Sample;
+use super::cpu::{Reservoir, Sample};
 use super::demos::ris::{Candidate, Trace, trace};
 use glam::Vec2;
 
@@ -63,19 +63,25 @@ fn lights() -> Vec<Light> {
         .collect()
 }
 
+/// The example's pixels on the floor: P, then its neighbours, each its place to P's right and its normal's tilt
+/// from straight up, in degrees (right positive). Q, the first neighbour, is the one the importance-sampling figures
+/// compare with P.
+const PIXELS: [(f32, f32); 4] = [(0.0, 0.0), (0.6, 40.0), (-0.5, -30.0), (0.35, 15.0)];
+
+/// The example's neighbours of P.
+pub const NEIGHBOURS: usize = PIXELS.len() - 1;
+
 /// What each light brings to a pixel and its share of the power, at the lights' `phase` and `intensity`: the pixel
-/// `which` is P (0: at the origin, facing up) or Q (1: 0.6 to P's right, facing up and 40° to the right).
+/// `which` is P (0: at the origin, facing up), Q (1: 0.6 to P's right, facing up and 40° to the right), or another
+/// neighbour (`PIXELS`).
 pub fn lights_at(which: i64, phase: f32, intensity: f32) -> Vec<LightAt> {
     let all = lights();
     let total: f32 = all.iter().map(|l| l.power).sum();
-    let (at, normal) = if which == 0 {
-        (Vec2::ZERO, Vec2::Y)
-    } else {
-        (
-            Vec2::new(0.6, 0.0),
-            Vec2::new(40f32.to_radians().sin(), 40f32.to_radians().cos()),
-        )
-    };
+    let (x, tilt) = PIXELS[(which.max(0) as usize).min(NEIGHBOURS)];
+    let (at, normal) = (
+        Vec2::new(x, 0.0),
+        Vec2::new(tilt.to_radians().sin(), tilt.to_radians().cos()),
+    );
     all.iter()
         .map(|l| {
             // The light's place on its circle about P, then the cosine and squared distance from the pixel.
@@ -126,6 +132,121 @@ pub fn stream(seed: u64, count: usize) -> Trace {
         })
         .collect();
     trace(&candidates, n.next())
+}
+
+/// A pixel's reservoir after its candidates: the light it kept, that light's target at the pixel, the sum of the
+/// weights, the count, and W.
+#[derive(Clone, Copy, Debug)]
+pub struct Kept {
+    pub light: usize,
+    pub p_hat: f32,
+    pub wsum: f32,
+    pub m: f32,
+    pub w: f32,
+}
+
+/// Pixel `which`'s reservoir: `count` candidates drawn by power with the numbers of `seed`, each weighed by what it
+/// brings to the pixel over its share, streamed through the lab's reservoir (cpu.rs `Reservoir`), W from the
+/// pixel's own target.
+pub fn reservoir_at(which: i64, seed: u64, count: usize) -> Kept {
+    let at = lights_at(which, 0.0, 1.0);
+    let mut n = Numbers::new(seed);
+    let mut r = Reservoir::empty();
+    for _ in 0..count {
+        // The light whose running share first passes the number, weighed by what it brings here over its share.
+        let u = n.next();
+        let mut run = 0.0;
+        let light = at
+            .iter()
+            .position(|l| {
+                run += l.share;
+                u < run
+            })
+            .unwrap_or(LIGHTS - 1);
+        let x = Sample {
+            light: light as u32,
+            uv: 0,
+        };
+        r.update_with(x, at[light].brings / at[light].share, n.next());
+    }
+    let light = r.y.light as usize;
+    r.finish(at[light].brings, r.m);
+    Kept {
+        light,
+        p_hat: at[light].brings,
+        wsum: r.wsum,
+        m: r.m,
+        w: r.w,
+    }
+}
+
+/// One reservoir combined at P: the pixel it came from and its record, its sample's target at P, its weight there
+/// (target at P times W times M), the update's number, whether the sample replaced the one kept, and the sum so far.
+#[derive(Clone, Copy, Debug)]
+pub struct Source {
+    pub pixel: usize,
+    pub kept: Kept,
+    pub p_hat_p: f32,
+    pub weight: f32,
+    pub u: f32,
+    pub taken: bool,
+    pub running: f32,
+}
+
+/// P's reservoir combined with its neighbours': the sources in turn, the source whose sample it keeps, the sum of
+/// the weights, the count, and W.
+#[derive(Clone, Debug)]
+pub struct Combined {
+    pub sources: Vec<Source>,
+    pub kept: usize,
+    pub wsum: f32,
+    pub m: f32,
+    pub w: f32,
+}
+
+/// P's reservoir and its neighbours', each of `count` candidates (the numbers of `seed` and the pixel), combined at P
+/// as the lab's spatial pass does (cpu.rs `Scene::combine`, biased: P's own first, each sample weighed by its target
+/// at P times its W times its M, the counts added, W from the target at P).
+pub fn combine(seed: u64, count: usize) -> Combined {
+    let at_p = lights_at(0, 0.0, 1.0);
+    let mut n = Numbers::new(seed ^ 0x5bd1_e995);
+    let mut out = Reservoir::empty();
+    let (mut m, mut kept) = (0.0, 0);
+    let sources = (0..PIXELS.len())
+        .map(|pixel| {
+            // The pixel's reservoir, its sample weighed at P and streamed into the combined reservoir.
+            let k = reservoir_at(pixel as i64, seed.wrapping_add(pixel as u64 * 7919), count);
+            let p_hat_p = at_p[k.light].brings;
+            let weight = p_hat_p * k.w * k.m;
+            let u = n.next();
+            let x = Sample {
+                light: k.light as u32,
+                uv: 0,
+            };
+            let taken = out.update_with(x, weight, u);
+            if taken {
+                kept = pixel;
+            }
+            m += k.m;
+            Source {
+                pixel,
+                kept: k,
+                p_hat_p,
+                weight,
+                u,
+                taken,
+                running: out.wsum,
+            }
+        })
+        .collect();
+    out.finish(at_p[out.y.light as usize].brings, m);
+    Combined {
+        sources,
+        kept,
+        wsum: out.wsum,
+        m,
+        w: out.w,
+    }
 }
 
 /// One column of an alias table: the part of the column its own light keeps (the rest is its alias's).

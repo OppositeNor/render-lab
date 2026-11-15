@@ -93,4 +93,10 @@ pub struct RestirValues {
     /// triangle, 3 the lab's running sum and binary search, 4 the two giving the same shares.
     #[value(default = 4.0, range = 0.0..=4.0, unit = plain, text = "controls-params_stage", color = palette::SELECTED, label(params), help = "help-paramsStage")]
     pub params_stage: f32,
+    /// How far combining reservoirs has come (script/combine.lam `combineMath`), one stage per sentence of the
+    /// story's beat: 1 the kept samples as candidates, 2 to 9 their weight (the chance nobody recorded, W in its
+    /// place, the target at P, M), 10 to 13 the weights of P's and its neighbours' reservoirs, 14 to 16 the pick,
+    /// the counts added, and W.
+    #[value(default = 16.0, range = 0.0..=16.0, unit = plain, text = "controls-combine_stage", color = palette::SELECTED, label(combine), help = "help-combineStage")]
+    pub combine_stage: f32,
 }

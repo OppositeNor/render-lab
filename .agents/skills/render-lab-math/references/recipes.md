@@ -1,6 +1,6 @@
 # Recipes: manim's techniques in `render_lab_math`
 
-Each recipe is code that ran in a scene (ReSTIR's `toyMath`, `packages/paper_restir/script/math.lam`, or the library's
+Each recipe is code that ran in a scene (ReSTIR's `toyMath`, `packages/paper_restir/script/toy.lam`, or the library's
 check scenes), with `s` the stage value and `t` a progress. A scene starts:
 
 ```text

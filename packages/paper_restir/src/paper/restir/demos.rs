@@ -70,7 +70,8 @@ pub fn build_frame(
         | Demo::Wrs
         | Demo::Lights
         | Demo::Weights
-        | Demo::Params => {}
+        | Demo::Params
+        | Demo::Combine => {}
     }
     content
 }

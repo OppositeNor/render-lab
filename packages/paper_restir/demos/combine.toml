@@ -1,0 +1,20 @@
+# Combining reservoirs in the math scenes' example world (examples.rs): P's reservoir and its neighbours', each
+# sample's weight at P, the pick, the counts, and W; its math scene (script/combine.lam) shows them in place of the room.
+
+key = "combine"
+title-text = "shot-combine_title"
+tab-text = "shot-combine"
+hint-text = "shot-combine_hint"
+scene = "paper_restir.scene/restir-room"
+resets-camera = true
+math = "combineMath"
+
+[camera]
+target = [0.1, 0.8, -0.5]
+yaw = 24.0
+pitch = 18.0
+distance = 3.6
+fov = 55.0
+
+[params]
+combineStage = 16

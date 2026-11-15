@@ -726,49 +726,70 @@ After the first pass, P holds one reservoir, and so does ${overText
     {' {restirNeighboursRange 1.0 5.0}}
     "each of its neighbours"}.
 
-${cue "key" {' {callout "combine"}}}${cue "key" {' {glide cameraYaw 28.0 sentence}}}To combine two reservoirs, the method ${overText
-    {' {spatialStepRange 0.0 1.0}}
+### Combining, worked out {#c4-combine-math kind=2d math=combineMath}
+
+${cue "key" {opening demoCombine panelHidden {' {combineStage 0.0}}}}
+
+${cue "key" {' {callout "combine"}}}To combine two reservoirs, the method ${overText
+    {' {combineStageRange 0.0 1.0}}
     "treats each one's kept sample as a single new candidate"}.
 
-A new candidate needs a weight, its target over the chance it was drawn, as in chapter two.
+${overText
+    {' {combineStageRange 1.0 2.0}}
+    "A new candidate needs a weight, its target over the chance it was drawn"}, as in chapter two.
 
-For a neighbour's sample, that chance is the chance that the neighbour's reservoir kept it.
+For a neighbour's sample, ${overText
+    {' {combineStageRange 2.0 3.0}}
+    "that chance is the chance that the neighbour's reservoir kept it"}.
 
-No one recorded that chance.
+${overText {' {combineStageRange 3.0 4.0}} "No one recorded that chance"}.
 
-${cue "key" {' {callout "weight-meaning"}}}But on average, that reservoir's W is one over it, as the worked example showed.
+${cue "key" {' {callout "weight-meaning"}}}But on average, ${overText
+    {' {combineStageRange 4.0 5.0}}
+    "that reservoir's W is one over it, as the worked example showed"}.
 
-So the target times W takes the place of the weight.
+So ${overText {' {combineStageRange 5.0 6.0}} "the target times W takes the place of the weight"}.
 
-${cue "key" {' {glide cameraYaw 22.0 sentence}}}${overText
-    {' {pickURange 0.88 0.9}}
-    "The target is taken at P"}, because a sample that suits a neighbour may not suit P.
+${overText
+    {' {combineStageRange 6.0 7.0}}
+    "The target is taken at P, because a sample that suits a neighbour may not suit P"}.
 
-Times M, P's own reservoir gets back exactly its sum of weights, because W divided that sum by M.
+${overText
+    {' {combineStageRange 7.0 8.0}}
+    "Times M, P's own reservoir gets back exactly its sum of weights, because W divided that sum by M"}.
 
-So a reservoir counts as much as all the candidates behind it.
+So ${overText
+    {' {combineStageRange 8.0 9.0}}
+    "a reservoir counts as much as all the candidates behind it"}.
 
-${cue "key" {' {callout "reweight"}}}So a sample's weight is ${formulaSaid f"{\hat{p}_P(y) \cdot W \cdot M}" "the target at P, times its reservoir's W, times its M"
-    {'}}.
+${cue "key" {' {callout "reweight"}}}${overText
+    {' {combineStageRange 9.0 10.0}}
+    "So a sample's weight is"} ${formulaSaid f"{\hat{p}_P(y) \cdot W \cdot M}" "the target at P, times its reservoir's W, times its M"
+        {'}}.
 
-${cue "key" {' panelValues}}${overText
-    {' {spatialStepRange 1.0 2.0}}
-    "The panel works it out for P's own reservoir and each neighbour's"}, factor by factor.
+${overText
+    {' {combineStageRange 10.0 11.0}}
+    "The table works it out for P's own reservoir and each neighbour's"}, factor by factor.
 
-Here every reservoir drew thirty-two candidates, so M scales every weight alike, and changes nothing yet.
+Here every reservoir drew thirty-two candidates, so ${overText
+    {' {combineStageRange 11.0 12.0}}
+    "M scales every weight alike, and changes nothing yet"}.
 
-It matters in the next chapter, where the frame before can stand for far more.
+It matters in the next chapter, ${overText
+    {' {combineStageRange 12.0 13.0}}
+    "where the frame before can stand for far more"}.
 
-${cue "key" {' panelCode}}${cue "key" {' {callout "alg4"}}}${cue "key" {'
-    {highlightCode "combine" {' "count"}}}}The combined reservoir ${overText
-        {' {spatialStepRange 2.0 3.0}}
-        "keeps one of the samples, in proportion to these weights"}.
+${cue "key" {' {callout "alg4"}}}The combined reservoir ${overText
+    {' {combineStageRange 13.0 14.0}}
+    "keeps one of the samples, in proportion to these weights"}.
 
 It stands for every candidate behind them, ${overText
-    {' {spatialStepRange 3.0 5.0}}
+    {' {combineStageRange 14.0 15.0}}
     "so their counts add up"}.
 
-Its W then comes out as in chapter two, from the sum of the weights and the new count.
+${overText
+    {' {combineStageRange 15.0 16.0}}
+    "Its W then comes out as in chapter two, from the sum of the weights and the new count"}.
 
 ### Neighbours in a disc {#c4-neighbours kind=3d}
 

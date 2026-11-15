@@ -15,6 +15,7 @@
 //! | `exampleTrace seed count`, `exampleMerge seed count` | a stream of that world's candidates through the lab's reservoir, its steps and its merge |
 //! | `exampleAlias` | an alias table over that world's shares (the lab's illustration of the paper's): each column's own part and alias |
 //! | `examplePieces` | that table's pieces, each a part of a light's share in a column |
+//! | `exampleCombine seed count` | P's reservoir and its neighbours' in that world, each of `count` candidates, combined at P as the lab's spatial pass does |
 //! | `exampleSearch u` | the lab's binary search over the running sum of the shares for `u`: each halving, then the light found |
 
 use super::demos::ris::Trace;
@@ -105,6 +106,35 @@ lab::lamlet_record! {
     pub struct SearchRecord {
         pub steps: Vec<SearchStep> = "steps",
         pub found: i64 = "found",
+    }
+}
+
+lab::lamlet_record! {
+    /// One reservoir combined at P (examples.rs `Source`): its pixel and record, its sample's target at P, its
+    /// weight there, the update's number, whether it replaced the kept sample, and the sum so far.
+    pub struct SourceRecord {
+        pub pixel: i64 = "pixel",
+        pub light: i64 = "light",
+        pub p_hat: f64 = "pHat",
+        pub wsum: f64 = "wsum",
+        pub m: f64 = "m",
+        pub w: f64 = "w",
+        pub p_hat_p: f64 = "pHatP",
+        pub weight: f64 = "weight",
+        pub u: f64 = "u",
+        pub taken: bool = "taken",
+        pub running: f64 = "running",
+    }
+}
+
+lab::lamlet_record! {
+    /// P's reservoir combined with its neighbours' (examples.rs `Combined`).
+    pub struct CombineRecord {
+        pub sources: Vec<SourceRecord> = "sources",
+        pub kept: i64 = "kept",
+        pub wsum: f64 = "wsum",
+        pub m: f64 = "m",
+        pub w: f64 = "w",
     }
 }
 
@@ -239,8 +269,37 @@ pub fn register(natives: &mut NativeRegistry) -> Result<(), Error> {
     register_alias(natives)
 }
 
-/// The natives of the example's alias table and binary search.
+/// The natives of the example's alias table and binary search, and of its reservoirs combined.
 fn register_alias(natives: &mut NativeRegistry) -> Result<(), Error> {
+    natives
+        .function("paper_restir/example-combine", |_, (seed, count): (i64, i64)| {
+            let c = examples::combine(seed as u64, count.clamp(1, 256) as usize);
+            Ok(CombineRecord {
+                sources: c
+                    .sources
+                    .iter()
+                    .map(|s| SourceRecord {
+                        pixel: s.pixel as i64,
+                        light: s.kept.light as i64,
+                        p_hat: f64::from(s.kept.p_hat),
+                        wsum: f64::from(s.kept.wsum),
+                        m: f64::from(s.kept.m),
+                        w: f64::from(s.kept.w),
+                        p_hat_p: f64::from(s.p_hat_p),
+                        weight: f64::from(s.weight),
+                        u: f64::from(s.u),
+                        taken: s.taken,
+                        running: f64::from(s.running),
+                    })
+                    .collect(),
+                kept: c.kept as i64,
+                wsum: f64::from(c.wsum),
+                m: f64::from(c.m),
+                w: f64::from(c.w),
+            })
+        })
+        .doc("Fn([Int, Int], {kept: Int, m: Float, sources: List({light: Int, m: Float, pHat: Float, pHatP: Float, pixel: Int, running: Float, taken: Bool, u: Float, w: Float, weight: Float, wsum: Float}), w: Float, wsum: Float}). P's reservoir and its three neighbours' in the example world, each of `count` candidates (`seed`'s numbers), combined at P as the lab's spatial pass does: each source's pixel (0 P), its kept light, that light's target at its pixel, its sum of weights, M, and W; the target at P, its weight there (target at P times W times M), the update's number, whether it replaced the kept sample, and the sum so far; then the source kept, the sum, the count, and W.")
+        .register()?;
     natives
         .function("paper_restir/example-alias", |_, ()| {
             Ok(examples::alias_table(&examples::shares())

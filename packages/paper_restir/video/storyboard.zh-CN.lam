@@ -425,6 +425,8 @@ W 越大，这个少见的样本就算得越重。
 
 第一个通道之后，P 有一个 reservoir，它的每个邻居也各有一个。
 
+### 合并的计算 {#c4-combine-math}
+
 合并两个 reservoir 时，方法把两个 reservoir 各自留下的样本，分别当作一个新的候选。
 
 新的候选需要一个权重，也就是第二章说的，目标除以抽到它的概率。
@@ -445,7 +447,7 @@ W 越大，这个少见的样本就算得越重。
 
 所以一个样本的权重，是 P 处的目标，乘以它所在 reservoir 的 W，再乘以那个 reservoir 的 M，${math f"{\hat{p}_P(y) \cdot W \cdot M}"}。
 
-面板为 P 自己的 reservoir 和每个邻居的 reservoir，把这三个因子逐一乘出来。
+表格为 P 自己的 reservoir 和每个邻居的 reservoir，把这三个因子逐一乘出来。
 
 这里每个 reservoir 都抽了三十二个候选，所以 M 把每个权重放大同样的倍数，暂时不改变什么。
 

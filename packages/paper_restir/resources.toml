@@ -151,6 +151,12 @@ source = "demos/params.toml"
 license = "MIT"
 
 [[resource]]
+id = "demo/combine"
+kind = "file"
+source = "demos/combine.toml"
+license = "MIT"
+
+[[resource]]
 id = "listing/ris"
 kind = "file"
 source = "pseudocode/ris.py"
@@ -227,4 +233,10 @@ license = "MIT"
 id = "script/params"
 kind = "file"
 source = "script/params.lam"
+license = "MIT"
+
+[[resource]]
+id = "script/combine"
+kind = "file"
+source = "script/combine.lam"
 license = "MIT"
