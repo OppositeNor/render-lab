@@ -32,6 +32,28 @@ Read `references/storytelling-formula-arc.md` when planning or writing a core fo
 
 **Hard stop:** after introducing a *core* formula, do not immediately jump to the next independent equation. The listener must first see at least one fully worked case and hear the reason for the formula's non-obvious term(s). A formula card plus a term glossary is not completion.
 
+## Show it on the math canvas
+
+A **core** equation's arc is staged on a math beat (`kind=2d math=<scene>`): a canvas in the middle of the frame where
+the formula is built from the figures that make its terms necessary. Load the `render-lab-math` skill (**required**
+for these beats) for the library, its recipes, and its checks. A **bridge** equation uses the canvas when it has a
+worked case; a **reference** equation stays a formula card in the 3D scene. Cut to the canvas for the arc and back
+to the scene for its handoff (float, then focus).
+
+Each stage of the arc has its form on the canvas, one sentence's stage at a time:
+
+| Stage | On the canvas |
+| --- | --- |
+| Need | the object and the question: the samples, the pixel's candidates, what is to be estimated |
+| Anchor | the small case as a table or bars, its numbers from the investigation's code |
+| Construct | each term written as it is earned, flying in from the figure that earned it (a bar's value, a table's cell) |
+| Name and show | the whole formula, braces under its parts naming each |
+| Work | the symbols turning into one case's numbers, then the next case's; the result placed on a number line |
+| Stress | a term struck out, and the figure it drives moving (estimates sliding off the true value), then restored |
+| Land | the result flying to what uses it, or the zoom out and the cut back to the scene |
+
+ReSTIR's `c2-toy` is the worked example (`references/storytelling-formula-restir.md`).
+
 ## Rules that prevent a convincing but false story
 
 - **Source of each claim.** For papers, tag factual statements as **stated by the paper** (with section/page/equation), **derived from it** (show the derivation), or **the lab's choice** (label clearly). A plausible-sounding motivation is not automatically an author's motivation. Cite the paper's actual conditions for unbiasedness, normalization, valid weights, and support.
@@ -46,7 +68,7 @@ Read `references/storytelling-formula-arc.md` when planning or writing a core fo
 
 - **Reading (`new-story-paper`)**: when inspecting the method, classify equations and record for core ones: the question, prior rule, new terms, cited derivation, assumptions, a small case, and what downstream step consumes the result. Keep these notes in the investigation's `story/research.md`; do not create an unrelated claims database.
 - **Outline (`new-story`)**: attach the formula arc to the beats that teach it, with a visual/readout and a time budget for the example and counterfactual. A core equation can require several beats. If the explanation cannot fit, adjust scope or budget—not the mathematics.
-- **Storyboard**: explain the problem and work the small case before showing the final `formulaSaid` card. Use `render-lab-lamlet` for actual cue syntax; keep a term visible only when narration is discussing it. Use the same concrete pixel/sample throughout. For the zh-CN edition, follow the one-paragraph-per-English-sentence rule; preserve mathematical meaning, not English syntax.
+- **Storyboard**: explain the problem and work the small case before showing the whole formula, on the math canvas ("Show it on the math canvas" above); the formula card (`formulaSaid`) only for a formula the 3D scene needs beside it, and for what the voice says. Use `render-lab-lamlet` for actual cue syntax; keep a term visible only when narration is discussing it. Use the same concrete pixel/sample throughout. For the zh-CN edition, follow the one-paragraph-per-English-sentence rule; preserve mathematical meaning, not English syntax.
 - **Review**: apply `references/storytelling-formula-review.md` as a *separate formula comprehension gate* in addition to the existing sentence map, factual review, layout review, and cold-listener review. Use `references/storytelling-formula-restir.md` as a model anchored in the lab's ReSTIR story, not as a universal template.
 
 ## Check

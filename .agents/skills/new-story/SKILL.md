@@ -20,6 +20,8 @@ Other skills own the rest:
   engine sentence meets, and `new-story-paper`'s "Precision for a paper" the one every paper sentence meets.
 - `render-lab-lamlet` (**required when writing cues**): the storyboard's syntax, its vocabulary, the translation's
   form.
+- `render-lab-math` (**required for a core formula's beats**, and for any beat on the math canvas): the math scenes a
+  formula's arc is staged on (`references/storytelling-formula.md`, "Show it on the math canvas").
 - `knowledge-graph` (**useful**): the graph, the audience's commands, and the Prerequisites tab.
 - `experiments` (**useful**; required for a paper's Experimentation chapter): measured runs and the Experiments tab.
 

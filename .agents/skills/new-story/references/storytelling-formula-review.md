@@ -15,6 +15,10 @@ For each core equation, watch/listen from the beginning of its first teaching be
 | **Handoff** | State who consumes the result next | Formula disappears and an unrelated algorithm begins |
 | **Source fidelity** | Locate the paper/source evidence for all factual claims; identify lab-only illustrations | Invented motivation narrated as the authors' finding |
 
+Where the arc is staged on the math canvas (`references/storytelling-formula.md`, "Show it on the math canvas"),
+also check that each term was shown earning its place there: it arrives from the figure that motivated it (a bar, a
+table cell, a struck-out counterfactual), not only written in.
+
 For a bridge formula, check the **one change and its necessity**, plus its destination. For a reference formula, check only the prerequisite and relevance, not the full arc.
 
 ## Failure patterns and targeted repairs

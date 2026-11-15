@@ -827,7 +827,7 @@ $[# {_braceDepth u}
         {* 0.5 {smooth {clamp {/ v 0.1} 0.0 1.0}}}
         {* 0.5 {smooth {clamp {/ {- v 0.38} 0.12} 0.0 1.0}}}}]
 Fn([String, List(Mob), Side, Float, String], List(Mob)). A curly brace along one side of a figure (manim's `Brace`),
-`gap` from it; `braceTip` gives where its label goes.
+`gap` from it (`braceLabel` puts a label beyond its tip).
 $[# {brace id mobs side gap color}
     [# b {boxOf mobs}]
     [# depth 0.22]

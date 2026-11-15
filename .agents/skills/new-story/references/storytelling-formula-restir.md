@@ -25,7 +25,10 @@ The target scores alone favor B over A 3:1. But A is proposed three times as oft
 
 **Caution:** The conditional selection probability for this one candidate list is **not** the unconditional probability that RIS emits B. With a *finite* number of drawn candidates, RIS generally does not reproduce the normalized target exactly; its estimator includes a correction. Do not say otherwise. The target `p̂` here is an **unnormalized score**, not by itself a PDF.
 
-**Visual handoff.** Show the same P and two labeled light candidates, with proposal-frequency bars, target bars, the two ratios, and a sampled selection. Then ask: "We have changed which candidate is likely to be kept. How do we still estimate the light correctly from one kept candidate?" This question opens Eq. (6) and the definition of `W` rather than jumping to them.
+**Visual handoff.** Show the same P and two labeled light candidates, with proposal-frequency bars, target bars, the two ratios, and a sampled selection. Then ask: "We have changed which candidate is likely to be kept. How do we still estimate the light correctly from one kept candidate?" This question opens Eq. (6) and the definition of `W` rather than jumping to them. The story's beat `c2-toy` stages this
+example on the math canvas (`packages/paper_restir/script/math.lam`, `toyMath`; the `render-lab-math` skill): bars of
+p and p̂, a table whose weights fly into the formula, the lists as areas of a square, their estimates on a number line
+balancing at the true total, and each part of W struck out in turn.
 
 ## Formula 2: why a final correction is needed
 

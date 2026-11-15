@@ -190,6 +190,7 @@ marks), since moving them would add a frame-data struct and natives to move a fe
   | click handler | `ClickHandler` = `Fn([Click], List(Write))` | runs it for an image's `imageClick` of its name; the one named `scene` takes a click on the scene, before `Investigation::click` |
   | action | `{Action Args}` = `Fn([Float, Args], List(Write))` | runs it from a story's `{run "name"}`, with `run.<arg>` as the record `Args` (its fields' types are the arguments' kinds) |
   | animation | `Animation` = `Fn([Float], List(Write))` | the viewer's Play animation of a demonstration whose file names it (`animation = "playSurface"`), after the code's |
+  | math scene | `Math` = `Fn([Float], List(Mob))` | draws its mobs on the canvas in place of the 3D scene, for a story's `kind=2d math=<name>` beat and a demonstration whose file names it (`math = "toyMath"`); built with the library `render_lab_math` (the `render-lab-math` skill) |
 
 - **No state.** A hook is a function of what it is passed (the time, a click, its arguments) and what it reads;
   it keeps nothing between calls, so seeking and recording stay exact. A sequence is a function of time (`seq`,

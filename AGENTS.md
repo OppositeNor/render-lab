@@ -200,6 +200,7 @@ Code. All are published. Load the skill that owns the task; load another only wh
 | Understanding or teaching a non-trivial mathematical formula in a narrated story or paper reading; repairing an equation beat that is hard to follow | `new-story` (its `references/storytelling-formula.md`) | `new-story-paper` for papers | `render-lab-lamlet` for cues |
 | A storyboard's syntax or cues, a package's live scripts (`script/*.lam`), the runtime library, `render_lab.lam`, the lab's Lamlet code | `render-lab-lamlet` | the pinned `lamlet` / `lamlet-present` skills it names | `new-story` (what a story should say and show) |
 | A pass, target, buffer, volume, history, or program of a frame; the lint's refusals; the inspector, graph panel, DAG | `render-graph` | | `experiments` (`[inspect]`) |
+| A math scene: a worked formula, a calculation, a plot, a table, or a graph on the canvas (`kind=2d math=`); the math library `render_lab_math` | `render-lab-math` | `render-lab-lamlet` (scripts) | `new-story` (`references/storytelling-formula.md`) |
 | Topics, chapter requirements, an investigation's audience, the Prerequisites tab | `knowledge-graph` | | `new-story` (costing a story's level) |
 | Comparing settings, sweeps, ablations, quality or cost measurement; making an engine setting tunable | `experiments` | | `render-graph` |
 | A manifest, collection, resource, key, override, demo entry, a package's library and negotiation, local packages, packing, loader errors | `packages` | | |

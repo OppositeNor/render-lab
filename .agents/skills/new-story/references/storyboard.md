@@ -165,7 +165,8 @@ the motion that counts is the motion that explains.
   - *No long gaps*: no stretch of narration longer than about 12 s without a supporting animation playing or starting.
   - *Coverage*: every sentence that names a mechanism has an animation that shows that mechanism working.
 
-  A local edit to one beat keeps its chapter inside the three rules.
+  A local edit to one beat keeps its chapter inside the three rules. A math beat (`kind=2d math=<scene>`, the
+  `render-lab-math` skill) counts as any beat: each stage its sentence sweeps is an animation.
 - **What counts as supporting** (required). An animation counts when the sentence it plays under explains something
   with it: a ray marching to its hit, a texel picked and read, a count growing until the noise settles, a step of the
   algorithm played out, a value read off the picture, a cause and its effect. Filler is cut, never counted: a sweep

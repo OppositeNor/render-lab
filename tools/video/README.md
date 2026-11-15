@@ -119,7 +119,7 @@ spoken letters or digits, fail before speech preparation.
 |---|---|
 | English video | `title`, `subtitle`, `fps`, `width`, `height`, `locale`, `captionWidth`, and the pacing attributes below |
 | English chapter | `number`, `target`, `summary`, `sources` |
-| English beat | `kind`, `diagram`, `graph`, `focus`, `sources`, `hold` |
+| English beat | `kind`, `diagram`, `graph`, `math`, `focus`, `sources`, `hold` |
 | Translated video | `title`, `subtitle`, `locale`, `glossary`, `captionWidth` |
 | Translated chapter | `number`, `summary` |
 | Translated beat | Text and ID; visual settings come from English |
@@ -236,8 +236,9 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
   subtitle="…" fps=30 width=1920 height=1080}`. `## Title {#c11 number=11 target=150 summary="…" sources="a, b"}`
   starts a chapter (`target` in seconds), `### Headline {#beat-id kind=3d}` a beat, its scene's type `3d` (the lab's
   3D frame) or `2d` (a page in its place: the image `diagram=` names, the frame graph `graph=` names, with its
-  `focus="A, B"` nodes, or without either the sources card of its `sources=`), with `diagram`, `graph`, `focus`,
-  `sources`, `hold` attributes (a quoted value may hold spaces, not quotes or braces). Only `3d` and `2d` are
+  `focus="A, B"` nodes, the math scene `math=` names (a `Math` hook of the package's scripts, drawn on the canvas,
+  lab/src/math/; its cues set values as a 3D beat's, the `render-lab-math` skill), or without any of these the
+  sources card of its `sources=`), with `diagram`, `graph`, `math`, `focus`, `sources`, `hold` attributes (a quoted value may hold spaces, not quotes or braces). Only `3d` and `2d` are
   accepted as scene types in storyboards and timelines; a paused timeline keeps a 2D scene on screen. Before the
   first sentence, a paragraph of cues sets the beat's keys, one per cue. Then each paragraph is one sentence: its
   prose is CommonMark (`$` is written `$$`), with its cues (below); a cue before its first word fires at the
