@@ -75,7 +75,8 @@ pub struct RestirValues {
     pub toy_stage: f32,
     /// How far the stream through a reservoir has come (script/math.lam `wrsMath`), one stage per sentence of the
     /// story's beat: 1 to 3 the stream and the tape, 4 and 5 the reservoir's record, 6 to 15 P's candidates
-    /// through it, 15 to 16 the chances of keeping each, 16 and 17 two reservoirs merged.
-    #[value(default = 17.0, range = 0.0..=17.0, unit = plain, text = "controls-wrs_stage", color = palette::SELECTED, label(wrs), help = "help-wrsStage")]
+    /// through it, 15 to 16 the chances of keeping each, 16 to 21 two reservoirs merged (a second beside the first,
+    /// each a fresh candidate, a new reservoir taking them, the counts added, the new reservoir kept alone).
+    #[value(default = 21.0, range = 0.0..=21.0, unit = plain, text = "controls-wrs_stage", color = palette::SELECTED, label(wrs), help = "help-wrsStage")]
     pub wrs_stage: f32,
 }

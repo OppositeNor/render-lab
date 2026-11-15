@@ -122,6 +122,7 @@ wrsmath-kept = 留下的
 wrsmath-sum = 权重之和
 wrsmath-count = 项数
 wrsmath-stream = 一次一项，只看一次
+wrsmath-next = P 的后八个候选
 demos-toy_title = 手算 RIS
 demos-toy_paper = 按论文的写法
 demos-toy_no_p = 权重不除以 p

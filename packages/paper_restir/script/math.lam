@@ -553,36 +553,33 @@ $[# {_fieldsAt s steps split}
     [# kept {!if {isEmpty decided} -1 {.kept {nth steps {nth decided {- {length decided} 1}}}}}]
     {' {_keptName kept} {!if {< last 0} "" {_short sum}} {!if {< last 0} "" {str {length joined}}}}]
 
-Fn([List({kept: Int, light: Int, taken: Bool, u: Float, w: Float, wsum: Float}), Float, Int], List(Mob)). Candidate
-i weighing its chance at stage s: its weight over the new sum, the chance as a lit part of a bar from 0 to 1, and
-the number its update drew dropping onto the bar (inside the lit part, it replaces the kept one).
-$[# {_weigh steps s i}
-    [# step {nth steps i}]
-    [# c {_over {.w step} {.wsum step}}]
-    [# t {phase s {nth {_decides i} 0} {nth {_decides i} 1}}]
-    [# at {v2 4.4 -0.2}]
+Fn([String, Float, Float, Float, Bool, Float, Vec2], List(Mob)). A chance weighed at progress `t`, about `at`: the
+fraction `left` (LaTeX) with its numbers, `w` over `total`, the chance as a lit part of a bar from 0 to 1, and the
+number `u` the update drew dropping onto the bar (inside the lit part, `taken`: the new one replaces the kept one).
+$[# {_chanceView left w total u taken t at}
+    [# c {_over w total}]
     [# formula {moveTo
-        {texParts "chanceF" f"{\frac{\lit{1}{w_{${str {+ i 1}}}}}{\lit{2}{w_{\text{sum}}}} = \frac{\lit{3}{${_short {.w step}}}}{\lit{4}{${_short {.wsum step}}}} = \lit{5}{${numberLatex c 2}}}" 0.4 textColor
-            {' "w" "sum" "wv" "sv" "c"}
-            {' _weightColor textColor _weightColor textColor _estimateColor}}
+        {texParts "chanceF" f"{\lit{1}{$left} = \frac{\lit{2}{${_short w}}}{\lit{3}{${_short total}}} = \lit{4}{${numberLatex c 2}}}" 0.4 textColor
+            {' "left" "wv" "sv" "c"}
+            {' textColor _weightColor textColor _estimateColor}}
         at}]
-    [# x0 2.4]
-    [# x1 6.4]
-    [# y -1.6]
+    [# x0 {- {.x at} 2.0}]
+    [# x1 {+ {.x at} 2.0}]
+    [# y {- {.y at} 1.8}]
     [# track {filled "track" {box {v2 x0 {- y 0.14}} {v2 x1 {+ y 0.14}}} "#3b4150" 1.0}]
     [# lit {filled "litChance"
         {box {v2 x0 {- y 0.14}} {v2 {lerp x0 x1 {* c {smooth {phase t 0.1 0.4}}}} {+ y 0.14}}}
         _estimateColor
         0.9}]
-    [# ux {lerp x0 x1 {.u step}}]
+    [# ux {lerp x0 x1 u}]
     [# drop {smooth {phase t 0.45 0.75}}]
-    [# u {append
+    [# arrow {append
         {arrowLine "u"
-            {v2 ux {+ y {lerp 1.2 0.6 drop}}}
-            {v2 ux {+ y {lerp 0.75 0.18 drop}}}
-            {!if {.taken step} _targetColor textColor}
+            {v2 ux {+ y {lerp 0.8 0.6 drop}}}
+            {v2 ux {+ y {lerp 0.45 0.18 drop}}}
+            {!if taken _targetColor textColor}
             3.0}
-        {moveTo {tex "uText" "u" 0.36 textColor} {v2 ux {+ y {lerp 1.45 0.85 drop}}}}}]
+        {moveTo {tex "uText" "u" 0.36 textColor} {v2 ux {+ y {lerp 1.0 0.85 drop}}}}}]
     {flatten {'
         {fadeIn {phase t 0.0 0.2} formula}
         {fadeIn
@@ -590,7 +587,19 @@ $[# {_weigh steps s i}
             {append track {moveTo {tex "zero" "0" 0.3 textDimColor} {v2 x0 {- y 0.42}}}}}
         {fadeIn {phase t 0.0 0.1} {moveTo {tex "one" "1" 0.3 textDimColor} {v2 x1 {- y 0.42}}}}
         lit
-        {fadeIn {phase t 0.4 0.5} u}}}]
+        {fadeIn {phase t 0.4 0.5} arrow}}}]
+Fn([List({kept: Int, light: Int, taken: Bool, u: Float, w: Float, wsum: Float}), Float, Int], List(Mob)). Candidate
+i weighing its chance at stage s: its weight over the new sum.
+$[# {_weigh steps s i}
+    [# step {nth steps i}]
+    [# d {_decides i}]
+    {_chanceView f"{\frac{w_{${str {+ i 1}}}}{w_{\text{sum}}}}"
+        {.w step}
+        {.wsum step}
+        {.u step}
+        {.taken step}
+        {phase s {nth d 0} {nth d 1}}
+        {v2 4.4 -0.2}}]
 Fn([List({kept: Int, light: Int, taken: Bool, u: Float, w: Float, wsum: Float}), Int, Float], List(Mob)). The
 candidate weighing its chance at stage s, if one is.
 $[# {_chance steps split s}
@@ -617,6 +626,107 @@ $[# {_keptFly steps split s}
             {tex "flyName" {_keptName i} 0.44 textColor}
             {add2 _recordPlace {v2 -1.8 0.0}}}]
         {fromCopy {phase s {lerp {nth d 0} {nth d 1} 0.5} {nth d 1}} from to}}}}]
+
+Merging two reservoirs
+
+Section 3.2's merge (148:5): each reservoir's kept candidate is fed to a new reservoir as a fresh candidate whose
+weight is that reservoir's whole sum of weights; the new count is the counts added (Alg. 4). Stages 16 to 21: the
+first stream gives way, P's next eight candidates' reservoir appears beside the first, each reservoir becomes a
+fresh candidate, a new reservoir takes them in turn (the second's chance its sum over both), the counts add, and the
+new reservoir is all that is kept.
+
+Fn([String, Vec2, Int, Float], List(Mob)). A fresh candidate: a reservoir's kept one, weighing its whole sum.
+$[# {_freshCard id at kept w} {flatten {'
+    {outlined {++ id "Box"} {box {sub2 at {v2 0.8 0.5}} {add2 at {v2 0.8 0.5}}} _targetColor 2.5}
+    {moveTo {tex {++ id "Name"} {_keptName kept} 0.4 textColor} {add2 at {v2 0.0 0.2}}}
+    {moveTo {tex {++ id "W"} {_short w} 0.34 _weightColor} {sub2 at {v2 0.0 0.22}}}}}]
+
+A merge's numbers: each reservoir's kept candidate and sum, the count of each, the merge's number, and what it keeps.
+$[# _Merge [% {Struct {'
+    {Field "keptA" Int}
+    {Field "sumA" Float}
+    {Field "keptB" Int}
+    {Field "sumB" Float}
+    {Field "countA" Int}
+    {Field "countB" Int}
+    {Field "u" Float}
+    {Field "kept" Int}}}]]
+
+Fn([_Merge, List(Mob), Float], List(Mob)). The merge at stage s, the first reservoir's `record` as the stream left
+it.
+$[# {_merging m record s}
+    [# placeA {v2 -3.6 2.4}]
+    [# placeB {v2 3.6 2.4}]
+    [# placeC {v2 -2.8 -1.4}]
+    [# a {_toward record 1.0 placeA {phase s 16.0 16.6}}]
+    [# b {append
+        {_record "B" placeB {_keptName {.keptB m}} {_short {.sumB m}} {str {.countB m}}}
+        {moveTo
+            {caption "nextText" {textKey "wrsmath-next"} 0.32 textDimColor}
+            {add2 placeB {v2 0.0 1.4}}}}]
+    [# total {+ {.sumA m} {.sumB m}}]
+    [# taken {!and {>= {.keptB m} 0} {< {* {.u m} total} {.sumB m}}}]
+    [# freshA {_freshCard "freshA" {v2 -1.4 0.7} {.keptA m} {.sumA m}}]
+    [# freshB {_freshCard "freshB" {v2 1.4 0.7} {.keptB m} {.sumB m}}]
+    [# fromA {_freshCard "freshA" {add2 placeA {v2 -1.8 0.0}} {.keptA m} {.sumA m}}]
+    [# fromB {_freshCard "freshB" {add2 placeB {v2 -1.8 0.0}} {.keptB m} {.sumB m}}]
+    [# kept {!if {< s 18.4} -1 {!if {< s 18.95} {.keptA m} {.kept m}}}]
+    [# sum {!if {< s 18.2}
+        -1.0
+        {!if {< s 18.45}
+            {* {.sumA m} {smooth {phase s 18.2 18.4}}}
+            {lerp {.sumA m} total {smooth {phase s 18.45 18.55}}}}}]
+    [# count {!if {< s 19.0}
+        ""
+        {!if {< s 19.5}
+            f"{${str {.countA m}} + ${str {.countB m}}}"
+            {str {+ {.countA m} {.countB m}}}}}]
+    [# c {_record "C" placeC {_keptName kept} {!if {< sum 0.0} "" {_short sum}} count}]
+    [# countSum {_record "C" placeC "" "" f"{${str {.countA m}} + ${str {.countB m}}}"}]
+    [# countTotal {_record "C" placeC "" "" {str {+ {.countA m} {.countB m}}}}]
+    [# newC {!if {!and {>= s 19.5} {< s 20.0}}
+        {append
+            {filter c {^ {x} {!= {idOf x} "CF2"}}}
+            {transform {phase s 19.5 20.0} {withId countSum "CF2"} {withId countTotal "CF2"}}}
+        c}]
+    [# dim {!if {< s 20.0} 1.0 {- 1.0 {* 0.55 {smooth {phase s 20.0 20.5}}}}}]
+    {flatten {'
+        {faded a dim}
+        {faded {fadeIn {phase s 16.4 17.0} b} dim}
+        {!if {< s 18.2}
+            {fromCopy {phase s 17.0 17.6} fromA freshA}
+            {fadeOut {phase s 18.2 18.5} freshA}}
+        {!if {< s 18.6}
+            {fromCopy {phase s 17.4 18.0} fromB freshB}
+            {fadeOut {phase s 18.85 19.0} freshB}}
+        {!if {< s 18.0}
+            {'}
+            {circumscribe {phase s 20.0 21.0} {write {phase s 18.0 18.2} newC} _targetColor}}
+        {!if {!and {>= s 18.2} {< s 18.5}}
+            {fromCopy
+                {phase s 18.2 18.5}
+                {withId freshA "freshAName"}
+                {moveTo
+                    {tex "flyC" {_keptName {.keptA m}} 0.44 textColor}
+                    {add2 placeC {v2 -1.8 0.0}}}}
+            {'}}
+        {!if {!and taken {>= s 18.75} {< s 19.0}}
+            {fromCopy
+                {phase s 18.75 19.0}
+                {withId freshB "freshBName"}
+                {moveTo
+                    {tex "flyC" {_keptName {.keptB m}} 0.44 textColor}
+                    {add2 placeC {v2 -1.8 0.0}}}}
+            {'}}
+        {!if {!and {>= s 18.5} {< s 19.0}}
+            {_chanceView f"{\frac{w^B_{\text{sum}}}{w^A_{\text{sum}} + w^B_{\text{sum}}}}"
+                {.sumB m}
+                total
+                {.u m}
+                taken
+                {phase s 18.5 18.95}
+                {v2 3.6 -0.9}}
+            {'}}}}]
 
 The scene
 
@@ -659,31 +769,22 @@ $[# wrsMath {: {^ {t}
                             bar
                             up
                             0.08}}}}}}}]
-    [# keptCard {!if {!and ready {>= s 15.6}}
+    [# keptCard {!if {!and ready {>= s 15.6} {>= keptNow 0}}
         {circumscribe {phase s 15.6 16.0} {withId cards f"{card${str keptNow}}"} _targetColor}
         {'}}]
-    [# second {!if {!or {not ready} {<= n split}}
-        {'}
-        {_record "B"
-            {v2 4.0 -0.7}
-            {_keptName {.kept {nth steps {- n 1}}}}
-            {_short {.wsum {nth steps {- n 1}}}}
-            {str {- n split}}}}]
-    [# total {!if ready
-        {+ {.wsum {nth steps {- split 1}}} {!if {> n split} {.wsum {nth steps {- n 1}}} 0.0}}
-        0.0}]
-    [# merged {_record "A" {v2 0.0 -2.9} {_keptName {.kept merge}} {_short total} {str n}}]
-    [# merging {!if {!or {< s 16.0} {<= n split}}
-        {'}
-        {flatten {'
-            {fadeIn {phase s 16.0 16.3} second}
-            {transform {phase s 16.4 17.0} {append record second} merged}}}}]
+    [# merged {: {.
+        keptA {.kept {nth steps {- split 1}}}
+        sumA {.wsum {nth steps {- split 1}}}
+        keptB {.kept {nth steps {- n 1}}}
+        sumB {.wsum {nth steps {- n 1}}}
+        countA split
+        countB {- n split}
+        u {.u merge}
+        kept {.kept merge}} _Merge}]
+    [# merges {!and ready {> n split} {>= s 16.0}}]
+    [# stream {flatten {' {_tape s} cards chances keptCard}}]
     {flatten {'
-        {_tape s}
-        cards
-        chances
-        keptCard
-        {!if {>= s 16.0} {!if {<= n split} record {fadeOut {phase s 16.4 16.6} {'}}} record}
+        {!if {< s 16.0} stream {fadeOut {phase s 16.0 16.4} stream}}
+        {!if merges {_merging merged record s} record}
         {!if {!and ready {>= s 6.0} {< s 15.0}} {_chance steps split s} {'}}
-        {!if ready {_keptFly steps split s} {'}}
-        merging}}} Math}]
+        {!if ready {_keptFly steps split s} {'}}}}} Math}]

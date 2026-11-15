@@ -237,7 +237,7 @@ The lab implements the paper's algorithms from its text.
 
 This chapter follows the paper's introduction, on its first two pages.
 
-## Related work {#c2 number=2 target=447 summary="What ReSTIR replaces, and the two ideas it is built from: resampled importance sampling and weighted reservoir sampling." sources="many-lights, hierarchies, tiled, path-reuse, denoisers, eq3, eq4, eq5, eq6, ris-unbiased, ris-converges, reservoir-history, wrs, eq9, alg2"}
+## Related work {#c2 number=2 target=472 summary="What ReSTIR replaces, and the two ideas it is built from: resampled importance sampling and weighted reservoir sampling." sources="many-lights, hierarchies, tiled, path-reuse, denoisers, eq3, eq4, eq5, eq6, ris-unbiased, ris-converges, reservoir-history, wrs, eq9, alg2"}
 
 ### Other ways to light many lights {#c2-others kind=2d diagram=related focus=OTHERS}
 
@@ -561,6 +561,22 @@ At the end, each candidate has been kept ${overText
 ${cue "key" {' {callout "combine"}}}And two reservoirs can be merged into one, ${overText
     {' {wrsStageRange 16.0 17.0}}
     "as if both their streams had passed through a single reservoir"}.
+
+To merge them, ${overText
+    {' {wrsStageRange 17.0 18.0}}
+    "each reservoir's kept candidate becomes a fresh candidate"}, whose weight is that reservoir's whole sum of weights.
+
+A new reservoir ${overText
+    {' {wrsStageRange 18.0 19.0}}
+    "takes the two in turn, keeping the second with a chance of its weight over the new sum"}.
+
+${cue "key" {' {callout "alg4"}}}Its count is ${overText
+    {' {wrsStageRange 19.0 20.0}}
+    "the two counts added"}, sixteen here.
+
+${cue "key" {' {callout "combine"}}}The merge ${overText
+    {' {wrsStageRange 20.0 21.0}}
+    "takes a fixed amount of work"}, and needs neither stream, only each reservoir's record.
 
 That merge is what will let pixels share.
 
