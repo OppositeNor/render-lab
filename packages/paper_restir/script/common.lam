@@ -96,3 +96,16 @@ $[# chanceView {:
             estimateColor}]
         {append {fadeIn {phase t 0.0 0.2} formula} bar}}
     {Fn {' String Float Float Float Bool Float Vec2} {List Mob}}}]
+
+Fn([Float, List(Mob), List(String), String], List(Mob)). A figure with its parts named in `ids` pointed at while `t`
+runs (`indicate` on those parts alone; the figure as it is before and after).
+$[# {pointParts t mobs ids color} {!if {!and {> t 0.0} {< t 1.0}}
+    {append
+        {filter mobs {^ {m} {not {contains ids {idOf m}}}}}
+        {indicate t {filter mobs {^ {m} {contains ids {idOf m}}}} color}}
+    mobs}]
+
+Fn([Float, List(Mob), List(String), String], List(Mob)). A figure with its parts named in `ids` struck out (`t`).
+$[# {crossParts t mobs ids color} {append
+    {filter mobs {^ {m} {not {contains ids {idOf m}}}}}
+    {crossOut t {filter mobs {^ {m} {contains ids {idOf m}}}} color}}]

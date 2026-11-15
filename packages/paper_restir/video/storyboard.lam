@@ -366,41 +366,55 @@ The cheap way favours the candidates on the brightest lights.
 
 So those candidates turn up often, whatever they bring to P.
 
-To take away that head start, ${overText {' {risWeighRange 0.0 1.0}} "each candidate gets a weight"}.
+### Weights, the pick, and W {#c2-ris-math kind=2d math=risMath}
 
-The weight is ${formulaSaid f"{w = \frac{\hat{p}(x)}{p(x)}}" "its target divided by the probability it was drawn with"
+${cue "key" {opening demoWeights panelHidden {' {weightsStage 0.0}}}}
+
+To take away that head start, ${overText
+    {' {weightsStageRange 0.0 1.0}}
+    "each candidate gets a weight"}.
+
+${overText {' {weightsStageRange 1.0 2.0}} "The weight is"} ${formulaSaid f"{w = \frac{\hat{p}(x)}{p(x)}}" "its target divided by the probability it was drawn with"
     {'}}.
 
-A candidate drawn often is divided by a large probability, so each time it turns up, it counts for less.
+${overText
+    {' {weightsStageRange 2.0 3.0}}
+    "A candidate drawn often is divided by a large probability"}, so each time it turns up, it counts for less.
 
-${cue "key" {' {glide cameraYaw 30.0 sentence}}}Here ${overText
-    {' {pickURange 0.88 0.9}}
-    "the brighter a line from P"}, the larger its candidate's weight.
+Here ${overText {' {weightsStageRange 3.0 4.0}} "the taller a bar"}, the larger its candidate's weight.
 
-The panel lists each candidate's target, the probability it was drawn with, and the weight between them.
+${overText
+    {' {weightsStageRange 4.0 5.0}}
+    "The table lists each candidate's target, the probability it was drawn with, and the weight between them"}.
 
-${cue "key" {' {glide cameraYaw 24.0 sentence}}}Second, P keeps one candidate, ${overText
-    {' {risPickRange 0.0 1.0}}
+Second, P keeps one candidate, ${overText
+    {' {weightsStageRange 5.0 6.0}}
     "picked with a chance in proportion to its weight"}.
 
-${cue "key" {' {callout "eq6"}}}P then shades the kept candidate as if it had been drawn in proportion to the target.
+${cue "key" {' {callout "eq6"}}}P then shades the kept candidate ${overText
+    {' {weightsStageRange 6.0 7.0}}
+    "as if it had been drawn in proportion to the target"}.
 
-But the candidate was not drawn that way.
+${overText {' {weightsStageRange 7.0 8.0}} "But the candidate was not drawn that way"}.
 
 So the shaded result is multiplied by a correction, ${overText
-    {' {lightPhaseRange 0.0 0.03}}
+    {' {weightsStageRange 8.0 9.0}}
     "the average of all eight weights"}.
 
 ${cue "key" {' {callout "ris-unbiased"}}}With that correction, RIS is unbiased, right on average, ${overText
-    {' {restirCandidatesRange 8.0 16.0} {risStepRange 8.0 16.0}}
+    {' {weightsStageRange 9.0 10.0}}
     "however many candidates it draws"}.
 
-${cue "key" {' {glide cameraDistance 3.2 sentence}}}Shading as if drawn by the target means dividing by the kept candidate's target.
+Shading as if drawn by the target means ${overText
+    {' {weightsStageRange 10.0 11.0}}
+    "dividing by the kept candidate's target"}.
 
-Together with the correction, that division makes a single number, called W.
+Together with the correction, ${overText
+    {' {weightsStageRange 11.0 12.0}}
+    "that division makes a single number, called W"}.
 
 So the light at P is ${overText
-    {' {lightPhaseRange 0.03 0.06}}
+    {' {weightsStageRange 12.0 13.0}}
     "what the kept candidate brings, times W"}.
 
 ### Two samples, worked by hand {#c2-toy kind=2d math=toyMath}

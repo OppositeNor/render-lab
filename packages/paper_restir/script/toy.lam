@@ -43,17 +43,6 @@ $[# {_moving s whole dropped2 dropped1}
                 {!if {< s 22.0}
                     {lerp dropped1 whole {smooth {phase s 21.0 21.6}}}
                     {_by {round {toyDrop}}}}}}}]
-Fn([Float, List(Mob), List(String), String], List(Mob)). A figure with its parts named in `ids` struck out (`t`).
-$[# {_crossParts t mobs ids color} {append
-    {filter mobs {^ {m} {not {contains ids {idOf m}}}}}
-    {crossOut t {filter mobs {^ {m} {contains ids {idOf m}}}} color}}]
-Fn([Float, List(Mob), List(String), String], List(Mob)). A figure with its parts named in `ids` pointed at while `t`
-runs.
-$[# {_pointParts t mobs ids color} {!if {!and {> t 0.0} {< t 1.0}}
-    {append
-        {filter mobs {^ {m} {not {contains ids {idOf m}}}}}
-        {indicate t {filter mobs {^ {m} {contains ids {idOf m}}}} color}}
-    mobs}]
 
 Phase one: two samples, their p, p-hat, and w
 
@@ -308,9 +297,9 @@ $[# toyMath {: {^ {t}
         {_tableShown s {tableShifted {_table 0} {v2 3.8 0.4}}}
         {_tableShown s {tableShifted {_table 1} {v2 3.8 0.4}}}}]
     [# struck {!if {< s 19.0} 0.0 {- {smooth {phase s 19.0 19.4}} {smooth {phase s 21.0 21.4}}}}]
-    [# tableNow {_pointParts
+    [# tableNow {pointParts
         {phase s 20.0 21.0}
-        {_crossParts struck {toward tables 0.75 {v2 4.0 2.75} {phase s 7.0 7.8}} {' "hwp"} pColor}
+        {crossParts struck {toward tables 0.75 {v2 4.0 2.75} {phase s 7.0 7.8}} {' "hwp"} pColor}
         {' "cBw"}
         accentColor}]
     [# estimate {!if {< s 8.0}
@@ -335,7 +324,7 @@ $[# toyMath {: {^ {t}
         {- {smooth {phase s 18.0 18.4}} {smooth {phase s 19.0 19.4}}}}]
     [# formula {!if {< s 18.0}
         estimate
-        {_crossParts averageStruck estimate {' "sum" "M"} weightColor}}]
+        {crossParts averageStruck estimate {' "sum" "M"} weightColor}}]
     [# keep {!if {< s 17.0}
         {write {phase s 16.0 16.7} {_keepSymbols}}
         {fadeOut

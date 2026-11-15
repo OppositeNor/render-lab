@@ -84,4 +84,8 @@ pub struct RestirValues {
     /// two ways of drawing mixed, 7 to 14 the target and the cheap choice.
     #[value(default = 14.0, range = 0.0..=14.0, unit = plain, text = "controls-is_stage", color = palette::SELECTED, label(sampling), help = "help-isStage")]
     pub is_stage: f32,
+    /// How far RIS's weights, pick, and W have come (script/weights.lam `risMath`), one stage per sentence of the
+    /// story's beat: 1 to 5 the candidates' weights, 6 the pick, 7 to 10 the correction, 11 to 13 W and the light.
+    #[value(default = 13.0, range = 0.0..=13.0, unit = plain, text = "controls-weights_stage", color = palette::SELECTED, label(weights), help = "help-weightsStage")]
+    pub weights_stage: f32,
 }

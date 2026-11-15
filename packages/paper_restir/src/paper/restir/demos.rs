@@ -61,13 +61,15 @@ pub fn build_frame(
         Demo::Bias => bias::draw(state, &mut content),
         Demo::Toy => toy::draw(state, &mut content),
         Demo::Spatial => spatial::draw(state, &mut content, &placed, &statics.meshes),
-        // The stream through a reservoir and P's lights are math scenes on the example world (examples.rs).
+        // The stream through a reservoir, P's lights, and RIS's weights are math scenes on the example world
+        // (examples.rs).
         Demo::Room
         | Demo::Reservoirs
         | Demo::Reference
         | Demo::Methods
         | Demo::Wrs
-        | Demo::Lights => {}
+        | Demo::Lights
+        | Demo::Weights => {}
     }
     content
 }

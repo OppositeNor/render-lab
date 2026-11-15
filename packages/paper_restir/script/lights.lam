@@ -9,7 +9,12 @@ toward f until every estimate is the total; two ways of drawing mixed with weigh
 its total, and the cheap choice that ignores P. The numbers are the example's (`exampleLights`): its lights move
 and brighten as the story's cues move the room's (`lightPhase`, `lightIntensity`).
 
-$[Import* std]$[Import* render_lab_runtime]$[Import* render_lab_math]$[Import* paper_restir_values]$[Import* paper_restir_natives]$[Import* paper_restir_common]
+$[Import* std]
+$[Import* render_lab_runtime]
+$[Import* render_lab_math]
+$[Import* paper_restir_values]
+$[Import* paper_restir_natives]
+$[Import* paper_restir_common]
 
 The charts
 
@@ -24,12 +29,17 @@ $[# _lineX1 2.2]
 $[# _right [% {v2 5.2 0.0}]]
 
 Fn([Int, Int], Box). The slot of light i of n, across the bars' width, from a baseline of height 0.
-$[# {_slot i n} [# w {/ {- _x1 _x0} {float n}}] [# x {+ _x0 {* w {float i}}}]
+$[# {_slot i n}
+    [# w {/ {- _x1 _x0} {float n}}]
+    [# x {+ _x0 {* w {float i}}}]
     {box {v2 {+ x {* 0.15 w}} 0.0} {v2 {- {+ x w} {* 0.15 w}} 0.0}}]
 Fn([String, Int, Int, Float, Float, String, Float], List(Mob)). Light i's bar on the baseline `base`, `height` high.
 $[# {_bar id i n base height color alpha}
     [# s {_slot i n}]
-    {filled id {box {v2 {.x {.lo s}} base} {v2 {.x {.hi s}} {+ base {max height 0.0}}}} color alpha}]
+    {filled id
+        {box {v2 {.x {.lo s}} base} {v2 {.x {.hi s}} {+ base {max height 0.0}}}}
+        color
+        alpha}]
 
 Fn([List({brings: Float, share: Float})], Float). The total of what the lights bring.
 $[# {_total lights} {fold lights 0.0 {^ {t l} {+ t {.brings l}}}}]
@@ -41,21 +51,17 @@ binary search do, cpu.rs `Scene::pick`).
 $[# {_pick shares u}
     [# starts {runningSums shares}]
     [# n {length shares}]
-    {fold {range 0 n} {- n 1} {^ {found i} {!if {!and {= found {- n 1}} {< u {nth starts {+ i 1}}}} {min found i} found}}}]
+    {fold
+        {range 0 n}
+        {- n 1}
+        {^ {found i} {!if {!and {= found {- n 1}} {< u {nth starts {+ i 1}}}}
+            {min found i}
+            found}}}]
 
 The story's draws: eight lights picked by the cheap choice with the story's numbers.
 $[# _draws 8]
 
-Fn([Float, List(Mob), List(String), String], List(Mob)). A figure with its parts named in `ids` pointed at while `t`
-runs.
-$[# {_pointParts t mobs ids color} {!if {!and {> t 0.0} {< t 1.0}}
-    {append {filter mobs {^ {m} {not {contains ids {idOf m}}}}} {indicate t {filter mobs {^ {m} {contains ids {idOf m}}}} color}}
-    mobs}]
 
-Fn([Float, List(Mob), List(String), String], List(Mob)). A figure with its parts named in `ids` struck out (`t`).
-$[# {_crossParts t mobs ids color} {append
-    {filter mobs {^ {m} {not {contains ids {idOf m}}}}}
-    {crossOut t {filter mobs {^ {m} {contains ids {idOf m}}}} color}}]
 
 The scene
 
@@ -68,7 +74,11 @@ $[# {_drawn s draws brings pNow fHeight pHeight n}
     [# slot {_slot i n}]
     [# x {.x {boxCenter slot}}]
     [# marker {append
-        {arrowLine "drawn" {v2 x 3.85} {v2 x {+ _fBase {+ {fHeight {nth brings i}} 0.1}}} accentColor 3.0}
+        {arrowLine "drawn"
+            {v2 x 3.85}
+            {v2 x {+ _fBase {+ {fHeight {nth brings i}} 0.1}}}
+            accentColor
+            3.0}
         {append
             {_bar "drawnF" i n _fBase {fHeight {nth brings i}} accentColor 1.0}
             {_bar "drawnP" i n _pBase {pHeight {nth pNow i}} accentColor 1.0}}}]
@@ -79,7 +89,9 @@ $[# {_drawn s draws brings pNow fHeight pHeight n}
             {' "f" "p" "fv" "pv" "e"}
             {' targetColor pColor targetColor pColor estimateColor}}
         {add2 _right {v2 0.0 2.4}}}]
-    {!if {< s 0.6} {'} {faded {append {fadeIn {phase s 0.6 1.0} marker} {write {phase s 1.0 1.8} formula}} away}}]
+    {!if {< s 0.6}
+        {'}
+        {faded {append {fadeIn {phase s 0.6 1.0} marker} {write {phase s 1.0 1.8} formula}} away}}]
 
 The line of estimates (stages 1 to 5): each draw's estimate f / p as a dot (the first at stage 1, the others at 2),
 the true total marked, the dots sliding as p follows f (stage 3 to 4) and back; a dot fades as its light's p goes
@@ -92,46 +104,102 @@ $[# {_estimates s draws brings pNow shares total}
         {arrowLine "line" {v2 _lineX0 _lineY} {v2 {+ _lineX1 0.3} _lineY} textDimColor 2.0}
         {moveTo {tex "lineLabel" f"{\frac{f}{p}}" 0.4 estimateColor} {v2 {+ _lineX1 0.8} _lineY}}}]
     [# truth {append
-        {dashedLine "truth" {v2 {_x total} {- _lineY 0.35}} {v2 {_x total} {+ _lineY 0.6}} totalColor 2.5}
-        {moveTo {tex "truthText" f"{\textstyle\sum f}" 0.4 totalColor} {v2 {_x total} {- _lineY 0.7}}}}]
-    [# dots {map {range 0 _draws} {^ {j}
-        [# i {nth draws j}]
-        [# p {nth pNow i}]
-        [# seen {clamp {/ p {max {nth shares i} 0.000001}} 0.0 1.0}]
-        [# e {over {nth brings i} p}]
-        [# r {+ 0.07 {* 0.25 {sqrt {nth shares i}}}}]
-        [# dot {dotAt f"{dot${str j}}" {v2 {_x e} _lineY} r estimateColor}]
-        {faded {fadeIn {!if {= j 0} {phase s 1.4 1.8} {phase s {+ 2.0 {* 0.08 {float j}}} {+ 2.3 {* 0.08 {float j}}}}} dot} {min seen 1.0}}}}]
-    {!if {< s 1.0} {'} {faded {flatten {' {create {phase s 1.0 1.4} line} {fadeIn {phase s 2.0 2.4} truth} {flatten dots}}} away}}]
+        {dashedLine "truth"
+            {v2 {_x total} {- _lineY 0.35}}
+            {v2 {_x total} {+ _lineY 0.6}}
+            totalColor
+            2.5}
+        {moveTo
+            {tex "truthText" f"{\textstyle\sum f}" 0.4 totalColor}
+            {v2 {_x total} {- _lineY 0.7}}}}]
+    [# dots {map
+        {range 0 _draws}
+        {^ {j}
+            [# i {nth draws j}]
+            [# p {nth pNow i}]
+            [# seen {clamp {/ p {max {nth shares i} 0.000001}} 0.0 1.0}]
+            [# e {over {nth brings i} p}]
+            [# r {+ 0.07 {* 0.25 {sqrt {nth shares i}}}}]
+            [# dot {dotAt f"{dot${str j}}" {v2 {_x e} _lineY} r estimateColor}]
+            {faded
+                {fadeIn
+                    {!if {= j 0}
+                        {phase s 1.4 1.8}
+                        {phase s {+ 2.0 {* 0.08 {float j}}} {+ 2.3 {* 0.08 {float j}}}}}
+                    dot}
+                {min seen 1.0}}}}]
+    {!if {< s 1.0}
+        {'}
+        {faded
+            {flatten {'
+                {create {phase s 1.0 1.4} line}
+                {fadeIn {phase s 2.0 2.4} truth}
+                {flatten dots}}}
+            away}}]
 
 Mixing two ways of drawing (stages 4 to 6): a second way, every light alike, shown flat over the p bars, and each
 light's two weights stacked to one (the balance heuristic's, one choice of weights that sum to one).
 $[# {_mixing s shares fHeight pHeight n}
     [# show {- {smooth {phase s 5.0 5.5}} {smooth {phase s 6.0 6.4}}}]
     [# flat {/ 1.0 {float n}}]
-    [# flatLine {dashedLine "flat" {v2 _x0 {+ _pBase {pHeight flat}}} {v2 _x1 {+ _pBase {pHeight flat}}} textColor 2.0}]
+    [# flatLine {dashedLine "flat"
+        {v2 _x0 {+ _pBase {pHeight flat}}}
+        {v2 _x1 {+ _pBase {pHeight flat}}}
+        textColor
+        2.0}]
     [# base -3.5]
-    [# stacks {flatten {map {range 0 n} {^ {i}
-        [# p {nth shares i}]
-        [# m {/ p {+ p flat}}]
-        [# slot {_slot i n}]
-        {append
-            {filled f"{m1${str i}}" {box {v2 {.x {.lo slot}} base} {v2 {.x {.hi slot}} {+ base m}}} pColor 0.85}
-            {filled f"{m2${str i}}" {box {v2 {.x {.lo slot}} {+ base m}} {v2 {.x {.hi slot}} {+ base 1.0}}} textDimColor 0.6}}}}}]
-    [# formula {moveTo {tex "mis" f"{m_1(x) + m_2(x) = 1}" 0.44 textColor} {add2 _right {v2 0.0 -3.0}}}]
-    {!if {<= show 0.0} {'} {faded {flatten {' {create {phase s 5.0 5.4} flatLine} {growFrom {phase s 5.4 5.9} stacks down} {write {phase s 5.5 5.9} formula}}} show}}]
+    [# stacks {flatten {map
+        {range 0 n}
+        {^ {i}
+            [# p {nth shares i}]
+            [# m {/ p {+ p flat}}]
+            [# slot {_slot i n}]
+            {append
+                {filled f"{m1${str i}}"
+                    {box {v2 {.x {.lo slot}} base} {v2 {.x {.hi slot}} {+ base m}}}
+                    pColor
+                    0.85}
+                {filled f"{m2${str i}}"
+                    {box {v2 {.x {.lo slot}} {+ base m}} {v2 {.x {.hi slot}} {+ base 1.0}}}
+                    textDimColor
+                    0.6}}}}}]
+    [# formula {moveTo
+        {tex "mis" f"{m_1(x) + m_2(x) = 1}" 0.44 textColor}
+        {add2 _right {v2 0.0 -3.0}}}]
+    {!if {<= show 0.0}
+        {'}
+        {faded
+            {flatten {'
+                {create {phase s 5.0 5.4} flatLine}
+                {growFrom {phase s 5.4 5.9} stacks down}
+                {write {phase s 5.5 5.9} formula}}}
+            show}}]
 
 The target (stages 10 to 13): the totals (the target's is not one), and the exact proportion struck out. (The
 ideal p, f's shares, is the p bars reshaped and in the target's colour, stages 6 to 12; the cheap choice's p is kept
 while P's bars become another pixel's, stage 12.)
 $[# {_target s total}
     [# sums {flatten {'
-        {moveTo {tex "sumF" f"{\textstyle\sum \hat p = ${short total}}" 0.44 targetColor} {add2 _right {v2 0.0 2.3}}}
+        {moveTo
+            {tex "sumF" f"{\textstyle\sum \hat p = ${short total}}" 0.44 targetColor}
+            {add2 _right {v2 0.0 2.3}}}
         {moveTo {tex "sumP" f"{\textstyle\sum p = 1}" 0.44 pColor} {add2 _right {v2 0.0 -0.9}}}}}]
-    [# exact {moveTo {texParts "exact" f"{\frac{\hat p(x)}{\lit{1}{\textstyle\sum \hat p}}}" 0.5 textColor {' "sum"} {' targetColor}} {add2 _right {v2 0.0 0.8}}}]
+    [# exact {moveTo
+        {texParts "exact" f"{\frac{\hat p(x)}{\lit{1}{\textstyle\sum \hat p}}}" 0.5 textColor
+            {' "sum"}
+            {' targetColor}}
+        {add2 _right {v2 0.0 0.8}}}]
     {flatten {'
         {!if {< s 10.0} {'} {fadeOut {phase s 12.6 13.0} {write {phase s 10.0 10.7} sums}}}
-        {!if {< s 11.0} {'} {fadeOut {phase s 12.6 13.0} {_crossParts {phase s 11.5 11.9} {write {phase s 11.0 11.5} exact} {' "sum"} weightColor}}}}}]
+        {!if {< s 11.0}
+            {'}
+            {fadeOut
+                {phase s 12.6 13.0}
+                {crossParts
+                    {phase s 11.5 11.9}
+                    {write {phase s 11.0 11.5} exact}
+                    {' "sum"}
+                    weightColor}}}}}]
 
 Fn([Float, List({brings: Float, share: Float}), List({brings: Float, share: Float})], List(Mob)). The scene once
 the frame has P's and Q's lights.
@@ -149,24 +217,38 @@ $[# {_scene s atP atQ}
     [# pMax {fold pNow 0.000001 max}]
     [# pHeight {^ {p} {* 1.6 {/ p pMax}}}]
     [# draws {map {range 0 _draws} {^ {j} {_pick shares {uniform 11 j}}}}]
-    [# fBars {flatten {map {range 0 n} {^ {i}
-        {_bar f"{f${str i}}" i n _fBase {fHeight {nth brings i}} targetColor 0.85}}}}]
-    [# pBars {flatten {map {range 0 n} {^ {i}
-        {_bar f"{p${str i}}" i n _pBase {pHeight {nth pNow i}} pColor 0.85}}}}]
+    [# fBars {flatten {map
+        {range 0 n}
+        {^ {i} {_bar f"{f${str i}}" i n _fBase {fHeight {nth brings i}} targetColor 0.85}}}}]
+    [# pBars {flatten {map
+        {range 0 n}
+        {^ {i} {_bar f"{p${str i}}" i n _pBase {pHeight {nth pNow i}} pColor 0.85}}}}]
     [# idealBars {faded {tinted pBars targetColor} {* 0.9 ideal}}]
-    [# fLabel {transform {phase s 8.0 8.6}
+    [# fLabel {transform
+        {phase s 8.0 8.6}
         {moveTo {tex "fLabel" "f" 0.5 targetColor} {v2 -6.9 {+ _fBase 0.9}}}
         {moveTo {tex "fLabel" f"{\hat p}" 0.5 targetColor} {v2 -6.9 {+ _fBase 0.9}}}}]
     [# pLabel {moveTo {tex "pLabel" "p" 0.5 pColor} {v2 -6.9 {+ _pBase 0.8}}}]
-    [# where {transform {phase s 12.0 12.6}
+    [# where {transform
+        {phase s 12.0 12.6}
         {moveTo {caption "whereP" {textKey "lightsmath-pixel-p"} 0.32 textDimColor} {v2 -5.4 3.75}}
-        {moveTo {caption "whereP" {textKey "lightsmath-pixel-q"} 0.32 textDimColor} {v2 -4.6 3.75}}}]
-    [# barsNote {moveTo {caption "barsNote" {textKey "lightsmath-bars"} 0.3 textDimColor} {v2 -1.7 {- _pBase 0.35}}}]
+        {moveTo
+            {caption "whereP" {textKey "lightsmath-pixel-q"} 0.32 textDimColor}
+            {v2 -4.6 3.75}}}]
+    [# barsNote {moveTo
+        {caption "barsNote" {textKey "lightsmath-bars"} 0.3 textDimColor}
+        {v2 -1.7 {- _pBase 0.35}}}]
     [# charts {flatten {'
         {growFrom {phase s 0.0 0.5} fBars down}
         {growFrom {phase s 0.2 0.7} {faded pBars {- 1.0 ideal}} down}
         idealBars
-        {fadeIn {phase s 0.0 0.4} {flatten {' {_pointParts {phase s 7.0 8.0} fLabel {' "fLabel"} accentColor} pLabel where barsNote}}}}}]
+        {fadeIn
+            {phase s 0.0 0.4}
+            {flatten {'
+                {pointParts {phase s 7.0 8.0} fLabel {' "fLabel"} accentColor}
+                pLabel
+                where
+                barsNote}}}}}]
     {flatten {'
         charts
         {_drawn s draws brings pNow fHeight pHeight n}
