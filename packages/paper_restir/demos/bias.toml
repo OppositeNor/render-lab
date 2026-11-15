@@ -1,12 +1,13 @@
-# Bias in RIS: the paper's 1D example (Fig. 7) beside the room, where the dock switches between the biased and unbiased combination.
+# Bias in RIS: the paper's 1D example (Fig. 7), redrawn from the lab's runs of it (demos/bias.rs); its math scene
+# (script/bias.lam) shows it in place of the room.
 
 key = "bias"
 title-text = "shot-bias_title"
 tab-text = "shot-bias"
 hint-text = "shot-bias_hint"
 scene = "paper_restir.scene/restir-room"
-listing = "frame"
 resets-camera = true
+math = "biasMath"
 
 [camera]
 target = [0.0, 0.9, -0.6]
@@ -17,4 +18,4 @@ fov = 55.0
 
 
 [params]
-restirSeed = -1
+biasStage = 31

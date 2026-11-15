@@ -276,3 +276,9 @@ id = "script/source"
 kind = "file"
 source = "script/source.lam"
 license = "MIT"
+
+[[resource]]
+id = "script/bias"
+kind = "file"
+source = "script/bias.lam"
+license = "MIT"

@@ -5,12 +5,9 @@
 //! their output (from its histogram, the thick line) and the mean of W where it
 //! lands (the thin line); they agree only when W is unbiased. The weight m is
 //! the biased 1/M, the naive 1/|Z| (Eq. 20-21), or the balance heuristic
-//! (Eq. 22).
+//! (Eq. 22). The math scene `biasMath` (script/bias.lam) draws the curves on the canvas through the natives
+//! (script.rs).
 
-use crate::paper::restir::text::{tr, tr_with};
-use lab::frame::{FrameContent, Readout};
-use lab::palette;
-use lab::utility::inset::{Corner, Picture, PictureInset};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -35,12 +32,16 @@ impl Weight {
     }
 }
 
-fn target(x: f64) -> f64 {
+/// The runs of RIS each setting's curves average.
+pub const RUNS: usize = 400_000;
+
+/// The target p̂(x) = 2 − 2x.
+pub fn target(x: f64) -> f64 {
     2.0 - 2.0 * x
 }
 
 /// The candidates' PDFs at x: p₁ for even candidates, p₂ for odd ones.
-fn pdf(i: usize, x: f64, near_zero: bool) -> f64 {
+pub fn pdf(i: usize, x: f64, near_zero: bool) -> f64 {
     if i.is_multiple_of(2) {
         1.0
     } else if near_zero {
@@ -164,173 +165,10 @@ pub fn curves(m: usize, weight: Weight, near_zero: bool) -> Arc<Curves> {
     if let Some(c) = cache.lock().unwrap().get(&(m, weight, near_zero)) {
         return c.clone();
     }
-    let c = Arc::new(run(m, weight, near_zero, 400_000));
+    let c = Arc::new(run(m, weight, near_zero, RUNS));
     cache
         .lock()
         .unwrap()
         .insert((m, weight, near_zero), c.clone());
     c
-}
-
-/// The plot as pixels: the true inverse PDF (thick), the mean W (thin), on 0 to 4; a line where the step stops.
-fn plot(c: &Curves, size: [u32; 2], show: Show) -> Vec<u8> {
-    let (w, h) = (size[0] as usize, size[1] as usize);
-    let mut rgba = vec![0u8; w * h * 4];
-    let mark = (show.mark >= 0.0).then(|| ((show.mark * w as f32) as usize).min(w - 1));
-    for (k, px) in rgba.chunks_mut(4).enumerate() {
-        // The middle of the range drawn as a faint rule, the marker as a bright one.
-        let color = if Some(k % w) == mark {
-            [235, 235, 240, 255]
-        } else if k % w == w / 2 {
-            [70, 76, 88, 255]
-        } else {
-            [22, 26, 32, 255]
-        };
-        px.copy_from_slice(&color);
-    }
-    let mut put = |x: usize, y: f64, color: [u8; 3], thick: usize| {
-        let row = h as f64 - 1.0 - (y / 4.0).clamp(0.0, 1.0) * (h as f64 - 1.0);
-        for t in 0..thick {
-            let r = (row as usize + t).saturating_sub(thick / 2).min(h - 1);
-            let i = 4 * (r * w + x);
-            rgba[i..i + 3].copy_from_slice(&color);
-        }
-    };
-    for x in 0..w {
-        // Each curve drawn as far across as the reveal has reached it: the target, the two PDFs, then the lines.
-        let bin = (x * BINS / w).min(BINS - 1);
-        let at = (x as f64 + 0.5) / w as f64;
-        let reached = |n: f32| show.reveal - n >= x as f32 / w as f32;
-        if reached(0.0) {
-            put(x, target(at), TARGET, 2);
-        }
-        if reached(1.0) {
-            put(x, pdf(0, at, false), PDFS, 1);
-        }
-        if reached(2.0) {
-            put(x, pdf(1, at, false), PDFS, 1);
-        }
-        if reached(3.0) {
-            put(x, c.truth[bin], [120, 200, 255], 5);
-        }
-        if reached(4.0) {
-            put(x, c.mean_w[bin], [255, 196, 90], 2);
-        }
-    }
-    rgba
-}
-
-/// The target ramp's colour and the two source PDFs' in the plot.
-const TARGET: [u8; 3] = [205, 205, 210];
-const PDFS: [u8; 3] = [130, 210, 150];
-
-/// What the plot shows (`biasReveal`, `biasMark`): how far each curve is drawn, and the marker's place.
-#[derive(Clone, Copy)]
-struct Show {
-    reveal: f32,
-    mark: f32,
-}
-
-/// The readout at the marker's place y: the two PDFs there, how many of the M candidates could produce y (|Z(y)|,
-/// Eq. 19), what W divides by, and the two curves' values there. The formula is the narration's to show.
-fn at_marker(c: &Curves, m: usize, weight: Weight, near_zero: bool, y: f32) -> Readout {
-    let x = f64::from(y.clamp(0.0, 0.999));
-    let (flat, step) = (pdf(0, x, near_zero), pdf(1, x, near_zero));
-    let z = m / 2
-        + if step > 0.0 {
-            m / 2
-        } else {
-            0
-        };
-    let bin = ((x * BINS as f64) as usize).min(BINS - 1);
-    let divisor = match weight {
-        Weight::Biased => format!("M = {m}"),
-        Weight::Naive => format!("|Z| = {z}"),
-        Weight::Balance => tr("demos-bias_balance").to_string(),
-    };
-    let row = |text: &str, value: String, color| (text.to_string(), value, color);
-    Readout {
-        title: tr("demos-bias_marker_title").into(),
-        subtitle: tr_with(
-            "demos-bias_marker_subtitle",
-            lab::args!(x = format!("{x:.2}")),
-        ),
-        formula: None,
-        formula_lit: None,
-        rows: vec![
-            row(tr("demos-bias_flat_at"), format!("{flat:.2}"), PDF_COLOR),
-            row(tr("demos-bias_step_at"), format!("{step:.2}"), PDF_COLOR),
-            row(
-                tr("demos-bias_could"),
-                format!("{z} / {m}"),
-                palette::THEME_ACCENT,
-            ),
-            row(tr("demos-bias_divides"), divisor, palette::THEME_ACCENT),
-            row(
-                tr("demos-bias_truth_at"),
-                format!("{:.2}", c.truth[bin]),
-                TRUTH_COLOR,
-            ),
-            row(
-                tr("demos-bias_mean_at"),
-                format!("{:.2}", c.mean_w[bin]),
-                MEAN_COLOR,
-            ),
-        ],
-    }
-}
-
-const PDF_COLOR: egui::Color32 = egui::Color32::from_rgb(PDFS[0], PDFS[1], PDFS[2]);
-const TRUTH_COLOR: egui::Color32 = egui::Color32::from_rgb(120, 200, 255);
-const MEAN_COLOR: egui::Color32 = egui::Color32::from_rgb(255, 196, 90);
-
-pub fn draw(state: &lab::shot::ShotState, content: &mut FrameContent) {
-    let m = (state.p("biasCandidates").round() as usize).clamp(2, 20) & !1;
-    let weight = Weight::of(state.p("biasWeight"));
-    let near_zero = state.p("biasNearZero") > 0.5;
-    let c = curves(m, weight, near_zero);
-    let size: [u32; 2] = [480, 240];
-    let show = Show {
-        reveal: state.p("biasReveal").clamp(0.0, 5.0),
-        mark: state.p("biasMark").min(1.0),
-    };
-    let key = format!(
-        "restir-bias-{m}-{weight:?}-{near_zero}-{}-{}",
-        (show.reveal * 100.0).round(),
-        (show.mark * 200.0).round()
-    );
-    if show.mark >= 0.0 {
-        content.readout = Some(at_marker(&c, m, weight, near_zero, show.mark));
-    }
-    content.insets.push(PictureInset {
-        corner: Corner::TopRight,
-        x_axis: tr("demos-bias_axis").to_string(),
-        lines: vec![
-            (
-                tr("demos-bias_target").to_string(),
-                egui::Color32::from_rgb(TARGET[0], TARGET[1], TARGET[2]),
-            ),
-            (
-                tr("demos-bias_pdfs").to_string(),
-                egui::Color32::from_rgb(PDFS[0], PDFS[1], PDFS[2]),
-            ),
-            (
-                tr("demos-bias_truth").to_string(),
-                egui::Color32::from_rgb(120, 200, 255),
-            ),
-            (
-                tr("demos-bias_mean").to_string(),
-                egui::Color32::from_rgb(255, 196, 90),
-            ),
-        ],
-        ..PictureInset::new(
-            tr("demos-bias_title"),
-            Picture::Pixels {
-                key,
-                size: [size[0] as usize, size[1] as usize],
-                rgba: Arc::new(plot(&c, size, show)),
-            },
-            [480.0, 240.0],
-        )
-    });
 }

@@ -113,4 +113,9 @@ pub struct RestirValues {
     /// the sample, 4 too bright or too dark, 5 that chance at P.
     #[value(default = 5.0, range = 0.0..=5.0, unit = plain, text = "controls-source_stage", color = palette::SELECTED, label(source), help = "help-sourceStage")]
     pub source_stage: f32,
+    /// How far the 1D example's explanation has come (script/bias.lam `biasMath`), one stage per sentence of the
+    /// story's two beats (17 and 14 sentences): the formulas, the readouts at the marker, and Talbot's cost beside
+    /// the plot, which `biasReveal`, `biasMark`, `biasCandidates`, `biasWeight`, and `biasNearZero` draw.
+    #[value(default = 31.0, range = 0.0..=31.0, unit = plain, text = "controls-bias_stage", color = palette::SELECTED, label(bias), help = "help-biasStage")]
+    pub bias_stage: f32,
 }

@@ -58,7 +58,6 @@ pub fn build_frame(
     match Demo::of(state.demo) {
         Demo::Ris => ris::draw(state, &mut content, &placed, &statics.meshes),
         Demo::Reuse => reuse::draw(state, &mut content, &placed, &statics.meshes),
-        Demo::Bias => bias::draw(state, &mut content),
         Demo::Toy => toy::draw(state, &mut content),
         Demo::Spatial => spatial::draw(state, &mut content, &placed, &statics.meshes),
         // The stream through a reservoir, P's lights, and RIS's weights are math scenes on the example world
@@ -74,7 +73,8 @@ pub fn build_frame(
         | Demo::Combine
         | Demo::Rounds
         | Demo::History
-        | Demo::Source => {}
+        | Demo::Source
+        | Demo::Bias => {}
     }
     content
 }

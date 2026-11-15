@@ -88,15 +88,6 @@ demos-spatial_subtitle = { $kept } of { $k } neighbours combined
 demos-source_own = P's own
 demos-source = Neighbour { $i }
 formula-combine = { FORMULA("w = \\hat{p}_P(y) \\cdot W \\cdot M", display: "yes") }
-demos-bias_marker_title = At the marker
-demos-bias_marker_subtitle = The place y = { $x }
-demos-bias_flat_at = Flat PDF there
-demos-bias_step_at = Step PDF there
-demos-bias_could = Candidates that could produce y
-demos-bias_divides = W divides by
-demos-bias_balance = each candidate's share of the PDFs
-demos-bias_truth_at = True 1 / p(y)
-demos-bias_mean_at = Mean W
 shot-toy_title = RIS worked by hand
 shot-toy = Worked RIS
 shot-toy_hint = The lab's example, not the paper's: two light samples, A and B, and two candidates. Every list of candidates is shown with its chance and its estimate, and their average beside the true total.
@@ -165,12 +156,6 @@ controls-bias_candidates = Candidates
 help-biasCandidates = M, half drawn from the constant PDF and half from the step.
 controls-bias_near_zero = Step nearly zero
 help-biasNearZero = Make the step PDF nearly zero past one half instead of zero, as Fig. 7c does.
-demos-bias_title = RIS's inverse PDF, 1D (after Fig. 7)
-demos-bias_axis = x from 0 to 1; the step stops at the line
-demos-bias_truth = true 1 / p(y), from the histogram
-demos-bias_mean = mean W where y lands
-demos-bias_target = the target p̂(x) = 2 − 2x
-demos-bias_pdfs = the flat and step PDFs
 controls-bias_reveal = Curves drawn
 help-biasReveal = How much of the plot is drawn, each curve sweeping in from the left: 1 the target, 2 the flat PDF, 3 the step PDF, 4 the true inverse PDF, 5 the mean of W.
 controls-bias_mark = Marker
@@ -298,3 +283,8 @@ sourcemath-sample = Q's sample
 sourcemath-exact = exact
 sourcemath-dark = too dark
 sourcemath-bright = too bright
+controls-bias_stage = Stage
+help-biasStage = How far the explanation beside the plot has come, one stage per sentence of the story's two beats: what the lines are, the count W divides by, Eq. 19, the fix, the near-zero step, the balance heuristic, and Talbot's weight.
+biasmath-runs = runs of RIS, each line measured over them
+biasmath-neighbour = like a neighbour's reservoir
+biasmath-balance = the balance heuristic, from multiple importance sampling

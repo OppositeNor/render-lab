@@ -88,15 +88,6 @@ demos-spatial_subtitle = { $k } 个邻居中合并了 { $kept } 个
 demos-source_own = P 自己的
 demos-source = 邻居 { $i }
 formula-combine = { FORMULA("w = \\hat{p}_P(y) \\cdot W \\cdot M", display: "yes") }
-demos-bias_marker_title = 标记处
-demos-bias_marker_subtitle = 位置 y = { $x }
-demos-bias_flat_at = 那里的均匀 PDF
-demos-bias_step_at = 那里的阶跃 PDF
-demos-bias_could = 能产生 y 的候选
-demos-bias_divides = W 除以
-demos-bias_balance = 每个候选在 PDF 之和中的占比
-demos-bias_truth_at = 真实的 1 / p(y)
-demos-bias_mean_at = W 的平均
 shot-toy_title = 手算一遍 RIS
 shot-toy = 手算 RIS
 shot-toy_hint = 实验室自己的例子，不是论文的：两个光源样本 A 和 B，两个候选。每一种候选组合都列出它的概率和它给出的估计，再把它们的平均和真实总量放在一起比较。
@@ -165,12 +156,6 @@ controls-bias_candidates = 候选数
 help-biasCandidates = M，一半取自常数 PDF，一半取自阶跃 PDF。
 controls-bias_near_zero = 阶跃接近零
 help-biasNearZero = 让阶跃 PDF 在二分之一之后接近零而不是等于零，如图 7c。
-demos-bias_title = RIS 的 PDF 倒数，一维（仿图 7）
-demos-bias_axis = x 从 0 到 1；阶跃 PDF 在竖线处终止
-demos-bias_truth = 真实的 1 / p(y)，来自直方图
-demos-bias_mean = y 落点处 W 的平均
-demos-bias_target = 目标 p̂(x) = 2 − 2x
-demos-bias_pdfs = 均匀分布与阶跃分布的 PDF
 controls-bias_reveal = 已画出的曲线
 help-biasReveal = 图上画出多少，每条曲线从左向右扫入：1 目标，2 均匀 PDF，3 阶跃 PDF，4 真实的 PDF 倒数，5 W 的平均。
 controls-bias_mark = 标记
@@ -298,3 +283,8 @@ sourcemath-sample = Q 的样本
 sourcemath-exact = 恰好
 sourcemath-dark = 过暗
 sourcemath-bright = 过亮
+controls-bias_stage = 阶段
+help-biasStage = 图旁的讲解进行到哪一步，故事两个段落里每句话一个阶段：两条线的含义、W 除以的个数、式 19、修正、近乎为零的阶梯、平衡启发式，以及 Talbot 的权重。
+biasmath-runs = 次 RIS 运行，两条线都由它们测得
+biasmath-neighbour = 就像邻居的 reservoir
+biasmath-balance = 平衡启发式，来自多重重要性采样

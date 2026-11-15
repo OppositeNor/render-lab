@@ -12,7 +12,7 @@ fn groups(demo: Demo) -> &'static [&'static str] {
         Demo::Ris => &["pick", "restir", "view", "lights"],
         Demo::Spatial => &["pick", "restir", "view", "lights"],
         Demo::Reuse => &["pick", "restir", "view", "lights"],
-        Demo::Bias => &["bias", "restir", "view", "lights"],
+        Demo::Bias => &["bias"],
         Demo::Toy => &["toy"],
         Demo::Wrs => &["wrs", "pick", "restir"],
         Demo::Lights => &["sampling", "pick", "lights"],

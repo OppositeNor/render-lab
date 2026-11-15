@@ -18,6 +18,8 @@
 //! | `exampleCombine seed count` | P's reservoir and its neighbours' in that world, each of `count` candidates, combined at P as the lab's spatial pass does |
 //! | `exampleReach k radius rounds seed` | for each number of rounds of spatial reuse, the paths down the paper's tree (k to the n) and the distinct pixels they end on, with the lab's neighbour pattern |
 //! | `exampleHistory current clamp frames` | a pixel's M over frames of temporal reuse (the lab's count, its clamp; 0 none), and each frame's share of the last M |
+//! | `biasCurves m weight nearZero` | the 1D example's curves (demos/bias.rs, Fig. 7): per bin, the true inverse PDF of RIS's output and the mean of W, and the runs behind them |
+//! | `biasPdf i x nearZero`, `biasTarget x` | that example's PDFs (0 the flat one, 1 the step) and its target at x |
 //! | `exampleSearch u` | the lab's binary search over the running sum of the shares for `u`: each halving, then the light found |
 
 use super::demos::ris::Trace;
@@ -157,6 +159,15 @@ lab::lamlet_record! {
     }
 }
 
+lab::lamlet_record! {
+    /// The 1D example's curves (demos/bias.rs `Curves`), and the runs of RIS behind them.
+    pub struct BiasRecord {
+        pub truth: Vec<f64> = "truth",
+        pub mean_w: Vec<f64> = "meanW",
+        pub runs: i64 = "runs",
+    }
+}
+
 /// A trace's steps as the scripts read them.
 fn steps_of(t: &Trace) -> Vec<RisStep> {
     t.steps
@@ -286,7 +297,41 @@ pub fn register(natives: &mut NativeRegistry) -> Result<(), Error> {
         .doc("Fn([Int, Int], {kept: Int, split: Int, u: Float}). The merge of that example stream's two reservoirs.")
         .register()?;
     register_alias(natives)?;
-    register_reuse(natives)
+    register_reuse(natives)?;
+    register_bias(natives)
+}
+
+/// The natives of the 1D example of RIS's bias (demos/bias.rs).
+fn register_bias(natives: &mut NativeRegistry) -> Result<(), Error> {
+    use super::demos::bias;
+    natives
+        .function(
+            "paper_restir/bias-curves",
+            |_, (m, weight, near_zero): (i64, f64, f64)| {
+                let m = (m.clamp(2, 20) as usize) & !1;
+                let c = bias::curves(m, bias::Weight::of(weight as f32), near_zero > 0.5);
+                Ok(BiasRecord {
+                    truth: c.truth.clone(),
+                    mean_w: c.mean_w.clone(),
+                    runs: bias::RUNS as i64,
+                })
+            },
+        )
+        .doc("Fn([Int, Float, Float], {meanW: List(Float), runs: Int, truth: List(Float)}). The 1D example's curves (Fig. 7) for `m` candidates (even, 2 to 20), the weight (0 biased 1/M, 1 naive 1/|Z|, 2 the balance heuristic), and whether the step is nearly zero: per bin across [0, 1), the true inverse PDF of RIS's output and the mean of W there, over `runs` runs.")
+        .register()?;
+    natives
+        .function("paper_restir/bias-pdf", |_, (i, x, near_zero): (i64, f64, f64)| {
+            Ok(bias::pdf(i.max(0) as usize, x, near_zero > 0.5))
+        })
+        .doc("Fn([Int, Float, Float], Float). The 1D example's PDF of candidate kind `i` (0 the flat one, 1 the step) at x, the step nearly zero past one half when `nearZero` is 1.")
+        .register()?;
+    natives
+        .function("paper_restir/bias-target", |_, (x,): (f64,)| {
+            Ok(bias::target(x))
+        })
+        .doc("Fn([Float], Float). The 1D example's target, 2 - 2x.")
+        .register()?;
+    Ok(())
 }
 
 /// The natives of the example's rounds of spatial reuse and its count over frames.
