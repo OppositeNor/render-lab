@@ -1,7 +1,7 @@
 # Recipes: manim's techniques in `render_lab_math`
 
-Each recipe is code that ran in a scene (ReSTIR's `toyMath`, `packages/paper_restir/script/toy.lam`, or the library's
-check scenes), with `s` the stage value and `t` a progress. A scene starts:
+Each recipe is code that ran in a scene (ReSTIR's scenes in `packages/paper_restir/script/`: `toy.lam`, `wrs.lam`,
+`params.lam`, `combine.lam`, `rounds.lam`, `history.lam`, `source.lam`, `bias.lam`; or the library's check scenes), with `s` the stage value and `t` a progress. A scene starts:
 
 ```text
 $[Import* std]$[Import* render_lab_runtime]$[Import* render_lab_math]$[Import* <package>_values]$[Import* <package>_natives]
@@ -22,7 +22,8 @@ $[# myScene {: {^ {t}
 - **Colours** are Strings: `"#rrggbb"`, or a theme colour's name through the runtime library's `textColor`,
   `textDimColor`, `textFaintColor`, `accentColor`.
 - **LaTeX** goes in a template, `f"{\int_{0.5}^{2.5} \lit{1}{f(x)}\,dx}"`: backslashes and braces as LaTeX writes
-  them, nothing escaped; `${…}` inserts a value (`f"{\frac{1}{${numberLatex x 1}}}"`). Terms are `\lit{1}`, `\lit{2}`,
+  them, nothing escaped; `${…}` inserts a call's value (`f"{\frac{1}{${numberLatex x 1}}}"`) and `$name` a variable's
+  (`${name}` would call it). A LaTeX command chosen by a condition is a template too: `${!if a "<" f"{\geq}"}`. Terms are `\lit{1}`, `\lit{2}`,
   … numbered from 1 in the order the names list gives them (`texParts id latex size color names colors`: the n-th
   name and colour are term n's); `withId figure "name"` picks a term out by its name.
 - **Anchors** for layout (`nextTo`, `frameOn`, `brace`) are figures as they stand when the stage is done: build the
@@ -167,3 +168,35 @@ The unit square split by each draw's chances; a list of draws is its cells, its 
 ```
 
 Fade what the zoom leaves behind (`faded … away`), so its edges do not show at the frame's border.
+
+## Shares laid end to end, cut into a table, and gathered again (ReSTIR's `params.lam`)
+
+`strip` lays shares end to end; pieces of it move between the strip and another layout by lerping their boxes
+(`{box {lerp2 {.lo a} {.lo b} k} {lerp2 {.hi a} {.hi b} k}}`), each light's after the one before (`lagged`).
+The pieces' places come from a native (the alias table built in the package's code), so the picture is the
+structure. Many categories take `spectrum n` (neighbours far apart); a search over the strip is a range that
+halves step by step, each step `{phase f …}` of its slice of the stage.
+
+## A scene driven by the demonstration's own values (ReSTIR's `bias.lam`)
+
+When a demonstration already has values a story sweeps (`biasReveal`, `biasMark`, `biasCandidates`), the math
+scene reads them, so the storyboard's ranges keep working and the dock still explores it; one more stage value
+(`biasStage`) adds what each sentence explains beside the figure. Show each addition for a span of stages:
+
+```text
+$[# {_during s a b fig} {!if {!or {< s a} {> s b}} {'} {fadeOut {phase s {- b 0.25} b} {fadeIn {phase s a {+ a 0.3}} fig}}}]
+```
+
+## One scene over two beats, a 3D beat between (ReSTIR's `rounds.lam`)
+
+Give the second beat's opening the stage it starts from (`{roundsStage 2.0}`) and cut to its figure: after the
+room, a fade from the first beat's figure only shows what is gone. Two consecutive beats of one scene do not fade
+(`TimelineBeat::same_math`).
+
+## A logarithmic axis, and shares that shift (ReSTIR's `rounds.lam`, `history.lam`)
+
+Plot `log10` of the values on a linear range and label its ticks as formulas (`f"{10^{${str i}}}"`, without the
+axes' own y labels). A superscript is smaller than its em: at 0.34 the labels measured 23.8 px; 0.42 passes.
+Shares of a whole that change (a history before and after a clamp) are one `strip` per state, their segments'
+boxes lerped from one to the other.
+

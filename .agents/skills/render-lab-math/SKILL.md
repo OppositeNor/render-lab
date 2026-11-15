@@ -43,7 +43,8 @@ it is a function of its time and its values (the investigation's values package)
   the same figure (`{circumscribe t2 {transform t1 a b} color}`), never by appending a second copy: an animation
   outside its stage returns its figure (`indicate`, `circumscribe`, `crossOut` included), so appending one draws the
   figure twice. To change some parts of a figure, filter them out and append the changed ones (ReSTIR's
-  `_crossParts`, `_pointParts`).
+  `crossParts`, `pointParts` in `script/common.lam`); to ring a figure for one stage alone, keep only the ring:
+  `{drop {circumscribe t fig color} {length fig}}`.
 - **The demonstration shows the same scene** (`math = "toyMath"` in its file): the viewer draws the canvas in place of
   the room, and dragging the stage value replays the beat.
 
@@ -53,12 +54,14 @@ it is a function of its time and its values (the investigation's values package)
   a graph's layout from its edges (`graph`, laid out by `lab/src/math/layout.rs`), samples from a seed. Nothing is
   placed by typed coordinates where a relation says it (`nextTo`, `inRow`, `onAxes`), and nothing is a picture.
 - **Numbers come from the investigation's code**, through its natives (`Investigation::script_natives`; ReSTIR's
-  `toyWeight`, `toyEstimate`, …), never typed into the scene. A math beat renders its frame unseen (its beat's
-  keys choose the demonstration, camera, and values), so a scene's natives can also read what the demonstration's
-  `build_frame` left for them (`frame_data`; ReSTIR's `risTrace`, P's stream in `wrsMath`). Such numbers depend on
-  the frame: P is a fraction of the viewport, and a recording's frame is not the viewer's shape, so check the values
-  in the beat's stills, not only in the demonstration, and let the scene draw no numbers until the data is there. Write them as LaTeX with `fractionLatex`,
-  `numberLatex`, or a scene's own helper (ReSTIR's `_rational`).
+  `toyWeight`, `exampleTrace`, `biasCurves`, …), never typed into the scene. A demonstration on the canvas is
+  for reading numbers, so give it **a small seeded example of its own** in the package's code, run through the
+  same functions the passes mirror (ReSTIR's `examples.rs`: 24 lights, P and three neighbours, streamed through
+  `cpu.rs`'s reservoir, combined as `Scene::combine` does), rather than the frame's data: values read back from the
+  frame (`frame_data`) depend on the viewport's shape, differ between the viewer and a recording, and are often
+  zero where the scene is dark. The scene may also read the dock's values (`{restirNeighbours}`), so it follows
+  them. Write numbers as LaTeX with `fractionLatex`, `numberLatex`, or a scene's own helper (ReSTIR's `rational`,
+  `short`).
 - **Text** on the canvas is a formula (`tex`, `texParts`: LaTeX in `f"{…}"` templates) or a text key
   (`caption` with `{textKey "…"}`, in both languages' tables); `words` only for a symbol or a number.
 
