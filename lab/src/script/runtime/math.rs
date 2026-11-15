@@ -196,10 +196,16 @@ pub fn math_scenes() -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// What the math scene `name` draws for `state` at `time` seconds: its mobs, or what it last drew when the call
-/// fails in the viewer (a recording or a selftest fails instead, `set_strict`); None when the scripts have no
-/// such scene.
-pub fn math_scene(name: &str, state: &ShotState, time: f32) -> Option<Scene> {
+/// What the math scene `name` draws for `state` at `time` seconds, its natives reading `frame` (what the
+/// investigation's `build_frame` left, `frame_data`): its mobs, or what it last drew when the call fails in the
+/// viewer (a recording or a selftest fails instead, `set_strict`); None when the scripts have no such scene.
+pub fn math_scene(
+    name: &str,
+    state: &ShotState,
+    frame: Option<&FrameContent>,
+    statics: &Statics,
+    time: f32,
+) -> Option<Scene> {
     let drawn = with_runtime(|rt| {
         let kind = Kind::Math(name.to_string());
         let label = kind.to_string();
@@ -214,7 +220,13 @@ pub fn math_scene(name: &str, state: &ShotState, time: f32) -> Option<Scene> {
             return None;
         }
         let result = rt
-            .call(&kind, vec![Value::Float(time as f64)], state, None, None)
+            .call(
+                &kind,
+                vec![Value::Float(time as f64)],
+                state,
+                frame,
+                Some(statics),
+            )
             .and_then(|d| mobs(&d));
         match result {
             Ok(mobs) => {

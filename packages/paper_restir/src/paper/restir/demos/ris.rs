@@ -25,6 +25,8 @@ pub struct Candidate {
     pub w: f32,
     /// Whether it was kept when it was streamed.
     pub taken: bool,
+    /// The uniform number its update drew (Alg. 2: it replaces the kept one when u · wsum < w).
+    pub u: f32,
 }
 
 /// P, in pixels of a viewport of `size`: the picked one (`pickU`, `pickV`, fractions of the viewport).
@@ -72,10 +74,10 @@ pub fn stream(
         let (p, p_hat) = (scene.source_pdf(light), scene.target(s, x));
         let w = p_hat / p;
         let before = r.y;
+        // Each candidate draws its update's number, streamed or not, so the later ones stay the same.
+        let u = rng.rand();
         if i < steps {
-            r.update(x, w, rng);
-        } else {
-            rng.rand();
+            r.update_with(x, w, u);
         }
         out.push(Candidate {
             x,
@@ -84,10 +86,78 @@ pub fn stream(
             p_hat,
             w,
             taken: i < steps && r.y != before,
+            u,
         });
     }
     r.finish(scene.target(s, r.y), r.m);
     (out, r)
+}
+
+/// One candidate's update in the trace of P's stream (`trace`).
+#[derive(Clone, Debug)]
+pub struct TraceStep {
+    pub light: u32,
+    pub w: f32,
+    pub u: f32,
+    /// The reservoir's weight sum after it, and the candidate it keeps then (an index into the stream; none while
+    /// every candidate so far weighs nothing).
+    pub wsum: f32,
+    pub kept: Option<usize>,
+    pub taken: bool,
+}
+
+/// P's stream as weighted reservoir sampling meets it (Alg. 2), for the story's math scene (script.rs): its first
+/// eight candidates through one reservoir, the rest through a second, and the two merged (Alg. 4's combination: the
+/// second's kept one replaces the first's with the chance of its weight sum over both).
+#[derive(Clone, Debug, Default)]
+pub struct Trace {
+    pub steps: Vec<TraceStep>,
+    /// Where the second reservoir's candidates start.
+    pub split: usize,
+    /// The merge: its uniform number, and the candidate it keeps.
+    pub merge_u: f32,
+    pub merged: Option<usize>,
+}
+
+/// The trace of `candidates` (as `stream` drew them, each with its update's number), merged with the number `u`.
+pub fn trace(candidates: &[Candidate], u: f32) -> Trace {
+    let split = candidates.len().min(8);
+    let mut steps = Vec::with_capacity(candidates.len());
+    let mut sums = [0.0f32; 2];
+    let mut kept: [Option<usize>; 2] = [None; 2];
+    for (i, c) in candidates.iter().enumerate() {
+        // Each half streams into its own reservoir, from empty, with the numbers the stream drew.
+        let half = usize::from(i >= split);
+        let mut r = Reservoir::empty();
+        r.wsum = sums[half];
+        r.m = 1.0;
+        let taken = r.update_with(c.x, c.w, c.u);
+        sums[half] = r.wsum;
+        if taken {
+            kept[half] = Some(i);
+        }
+        steps.push(TraceStep {
+            light: c.x.light,
+            w: c.w,
+            u: c.u,
+            wsum: r.wsum,
+            kept: kept[half],
+            taken,
+        });
+    }
+    // The merge, as streaming the second reservoir's kept candidate into the first with its weight sum.
+    let both = sums[0] + sums[1];
+    let merged = if sums[1] > 0.0 && u * both < sums[1] {
+        kept[1]
+    } else {
+        kept[0]
+    };
+    Trace {
+        steps,
+        split,
+        merge_u: u,
+        merged,
+    }
 }
 
 /// Draws P's candidates and the reservoir after `risStep` of them, with a readout of the stream.
@@ -119,6 +189,7 @@ pub fn draw(
     let mut rng = Rng::new(UVec2::new(q[0] as u32, q[1] as u32), seed, 0);
     let steps = (state.p("risStep").round().max(0.0) as u32).min(scene.candidates);
     let (candidates, r) = stream(&scene, &s, &mut rng, steps);
+    content.script = Some(std::sync::Arc::new(trace(&candidates, rng.rand())));
     let top = candidates.iter().map(|c| c.w).fold(1e-12, f32::max);
     let weigh = state.p("risWeigh").clamp(0.0, 1.0);
     let lit = picked(&candidates, steps, state.p("risPick"), &r);

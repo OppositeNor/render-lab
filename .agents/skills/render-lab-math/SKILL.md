@@ -53,7 +53,11 @@ it is a function of its time and its values (the investigation's values package)
   a graph's layout from its edges (`graph`, laid out by `lab/src/math/layout.rs`), samples from a seed. Nothing is
   placed by typed coordinates where a relation says it (`nextTo`, `inRow`, `onAxes`), and nothing is a picture.
 - **Numbers come from the investigation's code**, through its natives (`Investigation::script_natives`; ReSTIR's
-  `toyWeight`, `toyEstimate`, …), never typed into the scene. Write them as LaTeX with `fractionLatex`,
+  `toyWeight`, `toyEstimate`, …), never typed into the scene. A math beat renders its frame unseen (its beat's
+  keys choose the demonstration, camera, and values), so a scene's natives can also read what the demonstration's
+  `build_frame` left for them (`frame_data`; ReSTIR's `risTrace`, P's stream in `wrsMath`). Such numbers depend on
+  the frame: P is a fraction of the viewport, and a recording's frame is not the viewer's shape, so check the values
+  in the beat's stills, not only in the demonstration, and let the scene draw no numbers until the data is there. Write them as LaTeX with `fractionLatex`,
   `numberLatex`, or a scene's own helper (ReSTIR's `_rational`).
 - **Text** on the canvas is a formula (`tex`, `texParts`: LaTeX in `f"{…}"` templates) or a text key
   (`caption` with `{textKey "…"}`, in both languages' tables); `words` only for a symbol or a number.

@@ -408,5 +408,6 @@ $[# Mob [% {Variant {'
     {Field "frame" _MathFrame}}}]]
 
 A math scene, found by its type: what the canvas shows at its time in seconds (the beat's or the demonstration's),
-named by its binding (`math = "toyMath"` in a demonstration, `math=toyMath` on a beat).
+named by its binding (`math = "toyMath"` in a demonstration, `math=toyMath` on a beat). The frame is rendered
+under the canvas, unseen on a beat, so the package's natives can read what its `build_frame` left (`frame_data`).
 $[# Math [% {Fn {' Float} {List Mob}}]]

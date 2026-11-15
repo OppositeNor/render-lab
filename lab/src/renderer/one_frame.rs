@@ -68,13 +68,17 @@ fn lit_boxes(request: &FrameRequest) -> Vec<(String, String)> {
 }
 
 /// The math scene the frame shows (src/math/): a 2D beat's, or on a 3D frame the demonstration's, at the frame's
-/// time.
-fn math_scene(request: &FrameRequest) -> Option<crate::math::Scene> {
+/// time, its natives reading the frame (`content`, rendered unseen on a math beat).
+fn math_scene(
+    request: &FrameRequest,
+    content: Option<&FrameContent>,
+    statics: &crate::frame::Statics,
+) -> Option<crate::math::Scene> {
     let name = match request.scene_type {
         SceneType::TwoD => request.math?,
         SceneType::ThreeD => crate::math::demo_scene(request.state)?,
     };
-    crate::script::runtime::math_scene(name, request.state, request.time)
+    crate::script::runtime::math_scene(name, request.state, content, statics, request.time)
 }
 
 /// The main camera's own view, in the viewport's lower right corner, at its shape.
@@ -114,9 +118,11 @@ impl Renderer {
         };
         let scene_beat = request.scene_type == SceneType::ThreeD;
         let scene_state = plan.main.as_ref().map_or(request.state, |m| &m.state);
-        // The frame graph scene (a 2D beat's `graph`) renders the frame too, unseen, for its lit boxes' pictures.
+        // The frame graph scene (a 2D beat's `graph`) renders the frame too, unseen, for its lit boxes' pictures,
+        // and a math beat for what its scene reads of the frame (src/math/).
         let boxes = lit_boxes(&request);
-        let renders = scene_beat || !boxes.is_empty();
+        let math_beat = request.scene_type == SceneType::TwoD && request.math.is_some();
+        let renders = scene_beat || !boxes.is_empty() || math_beat;
         // A recording waits for the data, so every frame is the same each time.
         if renders {
             self.select_data(scene_state, request.wait || !request.history);
@@ -739,7 +745,7 @@ impl Renderer {
                 title: None,
             })
             .collect();
-        let math = math_scene(&request);
+        let math = math_scene(&request, content, &self.statics);
         // egui pass content.
         let mut raw = request.raw_input;
         raw.screen_rect = Some(egui::Rect::from_min_size(egui::Pos2::ZERO, layout.canvas));

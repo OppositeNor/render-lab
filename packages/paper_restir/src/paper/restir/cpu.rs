@@ -79,12 +79,19 @@ impl Reservoir {
 
     /// Alg. 2, update: add a candidate of weight w, keeping it with probability w / wsum.
     pub fn update(&mut self, x: Sample, w: f32, rng: &mut Rng) {
+        let u = rng.rand();
+        self.update_with(x, w, u);
+    }
+
+    /// The same update with its uniform number `u` given: whether the candidate replaced the kept one.
+    pub fn update_with(&mut self, x: Sample, w: f32, u: f32) -> bool {
         self.wsum += w;
         self.m += 1.0;
-        let u = rng.rand();
-        if w > 0.0 && u * self.wsum < w {
+        let taken = w > 0.0 && u * self.wsum < w;
+        if taken {
             self.y = x;
         }
+        taken
     }
 
     /// W from the weight sum (Eq. 6): over p̂ of the sample, over the count.
