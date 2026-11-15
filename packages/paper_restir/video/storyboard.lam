@@ -948,18 +948,22 @@ It then ${overText
 
 ${cue "key" {' {glide cameraYaw 22.0 sentence}}}That kept reservoir was itself combined with the frame before it, so every past frame feeds the present one.
 
-${cue "key" {' {restirView 2.0}}}${cue "key" {' {glide cameraDistance 3.2 sentence}}}Each combination adds the counts, ${overText
-    {' {restirTemporalClampRange 1.0 20.0}}
+### M over frames {#c5-temporal-math kind=2d math=historyMath}
+
+${cue "key" {opening demoHistory panelHidden {' {historyStage 0.0} {restirTemporalClamp 20.0}}}}
+
+Each combination adds the counts, ${overText
+    {' {historyStageRange 0.0 1.0}}
     "so M climbs from frame to frame"}.
 
 ${cue "key" {' {callout "clamp"}}}If nothing stops it, ${overText
-    {' {restirTemporalClampRange 20.0 100.0}}
+    {' {historyStageRange 1.0 2.0}}
     "M grows without limit"}.
 
-Then ${overText {' {lightPhaseRange 0.06 0.1}} "old samples would outweigh new ones"}.
+Then ${overText {' {historyStageRange 2.0 3.0}} "old samples would outweigh new ones"}.
 
 ${overText
-    {' {restirTemporalClampRange 100.0 20.0}}
+    {' {historyStageRange 3.0 4.0}}
     "So the paper clamps the previous frame's M to at most twenty times this frame's"}.
 
 ### Lights on the move {#c5-dynamic kind=3d}

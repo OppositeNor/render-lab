@@ -1,0 +1,106 @@
+The ReSTIR story's count over frames
+====================================
+
+What the story draws on the canvas (lab/src/math/) for chapter 5's beat `c5-temporal-math`, stage by stage as
+`historyStage` goes from 0 to 4: a pixel's M over frames of temporal reuse alone, as the lab's temporal pass counts
+it (examples.rs `history`, cpu.rs `temporal_m`; the dock's `restirCandidates` and `restirTemporalClamp`): M
+climbing frame by frame, without limit; each past frame's share of the reservoir, every one as large as this
+frame's; then the clamp, M levelling off and the oldest frames fading.
+
+$[Import* std]$[Import* render_lab_runtime]$[Import* render_lab_math]$[Import* paper_restir_values]$[Import* paper_restir_natives]$[Import* paper_restir_common]
+
+The layout
+
+The frames the scene runs over, and the size of its formulas.
+$[# _frames 90]
+$[# _size 0.44]
+Where the formulas go, and the strip of shares.
+$[# _rightX 3.75]
+$[# _stripBox [% {box {v2 -6.2 -2.45} {v2 6.2 -2.05}}]]
+
+Fn([List(Vec2), Float], List(Vec2)). A curve's points up to `f` along it (1 its first point), the last one
+interpolated.
+$[# {_upTo points f}
+    [# n {length points}]
+    [# whole {clamp {floor f} 1 n}]
+    [# head {map {range 0 whole} {^ {i} {nth points i}}}]
+    {!if {>= whole n} head
+        {append head {' {lerp2 {nth points {- whole 1}} {nth points whole} {- f {float whole}}}}}}]
+
+Fn([String, List(Float), String, Float], List(Mob)). Each frame's share as a segment of the strip, the newest
+outlined, at opacity `alpha`.
+$[# {_shares id shares color alpha}
+    [# segments {strip id shares _stripBox {' color "#c4569a"} 0.01}]
+    [# newest {boxOf {nth segments {- {length segments} 1}}}]
+    {faded {append {flatten segments} {outlined {++ id "Newest"} {padded newest 0.05} accentColor 3.0}} alpha}]
+
+Fn([List(Float), List(Float), Float], List(Box)). The strip's segments on their way from one list of shares to the
+other.
+$[# {_morph a b k}
+    [# sa {map {strip "a" a _stripBox {' textColor} 0.01} boxOf}]
+    [# sb {map {strip "b" b _stripBox {' textColor} 0.01} boxOf}]
+    {map {range 0 {length sa}} {^ {i}
+        [# x {nth sa i}]
+        [# y {nth sb i}]
+        {box {lerp2 {.lo x} {.lo y} k} {lerp2 {.hi x} {.hi y} k}}}}]
+
+The scene
+
+Fn([Float], List(Mob)). The scene at stage s.
+$[# {_scene s}
+    [# m {float {restirCandidates}}]
+    [# c {float {restirTemporalClamp}}]
+    [# free {exampleHistory m 0.0 _frames}]
+    [# held {exampleHistory m c _frames}]
+    [# top {* m {float _frames}}]
+    [# ax {axesIn {box {v2 -6.0 -0.5} {v2 0.6 3.0}} {axisRange 0.0 {float _frames} 15.0} {axisRange 0.0 {* 500.0 {float {ceil {/ top 500.0}}}} 500.0}}]
+    [# {_curve ms} {map {range 0 {length ms}} {^ {i} {onAxes ax {float {+ i 1}} {nth ms i}}}}]
+    [# freePts {_curve {.m free}}]
+    [# heldPts {_curve {.m held}}]
+    [# along {!if {< s 1.0} {lerp 1.0 20.0 {smooth {phase s 0.2 1.0}}} {lerp 20.0 {float _frames} {smooth {phase s 1.0 1.8}}}}]
+    [# shown {_upTo freePts along}]
+    [# tip {nth shown {- {length shown} 1}}]
+    [# t {clamp {round along} 1 _frames}]
+    [# axes {flatten {'
+        {axesFigure "axes" ax textDimColor 0.34 true true}
+        {moveTo {caption "axisFrame" {textKey "historymath-frame"} 0.3 textDimColor} {add2 {onAxes ax {/ {float _frames} 2.0} 0.0} {v2 0.0 -0.75}}}
+        {moveTo {tex "axisM" "M" _size textDimColor} {add2 {onAxes ax 0.0 {.hi {.y ax}}} {v2 -0.15 0.45}}}}}]
+    [# rule1 {texParts "rule" f"{\lit{1}{M_t} = \lit{2}{M} + \lit{3}{M_{t-1}}}" 0.46 textColor {' "Mt" "M" "prev"} {' accentColor textColor pColor}}]
+    [# rule2 {texParts "rule" f"{\lit{1}{M_t} = \lit{2}{M} + \min(\lit{3}{M_{t-1}},\ ${str {round c}}\,M)}" 0.46 textColor {' "Mt" "M" "prev"} {' accentColor textColor pColor}}]
+    [# ruleAt {v2 _rightX 2.4}]
+    [# rule {!if {< s 3.0} {moveTo rule1 ruleAt} {transform {phase s 3.0 3.4} {moveTo rule1 ruleAt} {moveTo rule2 ruleAt}}}]
+    [# readout {moveTo {tex "now" f"{M_{${str t}} = ${str {round {nth {.m free} {- t 1}}}}}" _size accentColor} {v2 _rightX 1.3}}]
+    [# freeNote {moveTo {caption "freeNote" {textKey "historymath-unlimited"} 0.3 pColor} {add2 {nth freePts {- _frames 1}} {v2 0.0 0.4}}}]
+    [# limit {* m {+ c 1.0}}]
+    [# limitLine {append
+        {dashedLine "limit" {onAxes ax 0.0 limit} {onAxes ax {float _frames} limit} estimateColor 2.0}
+        {moveTo {tex "limitV" f"{${str {round {+ c 1.0}}}\,M = ${str {round limit}}}" 0.4 estimateColor} {add2 {onAxes ax {float _frames} limit} {v2 1.3 0.0}}}}]
+    [# heldNote {moveTo {caption "heldNote" {textKey "historymath-clamped"} 0.3 estimateColor} {add2 {onAxes ax 50.0 limit} {v2 0.0 -0.35}}}]
+    [# sharesNote {moveTo {caption "sharesNote" {textKey "historymath-shares"} 0.3 textDimColor} {v2 0.0 -1.75}}]
+    [# newest {.hi _stripBox}]
+    [# k {smooth {phase s 3.4 3.9}}]
+    [# share {lerp {nth {.shares free} {- _frames 1}} {nth {.shares held} {- _frames 1}} k}]
+    [# thisNote {append
+        {moveTo {caption "thisNote" {textKey "historymath-this"} 0.3 accentColor} {v2 {- {.x newest} 2.1} -2.9}}
+        {moveTo {tex "thisV" {numberLatex share 3} 0.4 accentColor} {v2 {- {.x newest} 0.6} -2.9}}}]
+    [# segments {!if {< s 3.4}
+        {_shares "shares" {.shares free} pColor 1.0}
+        {flatten {map {zip {range 0 _frames} {_morph {.shares free} {.shares held} k}} {^ {e}
+            {filled {++ "shares." {str {.first e}}} {.second e} {!if {= {% {.first e} 2} 0} estimateColor "#c4569a"} 0.9}}}}}]
+    {flatten {'
+        axes
+        rule
+        {pathThrough "free" shown pColor 3.0}
+        {dotAt "freeTip" tip 0.08 pColor}
+        {!if {< s 2.0} readout {fadeOut {phase s 2.0 2.2} readout}}
+        {!if {< s 1.6} {'} {fadeIn {phase s 1.6 1.9} freeNote}}
+        {!if {< s 2.0} {'} {growFrom {phase s 2.0 2.4} segments left}}
+        {!if {< s 2.0} {'} {fadeIn {phase s 2.0 2.3} sharesNote}}
+        {!if {< s 2.5} {'} {fadeIn {phase s 2.5 2.8} {append thisNote {!if {< s 3.4} {'} {outlined "sharesNewest" {padded {nth {_morph {.shares free} {.shares held} k} {- _frames 1}} 0.05} accentColor 3.0}}}}}
+        {!if {< s 3.2} {'} {create {phase s 3.2 3.7} {pathThrough "held" heldPts estimateColor 3.0}}}
+        {!if {< s 3.5} {'} {fadeIn {phase s 3.5 3.8} {append limitLine heldNote}}}}}]
+
+The hook
+
+Fn([Float], List(Mob)). Temporal reuse's count at stage `historyStage`.
+$[# historyMath {: {^ {t} {_scene {historyStage}}} Math}]

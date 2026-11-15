@@ -163,6 +163,12 @@ source = "demos/rounds.toml"
 license = "MIT"
 
 [[resource]]
+id = "demo/history"
+kind = "file"
+source = "demos/history.toml"
+license = "MIT"
+
+[[resource]]
 id = "listing/ris"
 kind = "file"
 source = "pseudocode/ris.py"
@@ -251,4 +257,10 @@ license = "MIT"
 id = "script/rounds"
 kind = "file"
 source = "script/rounds.lam"
+license = "MIT"
+
+[[resource]]
+id = "script/history"
+kind = "file"
+source = "script/history.lam"
 license = "MIT"

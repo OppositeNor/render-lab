@@ -293,6 +293,29 @@ pub fn reach(k: u32, radius: f32, rounds: u32, seed: u64) -> Vec<(u32, f64, usiz
         .collect()
 }
 
+/// A pixel's count over `frames` frames of temporal reuse alone, each frame drawing `current` candidates and
+/// combining them with last frame's reservoir (`cpu::temporal_m`, last frame's M clamped to `clamp` times this
+/// frame's; no limit when `clamp` is 0): M after each frame, and the share of the last frame's M that each frame's
+/// candidates hold, the oldest first.
+pub fn history(current: f32, clamp: f32, frames: usize) -> (Vec<f32>, Vec<f32>) {
+    let clamp = if clamp > 0.0 {
+        clamp
+    } else {
+        f32::INFINITY
+    };
+    let (mut m, mut ms, mut shares) = (0.0, Vec::new(), Vec::<f32>::new());
+    for _ in 0..frames {
+        // The frames before keep the part of last frame's M the clamp lets through; this frame's candidates join.
+        let next = super::cpu::temporal_m(current, m, clamp);
+        let kept = (next - current) / m.max(1e-9);
+        shares.iter_mut().for_each(|s| *s *= kept * m / next);
+        shares.push(current / next);
+        m = next;
+        ms.push(m);
+    }
+    (ms, shares)
+}
+
 /// One column of an alias table: the part of the column its own light keeps (the rest is its alias's).
 #[derive(Clone, Copy, Debug)]
 pub struct AliasColumn {

@@ -22,10 +22,11 @@ pub enum Demo {
     Params,
     Combine,
     Rounds,
+    History,
 }
 
 impl Demo {
-    pub const ALL: [Demo; 15] = [
+    pub const ALL: [Demo; 16] = [
         Demo::Room,
         Demo::Ris,
         Demo::Reservoirs,
@@ -41,6 +42,7 @@ impl Demo {
         Demo::Params,
         Demo::Combine,
         Demo::Rounds,
+        Demo::History,
     ];
 
     pub fn key(self) -> &'static str {
@@ -60,6 +62,7 @@ impl Demo {
             Demo::Params => "params",
             Demo::Combine => "combine",
             Demo::Rounds => "rounds",
+            Demo::History => "history",
         }
     }
 

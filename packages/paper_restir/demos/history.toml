@@ -1,0 +1,20 @@
+# Temporal reuse's count (examples.rs `history`): M over frames, with and without the clamp, and each past frame's
+# share of the reservoir; its math scene (script/history.lam) shows them in place of the room.
+
+key = "history"
+title-text = "shot-history_title"
+tab-text = "shot-history"
+hint-text = "shot-history_hint"
+scene = "paper_restir.scene/restir-room"
+resets-camera = true
+math = "historyMath"
+
+[camera]
+target = [0.1, 0.8, -0.5]
+yaw = 24.0
+pitch = 18.0
+distance = 3.6
+fov = 55.0
+
+[params]
+historyStage = 4

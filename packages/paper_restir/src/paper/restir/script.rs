@@ -17,6 +17,7 @@
 //! | `examplePieces` | that table's pieces, each a part of a light's share in a column |
 //! | `exampleCombine seed count` | P's reservoir and its neighbours' in that world, each of `count` candidates, combined at P as the lab's spatial pass does |
 //! | `exampleReach k radius rounds seed` | for each number of rounds of spatial reuse, the paths down the paper's tree (k to the n) and the distinct pixels they end on, with the lab's neighbour pattern |
+//! | `exampleHistory current clamp frames` | a pixel's M over frames of temporal reuse (the lab's count, its clamp; 0 none), and each frame's share of the last M |
 //! | `exampleSearch u` | the lab's binary search over the running sum of the shares for `u`: each halving, then the light found |
 
 use super::demos::ris::Trace;
@@ -145,6 +146,14 @@ lab::lamlet_record! {
         pub n: i64 = "n",
         pub paths: f64 = "paths",
         pub pixels: i64 = "pixels",
+    }
+}
+
+lab::lamlet_record! {
+    /// A pixel's M over frames of temporal reuse, and each frame's share of the last one (examples.rs `history`).
+    pub struct HistoryRecord {
+        pub m: Vec<f64> = "m",
+        pub shares: Vec<f64> = "shares",
     }
 }
 
@@ -277,6 +286,24 @@ pub fn register(natives: &mut NativeRegistry) -> Result<(), Error> {
         .doc("Fn([Int, Int], {kept: Int, split: Int, u: Float}). The merge of that example stream's two reservoirs.")
         .register()?;
     register_alias(natives)?;
+    register_reuse(natives)
+}
+
+/// The natives of the example's rounds of spatial reuse and its count over frames.
+fn register_reuse(natives: &mut NativeRegistry) -> Result<(), Error> {
+    natives
+        .function(
+            "paper_restir/example-history",
+            |_, (current, clamp, frames): (f64, f64, i64)| {
+                let (m, shares) = examples::history(current as f32, clamp as f32, frames.clamp(1, 200) as usize);
+                Ok(HistoryRecord {
+                    m: m.into_iter().map(f64::from).collect(),
+                    shares: shares.into_iter().map(f64::from).collect(),
+                })
+            },
+        )
+        .doc("Fn([Float, Float, Int], {m: List(Float), shares: List(Float)}). A pixel's count over `frames` frames of temporal reuse alone, each drawing `current` candidates and combining them with last frame's reservoir as the lab's temporal pass counts (last frame's M clamped to `clamp` times this frame's; 0 no limit): M after each frame, and each frame's share of the last M, the oldest first.")
+        .register()?;
     natives
         .function(
             "paper_restir/example-reach",

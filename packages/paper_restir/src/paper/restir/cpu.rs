@@ -104,6 +104,12 @@ impl Reservoir {
     }
 }
 
+/// Temporal reuse's count (`restirTemporalCS`): last frame's M clamped to `clamp` times this frame's, then the two
+/// added (§5).
+pub fn temporal_m(current: f32, previous: f32, clamp: f32) -> f32 {
+    current + previous.min(clamp * current)
+}
+
 /// A pixel's surface, as the candidate pass stores it (`Surface`).
 #[derive(Clone, Copy, Debug)]
 pub struct Surface {

@@ -7,7 +7,12 @@ k neighbours' round-1 reservoirs, each combining k pixels' own (k and the radius
 and `restirRadius`); its count, k to the n times M; then, on a logarithmic scale, that count against the distinct
 pixels the rounds reach with the lab's neighbour pattern (examples.rs `reach`), and the paper's rounds marked.
 
-$[Import* std]$[Import* render_lab_runtime]$[Import* render_lab_math]$[Import* paper_restir_values]$[Import* paper_restir_natives]$[Import* paper_restir_common]
+$[Import* std]
+$[Import* render_lab_runtime]
+$[Import* render_lab_math]
+$[Import* paper_restir_values]
+$[Import* paper_restir_natives]
+$[Import* paper_restir_common]
 
 The example
 
@@ -25,11 +30,16 @@ The tree
 Fn([Int], Graph). The paper's tree for two rounds: P, its k neighbours, and theirs, as dots.
 $[# {_tree k}
     [# n {+ 1 {+ k {* k k}}}]
-    [# nodes {map {range 0 n} {^ {i}
-        {dotAt f"{node${str i}}" origin {!if {= i 0} 0.17 {!if {<= i k} 0.12 0.08}} {!if {= i 0} accentColor {!if {<= i k} estimateColor targetColor}}}}}]
+    [# nodes {map
+        {range 0 n}
+        {^ {i} {dotAt f"{node${str i}}" origin
+            {!if {= i 0} 0.17 {!if {<= i k} 0.12 0.08}}
+            {!if {= i 0} accentColor {!if {<= i k} estimateColor targetColor}}}}}]
     [# edges {append
         {map {range 1 {+ k 1}} {^ {i} {pair 0 i}}}
-        {flatten {map {range 1 {+ k 1}} {^ {i} {map {range 0 k} {^ {j} {pair i {+ {+ k 1} {+ {* {- i 1} k} j}}}}}}}}}]
+        {flatten {map
+            {range 1 {+ k 1}}
+            {^ {i} {map {range 0 k} {^ {j} {pair i {+ {+ k 1} {+ {* {- i 1} k} j}}}}}}}}}]
     {graph "tree" nodes edges "tree" {box {v2 -6.6 -2.2} {v2 3.2 2.6}} false textDimColor 0}]
 
 Fn([Float, Int], List(Mob)). The tree at `t` (stage 0 to 2): the pixels' own reservoirs, round 1 combining k of
@@ -47,20 +57,37 @@ $[# {_treeScene s k}
     [# yLeaf {.y {nth at {+ k 1}}}]
     [# yMid {.y {nth at 1}}]
     [# yRoot {.y {nth at 0}}]
-    [# {_level id key latex y color t}
-        {fadeIn t {append
-            {moveTo {caption {++ id "Note"} key 0.3 textDimColor} {v2 _labelX {+ y 0.45}}}
-            {moveTo {tex id latex _size color} {v2 _labelX y}}}}]
-    [# leafCount {_level "leafM" {textKey "roundsmath-own"} f"{M = ${str m}}" yLeaf targetColor {phase s 0.0 0.2}}]
-    [# midCount {_level "midM" {textKey "roundsmath-round1"} f"{k\,M = ${str {* k m}}}" yMid estimateColor {phase s 0.45 0.6}}]
-    [# rootLabel {texParts "rootM" f"{k^{\lit{1}{2}} M = ${str {* {* k k} m}}}" _size accentColor {' "n"} {' accentColor}}]
-    [# rootGeneral {texParts "rootM" f"{k^{\lit{1}{n}} M}" 0.56 accentColor {' "n"} {' accentColor}}]
+    [# {_level id key latex y color t} {fadeIn t {append
+        {moveTo {caption {++ id "Note"} key 0.3 textDimColor} {v2 _labelX {+ y 0.45}}}
+        {moveTo {tex id latex _size color} {v2 _labelX y}}}}]
+    [# leafCount {_level "leafM"
+        {textKey "roundsmath-own"}
+        f"{M = ${str m}}"
+        yLeaf
+        targetColor
+        {phase s 0.0 0.2}}]
+    [# midCount {_level "midM"
+        {textKey "roundsmath-round1"}
+        f"{k\,M = ${str {* k m}}}"
+        yMid
+        estimateColor
+        {phase s 0.45 0.6}}]
+    [# rootLabel {texParts "rootM" f"{k^{\lit{1}{2}} M = ${str {* {* k k} m}}}" _size accentColor
+        {' "n"}
+        {' accentColor}}]
+    [# rootGeneral {texParts "rootM" f"{k^{\lit{1}{n}} M}" 0.56 accentColor
+        {' "n"}
+        {' accentColor}}]
     [# rootAt {v2 _labelX yRoot}]
-    [# rootNote {moveTo {caption "rootNote" {textKey "roundsmath-round2"} 0.3 textDimColor} {v2 _labelX {+ yRoot 0.45}}}]
+    [# rootNote {moveTo
+        {caption "rootNote" {textKey "roundsmath-round2"} 0.3 textDimColor}
+        {v2 _labelX {+ yRoot 0.45}}}]
     [# rootCount {!if {< s 1.0}
         {fadeIn {phase s 0.85 1.0} {moveTo rootLabel rootAt}}
         {transform {phase s 1.0 1.4} {moveTo rootLabel rootAt} {moveTo rootGeneral rootAt}}}]
-    [# newNote {fadeIn {phase s 1.5 1.8} {moveTo {caption "newNote" {textKey "roundsmath-paths"} 0.32 targetColor} {v2 -1.7 -2.75}}}]
+    [# newNote {fadeIn
+        {phase s 1.5 1.8}
+        {moveTo {caption "newNote" {textKey "roundsmath-paths"} 0.32 targetColor} {v2 -1.7 -2.75}}}]
     {flatten {'
         {fadeIn {phase s 0.0 0.2} leaves}
         leafCount
@@ -71,7 +98,9 @@ $[# {_treeScene s k}
         {fadeIn {phase s 0.7 0.85} root}
         {fadeIn {phase s 0.75 0.9} rootNote}
         rootCount
-        {!if {!and {> s 1.4} {< s 2.0}} {pointParts {phase s 1.4 1.9} leaves {map leaves idOf} targetColor} {'}}
+        {!if {!and {> s 1.4} {< s 2.0}}
+            {pointParts {phase s 1.4 1.9} leaves {map leaves idOf} targetColor}
+            {'}}
         {!if {< s 1.5} {'} newNote}}}]
 
 The reach
@@ -82,33 +111,57 @@ the paper's rounds marked.
 $[# {_reachScene s k radius}
     [# reach {exampleReach k radius _rounds _seed}]
     [# m {float _count}]
-    [# ax {axesIn {box {v2 -5.4 -2.3} {v2 2.2 2.6}} {axisRange 0.0 {float _rounds} 1.0} {axisRange 1.0 8.0 1.0}}]
+    [# ax {axesIn
+        {box {v2 -5.4 -2.3} {v2 2.2 2.6}}
+        {axisRange 0.0 {float _rounds} 1.0}
+        {axisRange 1.0 8.0 1.0}}]
     [# {_log x} {/ {ln x} {ln 10.0}}]
     [# paths {map reach {^ {r} {onAxes ax {float {.n r}} {_log {* {.paths r} m}}}}}]
     [# pixels {map reach {^ {r} {onAxes ax {float {.n r}} {_log {* {float {.pixels r}} m}}}}}]
-    [# yLabels {flatten {map {range 1 9} {^ {i} {moveTo {tex f"{yl${str i}}" f"{10^{${str i}}}" 0.42 textDimColor} {add2 {onAxes ax 0.0 {float i}} {v2 -0.6 0.0}}}}}}]
+    [# yLabels {flatten {map
+        {range 1 9}
+        {^ {i} {moveTo
+            {tex f"{yl${str i}}" f"{10^{${str i}}}" 0.42 textDimColor}
+            {add2 {onAxes ax 0.0 {float i}} {v2 -0.6 0.0}}}}}}]
     [# axes {flatten {'
         {axesFigure "axes" ax textDimColor 0.34 true false}
         yLabels
-        {moveTo {caption "axisN" {textKey "roundsmath-rounds"} 0.3 textDimColor} {add2 {onAxes ax {/ {float _rounds} 2.0} 1.0} {v2 0.0 -0.85}}}}}]
-    [# {_series id points color}
-        {append
-            {pathThrough id points color 3.0}
-            {flatten {map {range 0 {length points}} {^ {i} {dotAt {++ id {str i}} {nth points i} 0.07 color}}}}}]
-    [# {_end id key points color dy}
-        {moveTo {caption id key 0.3 color} {add2 {nth points {- {length points} 1}} {v2 2.5 dy}}}]
-    [# {_mark id key n dx}
-        {append
-            {dashedLine {++ id "Line"} {onAxes ax n 1.0} {onAxes ax n 8.0} accentColor 2.0}
-            {moveTo {caption id key 0.3 accentColor} {add2 {onAxes ax n 8.0} {v2 dx 0.65}}}}]
+        {moveTo
+            {caption "axisN" {textKey "roundsmath-rounds"} 0.3 textDimColor}
+            {add2 {onAxes ax {/ {float _rounds} 2.0} 1.0} {v2 0.0 -0.85}}}}}]
+    [# {_series id points color} {append
+        {pathThrough id points color 3.0}
+        {flatten {map
+            {range 0 {length points}}
+            {^ {i} {dotAt {++ id {str i}} {nth points i} 0.07 color}}}}}]
+    [# {_end id key points color dy} {moveTo
+        {caption id key 0.3 color}
+        {add2 {nth points {- {length points} 1}} {v2 2.5 dy}}}]
+    [# {_mark id key n dx} {append
+        {dashedLine {++ id "Line"} {onAxes ax n 1.0} {onAxes ax n 8.0} accentColor 2.0}
+        {moveTo {caption id key 0.3 accentColor} {add2 {onAxes ax n 8.0} {v2 dx 0.65}}}}]
     {flatten {'
         {fadeIn {phase s 2.1 2.3} axes}
         {create {phase s 2.25 2.55} {_series "paths" paths targetColor}}
-        {!if {< s 2.3} {'} {fadeIn {phase s 2.3 2.5} {_end "pathsNote" {textKey "roundsmath-paths"} paths targetColor 0.0}}}
+        {!if {< s 2.3}
+            {'}
+            {fadeIn
+                {phase s 2.3 2.5}
+                {_end "pathsNote" {textKey "roundsmath-paths"} paths targetColor 0.0}}}
         {!if {< s 2.5} {'} {create {phase s 2.5 2.85} {_series "pixels" pixels totalColor}}}
-        {!if {< s 2.75} {'} {fadeIn {phase s 2.75 2.95} {_end "pixelsNote" {textKey "roundsmath-pixels"} pixels totalColor 0.0}}}
-        {!if {< s 3.0} {'} {fadeIn {phase s 3.0 3.3} {_mark "biased" {textKey "roundsmath-biased"} 2.0 1.0}}}
-        {!if {< s 3.5} {'} {fadeIn {phase s 3.5 3.8} {_mark "unbiased" {textKey "roundsmath-unbiased"} 1.0 -0.7}}}}}]
+        {!if {< s 2.75}
+            {'}
+            {fadeIn
+                {phase s 2.75 2.95}
+                {_end "pixelsNote" {textKey "roundsmath-pixels"} pixels totalColor 0.0}}}
+        {!if {< s 3.0}
+            {'}
+            {fadeIn {phase s 3.0 3.3} {_mark "biased" {textKey "roundsmath-biased"} 2.0 1.0}}}
+        {!if {< s 3.5}
+            {'}
+            {fadeIn
+                {phase s 3.5 3.8}
+                {_mark "unbiased" {textKey "roundsmath-unbiased"} 1.0 -0.7}}}}}]
 
 The scene
 
