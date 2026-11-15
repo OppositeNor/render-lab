@@ -249,6 +249,50 @@ pub fn combine(seed: u64, count: usize) -> Combined {
     }
 }
 
+/// The image the rounds of spatial reuse run on (the recordings' size), and P at its centre.
+const IMAGE: [u32; 2] = [1920, 1080];
+
+/// A pixel's neighbour pattern's rotation in a round (the lab draws one per pixel and frame; here one per pixel and
+/// round, from `seed`): splitmix64 of the pixel, the round, and the seed.
+fn rotation(q: [i32; 2], round: u32, seed: u64) -> [f32; 2] {
+    let mix = |mut z: u64| {
+        z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+        z ^ (z >> 31)
+    };
+    let key = (q[0] as u64) | ((q[1] as u64) << 16) | (u64::from(round) << 32);
+    let z = mix(key.wrapping_add(seed.wrapping_mul(0x9e37_79b9_7f4a_7c15)));
+    [
+        (z >> 40) as f32 / (1u64 << 24) as f32,
+        ((z >> 16) & 0xff_ffff) as f32 / (1u64 << 24) as f32,
+    ]
+}
+
+/// How far P's candidates reach after each number of rounds of spatial reuse, as the paper counts them: in round r
+/// P combines the reservoirs its `k` neighbours (cpu.rs `neighbour`, within `radius` pixels) made in round r - 1,
+/// they combined theirs, and so on down to the pixels' own candidates. For n from 0 to `rounds`: the paths down
+/// that tree, k to the n, and the distinct pixels they end on (fewer once paths meet the same pixels again).
+pub fn reach(k: u32, radius: f32, rounds: u32, seed: u64) -> Vec<(u32, f64, usize)> {
+    let p = [IMAGE[0] as i32 / 2, IMAGE[1] as i32 / 2];
+    (0..=rounds)
+        .map(|n| {
+            // From P down the tree: each round's pixels replaced by their neighbours in the round before.
+            let mut pixels = std::collections::HashSet::from([p]);
+            for round in (1..=n).rev() {
+                pixels = pixels
+                    .iter()
+                    .flat_map(|&q| {
+                        (0..k).map(move |j| {
+                            super::cpu::neighbour(q, j, rotation(q, round, seed), radius, IMAGE)
+                        })
+                    })
+                    .collect();
+            }
+            (n, f64::from(k).powi(n as i32), pixels.len())
+        })
+        .collect()
+}
+
 /// One column of an alias table: the part of the column its own light keeps (the rest is its alias's).
 #[derive(Clone, Copy, Debug)]
 pub struct AliasColumn {

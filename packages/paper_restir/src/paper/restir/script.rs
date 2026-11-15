@@ -16,6 +16,7 @@
 //! | `exampleAlias` | an alias table over that world's shares (the lab's illustration of the paper's): each column's own part and alias |
 //! | `examplePieces` | that table's pieces, each a part of a light's share in a column |
 //! | `exampleCombine seed count` | P's reservoir and its neighbours' in that world, each of `count` candidates, combined at P as the lab's spatial pass does |
+//! | `exampleReach k radius rounds seed` | for each number of rounds of spatial reuse, the paths down the paper's tree (k to the n) and the distinct pixels they end on, with the lab's neighbour pattern |
 //! | `exampleSearch u` | the lab's binary search over the running sum of the shares for `u`: each halving, then the light found |
 
 use super::demos::ris::Trace;
@@ -135,6 +136,15 @@ lab::lamlet_record! {
         pub wsum: f64 = "wsum",
         pub m: f64 = "m",
         pub w: f64 = "w",
+    }
+}
+
+lab::lamlet_record! {
+    /// How far P's candidates reach after `n` rounds (examples.rs `reach`).
+    pub struct ReachRecord {
+        pub n: i64 = "n",
+        pub paths: f64 = "paths",
+        pub pixels: i64 = "pixels",
     }
 }
 
@@ -266,7 +276,24 @@ pub fn register(natives: &mut NativeRegistry) -> Result<(), Error> {
         })
         .doc("Fn([Int, Int], {kept: Int, split: Int, u: Float}). The merge of that example stream's two reservoirs.")
         .register()?;
-    register_alias(natives)
+    register_alias(natives)?;
+    natives
+        .function(
+            "paper_restir/example-reach",
+            |_, (k, radius, rounds, seed): (i64, f64, i64, i64)| {
+                Ok(examples::reach(k.clamp(1, 16) as u32, radius as f32, rounds.clamp(0, 10) as u32, seed as u64)
+                    .into_iter()
+                    .map(|(n, paths, pixels)| ReachRecord {
+                        n: i64::from(n),
+                        paths,
+                        pixels: pixels as i64,
+                    })
+                    .collect::<Vec<_>>())
+            },
+        )
+        .doc("Fn([Int, Float, Int, Int], List({n: Int, paths: Float, pixels: Int})). How far P's candidates reach after each number of rounds of spatial reuse, 0 to `rounds`, in a 1920 by 1080 image: the paths down the paper's tree (k to the n: each round combines k neighbours' reservoirs of the round before) and the distinct pixels they end on, with the lab's neighbour pattern (R2 points within `radius`, rotated per pixel and round from `seed`).")
+        .register()?;
+    Ok(())
 }
 
 /// The natives of the example's alias table and binary search, and of its reservoirs combined.

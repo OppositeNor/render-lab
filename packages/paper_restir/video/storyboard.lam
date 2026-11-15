@@ -708,7 +708,7 @@ So instead of drawing more candidates, the rest of the method reuses the candida
 
 Streaming RIS is in section three point one, and the paper's choices are in section five.
 
-## Spatial reuse {#c4 number=4 target=190 summary="Combining reservoirs, the neighbours each pixel combines, the rounds that multiply its candidates, and the test that rejects some." sources="combine, reweight, weight-meaning, alg4, neighbors-param, spatial, spatial-passes, geometry-test"}
+## Spatial reuse {#c4 number=4 target=194 summary="Combining reservoirs, the neighbours each pixel combines, the rounds that multiply its candidates, and the test that rejects some." sources="combine, reweight, weight-meaning, alg4, neighbors-param, spatial, spatial-passes, geometry-test"}
 
 ### Combining two reservoirs {#c4-combine kind=3d}
 
@@ -841,28 +841,44 @@ ${cue "key" {' {callout "spatial"}}}${overText
     {' {restirSpatialPassesRange 0.0 1.0}}
     "A single round already removes much of the noise"}.
 
-${overText
-    {' {restirSpatialPassesRange 1.0 2.0}}
-    "A second round combines the reservoirs the first round made"}, so the candidates multiply.
+### Rounds as a tree {#c4-rounds-tree kind=2d math=roundsMath}
 
-${cue "key" {' {restirView 2.0}}}So after n rounds, a pixel can stand for ${formulaSaid f"{k^n M}" "k to the power n, times M"
-    {'}} candidates, ${overText
-        {' {restirNeighboursRange 5.0 8.0}}
-        "if every round finds new neighbours"}.
+${cue "key" {opening demoRounds panelHidden {' {roundsStage 0.0}}}}
+
+${cue "key" {' {callout "spatial"}}}${overText
+    {' {roundsStageRange 0.0 1.0}}
+    "A second round combines the reservoirs the first round made, so the candidates multiply"}.
+
+So after n rounds, a pixel can stand for ${over
+    {' {roundsStageRange 1.0 2.0}}
+    {cat {'
+        {formulaSaid f"{k^n M}" "k to the power n, times M" {'}}
+        {text " candidates, if every round finds new neighbours"}}}}.
+
+### What M shows {#c4-rounds-m kind=3d}
+
+${cue "key" {opening demoReservoirs panelHidden {append baseRoom {append roomCamera {'
+    {restirTemporal 0.0}
+    {restirSpatialPasses 2.0}
+    {restirNeighbours 8.0}
+    {restirStage 3.0}
+    {restirView 2.0}}}}}}
+${cue "key" floatRoom}
 
 This view shows M, now far larger than the thirty-two each pixel drew.
 
-${cue "key" {' {restirView 0.0}}}${overText
-    {' {restirSpatialPassesRange 2.0 4.0}}
+### Where the gain fades {#c4-rounds-reach kind=2d math=roundsMath}
+
+${cue "key" {opening demoRounds panelHidden {' {roundsStage 2.0}}}}
+
+${overText
+    {' {roundsStageRange 2.0 3.0}}
     "The gain fades once the rounds have gathered the nearby candidates"}, because later rounds find the same ones again.
 
 ${cue "key" {' {callout "spatial-passes"}}}${overText
-    {' {restirSpatialPassesRange 4.0 2.0}}
+    {' {roundsStageRange 3.0 3.5}}
     "The paper uses two rounds"}, or ${overText
-        {'
-            {restirSpatialPassesRange 2.0 1.0}
-            {restirNeighboursRange 8.0 3.0}
-            {restirUnbiasedRange 0.0 1.0}}
+        {' {roundsStageRange 3.5 4.0}}
         "one in its unbiased version"}.
 
 ### Neighbours across an edge {#c4-test kind=3d}

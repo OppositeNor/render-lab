@@ -71,7 +71,8 @@ pub fn build_frame(
         | Demo::Lights
         | Demo::Weights
         | Demo::Params
-        | Demo::Combine => {}
+        | Demo::Combine
+        | Demo::Rounds => {}
     }
     content
 }

@@ -99,4 +99,9 @@ pub struct RestirValues {
     /// the counts added, and W.
     #[value(default = 16.0, range = 0.0..=16.0, unit = plain, text = "controls-combine_stage", color = palette::SELECTED, label(combine), help = "help-combineStage")]
     pub combine_stage: f32,
+    /// How far the rounds of spatial reuse have come (script/rounds.lam `roundsMath`), one stage per sentence of the
+    /// story's two beats: 1 a second round combining the first round's reservoirs, 2 k to the n times M, 3 the
+    /// distinct pixels the rounds reach, 4 the paper's rounds marked.
+    #[value(default = 4.0, range = 0.0..=4.0, unit = plain, text = "controls-rounds_stage", color = palette::SELECTED, label(rounds), help = "help-roundsStage")]
+    pub rounds_stage: f32,
 }

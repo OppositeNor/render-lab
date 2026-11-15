@@ -1,0 +1,20 @@
+# Rounds of spatial reuse in the math scenes' example (examples.rs `reach`): the paper's tree of reservoirs, k to the
+# n times M, and the distinct pixels the rounds reach; its math scene (script/rounds.lam) shows them in place of the room.
+
+key = "rounds"
+title-text = "shot-rounds_title"
+tab-text = "shot-rounds"
+hint-text = "shot-rounds_hint"
+scene = "paper_restir.scene/restir-room"
+resets-camera = true
+math = "roundsMath"
+
+[camera]
+target = [0.1, 0.8, -0.5]
+yaw = 24.0
+pitch = 18.0
+distance = 3.6
+fov = 55.0
+
+[params]
+roundsStage = 4
