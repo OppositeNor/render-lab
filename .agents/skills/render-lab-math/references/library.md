@@ -82,6 +82,8 @@ up; widths of lines in pixels at 1080p; an em `size` in canvas units. `t` is an 
 - `faded`: Fn([List(Mob), Float], List(Mob)). Its opacity multiplied by `k`.
 - `tinted`: Fn([List(Mob), String], List(Mob)). Recoloured (a rectangle's fill and outline both).
 - `renamed`: Fn([List(Mob), String], List(Mob)). Renamed: every mob called `id` (a figure that stands for one thing).
+- `hsvColor`: Fn([Float, Float, Float], String). The colour of hue `h`, saturation `s`, and value `v` (each 0 to 1), as `#rrggbb`.
+- `spectrum`: Fn([Int], List(String)). `n` colours around the hue circle, neighbours far apart (one per outcome of a distribution).
 
 ## Progress and rate functions
 
@@ -133,7 +135,7 @@ up; widths of lines in pixels at 1080p; an em `size` in canvas units. `t` is an 
 
 ## Samples
 
-- `uniform`: Fn([Int, Int], Float). The `i`-th of a seed's uniform numbers in [0, 1) (std's stable `hash`).
+- `uniform`: Fn([Int, Int], Float). The `i`-th of a seed's uniform numbers in [0, 1) (splitmix64, `rl_runtime/uniform`), each unrelated to its neighbours.
 - `uniforms`: Fn([Int, Int], List(Float)). `count` uniform numbers in [0, 1).
 - `stratified`: Fn([Int, Int], List(Float)). `count` stratified numbers in [0, 1): one in each of `count` even strata, jittered.
 - `drawnFrom`: Fn([Fn([Float], Float), Float, Float, Int, Int], List(Float)). `count` numbers from `lo` to `hi` drawn in proportion to `f` (not negative, not all 0), seeded: `f` tabulated in 256 bins, drawn from by inverting their running total (`rl_runtime/samplesFrom`).

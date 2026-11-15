@@ -28,7 +28,7 @@ crate::lamlet_record! {
 }
 
 /// Registers the natives the math library measures, lays out, and samples by (`rl_runtime/tex-box`,
-/// `rl_runtime/text-width`, `rl_runtime/graph-layout`, `rl_runtime/samples-from`).
+/// `rl_runtime/text-width`, `rl_runtime/graph-layout`, `rl_runtime/samples-from`, `rl_runtime/uniform`).
 pub(super) fn register_math_natives(engine: &mut Engine) -> Result<(), lamlet::embed::Error> {
     let r = engine.natives_mut();
     r.function("rl_runtime/tex-box", |_, (latex,): (String,)| {
@@ -71,6 +71,11 @@ pub(super) fn register_math_natives(engine: &mut Engine) -> Result<(), lamlet::e
         },
     )
     .doc("Fn([List(Float), Int, Int], List(Float)). `count` numbers in [0, 1) drawn in proportion to `masses` (the masses of even bins across [0, 1), none negative, not all 0), seeded: the inverse of their running total, linear within a bin.")
+    .register()?;
+    r.function("rl_runtime/uniform", |_, (seed, i): (i64, i64)| {
+        Ok(crate::math::uniform(seed as u64, i as u64))
+    })
+    .doc("Fn([Int, Int], Float). The `i`-th of a seed's uniform numbers in [0, 1) (splitmix64), neighbours unrelated.")
     .register()?;
     Ok(())
 }

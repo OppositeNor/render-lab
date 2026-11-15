@@ -162,6 +162,8 @@ fn the_math_library_computes_what_it_says() {
             "runningSums {' 1.0 2.0 3.0}",
             "boxWidth {boxOf {nth {strip \"s\" {' 1.0 3.0} {box {v2 0.0 0.0} {v2 4.0 1.0}} {' \"text\"} 0.0} 1}}",
             "length {chanceBar \"c\" {box {v2 0.0 0.0} {v2 4.0 0.3}} 0.5 0.2 true 1.0 \"text\"}",
+            "map {' 0.0 0.5 0.75} {^ {h} {hsvColor h 1.0 1.0}}",
+            "length {spectrum 24}",
         ],
         &format!("$[Import* {MATH_PACKAGE}]$[ImportAs {NATIVES} rt]"),
     );
@@ -204,4 +206,9 @@ fn the_math_library_computes_what_it_says() {
     assert!((float(&v[17]) - 3.0).abs() < 1e-9);
     // A chance bar's track, its lit share, its arrow and number, and its ends' labels.
     assert!(int(&v[18]) >= 5);
+    // Red, cyan, and violet; and as many colours as asked.
+    assert!(
+        matches!(&v[19], Data::List(c) if c.iter().map(text).collect::<Vec<_>>() == vec!["#FF0000", "#00FFFF", "#8000FF"])
+    );
+    assert_eq!(int(&v[20]), 24);
 }

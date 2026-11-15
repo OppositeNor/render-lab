@@ -242,6 +242,18 @@ pub fn text_width(text: &str) -> f32 {
     })
 }
 
+/// The `i`-th of a seed's uniform numbers in [0, 1): splitmix64 (Steele, Lea, and Flood, "Fast splittable
+/// pseudorandom number generators", OOPSLA 2014) of the seed's stream at `i`, so neighbouring `i` are unrelated.
+pub fn uniform(seed: u64, i: u64) -> f64 {
+    let mut z = seed
+        .wrapping_mul(0xd1b5_4a32_d192_ed03)
+        .wrapping_add(i.wrapping_add(1).wrapping_mul(0x9e37_79b9_7f4a_7c15));
+    z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+    z ^= z >> 31;
+    (z >> 11) as f64 / (1u64 << 53) as f64
+}
+
 /// `count` numbers in [0, 1) drawn in proportion to `masses` (even bins across [0, 1)), seeded: each a uniform
 /// number (a seeded xorshift) through the inverse of the masses' running total, linear within its bin.
 pub fn samples_from(masses: &[f64], seed: u64, count: usize) -> Result<Vec<f64>, String> {
@@ -305,6 +317,20 @@ mod tests {
         assert!(a.0.x < 0.0 && bb.1.x > 0.0);
         assert!(a.0.y < a.1.y && a.1.y > 0.0 && a.0.y < 0.3);
         assert!(b.width > bb.1.x - a.0.x);
+    }
+
+    #[test]
+    fn neighbouring_uniforms_are_unrelated() {
+        // Successive numbers of one seed, and the first numbers of successive seeds, spread over [0, 1).
+        let along: Vec<f64> = (0..400).map(|i| uniform(3, i)).collect();
+        let across: Vec<f64> = (0..400).map(|s| uniform(s, 0)).collect();
+        for xs in [&along, &across] {
+            assert!(xs.iter().all(|x| (0.0..1.0).contains(x)));
+            let low = xs.iter().filter(|x| **x < 0.5).count();
+            assert!((150..250).contains(&low), "{low}");
+            let rises = xs.windows(2).filter(|w| w[1] > w[0]).count();
+            assert!((150..250).contains(&rises), "{rises}");
+        }
     }
 
     #[test]

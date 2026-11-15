@@ -13,6 +13,9 @@
 //! | `toyKept i` | the chance RIS keeps sample i, and W's mean when it does |
 //! | `exampleLights which phase intensity` | the math scenes' example world (examples.rs): what each light brings to P (0) or Q (1), and its share of the power |
 //! | `exampleTrace seed count`, `exampleMerge seed count` | a stream of that world's candidates through the lab's reservoir, its steps and its merge |
+//! | `exampleAlias` | an alias table over that world's shares (the lab's illustration of the paper's): each column's own part and alias |
+//! | `examplePieces` | that table's pieces, each a part of a light's share in a column |
+//! | `exampleSearch u` | the lab's binary search over the running sum of the shares for `u`: each halving, then the light found |
 
 use super::demos::ris::Trace;
 use super::demos::toy::{self, Drop};
@@ -64,6 +67,44 @@ lab::lamlet_record! {
         pub split: i64 = "split",
         pub u: f64 = "u",
         pub kept: i64 = "kept",
+    }
+}
+
+lab::lamlet_record! {
+    /// One column of the alias table (examples.rs `AliasColumn`).
+    pub struct AliasRecord {
+        pub own: f64 = "own",
+        pub alias: i64 = "alias",
+    }
+}
+
+lab::lamlet_record! {
+    /// A piece of the alias table (examples.rs `AliasPiece`).
+    pub struct PieceRecord {
+        pub light: i64 = "light",
+        pub column: i64 = "column",
+        pub lo: f64 = "lo",
+        pub hi: f64 = "hi",
+        pub start: f64 = "start",
+        pub length: f64 = "length",
+    }
+}
+
+lab::lamlet_record! {
+    /// One halving of the lab's binary search: the range, its middle, and the running sum there.
+    pub struct SearchStep {
+        pub lo: i64 = "lo",
+        pub hi: i64 = "hi",
+        pub mid: i64 = "mid",
+        pub sum: f64 = "sum",
+    }
+}
+
+lab::lamlet_record! {
+    /// The lab's binary search for a number: its halvings and the light it finds.
+    pub struct SearchRecord {
+        pub steps: Vec<SearchStep> = "steps",
+        pub found: i64 = "found",
     }
 }
 
@@ -194,6 +235,58 @@ pub fn register(natives: &mut NativeRegistry) -> Result<(), Error> {
             Ok(merge_of(&examples::stream(seed as u64, count.clamp(1, 64) as usize)))
         })
         .doc("Fn([Int, Int], {kept: Int, split: Int, u: Float}). The merge of that example stream's two reservoirs.")
+        .register()?;
+    register_alias(natives)
+}
+
+/// The natives of the example's alias table and binary search.
+fn register_alias(natives: &mut NativeRegistry) -> Result<(), Error> {
+    natives
+        .function("paper_restir/example-alias", |_, ()| {
+            Ok(examples::alias_table(&examples::shares())
+                .iter()
+                .map(|c| AliasRecord {
+                    own: f64::from(c.own),
+                    alias: c.alias as i64,
+                })
+                .collect::<Vec<_>>())
+        })
+        .doc("Fn([], List({alias: Int, own: Float})). An alias table over the example's shares (Vose's method; the lab's illustration of the paper's): each column's own part (of 1) and the light that has the rest.")
+        .register()?;
+    natives
+        .function("paper_restir/example-pieces", |_, ()| {
+            let shares = examples::shares();
+            Ok(examples::alias_pieces(&shares, &examples::alias_table(&shares))
+                .iter()
+                .map(|p| PieceRecord {
+                    light: p.light as i64,
+                    column: p.column as i64,
+                    lo: f64::from(p.lo),
+                    hi: f64::from(p.hi),
+                    start: f64::from(p.start),
+                    length: f64::from(p.length),
+                })
+                .collect::<Vec<_>>())
+        })
+        .doc("Fn([], List({column: Int, hi: Float, length: Float, light: Int, lo: Float, start: Float})). The alias table's pieces, each light's in turn: its column and its span there (a column 1 high), and where it lies along the shares laid end to end.")
+        .register()?;
+    natives
+        .function("paper_restir/example-search", |_, (u,): (f64,)| {
+            let (steps, found) = examples::search(u as f32);
+            Ok(SearchRecord {
+                steps: steps
+                    .iter()
+                    .map(|&(lo, hi, mid, sum)| SearchStep {
+                        lo: lo as i64,
+                        hi: hi as i64,
+                        mid: mid as i64,
+                        sum: f64::from(sum),
+                    })
+                    .collect(),
+                found: found as i64,
+            })
+        })
+        .doc("Fn([Float], {found: Int, steps: List({hi: Int, lo: Int, mid: Int, sum: Float})}). The lab's pick for the number `u` over the example's shares: each halving of the binary search over their running sum (its range, middle, and the sum there), and the light found.")
         .register()?;
     Ok(())
 }

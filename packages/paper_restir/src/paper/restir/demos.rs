@@ -69,7 +69,8 @@ pub fn build_frame(
         | Demo::Methods
         | Demo::Wrs
         | Demo::Lights
-        | Demo::Weights => {}
+        | Demo::Weights
+        | Demo::Params => {}
     }
     content
 }

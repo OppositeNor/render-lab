@@ -128,6 +128,106 @@ pub fn stream(seed: u64, count: usize) -> Trace {
     trace(&candidates, n.next())
 }
 
+/// One column of an alias table: the part of the column its own light keeps (the rest is its alias's).
+#[derive(Clone, Copy, Debug)]
+pub struct AliasColumn {
+    pub own: f32,
+    pub alias: usize,
+}
+
+/// An alias table over the example's shares, built by Vose's method (Vose, "A linear algorithm for generating random
+/// numbers with a given distribution", IEEE TSE 1991): each share scaled by the number of lights; a column under 1
+/// is topped up by a light over 1, which keeps what is left. The lab's illustration of the paper's structure: the
+/// lab itself picks with its CDF (`cpu::bisect`).
+pub fn alias_table(shares: &[f32]) -> Vec<AliasColumn> {
+    let n = shares.len();
+    let mut scaled: Vec<f32> = shares.iter().map(|s| s * n as f32).collect();
+    let mut table = vec![AliasColumn { own: 1.0, alias: 0 }; n];
+    let (mut small, mut large): (Vec<usize>, Vec<usize>) = (0..n).partition(|&i| scaled[i] < 1.0);
+    while let (Some(&l), Some(&g)) = (small.last(), large.last()) {
+        // Column l keeps its scaled share and takes the rest from g, which moves to the list its remainder fits.
+        small.pop();
+        large.pop();
+        table[l] = AliasColumn {
+            own: scaled[l],
+            alias: g,
+        };
+        scaled[g] -= 1.0 - scaled[l];
+        if scaled[g] < 1.0 {
+            small.push(g);
+        } else {
+            large.push(g);
+        }
+    }
+    for i in small.into_iter().chain(large) {
+        table[i] = AliasColumn { own: 1.0, alias: i };
+    }
+    table
+}
+
+/// A piece of the alias table: part of a light's share, in a column from `lo` to `hi` (a column's height is 1), and
+/// where that part lies along the shares laid end to end (`start` and `length`, of the whole).
+#[derive(Clone, Copy, Debug)]
+pub struct AliasPiece {
+    pub light: usize,
+    pub column: usize,
+    pub lo: f32,
+    pub hi: f32,
+    pub start: f32,
+    pub length: f32,
+}
+
+/// The table's pieces, each light's in turn: its own column's part, then its parts of the columns it tops up.
+pub fn alias_pieces(shares: &[f32], table: &[AliasColumn]) -> Vec<AliasPiece> {
+    let n = shares.len() as f32;
+    let mut pieces = Vec::new();
+    let mut start = 0.0;
+    for (light, share) in shares.iter().enumerate() {
+        // The light's own part first, then each column whose alias it is, laid along its share.
+        let mut at = start;
+        let own = table[light].own;
+        let tops = table
+            .iter()
+            .enumerate()
+            .filter(|(c, t)| t.alias == light && *c != light && t.own < 1.0)
+            .map(|(c, t)| (c, t.own, 1.0));
+        for (column, lo, hi) in std::iter::once((light, 0.0, own)).chain(tops) {
+            let length = (hi - lo) / n;
+            pieces.push(AliasPiece {
+                light,
+                column,
+                lo,
+                hi,
+                start: at,
+                length,
+            });
+            at += length;
+        }
+        start += share;
+    }
+    pieces
+}
+
+/// The example's shares (P's lights at the start).
+pub fn shares() -> Vec<f32> {
+    lights_at(0, 0.0, 1.0).iter().map(|l| l.share).collect()
+}
+
+/// The lab's pick of a light for the number `u` over the example's shares (the running sum and `cpu::bisect`):
+/// each halving's range and middle (lo, hi, mid), with the running sum at the middle, then the light found.
+pub fn search(u: f32) -> (Vec<(usize, usize, usize, f32)>, usize) {
+    let cdf: Vec<f32> = shares()
+        .iter()
+        .scan(0.0, |run, s| {
+            *run += s;
+            Some(*run)
+        })
+        .collect();
+    let mut steps = Vec::new();
+    let found = super::cpu::bisect(&cdf, u, |lo, hi, mid| steps.push((lo, hi, mid, cdf[mid])));
+    (steps, found)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -148,5 +248,26 @@ mod tests {
         assert_eq!(t.steps.len(), 16);
         assert!(t.steps.iter().all(|s| s.w > 0.0));
         assert_eq!(t.steps[0].kept, Some(0));
+    }
+
+    #[test]
+    fn the_alias_table_keeps_every_share() {
+        let shares = shares();
+        let pieces = alias_pieces(&shares, &alias_table(&shares));
+        for (light, share) in shares.iter().enumerate() {
+            let sum: f32 = pieces
+                .iter()
+                .filter(|p| p.light == light)
+                .map(|p| p.length)
+                .sum();
+            assert!(
+                (sum - share).abs() < 1e-4,
+                "light {light}: {sum} for {share}"
+            );
+        }
+        let (steps, found) = search(0.5);
+        assert!(!steps.is_empty());
+        let before: f32 = shares[..found].iter().sum();
+        assert!(before <= 0.5 && before + shares[found] > 0.5);
     }
 }

@@ -88,4 +88,9 @@ pub struct RestirValues {
     /// story's beat: 1 to 5 the candidates' weights, 6 the pick, 7 to 10 the correction, 11 to 13 W and the light.
     #[value(default = 13.0, range = 0.0..=13.0, unit = plain, text = "controls-weights_stage", color = palette::SELECTED, label(weights), help = "help-weightsStage")]
     pub weights_stage: f32,
+    /// How far the choice of a light by power has come (script/params.lam `paramsMath`), one stage per sentence of
+    /// the story's beat: 1 the alias table built from the shares and a draw from it, 2 a uniform point on the
+    /// triangle, 3 the lab's running sum and binary search, 4 the two giving the same shares.
+    #[value(default = 4.0, range = 0.0..=4.0, unit = plain, text = "controls-params_stage", color = palette::SELECTED, label(params), help = "help-paramsStage")]
+    pub params_stage: f32,
 }

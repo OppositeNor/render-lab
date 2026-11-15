@@ -671,14 +671,28 @@ ${cue "key" {' {callout "candidates-param"}}}${overText
 
 ${cue "key" {' {callout "alias"}}}${cue "key" {' {glide cameraYaw 24.0 sentence}}}The paper's lights are emissive triangles.
 
-It picks ${overText {' {restirSeedRange 5.0 9.0}} "each candidate's triangle by power"}, from an alias table, a lookup table that draws by weight.
+### Picking a light by power {#c3-params-power kind=2d math=paramsMath}
 
-Then it picks a uniform point on that triangle.
+${cue "key" {opening demoParams panelHidden {' {paramsStage 0.0}}}}
 
-${overText {' {restirSeedRange 9.0 13.0}} "The lab's lights are spheres instead, picked by power"}
-with a table of summed powers and a binary search.
+${cue "key" {' {callout "alias"}}}It picks ${overText
+    {' {paramsStageRange 0.0 1.0}}
+    "each candidate's triangle by power, from an alias table, a lookup table that draws by weight"}.
 
-This gives ${overText {' {restirSeedRange 13.0 17.0}} "the same distribution"}.
+Then it ${overText {' {paramsStageRange 1.0 2.0}} "picks a uniform point on that triangle"}.
+
+${overText
+    {' {paramsStageRange 2.0 3.0}}
+    "The lab's lights are spheres instead, picked by power with a table of summed powers and a binary search"}.
+
+This gives ${overText {' {paramsStageRange 3.0 4.0}} "the same distribution"}.
+
+### The target and the cost {#c3-params-target kind=3d}
+
+${cue "key" {opening demoRis panelHidden {append baseRoom {append pickCamera {append
+    {noReuse 32.0}
+    {' {restirSeed 17.0} {risStep 32.0} {cameraYaw 24.0}}}}}}}
+${cue "key" floatPick}
 
 ${cue "key" {' {callout "target-param"}}}${cue "key" {' {risWeigh 0.0}}}Next, the paper's target is ${overText
     {' {risWeighRange 0.0 1.0}}

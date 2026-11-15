@@ -152,6 +152,23 @@ pub fn sample_dir(uv: u32) -> Vec3 {
     Vec3::new(r * phi.cos(), z, r * phi.sin())
 }
 
+/// The first entry of `cdf` past `u`, by a binary search (`restirPickLight`); `step` sees each halving's range
+/// and its middle (lo, hi, mid) before it is halved.
+pub fn bisect(cdf: &[f32], u: f32, mut step: impl FnMut(usize, usize, usize)) -> usize {
+    let (mut lo, mut hi) = (0usize, cdf.len() - 1);
+    while lo < hi {
+        // Halve the range around the first CDF entry past u.
+        let mid = (lo + hi) / 2;
+        step(lo, hi, mid);
+        if cdf[mid] > u {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    lo
+}
+
 impl Scene<'_> {
     pub fn point(&self, x: Sample) -> Vec3 {
         let l = &self.lights[x.light as usize];
@@ -160,17 +177,7 @@ impl Scene<'_> {
 
     /// The light picked by power (`restirPickLight`).
     pub fn pick(&self, u: f32) -> u32 {
-        let (mut lo, mut hi) = (0usize, self.lights.len() - 1);
-        while lo < hi {
-            // Halve the range around the first CDF entry past u.
-            let mid = (lo + hi) / 2;
-            if self.cdf[mid] > u {
-                hi = mid;
-            } else {
-                lo = mid + 1;
-            }
-        }
-        lo as u32
+        bisect(self.cdf, u, |_, _, _| {}) as u32
     }
 
     /// p(x) per unit area (`restirSourcePdf`).

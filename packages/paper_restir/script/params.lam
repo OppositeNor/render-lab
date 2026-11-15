@@ -1,0 +1,285 @@
+The ReSTIR story's choice of a light by power
+=============================================
+
+What the story draws on the canvas (lab/src/math/) for chapter 3's beat `c3-params-power`, stage by stage as
+`paramsStage` goes from 0 to 4: the math scenes' example world's 24 lights (examples.rs, the lab's illustration),
+each one's share of the power laid end to end; the paper's alias table built from those shares (Vose's method, in
+the lab's code) and one draw from it, a column and then a part; a uniform point on the drawn triangle; the lab's
+way, the shares summed and a binary search halving its range onto one light (cpu.rs `bisect`); and the alias
+table's pieces gathered again, as long as the shares they came from.
+
+$[Import* std]
+$[Import* render_lab_runtime]
+$[Import* render_lab_math]
+$[Import* paper_restir_values]
+$[Import* paper_restir_natives]
+$[Import* paper_restir_common]
+
+The layout
+
+The seed of the draw's two uniform numbers, and the number the lab's search looks for.
+$[# _seed 5]
+$[# _searchSeed 5]
+The strip of shares: its ends, and its bottom and top.
+$[# _x0 -6.6]
+$[# _x1 6.6]
+$[# _stripLo 2.6]
+$[# _stripHi 3.0]
+The alias table: its left edge, a column's width, its bottom, and a column's height (the average share).
+$[# _tableX -6.6]
+$[# _colW 0.25]
+$[# _tableY -2.2]
+$[# _tableH 3.0]
+The right of the canvas: the triangle, then the sphere.
+$[# _shapeAt [% {v2 4.5 -0.7}]]
+
+Fn([Float, Float, Float, Float], Box). A span of the shares (its start and length, of the whole) on a strip from
+`lo` to `hi`.
+$[# {_onStrip start length lo hi} {box
+    {v2 {lerp _x0 _x1 start} lo}
+    {v2 {lerp _x0 _x1 {+ start length}} hi}}]
+
+Fn([Int, Float, Float], Box). Column `c` of the alias table from `lo` to `hi` (a column is 1 high).
+$[# {_inColumn c lo hi}
+    [# x {+ _tableX {* _colW {float c}}}]
+    {box
+        {v2 {+ x 0.02} {+ _tableY {* _tableH lo}}}
+        {v2 {- {+ x _colW} 0.02} {+ _tableY {* _tableH hi}}}}]
+
+Fn([Box, Box, Float], Box). A box on its way from `a` to `b`.
+$[# {_between a b k} {box {lerp2 {.lo a} {.lo b} k} {lerp2 {.hi a} {.hi b} k}}]
+
+The alias table
+
+Fn([String, List({column: Int, hi: Float, length: Float, light: Int, lo: Float, start: Float}), List(String), Float, Float, Float], List(Mob)).
+The table's pieces, each on its way (at `t`, each light's after the one before) from its place among the shares on
+a strip from `lo` to `hi` into its column, or back (`back`).
+$[# {_pieces id pieces colors t lo hi back} {flatten {map
+    {zip {range 0 {length pieces}} pieces}
+    {^ {e}
+        [# p {.second e}]
+        [# k {smooth {lagged t {.light p} {length colors} 0.3}}]
+        [# strip {_onStrip {.start p} {.length p} lo hi}]
+        [# column {_inColumn {.column p} {.lo p} {.hi p}}]
+        {filled
+            {++ id {++ "." {str {.first e}}}}
+            {!if {> back 0.5} {_between column strip k} {_between strip column k}}
+            {nth colors {.light p}}
+            0.9}}}}]
+
+Fn([List({alias: Int, own: Float}), Float, Float], List(Mob)). One draw from the table at `t`: the first number
+picks a column, the second a part of it, its own light's or its alias's; its numbers at opacity `shown`.
+$[# {_draw alias t shown}
+    [# u1 {uniform _seed 0}]
+    [# u2 {uniform _seed 1}]
+    [# n {length alias}]
+    [# c {min {- n 1} {floor {* u1 {float n}}}}]
+    [# own {.own {nth alias c}}]
+    [# isOwn {< u2 own}]
+    [# cx {+ _tableX {* _colW {+ {float c} 0.5}}}]
+    [# uy {+ _tableY {* _tableH u2}}]
+    [# column {fadeIn
+        {phase t 0.0 0.2}
+        {append
+            {arrowLine "column" {v2 cx 1.3} {v2 cx {+ 0.1 {+ _tableY _tableH}}} accentColor 3.0}
+            {faded
+                {moveTo
+                    {tex "u1" f"{\lceil ${str n}\,u_1 \rceil = ${str {+ c 1}}}" 0.4 textColor}
+                    {v2 -5.0 1.7}}
+                shown}}}]
+    [# part {fadeIn
+        {phase t 0.4 0.6}
+        {flatten {'
+            {line "u2" {v2 {- cx 0.3} uy} {v2 {+ cx 0.3} uy} accentColor 3.0}
+            {faded
+                {moveTo
+                    {tex "u2" f"{u_2 = ${numberLatex u2 2} ${!if isOwn "<" f"{\geq}"} ${numberLatex own 2}}" 0.4
+                        textColor}
+                    {v2 -1.9 1.7}}
+                shown}}}}]
+    [# chosen {create
+        {phase t 0.7 1.0}
+        {outlined "chosen"
+            {padded {!if isOwn {_inColumn c 0.0 own} {_inColumn c own 1.0}} 0.04}
+            accentColor
+            3.0}}]
+    {flatten {' column part chosen}}]
+
+Fn([List({alias: Int, own: Float})], Int). The light the draw picks.
+$[# {_drawn alias}
+    [# n {length alias}]
+    [# c {min {- n 1} {floor {* {uniform _seed 0} {float n}}}}]
+    {!if {< {uniform _seed 1} {.own {nth alias c}}} c {.alias {nth alias c}}}]
+
+The shapes
+
+Fn([Float, String], List(Mob)). The drawn light's triangle at `t`, and uniform points on it (the square root
+spreads them evenly), the last one lit.
+$[# {_triangle t color}
+    [# a {add2 _shapeAt {v2 -1.6 -1.3}}]
+    [# b {add2 _shapeAt {v2 1.6 -1.1}}]
+    [# c {add2 _shapeAt {v2 0.0 1.3}}]
+    [# n 60]
+    [# points {map
+        {range 0 n}
+        {^ {i}
+            [# r {sqrt {uniform 11 i}}]
+            [# v {uniform 29 i}]
+            {add2 {add2 {scale2 a {- 1.0 r}} {scale2 b {* r {- 1.0 v}}}} {scale2 c {* r v}}}}}]
+    {flatten {'
+        {create {phase t 0.0 0.3} {pathThrough "triangle" {' a b c a} color 3.0}}
+        {flatten {map
+            {range 0 n}
+            {^ {i} {fadeIn
+                {lagged {phase t 0.3 0.8} i n 0.1}
+                {dotAt {++ "point" {str i}} {nth points i} 0.04 textDimColor}}}}}
+        {fadeIn {phase t 0.8 1.0} {dotAt "pointLit" {nth points {- n 1}} 0.09 accentColor}}
+        {fadeIn
+            {phase t 0.3 0.6}
+            {moveTo
+                {caption "triangleNote" {textKey "paramsmath-triangle"} 0.32 textDimColor}
+                {v2 {.x _shapeAt} -2.65}}}}}]
+
+Fn([Float, String], List(Mob)). The found light's sphere at `t`, as its outline, and a point on it.
+$[# {_sphere t color}
+    [# circle {map
+        {range 0 49}
+        {^ {i} {add2 _shapeAt {scale2
+            {v2 {cos {* 0.1308997 {float i}}} {sin {* 0.1308997 {float i}}}}
+            1.3}}}}]
+    {flatten {'
+        {create t {pathThrough "sphere" circle color 3.0}}
+        {fadeIn
+            {phase t 0.6 1.0}
+            {dotAt "spherePoint"
+                {add2 _shapeAt {scale2 {v2 {cos 2.2} {sin 2.2}} 1.3}}
+                0.09
+                accentColor}}
+        {fadeIn
+            {phase t 0.3 0.8}
+            {moveTo
+                {caption "sphereNote" {textKey "paramsmath-sphere"} 0.32 textDimColor}
+                {v2 {.x _shapeAt} -2.65}}}}}]
+
+The binary search
+
+Fn([List(Float), Int, Int], Box). The strip's span from light `lo` to light `hi`, a little taller than the strip.
+$[# {_span starts lo hi} {_onStrip
+    {nth starts lo}
+    {- {nth starts {+ hi 1}} {nth starts lo}}
+    {- _stripLo 0.1}
+    {+ _stripHi 0.1}}]
+
+Fn([{found: Int, steps: List({hi: Int, lo: Int, mid: Int, sum: Float})}, List(Float), Float, Float], List(Mob)).
+The lab's search for `u` at `t`: the number on the summed shares, then each halving, its range around the strip, the
+sum at its middle against `u`, and the range halved onto the light found.
+$[# {_search found starts u t}
+    [# steps {.steps found}]
+    [# n {length steps}]
+    [# ux {lerp _x0 _x1 u}]
+    [# number {fadeIn
+        {phase t 0.0 0.1}
+        {append
+            {arrowLine "u" {v2 ux 1.85} {v2 ux {- _stripLo 0.05}} textColor 3.0}
+            {moveTo {tex "uName" f"{u = ${numberLatex u 2}}" 0.36 textColor} {v2 ux 1.6}}}}]
+    [# halving {phase t 0.15 0.95}]
+    [# j {min {- n 1} {floor {* halving {float n}}}}]
+    [# f {- {* halving {float n}} {float j}}]
+    [# step {nth steps j}]
+    [# next {!if {< {+ j 1} n}
+        {nth steps {+ j 1}}
+        {. lo {.found found} hi {.found found} mid {.found found} sum 0.0}}]
+    [# range {_between
+        {_span starts {.lo step} {.hi step}}
+        {_span starts {.lo next} {.hi next}}
+        {smooth {phase f 0.55 1.0}}}]
+    [# midX {lerp _x0 _x1 {.sum step}}]
+    [# past {> {.sum step} u}]
+    [# readout {texParts "search" f"{[\,${str {+ {.lo step} 1}},\ ${str {+ {.hi step} 1}}\,] \quad \lit{1}{F_{${str {+ {.mid step} 1}}}} = ${numberLatex {.sum step} 2} ${!if past ">" f"{\leq}"} \lit{2}{u}}" 0.4 textColor
+        {' "F" "u"}
+        {' accentColor textColor}}]
+    {!if {< t 0.15}
+        number
+        {flatten {'
+            number
+            {outlined "range" {padded range 0.0} accentColor 3.0}
+            {fadeOut
+                {phase f 0.85 1.0}
+                {fadeIn
+                    {phase f 0.0 0.2}
+                    {line "mid"
+                        {v2 midX {- _stripLo 0.2}}
+                        {v2 midX {+ _stripHi 0.2}}
+                        accentColor
+                        4.0}}}
+            {moveTo readout {v2 3.6 1.7}}}}}]
+
+The scene
+
+Fn([Float], List(Mob)). The scene at stage s.
+$[# {_scene s}
+    [# shares {map {exampleLights 0 0.0 1.0} .share}]
+    [# colors {spectrum {length shares}}]
+    [# starts {runningSums shares}]
+    [# alias {exampleAlias}]
+    [# pieces {examplePieces}]
+    [# drawn {_drawn alias}]
+    [# found {exampleSearch {uniform _searchSeed 0}}]
+    [# strip {growFrom
+        {phase s 0.0 0.25}
+        {flatten {strip "shares" shares {box {v2 _x0 _stripLo} {v2 _x1 _stripHi}} colors 0.0}}
+        left}]
+    [# sharesNote {moveTo
+        {caption "sharesNote" {textKey "paramsmath-shares"} 0.32 textDimColor}
+        {v2 0.0 3.45}}]
+    [# summedNote {moveTo
+        {caption "summedNote" {textKey "paramsmath-summed"} 0.32 textDimColor}
+        {v2 0.0 3.45}}]
+    [# ends {append
+        {moveTo {tex "zero" "0" 0.32 textDimColor} {v2 _x0 2.3}}
+        {moveTo {tex "one" "1" 0.32 textDimColor} {v2 _x1 2.3}}}]
+    [# aliasNote {moveTo
+        {caption "aliasNote" {textKey "paramsmath-alias"} 0.32 textDimColor}
+        {v2 {+ _tableX {* _colW 12.0}} -2.65}}]
+    [# table {append
+        {_pieces "piece" pieces colors {phase s 0.25 0.75} _stripLo _stripHi 0.0}
+        {fadeIn {phase s 0.3 0.6} aliasNote}}]
+    [# dim {- 1.0 {* 0.65 {smooth {phase s 2.0 2.2}}}}]
+    [# leaving {smooth {phase s 3.0 3.15}}]
+    {flatten {'
+        strip
+        {!if {< s 2.2}
+            {fadeIn {phase s 0.0 0.25} sharesNote}
+            {fadeOut {phase s 2.2 2.35} sharesNote}}
+        {!if {< s 0.25} {'} {faded table dim}}
+        {!if {< s 0.75}
+            {'}
+            {faded {_draw alias {phase s 0.75 1.0} {- 1.0 {smooth {phase s 2.0 2.2}}}} dim}}
+        {!if {!or {< s 1.0} {> s 2.2}}
+            {'}
+            {fadeOut {phase s 2.0 2.2} {_triangle {phase s 1.0 2.0} {nth colors drawn}}}}
+        {!if {< s 2.1} {'} {_sphere {phase s 2.1 2.4} {nth colors {.found found}}}}
+        {!if {< s 2.2} {'} {fadeIn {phase s 2.2 2.35} summedNote}}
+        {!if {!or {< s 2.2} {> s 3.15}}
+            {'}
+            {faded
+                {append ends {_search found starts {uniform _searchSeed 0} {phase s 2.35 3.0}}}
+                {- 1.0 leaving}}}
+        {!if {!or {< s 2.95} {> s 3.15}}
+            {'}
+            {faded
+                {outlined "found" {_span starts {.found found} {.found found}} accentColor 3.0}
+                {- 1.0 leaving}}}
+        {!if {< s 3.1} {'} {_pieces "gather" pieces colors {phase s 3.1 3.8} 1.95 2.35 1.0}}
+        {!if {< s 3.6}
+            {'}
+            {fadeIn
+                {phase s 3.6 3.9}
+                {moveTo
+                    {caption "sameNote" {textKey "paramsmath-same"} 0.32 textDimColor}
+                    {v2 0.0 1.55}}}}}}]
+
+The hook
+
+Fn([Float], List(Mob)). The choice of a light by power at stage `paramsStage`.
+$[# paramsMath {: {^ {t} {_scene {paramsStage}}} Math}]

@@ -1,0 +1,20 @@
+# Choosing a light by power in the math scenes' example world (examples.rs): the paper's alias table and the lab's
+# binary search; its math scene (script/params.lam) shows them in place of the room.
+
+key = "params"
+title-text = "shot-params_title"
+tab-text = "shot-params"
+hint-text = "shot-params_hint"
+scene = "paper_restir.scene/restir-room"
+resets-camera = true
+math = "paramsMath"
+
+[camera]
+target = [0.1, 0.8, -0.5]
+yaw = 24.0
+pitch = 18.0
+distance = 3.6
+fov = 55.0
+
+[params]
+paramsStage = 4

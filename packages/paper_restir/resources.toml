@@ -145,6 +145,12 @@ source = "demos/weights.toml"
 license = "MIT"
 
 [[resource]]
+id = "demo/params"
+kind = "file"
+source = "demos/params.toml"
+license = "MIT"
+
+[[resource]]
 id = "listing/ris"
 kind = "file"
 source = "pseudocode/ris.py"
@@ -215,4 +221,10 @@ license = "MIT"
 id = "script/weights"
 kind = "file"
 source = "script/weights.lam"
+license = "MIT"
+
+[[resource]]
+id = "script/params"
+kind = "file"
+source = "script/params.lam"
 license = "MIT"
