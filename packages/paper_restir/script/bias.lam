@@ -9,7 +9,12 @@ for the candidates, weight, and step of `biasCandidates`, `biasWeight`, and `bia
 lines are, the count W divides by, Eq. 19, the fix, the near-zero step's huge weights, the balance heuristic, and
 Talbot's weight, whose cost the grid of every candidate and every distribution shows.
 
-$[Import* std]$[Import* render_lab_runtime]$[Import* render_lab_math]$[Import* paper_restir_values]$[Import* paper_restir_natives]$[Import* paper_restir_common]
+$[Import* std]
+$[Import* render_lab_runtime]
+$[Import* render_lab_math]
+$[Import* paper_restir_values]
+$[Import* paper_restir_natives]
+$[Import* paper_restir_common]
 
 The layout
 
@@ -27,7 +32,9 @@ $[# _truthColor "#6be3b0"]
 $[# _meanColor "#ffa14a"]
 
 Fn([Float, Float, Float, List(Mob)], List(Mob)). A figure shown from stage `a` (faded in) to stage `b` (faded out).
-$[# {_during s a b fig} {!if {!or {< s a} {> s b}} {'} {fadeOut {phase s {- b 0.25} b} {fadeIn {phase s a {+ a 0.3}} fig}}}]
+$[# {_during s a b fig} {!if {!or {< s a} {> s b}}
+    {'}
+    {fadeOut {phase s {- b 0.25} b} {fadeIn {phase s a {+ a 0.3}} fig}}}]
 
 Fn([String, String, String, Float, Bool], List(Mob)). A legend row at height y: a swatch of the curve's colour,
 thick or thin, and its formula beside it.
@@ -44,21 +51,33 @@ $[# {_binned id ax values upTo color width}
     [# points {filter
         {map {range 0 n} {^ {i} {v2 {/ {+ {float i} 0.5} {float n}} {min 4.0 {nth values i}}}}}
         {^ {p} {<= {.x p} upTo}}}]
-    {!if {< {length points} 2} {'} {pathThrough id {map points {^ {p} {onAxes ax {.x p} {.y p}}}} color width}}]
+    {!if {< {length points} 2}
+        {'}
+        {pathThrough id {map points {^ {p} {onAxes ax {.x p} {.y p}}}} color width}}]
 
 Fn([Axes, Float, Float, Float, {meanW: List(Float), runs: Int, truth: List(Float)}], List(Mob)). The plot: the
 axes, then each curve as far as `reveal` has drawn it (the target, the flat PDF, the step, the thick line, the thin
 line), and the marker at `mark` (none below 0).
 $[# {_plot ax reveal mark near c}
     [# {_upTo n} {clamp {- reveal n} 0.0 1.0}]
-    [# {_curve id f n color width}
-        {!if {< {_upTo n} 0.01} {'} {plot id ax f 0.0 {_upTo n} color width}}]
+    [# {_curve id f n color width} {!if {< {_upTo n} 0.01}
+        {'}
+        {plot id ax f 0.0 {_upTo n} color width}}]
     [# bins {length {.truth c}}]
     [# bin {clamp {floor {* mark {float bins}}} 0 {- bins 1}}]
-    [# marker {!if {< mark 0.0} {'} {flatten {'
-        {line "marker" {onAxes ax mark 0.0} {onAxes ax mark 4.0} accentColor 2.5}
-        {!if {< reveal 4.0} {'} {dotAt "markTruth" {onAxes ax mark {min 4.0 {nth {.truth c} bin}}} 0.1 _truthColor}}
-        {!if {< reveal 5.0} {'} {dotAt "markMean" {onAxes ax mark {min 4.0 {nth {.meanW c} bin}}} 0.08 _meanColor}}}}}]
+    [# marker {!if {< mark 0.0}
+        {'}
+        {flatten {'
+            {line "marker" {onAxes ax mark 0.0} {onAxes ax mark 4.0} accentColor 2.5}
+            {!if {< reveal 4.0}
+                {'}
+                {dotAt "markTruth" {onAxes ax mark {min 4.0 {nth {.truth c} bin}}} 0.1 _truthColor}}
+            {!if {< reveal 5.0}
+                {'}
+                {dotAt "markMean"
+                    {onAxes ax mark {min 4.0 {nth {.meanW c} bin}}}
+                    0.08
+                    _meanColor}}}}}]
     {flatten {'
         {axesFigure "axes" ax textDimColor 0.34 true true}
         {_curve "target" biasTarget 0.0 targetColor 3.0}
@@ -83,12 +102,17 @@ ones, the step ones struck out where the marker is past the step (they cannot pr
 $[# {_candidates s m mark near}
     [# could {+ {div m 2} {!if {> {biasPdf 1 {max mark 0.0} near} 0.0} {div m 2} 0}}]
     [# xs {map {range 0 m} {^ {i} {+ {- _rightX {* 0.13 {float {- m 1}}}} {* 0.26 {float i}}}}}]
-    [# dots {flatten {map {range 0 m} {^ {i}
-        {dotAt f"{cand${str i}}" {v2 {nth xs i} {+ _slotC 0.35}} 0.09 {!if {= {% i 2} 0} pColor _stepColor}}}}}]
+    [# dots {flatten {map
+        {range 0 m}
+        {^ {i} {dotAt f"{cand${str i}}"
+            {v2 {nth xs i} {+ _slotC 0.35}}
+            0.09
+            {!if {= {% i 2} 0} pColor _stepColor}}}}}]
     [# steps {map {filter {range 0 m} {^ {i} {= {% i 2} 1}}} {^ {i} f"{cand${str i}}"}}]
     [# struck {!if {< could m} {crossParts {phase s 0.0 1.0} dots steps accentColor} dots}]
-    {append struck
-        {moveTo {tex "could" f"{|Z(y)| = ${str could} \quad M = ${str m}}" _size textColor} {v2 _rightX {- _slotC 0.35}}}}]
+    {append struck {moveTo
+        {tex "could" f"{|Z(y)| = ${str could} \quad M = ${str m}}" _size textColor}
+        {v2 _rightX {- _slotC 0.35}}}}]
 
 Fn([Float, Int, Float, {meanW: List(Float), runs: Int, truth: List(Float)}], List(Mob)). At the marker: the two
 lines' values there and their ratio.
@@ -111,14 +135,18 @@ $[# {_grid s m}
     [# x0 {- _rightX 1.2}]
     [# y0 {- _slotC 0.2}]
     [# one {smooth {phase s 30.0 30.6}}]
-    [# cells {flatten {map {range 0 {* n n}} {^ {k}
-        [# r {div k n}]
-        [# col {% k n}]
-        [# lit {!if {= r 0} 1.0 {- 1.0 {* 0.85 one}}}]
-        {filled f"{cell${str k}}"
-            {box {v2 {+ x0 {* cell {float col}}} {- y0 {* cell {float {+ r 1}}}}} {v2 {+ x0 {* cell {+ {float col} 0.85}}} {- y0 {* cell {+ {float r} 0.15}}}}}
-            {!if {= r 0} accentColor targetColor}
-            {* 0.8 lit}}}}}]
+    [# cells {flatten {map
+        {range 0 {* n n}}
+        {^ {k}
+            [# r {div k n}]
+            [# col {% k n}]
+            [# lit {!if {= r 0} 1.0 {- 1.0 {* 0.85 one}}}]
+            {filled f"{cell${str k}}"
+                {box
+                    {v2 {+ x0 {* cell {float col}}} {- y0 {* cell {float {+ r 1}}}}}
+                    {v2 {+ x0 {* cell {+ {float col} 0.85}}} {- y0 {* cell {+ {float r} 0.15}}}}}
+                {!if {= r 0} accentColor targetColor}
+                {* 0.8 lit}}}}}]
     [# count {!if {< s 30.0} f"{n^2 = ${str {* n n}}}" f"{n = ${str n}}"}]
     {append cells {moveTo {tex "gridCount" count _size textColor} {v2 {- _rightX 2.0} {- y0 1.2}}}}]
 
@@ -128,30 +156,66 @@ $[# {_beside s mark m near ax c}
     [# {_at y fig} {moveTo fig {v2 _rightX y}}]
     [# {_rule id latex names colors} {_at _slotB {texParts id latex _size textColor names colors}}]
     [# halves {flatten {'
-        {_during s 8.0 9.0 {filled "leftHalf" {box {onAxes ax 0.0 0.0} {onAxes ax 0.5 4.0}} _truthColor 0.22}}
-        {_during s 9.0 10.0 {filled "rightHalf" {box {onAxes ax 0.5 0.0} {onAxes ax 1.0 4.0}} pColor 0.22}}}}]
+        {_during s 8.0 9.0 {filled "leftHalf"
+            {box {onAxes ax 0.0 0.0} {onAxes ax 0.5 4.0}}
+            _truthColor
+            0.22}}
+        {_during s 9.0 10.0 {filled "rightHalf"
+            {box {onAxes ax 0.5 0.0} {onAxes ax 1.0 4.0}}
+            pColor
+            0.22}}}}]
     [# runs {append
         {_at _slotB {tex "runsF" f"{1 / p_{\mathrm{RIS}}(x)}" _size _truthColor}}
         {_at _slotC {tex "runsN" f"{${str {.runs c}}}" _size textColor}}}]
-    [# huge {_at _slotD {tex "huge" f"{w = \frac{\hat p(y)}{p_2(y)} = \frac{${numberLatex {biasTarget {max mark 0.0}} 2}}{${numberLatex {biasPdf 1 {max mark 0.0} near} 4}} = ${short {over {biasTarget {max mark 0.0}} {biasPdf 1 {max mark 0.0} near}}}}" _size textColor}}]
-    [# dark {moveTo {caption "darkNote" {textKey "sourcemath-dark"} 0.32 _meanColor} {onAxes ax 0.75 2.6}}]
-    [# neighbour {moveTo {caption "neighbourNote" {textKey "biasmath-neighbour"} 0.32 _stepColor} {onAxes ax 0.3 2.35}}]
+    [# huge {_at _slotD {tex "huge" f"{w = \frac{\hat p(y)}{p_2(y)} = \frac{${numberLatex {biasTarget {max mark 0.0}} 2}}{${numberLatex {biasPdf 1 {max mark 0.0} near} 4}} = ${short {over {biasTarget {max mark 0.0}} {biasPdf 1 {max mark 0.0} near}}}}" _size
+        textColor}}]
+    [# dark {moveTo
+        {caption "darkNote" {textKey "sourcemath-dark"} 0.32 _meanColor}
+        {onAxes ax 0.75 2.6}}]
+    [# neighbour {moveTo
+        {caption "neighbourNote" {textKey "biasmath-neighbour"} 0.32 _stepColor}
+        {onAxes ax 0.3 2.35}}]
     {flatten {'
         halves
-        {_during s 5.0 7.0 {append runs {_at {- _slotC 0.55} {caption "runsNote" {textKey "biasmath-runs"} 0.3 textDimColor}}}}
-        {_during s 7.0 9.0 {_rule "should" f"{\lit{1}{\overline{W}(x)} = \lit{2}{1 / p_{\mathrm{RIS}}(x)}}" {' "W" "p"} {' _meanColor _truthColor}}}
-        {_during s 10.0 12.0 {pointParts {phase s 10.3 11.0} {_rule "divides" f"{W = \frac{\sum w_i}{\lit{1}{M}\,\hat p(y)}}" {' "M"} {' accentColor}} {' "M"} accentColor}}
+        {_during s 5.0 7.0 {append runs {_at
+            {- _slotC 0.55}
+            {caption "runsNote" {textKey "biasmath-runs"} 0.3 textDimColor}}}}
+        {_during s 7.0 9.0 {_rule "should" f"{\lit{1}{\overline{W}(x)} = \lit{2}{1 / p_{\mathrm{RIS}}(x)}}"
+            {' "W" "p"}
+            {' _meanColor _truthColor}}}
+        {_during s 10.0 12.0 {pointParts
+            {phase s 10.3 11.0}
+            {_rule "divides" f"{W = \frac{\sum w_i}{\lit{1}{M}\,\hat p(y)}}"
+                {' "M"}
+                {' accentColor}}
+            {' "M"}
+            accentColor}}
         {_during s 10.0 13.0 {_candidates {phase s 10.4 11.0} m mark near}}
         {_during s 11.0 15.0 {_atMarker mark c}}
-        {_during s 12.0 17.0 {_rule "eq19" f"{E[W \mid y] = \frac{1}{p(y)} \cdot \frac{\lit{1}{|Z(y)|}}{\lit{2}{M}}}" {' "Z" "M"} {' accentColor accentColor}}}
+        {_during s 12.0 17.0 {_rule "eq19" f"{E[W \mid y] = \frac{1}{p(y)} \cdot \frac{\lit{1}{|Z(y)|}}{\lit{2}{M}}}"
+            {' "Z" "M"}
+            {' accentColor accentColor}}}
         {_during s 14.0 15.0 dark}
         {_during s 15.0 17.0 neighbour}
-        {_during s 17.0 23.0 {_rule "fix" f"{W = \frac{\sum w_i}{\lit{1}{|Z(y)|}\,\hat p(y)}}" {' "Z"} {' accentColor}}}
+        {_during s 17.0 23.0 {_rule "fix" f"{W = \frac{\sum w_i}{\lit{1}{|Z(y)|}\,\hat p(y)}}"
+            {' "Z"}
+            {' accentColor}}}
         {_during s 17.0 21.0 {_candidates {phase s 17.4 18.0} m mark near}}
         {_during s 22.0 24.0 huge}
-        {_during s 23.0 27.0 {pointParts {phase s 24.0 25.0} {_rule "balance" f"{m_i(y) = \frac{p_i(y)}{\lit{1}{\sum_j p_j(y)}}}" {' "sum"} {' pColor}} {' "sum"} accentColor}}
-        {_during s 25.0 27.0 {_at _slotC {caption "balanceNote" {textKey "biasmath-balance"} 0.32 textColor}}}
-        {_during s 27.0 31.5 {_rule "talbot" f"{w_i = \frac{\hat p(x_i)}{\lit{1}{\sum_j p_j(x_i)}}}" {' "sum"} {' pColor}}}
+        {_during s 23.0 27.0 {pointParts
+            {phase s 24.0 25.0}
+            {_rule "balance" f"{m_i(y) = \frac{p_i(y)}{\lit{1}{\sum_j p_j(y)}}}"
+                {' "sum"}
+                {' pColor}}
+            {' "sum"}
+            accentColor}}
+        {_during s 25.0 27.0 {_at _slotC {caption "balanceNote"
+            {textKey "biasmath-balance"}
+            0.32
+            textColor}}}
+        {_during s 27.0 31.5 {_rule "talbot" f"{w_i = \frac{\hat p(x_i)}{\lit{1}{\sum_j p_j(x_i)}}}"
+            {' "sum"}
+            {' pColor}}}
         {_during s 28.0 31.5 {_grid s m}}}}]
 
 The scene
