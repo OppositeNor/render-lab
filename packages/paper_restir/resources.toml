@@ -173,9 +173,22 @@ source = "build/video/en/narration.wav"
 license = "MIT"
 built = true
 
-# Its scripts (lab/src/script/runtime.rs): the math scenes its story's worked examples are drawn on (lab/src/math/).
+# Its scripts (lab/src/script/runtime.rs): the math scenes its story's worked examples are drawn on (lab/src/math/),
+# and the figures they share.
 [[resource]]
-id = "script/math"
+id = "script/common"
 kind = "file"
-source = "script/math.lam"
+source = "script/common.lam"
+license = "MIT"
+
+[[resource]]
+id = "script/toy"
+kind = "file"
+source = "script/toy.lam"
+license = "MIT"
+
+[[resource]]
+id = "script/wrs"
+kind = "file"
+source = "script/wrs.lam"
 license = "MIT"

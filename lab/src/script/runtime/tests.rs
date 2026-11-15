@@ -159,6 +159,9 @@ fn the_math_library_computes_what_it_says() {
             "length {plot \"f\" {axesIn {box {v2 0.0 0.0} {v2 4.0 4.0}} {axisRange -1.0 1.0 1.0} {axisRange -1.0 1.0 1.0}} {^ {x} {!if {< x 0.0} -0.5 0.5}} -1.0 1.0 \"text\" 2.0}",
             "length {rt::graphLayout 4 {' {pair 0 1} {pair 1 2} {pair 2 3}} \"layered\" 0}",
             "length {cellOf {table \"t\" {' {' {words \"a\" \"a\" 0.4 \"text\"} {words \"b\" \"bb\" 0.4 \"text\"}}} 0.1 \"text\"} 0 1}",
+            "runningSums {' 1.0 2.0 3.0}",
+            "boxWidth {boxOf {nth {strip \"s\" {' 1.0 3.0} {box {v2 0.0 0.0} {v2 4.0 1.0}} {' \"text\"} 0.0} 1}}",
+            "length {chanceBar \"c\" {box {v2 0.0 0.0} {v2 4.0 0.3}} 0.5 0.2 true 1.0 \"text\"}",
         ],
         &format!("$[Import* {MATH_PACKAGE}]$[ImportAs {NATIVES} rt]"),
     );
@@ -194,4 +197,11 @@ fn the_math_library_computes_what_it_says() {
     assert_eq!(int(&v[13]), 2);
     assert_eq!(int(&v[14]), 4);
     assert_eq!(int(&v[15]), 1);
+    // The running sums of shares, and a strip's segment as long as its share of the whole.
+    assert!(
+        matches!(&v[16], Data::List(x) if x.iter().map(float).collect::<Vec<_>>() == vec![0.0, 1.0, 3.0, 6.0])
+    );
+    assert!((float(&v[17]) - 3.0).abs() < 1e-9);
+    // A chance bar's track, its lit share, its arrow and number, and its ends' labels.
+    assert!(int(&v[18]) >= 5);
 }

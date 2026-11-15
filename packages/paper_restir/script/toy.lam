@@ -1,0 +1,402 @@
+The ReSTIR story's worked example of RIS
+========================================
+
+What the story draws on the canvas (lab/src/math/) with render_lab's math library (`render_lab_math`): the worked
+example of RIS (chapter 2, demos/toy.rs's numbers through the package's natives), stage by stage as `toyStage`
+goes from 0 to 23. Each stage is one sentence's animation; `toyDrop` (or the counterfactual stages) removes a
+part of W.
+
+$[Import* std]$[Import* render_lab_runtime]$[Import* render_lab_math]$[Import* paper_restir_values]$[Import* paper_restir_natives]$[Import* paper_restir_common]
+$[Import* render_lab_runtime]
+$[Import* render_lab_math]
+$[Import* paper_restir_values]
+$[Import* paper_restir_natives]
+
+
+Numbers
+
+Fn([Int], String). Sample i's name.
+$[# {_name i} {!if {= i 0} "A" "B"}]
+Fn([Int], String). The cheap choice's probability of sample i, as a fraction.
+$[# {_pLatex i} {fractionLatex {toyQuarters i} 4}]
+Fn([Int, Int], String). Sample i's weight with `drop`, as a fraction.
+$[# {_wLatex i drop} {rational {toyWeight i drop}}]
+
+The stages
+
+Fn([Float, Float, Float, Float], Float). A value that a removed part of W moves, at stage s: whole until stage 18,
+then to its value without the average of the weights (`dropped2`), at stage 19 to its value without the division
+by p (`dropped1`), and back at stage 21; outside the story's stages, as `toyDrop` removes a part.
+$[# {_moving s whole dropped2 dropped1}
+    [# {_by drop} {!if {= drop 2} dropped2 {!if {= drop 1} dropped1 whole}}]
+    {!if {< s 18.0}
+        {_by {round {toyDrop}}}
+        {!if {< s 19.0}
+            {lerp whole dropped2 {smooth {phase s 18.0 18.6}}}
+            {!if {< s 21.0}
+                {lerp dropped2 dropped1 {smooth {phase s 19.0 19.6}}}
+                {!if {< s 22.0}
+                    {lerp dropped1 whole {smooth {phase s 21.0 21.6}}}
+                    {_by {round {toyDrop}}}}}}}]
+Fn([Float, List(Mob), List(String), String], List(Mob)). A figure with its parts named in `ids` struck out (`t`).
+$[# {_crossParts t mobs ids color} {append
+    {filter mobs {^ {m} {not {contains ids {idOf m}}}}}
+    {crossOut t {filter mobs {^ {m} {contains ids {idOf m}}}} color}}]
+Fn([Float, List(Mob), List(String), String], List(Mob)). A figure with its parts named in `ids` pointed at while `t`
+runs.
+$[# {_pointParts t mobs ids color} {!if {!and {> t 0.0} {< t 1.0}}
+    {append
+        {filter mobs {^ {m} {not {contains ids {idOf m}}}}}
+        {indicate t {filter mobs {^ {m} {contains ids {idOf m}}}} color}}
+    mobs}]
+
+Phase one: two samples, their p, p-hat, and w
+
+Fn([Int, Float], List(Mob)). Sample i's two bars at stage s, p's and p-hat's, each kind scaled to its
+larger value: grown as their sentences run, labelled with their values.
+$[# {_bars i s}
+    [# x {!if {= i 0} -5.2 -2.8}]
+    [# base -2.0]
+    [# tall 2.6]
+    [# p {/ {float {toyQuarters i}} 4.0}]
+    [# target {toyBrings i}]
+    [# pBox {box {v2 {- x 0.6} base} {v2 {- x 0.1} {+ base {* tall {/ p 0.75}}}}}]
+    [# tBox {box {v2 {+ x 0.1} base} {v2 {+ x 0.6} {+ base {* tall {/ target 3.0}}}}}]
+    [# pBar {filled f"{p${_name i}}" pBox pColor 0.9}]
+    [# tBar {filled f"{t${_name i}}" tBox targetColor 0.9}]
+    [# pLabel {nextTo {tex f"{pv${_name i}}" {_pLatex i} 0.42 pColor} pBar up 0.12}]
+    [# tLabel {nextTo {tex f"{tv${_name i}}" {str {round target}} 0.42 targetColor} tBar up 0.12}]
+    [# name {moveTo {tex f"{n${_name i}}" {_name i} 0.5 textColor} {v2 x {- base 0.45}}}]
+    {flatten {'
+        {fadeIn {phase s 0.0 1.0} name}
+        {growFrom {phase s 1.0 1.8} pBar down}
+        {fadeIn {phase s 1.5 2.0} pLabel}
+        {growFrom {phase s 2.0 2.8} tBar down}
+        {fadeIn {phase s 2.5 3.0} tLabel}}}]
+Fn([Float], List(Mob)). The key to the bars: p in the cheap choice's colour, and p-hat, which stage 3 writes
+equal to f.
+$[# {_legend s}
+    [# p {append
+        {filled "keyP" {box {v2 -6.4 3.0} {v2 -6.1 3.3}} pColor 0.9}
+        {moveTo {tex "keyPText" "p" 0.42 pColor} {v2 -5.75 3.15}}}]
+    [# t {append
+        {filled "keyT" {box {v2 -4.9 3.0} {v2 -4.6 3.3}} targetColor 0.9}
+        {moveTo {tex "keyTText" f"{\hat p}" 0.42 targetColor} {v2 -4.25 3.19}}}]
+    [# eq {moveTo {tex "keyF" f"{= f}" 0.42 targetColor} {v2 -3.55 3.15}}]
+    {flatten {'
+        {fadeIn {phase s 1.0 1.5} p}
+        {fadeIn {phase s 2.0 2.5} t}
+        {write {phase s 3.0 4.0} eq}}}]
+Fn([Float], List(Mob)). The true total: copies of the two p-hat bars stacked into one column, 1 and 3, braced as 4.
+$[# {_total s}
+    [# x -0.7]
+    [# base -2.0]
+    [# unit {/ 2.6 3.0}]
+    [# a {filled "totalA"
+        {box {v2 {- x 0.25} base} {v2 {+ x 0.25} {+ base unit}}}
+        targetColor
+        0.9}]
+    [# b {filled "totalB"
+        {box {v2 {- x 0.25} {+ base unit}} {v2 {+ x 0.25} {+ base {* 4.0 unit}}}}
+        targetColor
+        0.9}]
+    [# outline {outlined "totalOutline" {boxOf {append a b}} totalColor 3.0}]
+    [# label {tex "totalValue" {str {round {+ {toyBrings 0} {toyBrings 1}}}} 0.5 totalColor}]
+    [# braced {braceLabel "totalBrace" {append a b} right 0.12 totalColor label}]
+    [# fromA {box {v2 -4.7 -2.0} {v2 -4.2 {+ -2.0 unit}}}]
+    [# fromB {box {v2 -2.3 -2.0} {v2 -1.8 {+ -2.0 {* 3.0 unit}}}}]
+    {flatten {'
+        {fromCopy {phase s 4.0 4.5} {filled "totalA" fromA targetColor 0.9} a}
+        {fromCopy {phase s 4.2 4.7} {filled "totalB" fromB targetColor 0.9} b}
+        {create {phase s 4.6 5.0} {append outline braced}}}}]
+Fn([Int], Table). The table of the samples' p, p-hat, and w (with `drop`), centred on the origin.
+$[# {_table drop}
+    [# header {'
+        {words "h0" "" 0.42 textColor}
+        {tex "hp" "p" 0.42 pColor}
+        {tex "ht" f"{\hat p}" 0.42 targetColor}
+        {texParts "hw" f"{w = \frac{\lit{1}{\hat p}}{\lit{2}{p}}}" 0.42 weightColor
+            {' "hwt" "hwp"}
+            {' targetColor pColor}}}]
+    [# {_row i} {'
+        {tex f"{r${_name i}}" {_name i} 0.42 textColor}
+        {tex f"{c${_name i}p}" {_pLatex i} 0.42 pColor}
+        {tex f"{c${_name i}t}" {str {round {toyBrings i}}} 0.42 targetColor}
+        {tex f"{c${_name i}w}" {_wLatex i drop} 0.42 weightColor}}]
+    {table "table" {' header {_row 0} {_row 1}} 0.14 textDimColor}]
+
+Fn([Float, Table], List(Mob)). The table written at stage 5: its rules and names, then p and p-hat flying from
+the bars' labels into their cells, then the weights; stage 6 points at B's.
+$[# {_tableShown s t}
+    [# {_from id} {withId {flatten {' {_bars 0 3.0} {_bars 1 3.0}}} id}]
+    [# {_fly k id cell} {fromCopy
+        {phase s {+ 5.0 {* 0.1 {float k}}} {+ 5.4 {* 0.1 {float k}}}}
+        {_from id}
+        cell}]
+    {flatten {'
+        {create {phase s 5.0 5.3} {.rules t}}
+        {write {phase s 5.0 5.4} {append {rowOf t 0} {append {cellOf t 1 0} {cellOf t 2 0}}}}
+        {_fly 0 "pvA" {cellOf t 1 1}}
+        {_fly 1 "tvA" {cellOf t 1 2}}
+        {_fly 2 "pvB" {cellOf t 2 1}}
+        {_fly 3 "tvB" {cellOf t 2 2}}
+        {write {phase s 5.5 5.8} {cellOf t 1 3}}
+        {indicate {phase s 6.0 7.0} {write {phase s 5.7 6.0} {cellOf t 2 3}} accentColor}}}]
+
+Phase two: two candidates, every list, and their average
+
+
+The square of the lists, where the bars were: across, the first candidate (A three quarters of the width, B the
+rest); down, the second.
+$[# _square [% {box {v2 -6.3 -3.4} {v2 -1.8 1.1}}]]
+Fn([], List(Float)). The cheap choice's shares, A's then B's.
+$[# {_shares} {map {' 0 1} {^ {i} {/ {float {toyQuarters i}} 4.0}}}]
+Fn([Float], List(Mob)). The square, its cells dim, the first candidate named above it and the second beside it.
+$[# {_squareFigure s}
+    [# cells {areaSquare "sq" {_shares} {_shares} _square {' "#3b4150"} 0.05}]
+    [# names {flatten {map
+        {' 0 1}
+        {^ {i}
+            [# c {boxCenter {boxOf {withId cells f"{sq.${str i}.${str i}}"}}}]
+            {append
+                {moveTo {tex f"{xa${_name i}}" {_name i} 0.42 textDimColor} {v2 {.x c} 1.5}}
+                {moveTo {tex f"{xb${_name i}}" {_name i} 0.42 textDimColor} {v2 -6.7 {.y c}}}}}}}]
+    {write {phase s 7.6 8.0} {append cells names}}]
+Fn([Int, Int], String). The cell of the square where the first candidate is i and the second j.
+$[# {_cell i j} f"{sq.${str i}.${str j}}"]
+Fn([Int], List({first: Int, second: Int})). The cells of list k (A A, A B or B A, B B).
+$[# {_cellsOf k} {!if {= k 0}
+    {' {pair 0 0}}
+    {!if {= k 1} {' {pair 0 1} {pair 1 0}} {' {pair 1 1}}}}]
+Fn([Int, Float, Float, Bool], List(Mob)). List k's cells lit at stage s from `from` (`labels`: their labels
+instead), each labelled with its chance in sixteenths (as the narration counts them: an A and a B, in either order,
+are 3 and 3 of the 6).
+$[# {_listLit k s from labels}
+    [# cells {areaSquare "sq" {_shares} {_shares} _square {' estimateColor} 0.05}]
+    [# {_lit c}
+        [# id {_cell {.first c} {.second c}}]
+        [# chance {* {toyQuarters {.first c}} {toyQuarters {.second c}}}]
+        [# label {moveTo
+            {tex {++ id "chance"} f"{\tfrac{${str chance}}{16}}" 0.42 textColor}
+            {boxCenter {boxOf {withId cells id}}}}]
+        {!if labels
+            {fadeIn {phase s {+ from 0.3} {+ from 0.7}} label}
+            {faded {fadeIn {phase s from {+ from 0.4}} {withId cells id}} 0.75}}]
+    {flatten {map {_cellsOf k} _lit}}]
+
+The estimate of one list, as symbols and with each list's numbers: f(y)/p-hat(y) (1 here, as p-hat = f) times the
+average of the two weights.
+$[# _estimateCenter [% {v2 2.6 0.1}]]
+$[# {_estimateSymbols} {moveTo
+    {texParts "est" f"{\lit{1}{\frac{f(y)}{\hat p(y)}} \cdot \frac{\lit{2}{w_1} + \lit{3}{w_2}}{\lit{4}{M}}}" 0.5 textColor
+        {' "fp" "w1" "w2" "M"}
+        {' targetColor weightColor weightColor textColor}}
+    _estimateCenter}]
+Fn([Int], List(Mob)). List k's estimate with its numbers.
+$[# {_estimateNumbers k}
+    [# l {nth {toyLists} k}]
+    [# value {toyEstimate k 0}]
+    [# w1 {_wLatex {.a l} 0}]
+    [# w2 {_wLatex {.b l} 0}]
+    {moveTo
+        {texParts "est" f"{\lit{1}{1} \cdot \frac{\lit{2}{$w1} + \lit{3}{$w2}}{\lit{4}{2}} = \lit{5}{${rational value}}}" 0.5 textColor
+            {' "fp" "w1" "w2" "M" "value"}
+            {' targetColor weightColor weightColor textColor estimateColor}}
+        _estimateCenter}]
+The average over the lists, each estimate times its chance, which is the true total.
+$[# {_averageFormula}
+    [# l {toyLists}]
+    {moveTo
+        {texParts "avg" f"{\tfrac{${str {.sixteenths {nth l 0}}}}{16} \cdot \lit{1}{${rational {toyEstimate 0 0}}} + \tfrac{${str {.sixteenths {nth l 1}}}}{16} \cdot \lit{2}{${rational {toyEstimate 1 0}}} + \tfrac{${str {.sixteenths {nth l 2}}}}{16} \cdot \lit{3}{${rational {toyEstimate 2 0}}} = \lit{4}{${rational {toyAverage 0}}}}" 0.46 textColor
+            {' "e0" "e1" "e2" "avgValue"}
+            {' estimateColor estimateColor estimateColor totalColor}}
+        _estimateCenter}]
+
+The number line of the estimates, 0 to 12, under the formulas.
+$[# _lineRange [% {axisRange 0.0 12.0 2.0}]]
+$[# _lineA [% {v2 -1.4 -2.6}]]
+$[# _lineB [% {v2 6.6 -2.6}]]
+Fn([Float], Vec2). Where the estimate x is on the line.
+$[# {_onLine x} {onLine _lineRange _lineA _lineB x}]
+Fn([Float], List(Mob)). The estimates' dots, each as it appears (list k at stage 8 + k, B B at 11), each the
+size of its chance, at its value as far as a removed part has moved it.
+$[# {_dots s} {flatten {map
+    {' 0 1 2}
+    {^ {k}
+        [# from {!if {= k 2} 11.0 {+ 8.0 {float k}}}]
+        [# chance {/ {float {.sixteenths {nth {toyLists} k}}} 16.0}]
+        [# value {_moving s {toyEstimate k 0} {toyEstimate k 2} {toyEstimate k 1}}]
+        {fadeIn
+            {phase s {+ from 0.4} {+ from 0.9}}
+            {dotAt f"{dot${str k}}"
+                {_onLine value}
+                {+ 0.07 {* 0.3 {sqrt chance}}}
+                estimateColor}}}}}]
+Fn([Float], List(Mob)). The average's marker under the line, sliding from 0 to the average at stage 13
+(to where a removed part moves it later), and the true total's mark at 4 from stage 12, circled late in stage 18.
+$[# {_marks s}
+    [# avg {_moving s {toyAverage 0} {toyAverage 2} {toyAverage 1}}]
+    [# x {lerp 0.0 avg {smooth {phase s 13.3 14.0}}}]
+    [# at {_onLine x}]
+    [# truth {_onLine {toyAverage 0}}]
+    [# total {append
+        {dashedLine "truth" {add2 truth {v2 0.0 0.9}} {sub2 truth {v2 0.0 0.2}} totalColor 2.5}
+        {moveTo
+            {tex "truthValue" {rational {toyAverage 0}} 0.42 totalColor}
+            {add2 truth {v2 0.0 1.15}}}}]
+    [# marker {arrowLine "mean" {sub2 at {v2 0.0 0.95}} {sub2 at {v2 0.0 0.35}} estimateColor 3.0}]
+    {append
+        {circumscribe {phase s 18.6 19.0} {create {phase s 12.0 12.7} total} totalColor}
+        {fadeIn {phase s 13.0 13.4} marker}}]
+
+Phase three: W, and how often RIS keeps B
+
+$[# _wCenter [% {v2 2.6 0.2}]]
+$[# {_wFormula} {moveTo
+    {texParts "W" f"{W = \frac{\lit{1}{w_1 + w_2}}{\lit{2}{M}\,\lit{3}{\hat p(y)}}}" 0.55 textColor
+        {' "sum" "M" "phat"}
+        {' weightColor textColor targetColor}}
+    _wCenter}]
+$[# _keepCenter [% {v2 2.6 -1.35}]]
+$[# {_keepSymbols} {moveTo
+    {texParts "keep" f"{\overline{W}_B = \frac{1}{\lit{1}{P(y = B)}}}" 0.45 textColor
+        {' "chance"}
+        {' estimateColor}}
+    _keepCenter}]
+$[# {_keepNumbers}
+    [# k {toyKept 1}]
+    {moveTo
+        {texParts "keep" f"{\overline{W}_B = \frac{1}{\lit{1}{${numberLatex {.chance k} 1}}} = \lit{2}{${numberLatex {.w k} 1}}}" 0.45 textColor
+            {' "chance" "value"}
+            {' estimateColor weightColor}}
+        _keepCenter}]
+Fn([Float], List(Mob)). Where RIS keeps B: in each A-B cell, B's share of the two weights (12 of 12 + 4/3), and
+all of B-B.
+$[# {_keptB s}
+    [# cells {areaSquare "sq" {_shares} {_shares} _square {' weightColor} 0.05}]
+    [# wa {toyWeight 0 0}]
+    [# wb {toyWeight 1 0}]
+    [# share {/ wb {+ wa wb}}]
+    [# {_part id along}
+        [# b {boxOf {withId cells id}}]
+        {!if along
+            {filled "keptB"
+                {box {v2 {- {.x {.hi b}} {* share {boxWidth b}}} {.y {.lo b}}} {.hi b}}
+                weightColor
+                0.6}
+            {filled "keptB"
+                {box {.lo b} {v2 {.x {.hi b}} {+ {.y {.lo b}} {* share {boxHeight b}}}}}
+                weightColor
+                0.6}}]
+    {fadeIn
+        {phase s 17.0 17.5}
+        {flatten {'
+            {_part {_cell 0 1} false}
+            {_part {_cell 1 0} true}
+            {filled "keptB" {boxOf {withId cells {_cell 1 1}}} weightColor 0.6}}}}]
+
+The scene
+
+Fn([Float], List(Mob)). The worked example at stage `toyStage`.
+$[# toyMath {: {^ {t}
+    [# s {toyStage}]
+    [# one {flatten {' {_legend s} {_bars 0 s} {_bars 1 s} {_total s}}}]
+    [# drop1 {- {smooth {phase s 19.2 19.7}} {smooth {phase s 21.0 21.5}}}]
+    [# tables {transform drop1
+        {_tableShown s {tableShifted {_table 0} {v2 3.8 0.4}}}
+        {_tableShown s {tableShifted {_table 1} {v2 3.8 0.4}}}}]
+    [# struck {!if {< s 19.0} 0.0 {- {smooth {phase s 19.0 19.4}} {smooth {phase s 21.0 21.4}}}}]
+    [# tableNow {_pointParts
+        {phase s 20.0 21.0}
+        {_crossParts struck {toward tables 0.75 {v2 4.0 2.75} {phase s 7.0 7.8}} {' "hwp"} pColor}
+        {' "cBw"}
+        accentColor}]
+    [# estimate {!if {< s 8.0}
+        {fadeIn {phase s 7.6 8.0} {_estimateSymbols}}
+        {!if {< s 9.0}
+            {transform {phase s 8.0 8.6} {_estimateSymbols} {_estimateNumbers 0}}
+            {!if {< s 11.0}
+                {circumscribe
+                    {phase s 10.0 11.0}
+                    {transform {phase s 9.0 9.6} {_estimateNumbers 0} {_estimateNumbers 1}}
+                    targetColor}
+                {!if {< s 13.0}
+                    {transform {phase s 11.0 11.6} {_estimateNumbers 1} {_estimateNumbers 2}}
+                    {!if {< s 15.0}
+                        {circumscribe
+                            {phase s 14.0 15.0}
+                            {transform {phase s 13.0 13.6} {_estimateNumbers 2} {_averageFormula}}
+                            totalColor}
+                        {transform {phase s 15.0 15.6} {_averageFormula} {_wFormula}}}}}}}]
+    [# averageStruck {!if {< s 18.0}
+        0.0
+        {- {smooth {phase s 18.0 18.4}} {smooth {phase s 19.0 19.4}}}}]
+    [# formula {!if {< s 18.0}
+        estimate
+        {_crossParts averageStruck estimate {' "sum" "M"} weightColor}}]
+    [# keep {!if {< s 17.0}
+        {write {phase s 16.0 16.7} {_keepSymbols}}
+        {fadeOut
+            {phase s 21.2 21.6}
+            {transform {phase s 17.3 18.0} {_keepSymbols} {_keepNumbers}}}}]
+    [# {_under brace label toRight}
+        [# b {boxOf brace}]
+        [# l {nextTo label brace down 0.1}]
+        {shift l {v2
+            {!if toRight
+                {- {+ {.x {.lo b}} {/ {widthOf l} 2.0}} {.x {centerOf l}}}
+                {- {- {.x {.hi b}} {/ {widthOf l} 2.0}} {.x {centerOf l}}}}
+            0.0}}]
+    [# braceM {brace "braceM" {withId {_wFormula} "M"} down 0.1 textColor}]
+    [# braceT {brace "braceT" {withId {_wFormula} "phat"} down 0.1 targetColor}]
+    [# braces {!if {< s 21.6}
+        {'}
+        {write
+            {phase s 21.6 22.0}
+            {flatten {'
+                {braceLabel "braceSum"
+                    {withId {_wFormula} "sum"}
+                    up
+                    0.1
+                    weightColor
+                    {caption "braceSumText" {textKey "toymath-sum"} 0.34 weightColor}}
+                braceM
+                {_under braceM
+                    {caption "braceMText" {textKey "toymath-count"} 0.34 textColor}
+                    false}
+                braceT
+                {shift
+                    {_under braceT
+                        {caption "braceTText" {textKey "toymath-target"} 0.34 targetColor}
+                        true}
+                    {v2 0.0 -0.45}}}}}}]
+    [# line {numberLine "line" _lineRange _lineA _lineB textDimColor 0.32}]
+    [# dots {_dots s}]
+    [# spread {braceLabel "spread" dots up 0.2 estimateColor {tex "spreadText" f"{${rational {toyEstimate 0 0}} \ldots ${rational {toyEstimate 2 0}}}" 0.4
+        estimateColor}}]
+    [# frame {frameBetween fullFrame {frameOn {append line spread} 0.5} {phase s 22.0 23.0}}]
+    [# away {- 1.0 {smooth {phase s 22.0 22.6}}}]
+    [# {_kept mobs} {!if {< away 1.0} {faded mobs away} mobs}]
+    {append
+        {_kept {flatten {'
+            {!if {< s 7.0}
+                {_tableShown s {tableShifted {_table 0} {v2 3.8 0.4}}}
+                {fadeOut {phase s 21.2 21.6} tableNow}}
+            {fadeOut {phase s 7.0 7.5} one}
+            {_squareFigure s}
+            {!if {< s 8.0} {'} {_listLit 0 s 8.0 false}}
+            {!if {< s 9.0} {'} {_listLit 1 s 9.0 false}}
+            {!if {< s 11.0} {'} {_listLit 2 s 11.0 false}}
+            {!if {< s 17.0} {'} {_keptB s}}
+            {!if {< s 8.0} {'} {_listLit 0 s 8.0 true}}
+            {!if {< s 9.0} {'} {_listLit 1 s 9.0 true}}
+            {!if {< s 11.0} {'} {_listLit 2 s 11.0 true}}
+            {!if {< s 7.6} {'} formula}
+            {!if {< s 16.0} {'} keep}
+            braces}}}
+        {flatten {'
+            {create {phase s 7.5 8.0} line}
+            dots
+            {!if {< s 12.0} {'} {_marks s}}
+            {fadeIn {phase s 22.2 22.8} spread}
+            {showFrame frame}}}}} Math}]

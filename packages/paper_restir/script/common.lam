@@ -1,0 +1,79 @@
+The ReSTIR story's shared figures
+=================================
+
+What the package's math scenes (script/toy.lam, script/wrs.lam, and the others; lab/src/math/) share, imported as
+`paper_restir_common`: the palette every scene colours its symbols by, number formats, a reservoir's record, and a
+chance weighed.
+
+$[Import* std]$[Import* render_lab_runtime]$[Import* render_lab_math]
+
+The cheap choice's probability p, the target p-hat, a candidate's weight w, the true total, and an estimate.
+$[# pColor "#8fb8ff"]
+
+$[# targetColor "#ffd166"]
+
+$[# weightColor "#ff6fb5"]
+
+$[# totalColor "#6be3b0"]
+
+$[# estimateColor "#ffa14a"]
+
+Fn([Float], String). A number as LaTeX: a fraction with the smallest denominator up to 16 that makes it whole
+(4/3, 20/3), else two decimals.
+$[# {rational x}
+    [# {_try d} {!if {> d 16}
+        {numberLatex x 2}
+        {!if {< {abs {- {* x {float d}} {float {round {* x {float d}}}}}} 0.000001}
+            {fractionLatex {round {* x {float d}}} d}
+            {_try {+ d 1}}}}]
+    {_try 1}]
+
+Fn([List(Mob), Float, Vec2, Float], List(Mob)). A figure moved toward `to` and scaled toward `scale` as `t` runs.
+$[# toward {: {^ {mobs scale to t}
+    [# k {smooth {clamp t 0.0 1.0}}]
+    {moveTo {scaled mobs {lerp 1.0 scale k}} {lerp2 {centerOf mobs} to k}}} {Fn {' {List Mob} Float Vec2 Float} {List Mob}}}]
+
+Fn([Int], String). The kept candidate's name as LaTeX (x_i), or nothing while none is kept.
+$[# {keptName k} {!if {< k 0} "" f"{x_{${str {+ k 1}}}}"}]
+
+Fn([Float, Float], Float). `a` over `b`, or 0 when `b` is 0 (a candidate behind P's surface weighs nothing).
+$[# {over a b} {!if {> b 0.0} {/ a b} 0.0}]
+
+Fn([Float], String). A weight as LaTeX, to three significant figures (two decimals at least, six at most).
+$[# {short x}
+    [# digits {!if {<= x 0.0} 2 {clamp {- 2 {floor {/ {ln x} {ln 10.0}}}} 1 6}}]
+    {numberLatex x {!if {>= x 10.0} 1 digits}}]
+
+Fn([Vec2, String, String, String, String, Float], List(Mob)). A record at `at` showing `kept`, `sum`, and `count`
+(LaTeX; empty strings leave a field blank), its fields named under `id` and captioned, `alpha` its frame's.
+$[# record {: {^ {id at kept sum count}
+    [# box3 {box {sub2 at {v2 2.7 0.55}} {add2 at {v2 2.7 0.55}}}]
+    [# xs {' -1.8 0.0 1.8}]
+    [# {_field k key value}
+        [# c {add2 at {v2 {nth xs k} 0.0}}]
+        {append
+            {moveTo
+                {caption {++ id {++ "Cap" {str k}}} key 0.3 textDimColor}
+                {add2 c {v2 0.0 0.85}}}
+            {!if {= value ""} {'} {moveTo {tex {++ id {++ "F" {str k}}} value 0.44 textColor} c}}}]
+    {flatten {'
+        {outlined {++ id "Box"} box3 textColor 2.5}
+        {line {++ id "Rule"} {add2 at {v2 -0.9 -0.55}} {add2 at {v2 -0.9 0.55}} textDimColor 1.5}
+        {line {++ id "Rule"} {add2 at {v2 0.9 -0.55}} {add2 at {v2 0.9 0.55}} textDimColor 1.5}
+        {_field 0 {textKey "wrsmath-kept"} kept}
+        {_field 1 {textKey "wrsmath-sum"} sum}
+        {_field 2 {textKey "wrsmath-count"} count}}}} {Fn {' String Vec2 String String String} {List Mob}}}]
+
+Fn([String, Float, Float, Float, Bool, Float, Vec2], List(Mob)). A chance weighed at progress `t`, about `at`: the
+fraction `left` (LaTeX) with its numbers, `w` over `total`, the chance as a lit part of a bar from 0 to 1, and the
+number `u` the update drew dropping onto the bar (inside the lit part, `taken`: the new one replaces the kept one).
+$[# chanceView {: {^ {left w total u taken t at}
+    [# c {over w total}]
+    [# formula {moveTo
+        {texParts "chanceF" f"{\lit{1}{$left} = \frac{\lit{2}{${short w}}}{\lit{3}{${short total}}} = \lit{4}{${numberLatex c 2}}}" 0.4 textColor
+            {' "left" "wv" "sv" "c"}
+            {' textColor weightColor textColor estimateColor}}
+        at}]
+    [# y {- {.y at} 1.8}]
+    [# bar {chanceBar "chance" {box {v2 {- {.x at} 2.0} {- y 0.14}} {v2 {+ {.x at} 2.0} {+ y 0.14}}} c u taken t estimateColor}]
+    {append {fadeIn {phase t 0.0 0.2} formula} bar}} {Fn {' String Float Float Float Bool Float Vec2} {List Mob}}}]

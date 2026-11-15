@@ -1005,3 +1005,71 @@ $[# {flowAlong t edge radius color} {flatten {map edge {^ {m} {!case m
     {band r {'}}
     {dot r {'}}
     {frame r {'}}}}}}]
+
+Chances and shares
+
+Fn([String, Box, Float, Float, Bool, Float, String], List(Mob)). A chance weighed at progress `t` (the picture of
+`u · total < w` in weighted reservoir sampling, and of any draw against a probability): a bar `b` from 0 to 1, its
+share `chance` lit in `color` (growing over the first 40 % of `t`), and the uniform number `u` dropping onto the bar
+as an arrow (from 45 % to 75 %), lit when it falls inside the share (`taken`). The bar's ends are labelled 0 and 1.
+$[# {chanceBar id b chance u taken t color}
+    [# y {.y {boxCenter b}}]
+    [# x0 {.x {.lo b}}]
+    [# x1 {.x {.hi b}}]
+    [# h {boxHeight b}]
+    [# track {filled {++ id "Track"} b "#3b4150" 1.0}]
+    [# lit {filled
+        {++ id "Lit"}
+        {box
+            {.lo b}
+            {v2 {lerp x0 x1 {* {clamp chance 0.0 1.0} {smooth {phase t 0.1 0.4}}}} {.y {.hi b}}}}
+        color
+        0.9}]
+    [# ux {lerp x0 x1 {clamp u 0.0 1.0}}]
+    [# drop {smooth {phase t 0.45 0.75}}]
+    [# arrow {append
+        {arrowLine
+            {++ id "U"}
+            {v2 ux {+ y {lerp 0.8 0.6 drop}}}
+            {v2 ux {+ y {lerp 0.45 {+ 0.04 {/ h 2.0}} drop}}}
+            {!if taken accentColor textColor}
+            3.0}
+        {moveTo {tex {++ id "UText"} "u" 0.36 textColor} {v2 ux {+ y {lerp 1.0 0.85 drop}}}}}]
+    [# ends {append
+        {moveTo {tex {++ id "Zero"} "0" 0.3 textDimColor} {v2 x0 {- y {+ 0.28 h}}}}
+        {moveTo {tex {++ id "One"} "1" 0.3 textDimColor} {v2 x1 {- y {+ 0.28 h}}}}}]
+    {flatten {'
+        {fadeIn {phase t 0.0 0.1} {append track ends}}
+        lit
+        {fadeIn {phase t 0.4 0.5} arrow}}}]
+
+Fn([List(Float)], List(Float)). Each share's start along a running sum: 0, then each share's total so far (one fewer
+than the shares, then their total last).
+$[# {runningSums shares} {.second {fold shares
+    {pair 0.0 {' 0.0}}
+    {^ {acc x} [# next {+ {.first acc} x}] {pair next {append {.second acc} {' next}}}}}}]
+
+Fn([String, List(Float), Box, List(String), Float], List(List(Mob))). Shares of a whole laid end to end across the
+box `b` (the shares' total its width): a strip of segments, each named `id.i`, in the colours in turn (manim's
+stacked bar; a running sum, a distribution's CDF, drawn as lengths), `gap` canvas units between them.
+$[# {strip id shares b colors gap}
+    [# total {max {fold shares 0.0 +} 0.000001}]
+    [# starts {runningSums shares}]
+    [# n {length shares}]
+    {map
+        {range 0 n}
+        {^ {i}
+            [# x0 {lerp {.x {.lo b}} {.x {.hi b}} {/ {nth starts i} total}}]
+            [# x1 {lerp {.x {.lo b}} {.x {.hi b}} {/ {nth starts {+ i 1}} total}}]
+            {'
+                {rectMob
+                    {++ id {++ "." {str i}}}
+                    {box
+                        {v2 {+ x0 {/ gap 2.0}} {.y {.lo b}}}
+                        {v2 {max {+ x0 {/ gap 2.0}} {- x1 {/ gap 2.0}}} {.y {.hi b}}}}
+                    {nth colors {% i {length colors}}}
+                    0.9
+                    {nth colors {% i {length colors}}}
+                    1.0
+                    0.0
+                    0.0}}}}]

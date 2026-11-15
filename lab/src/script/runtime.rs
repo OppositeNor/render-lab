@@ -14,8 +14,9 @@
 //! The lab finds the hooks by their types (runtime.lam): overlays (`Overlay`), click handlers (`ClickHandler`),
 //! actions (`{Action Args}`), animations (`Animation`), math scenes (`Math`, src/math/). A hook keeps nothing
 //! between calls: it is a function of what the lab passes and of what it reads, and it returns a description
-//! (shapes, mobs, or values to set) that the lab checks whole and then applies. While a hook runs, natives read the call's context: the shot (`state`), the
-//! frame it draws (`frame`, `frame_data`), and the scene's statics (`statics`).
+//! (shapes, mobs, or values to set) that the lab checks whole and then applies. While a hook runs, natives read
+//! the call's context: the shot (`state`), the frame it draws (`frame`, `frame_data`), and the scene's statics
+//! (`statics`).
 //!
 //! Lamlet's engine, documents, and instances are not `Send`, and every hook runs on the thread that draws or
 //! records, so each thread has its own runtime (a `thread_local!`), checked once per investigation.
@@ -619,7 +620,9 @@ fn library_type(library: &Document, name: &str) -> Result<TypeDesc, String> {
 }
 
 /// The error for a function `named` that returns what a hook returns (`ret`) but takes what none takes
-/// (`params`); Ok when it returns no hook's type.
+/// (`params`); Ok when it returns no hook's type. A function returning mobs is not one: a script's figures
+/// (`List(Mob)` from any arguments) are its helpers, and a math scene a beat names but the scripts lack is refused
+/// by name (`math_scene`).
 fn wrong_hook(
     key: &str,
     named: &str,
@@ -629,7 +632,6 @@ fn wrong_hook(
 ) -> Result<(), String> {
     let Some(returns) = [
         (&types.shapes, "Shape"),
-        (&types.mobs, "Mob"),
         (&types.rows, "Row"),
         (&types.writes, "Write"),
     ]
