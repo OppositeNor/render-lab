@@ -21,6 +21,7 @@ fn groups(demo: Demo) -> &'static [&'static str] {
         Demo::Combine => &["combine"],
         Demo::Rounds => &["rounds", "restir"],
         Demo::History => &["history", "restir"],
+        Demo::Source => &["source"],
         Demo::Methods => &["restir", "view", "lights"],
         Demo::Room | Demo::Reservoirs | Demo::Reference => &["restir", "view", "lights"],
     }
@@ -41,6 +42,7 @@ fn group(dock: &mut Dock, ui: &mut Ui, label: &str) {
         "combine" => (tr("controls-combine"), tr("hints-combine")),
         "rounds" => (tr("controls-rounds"), tr("hints-rounds")),
         "history" => (tr("controls-history"), tr("hints-history")),
+        "source" => (tr("controls-source"), tr("hints-source")),
         _ => (tr("controls-bias"), tr("hints-bias")),
     };
     dock.values(ui, title, Some(hint), label);

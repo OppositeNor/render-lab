@@ -1,0 +1,93 @@
+The ReSTIR story's neighbour's W at P
+=====================================
+
+What the story draws on the canvas (lab/src/math/) for chapter 6's beat `c6-source-math`, stage by stage as
+`sourceStage` goes from 0 to 5: in the math scenes' example world (examples.rs, the lab's illustration), Q's target
+and P's over the 24 lights, each as the chance RIS ends on a light (its share of the target, the limit of many
+candidates); Q's sample, the one Q's reservoir keeps in the combining beat's example; W, standing in for one over
+that chance; why its mean must be exact (an estimate too bright or too dark); and that chance at P, so Q's W is not
+the one P needs.
+
+$[Import* std]$[Import* render_lab_runtime]$[Import* render_lab_math]$[Import* paper_restir_values]$[Import* paper_restir_natives]$[Import* paper_restir_common]
+
+The example
+
+The combining beat's example (script/combine.lam), whose Q's reservoir keeps the sample shown here.
+$[# _seed 13]
+$[# _count 32]
+The size of the formulas, and where they go.
+$[# _size 0.44]
+$[# _rightX 3.9]
+The two rows of bars: Q's above, P's below.
+$[# _qBox [% {box {v2 -6.6 0.7} {v2 0.2 2.6}}]]
+$[# _pBox [% {box {v2 -6.6 -2.5} {v2 0.2 -0.6}}]]
+
+Fn([List(Float)], List(Float)). Each light's share of the target (the chance RIS ends on it, as candidates grow).
+$[# {_chances brings} [# total {fold brings 0.0 +}] {map brings {^ {b} {over b total}}}]
+
+Fn([String, List(Float), Box, String, Int, Float], List(Mob)). A row of bars, one per light, the sample's bar lit
+and the rest dimmed by `dim`, grown at `t`.
+$[# {_row id chances b color y dim t}
+    [# top {fold chances 0.000001 max}]
+    [# bars {bars id chances top b {' color} 0.25}]
+    {growFrom t {flatten {map {range 0 {length bars}} {^ {i}
+        {!if {= i y} {tinted {nth bars i} accentColor} {faded {nth bars i} dim}}}}} down}]
+
+Fn([Float], List(Mob)). Why W's mean must be exact (stage 3 to 4): the estimate on a number line, at the true
+total when W is one over the chance, and too dark or too bright when W is too small or too large.
+$[# {_scale s}
+    [# a {v2 {- _rightX 2.6} -1.6}]
+    [# b {v2 {+ _rightX 2.6} -1.6}]
+    [# exact {lerp2 a b 0.5}]
+    [# swing {* 0.3 {sin {* 6.2831853 {phase s 3.4 4.0}}}}]
+    [# at {lerp2 a b {+ 0.5 swing}}]
+    {fadeIn {phase s 3.0 3.3} {flatten {'
+        {line "scale" a b textDimColor 2.0}
+        {line "exactTick" {add2 exact {v2 0.0 -0.15}} {add2 exact {v2 0.0 0.15}} totalColor 3.0}
+        {moveTo {caption "exactNote" {textKey "sourcemath-exact"} 0.3 totalColor} {add2 exact {v2 0.0 -0.45}}}
+        {moveTo {caption "darkNote" {textKey "sourcemath-dark"} 0.3 textDimColor} {add2 a {v2 0.6 0.45}}}
+        {moveTo {caption "brightNote" {textKey "sourcemath-bright"} 0.3 textDimColor} {add2 b {v2 -0.6 0.45}}}
+        {dotAt "estimate" at 0.1 estimateColor}}}}]
+
+The scene
+
+Fn([Float], List(Mob)). The scene at stage s.
+$[# {_scene s}
+    [# q {_chances {map {exampleLights 1 0.0 1.0} .brings}}]
+    [# p {_chances {map {exampleLights 0 0.0 1.0} .brings}}]
+    [# y {.light {nth {.sources {exampleCombine _seed _count}} 1}}]
+    [# pq {nth q y}]
+    [# pp {nth p y}]
+    [# name f"{\ell_{${str {+ y 1}}}}"]
+    [# qRow {_row "q" q _qBox targetColor y {lerp 1.0 0.45 {smooth {phase s 0.5 0.9}}} {phase s 0.0 0.4}}]
+    [# pRow {_row "p" p _pBox targetColor y 0.45 {phase s 0.4 0.8}}]
+    [# notes {append
+        {moveTo {caption "qNote" {textKey "lightsmath-pixel-q"} 0.3 textDimColor} {v2 -3.2 3.0}}
+        {moveTo {caption "pNote" {textKey "lightsmath-pixel-p"} 0.3 textDimColor} {v2 -3.2 -0.2}}}]
+    [# yBar {boxOf {withId qRow f"{q.${str y}}"}}]
+    [# sample {append
+        {moveTo {caption "sampleNote" {textKey "sourcemath-sample"} 0.3 accentColor} {v2 {.x {boxCenter yBar}} {+ {.y {.hi yBar}} 0.3}}}
+        {moveTo {tex "sampleY" name 0.4 accentColor} {v2 {.x {boxCenter yBar}} {+ {.y {.hi yBar}} 0.75}}}}]
+    [# rule {moveTo {texParts "w" f"{\lit{1}{W} = \frac{\sum w_i}{M\,\hat p(y)}}" _size textColor {' "W"} {' estimateColor}} {v2 _rightX 2.4}}]
+    [# mean {moveTo {texParts "w" f"{\lit{1}{\overline{W}} = \frac{1}{\lit{2}{p(y)}}}" _size textColor {' "W" "p"} {' estimateColor accentColor}} {v2 _rightX 2.4}}]
+    [# atQ {moveTo {texParts "atQ" f"{\lit{1}{p_Q($name)} \approx \frac{\hat p_Q($name)}{\sum \hat p_Q} = \lit{2}{${numberLatex pq 3}}}" _size textColor {' "pQ" "pQv"} {' accentColor accentColor}} {v2 _rightX 1.1}}]
+    [# wQ {moveTo {texParts "wQ" f"{\lit{1}{\overline{W}_Q} \approx \frac{1}{${numberLatex pq 3}} = \lit{2}{${short {over 1.0 pq}}}}" _size textColor {' "W" "Wv"} {' estimateColor estimateColor}} {v2 _rightX -0.1}}]
+    [# atP {moveTo {texParts "atP" f"{\lit{1}{p_P($name)} \approx \frac{\hat p_P($name)}{\sum \hat p_P} = \lit{2}{${numberLatex pp 3}}}" _size textColor {' "pP" "pPv"} {' targetColor targetColor}} {v2 _rightX -1.3}}]
+    [# needs {moveTo {texParts "needs" f"{\frac{1}{${numberLatex pp 3}} = \lit{1}{${short {over 1.0 pp}}} \ne \lit{2}{${short {over 1.0 pq}}}}" _size textColor {' "need" "have"} {' targetColor estimateColor}} {v2 _rightX -2.4}}]
+    [# line {_scale s}]
+    {flatten {'
+        qRow
+        pRow
+        {fadeIn {phase s 0.0 0.3} notes}
+        {!if {< s 0.5} {'} {fadeIn {phase s 0.5 0.9} sample}}
+        {!if {< s 1.0} {'} {!if {< s 2.0} {write {phase s 1.0 1.6} rule} {transform {phase s 2.0 2.5} rule mean}}}
+        {!if {< s 2.4} {'} {write {phase s 2.4 2.8} atQ}}
+        {!if {< s 2.7} {'} {write {phase s 2.7 3.0} wQ}}
+        {!if {!or {< s 3.0} {> s 4.2}} {'} {fadeOut {phase s 4.0 4.2} line}}
+        {!if {< s 4.1} {'} {pointParts {phase s 4.6 5.0} {write {phase s 4.1 4.5} atP} {' "pP"} targetColor}}
+        {!if {< s 4.5} {'} {write {phase s 4.5 4.9} needs}}}}]
+
+The hook
+
+Fn([Float], List(Mob)). A neighbour's W at P at stage `sourceStage`.
+$[# sourceMath {: {^ {t} {_scene {sourceStage}}} Math}]

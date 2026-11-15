@@ -1057,21 +1057,27 @@ ${cue "key" {' {callout "bias-source"}}}${cue "key" {' {glide cameraYaw 28.0 sen
     {' {pickURange 0.88 0.85}}
     "Every pixel has its own target"}, because its surface faces its own way and sees its own lights.
 
-${cue "key" {' {glide cameraYaw 22.0 sentence}}}So ${overText
-    {' {spatialStepRange 0.0 5.0}}
-    "a sample from a neighbour"} was chosen for the neighbour's target, not for P's.
+### A neighbour's W at P {#c6-source-math kind=2d math=sourceMath}
 
-${cue "key" {' {callout "eq12"}}}Recall what W does.
+${cue "key" {opening demoSource panelHidden {' {sourceStage 0.0}}}}
 
-It stands in for one over the chance ${overText
-    {' {restirSeedRange 5.0 7.0}}
-    "that RIS keeps that sample"}.
+So ${overText
+    {' {sourceStageRange 0.0 1.0}}
+    "a sample from a neighbour was chosen for the neighbour's target, not for P's"}.
 
-${cue "key" {' {callout "weight-meaning"}}}On average, W must equal one over that chance exactly, or the image comes out ${overText
-    {' {lightIntensityRange 1.0 0.7}}
-    "too bright or too dark"}.
+${cue "key" {' {callout "eq12"}}}${overText {' {sourceStageRange 1.0 2.0}} "Recall what W does"}.
 
-But a neighbour's W was built for the neighbour's target, so for P it may be wrong.
+It stands in for ${overText
+    {' {sourceStageRange 2.0 3.0}}
+    "one over the chance that RIS keeps that sample"}.
+
+${cue "key" {' {callout "weight-meaning"}}}On average, ${overText
+    {' {sourceStageRange 3.0 4.0}}
+    "W must equal one over that chance exactly, or the image comes out too bright or too dark"}.
+
+But ${overText
+    {' {sourceStageRange 4.0 5.0}}
+    "a neighbour's W was built for the neighbour's target, so for P it may be wrong"}.
 
 ### The paper's example in one dimension {#c6-1d kind=3d}
 

@@ -1,0 +1,20 @@
+# A neighbour's sample at P in the math scenes' example world (examples.rs): Q's and P's targets, W as one over the
+# chance RIS keeps a sample, and that chance at P; its math scene (script/source.lam) shows them in place of the room.
+
+key = "source"
+title-text = "shot-source_title"
+tab-text = "shot-source"
+hint-text = "shot-source_hint"
+scene = "paper_restir.scene/restir-room"
+resets-camera = true
+math = "sourceMath"
+
+[camera]
+target = [0.1, 0.8, -0.5]
+yaw = 24.0
+pitch = 18.0
+distance = 3.6
+fov = 55.0
+
+[params]
+sourceStage = 5

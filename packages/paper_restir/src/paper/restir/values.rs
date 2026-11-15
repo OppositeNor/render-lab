@@ -108,4 +108,9 @@ pub struct RestirValues {
     /// story's beat: 1 M climbing frame by frame, 2 without limit, 3 old frames outweighing this one, 4 the clamp.
     #[value(default = 4.0, range = 0.0..=4.0, unit = plain, text = "controls-history_stage", color = palette::SELECTED, label(history), help = "help-historyStage")]
     pub history_stage: f32,
+    /// How far the flaw in reusing a neighbour's sample has come (script/source.lam `sourceMath`), one stage per
+    /// sentence of the story's beat: 1 Q's sample chosen by Q's target, 2 W, 3 W as one over the chance RIS keeps
+    /// the sample, 4 too bright or too dark, 5 that chance at P.
+    #[value(default = 5.0, range = 0.0..=5.0, unit = plain, text = "controls-source_stage", color = palette::SELECTED, label(source), help = "help-sourceStage")]
+    pub source_stage: f32,
 }

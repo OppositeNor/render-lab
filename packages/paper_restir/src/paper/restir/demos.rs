@@ -73,7 +73,8 @@ pub fn build_frame(
         | Demo::Params
         | Demo::Combine
         | Demo::Rounds
-        | Demo::History => {}
+        | Demo::History
+        | Demo::Source => {}
     }
     content
 }
