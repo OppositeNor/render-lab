@@ -79,4 +79,9 @@ pub struct RestirValues {
     /// each a fresh candidate, a new reservoir taking them, the counts added, the new reservoir kept alone).
     #[value(default = 21.0, range = 0.0..=21.0, unit = plain, text = "controls-wrs_stage", color = palette::SELECTED, label(wrs), help = "help-wrsStage")]
     pub wrs_stage: f32,
+    /// How far importance sampling on P's lights has come (script/lights.lam `lightsMath`), one stage per sentence
+    /// of the story's two beats: 1 to 3 a light drawn and its estimate f / p among others, 4 p following f, 5 and 6
+    /// two ways of drawing mixed, 7 to 14 the target and the cheap choice.
+    #[value(default = 14.0, range = 0.0..=14.0, unit = plain, text = "controls-is_stage", color = palette::SELECTED, label(sampling), help = "help-isStage")]
+    pub is_stage: f32,
 }

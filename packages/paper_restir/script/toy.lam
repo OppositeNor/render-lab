@@ -6,7 +6,12 @@ example of RIS (chapter 2, demos/toy.rs's numbers through the package's natives)
 goes from 0 to 23. Each stage is one sentence's animation; `toyDrop` (or the counterfactual stages) removes a
 part of W.
 
-$[Import* std]$[Import* render_lab_runtime]$[Import* render_lab_math]$[Import* paper_restir_values]$[Import* paper_restir_natives]$[Import* paper_restir_common]
+$[Import* std]
+$[Import* render_lab_runtime]
+$[Import* render_lab_math]
+$[Import* paper_restir_values]
+$[Import* paper_restir_natives]
+$[Import* paper_restir_common]
 $[Import* render_lab_runtime]
 $[Import* render_lab_math]
 $[Import* paper_restir_values]
@@ -92,10 +97,7 @@ $[# {_total s}
     [# x -0.7]
     [# base -2.0]
     [# unit {/ 2.6 3.0}]
-    [# a {filled "totalA"
-        {box {v2 {- x 0.25} base} {v2 {+ x 0.25} {+ base unit}}}
-        targetColor
-        0.9}]
+    [# a {filled "totalA" {box {v2 {- x 0.25} base} {v2 {+ x 0.25} {+ base unit}}} targetColor 0.9}]
     [# b {filled "totalB"
         {box {v2 {- x 0.25} {+ base unit}} {v2 {+ x 0.25} {+ base {* 4.0 unit}}}}
         targetColor

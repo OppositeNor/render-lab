@@ -1,8 +1,6 @@
-# Weighted reservoir sampling at one pixel, P: its candidates (as RIS draws them, demos/ris.rs) streamed one at a
-# time through a reservoir, then a second stream merged in; its math scene (script/math.lam) shows the stream in
-# place of the room. The seed fixed (7, where the story's P's first candidate weighs something and later ones replace it: under seed 5,
-# which the RIS demonstration uses, the first of P's candidates in the story's frame weighs nothing), so P's
-# candidates are the same every frame.
+# Weighted reservoir sampling at one pixel, P: candidates streamed one at a time through a reservoir, then a second
+# stream merged in; its math scene (script/wrs.lam) shows the stream in place of the room, on the math scenes'
+# example world (examples.rs), so every candidate weighs something.
 
 key = "wrs"
 title-text = "shot-wrs_title"
@@ -12,7 +10,6 @@ scene = "paper_restir.scene/restir-room"
 resets-camera = true
 math = "wrsMath"
 
-# The story's view of P (video/story.lam `pickCamera`), so its candidates are the ones the chapter follows.
 [camera]
 target = [0.1, 0.8, -0.5]
 yaw = 24.0
@@ -26,5 +23,3 @@ restirTemporal = 0
 restirSpatialPasses = 0
 restirCandidates = 16
 risStep = 16
-restirSeed = 7
-lightPhase = 0

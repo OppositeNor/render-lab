@@ -35,7 +35,7 @@ pub fn pixel(state: &ShotState, size: [f32; 2]) -> [i32; 2] {
 }
 
 /// The pixel at (u, v), fractions of a viewport of `size`.
-pub fn pixel_at(u: f32, v: f32, size: [f32; 2]) -> [i32; 2] {
+fn pixel_at(u: f32, v: f32, size: [f32; 2]) -> [i32; 2] {
     let (u, v) = (u.clamp(0.0, 1.0), v.clamp(0.0, 1.0));
     [
         ((u * size[0]) as i32).min(size[0] as i32 - 1),
@@ -102,7 +102,7 @@ pub fn stream(
     (out, r)
 }
 
-/// One candidate's update in the trace of P's stream (`trace`).
+/// One candidate's update in the trace of a stream (`trace`).
 #[derive(Clone, Debug)]
 pub struct TraceStep {
     pub light: u32,
@@ -118,7 +118,7 @@ pub struct TraceStep {
     pub taken: bool,
 }
 
-/// P's stream as weighted reservoir sampling meets it (Alg. 2), for the story's math scene (script.rs): its first
+/// A stream as weighted reservoir sampling meets it (Alg. 2), for the story's math scenes (examples.rs): its first
 /// eight candidates through one reservoir, the rest through a second, and the two merged (Alg. 4's combination: the
 /// second's kept one replaces the first's with the chance of its weight sum over both).
 #[derive(Clone, Debug, Default)]
@@ -129,52 +129,6 @@ pub struct Trace {
     /// The merge: its uniform number, and the candidate it keeps.
     pub merge_u: f32,
     pub merged: Option<usize>,
-    /// What each light brings to P and to a second pixel Q (`lights_at`), and each light's share of the power.
-    pub at_p: Vec<LightAt>,
-    pub at_q: Vec<LightAt>,
-}
-
-/// What a light brings to a pixel's surface (its target over the whole sphere: the target's mean over a grid of
-/// points, times the sphere's area), and its share of the lights' power (the chance the cheap choice picks it).
-#[derive(Clone, Copy, Debug, Default)]
-pub struct LightAt {
-    pub brings: f32,
-    pub share: f32,
-}
-
-/// What each light brings to the surface `s`, and its share of the power (the CDF's step at it).
-pub fn lights_at(scene: &Scene, s: &Surface) -> Vec<LightAt> {
-    const GRID: u32 = 8;
-    (0..scene.lights.len())
-        .map(|i| {
-            let light = i as u32;
-            // The target's mean over a grid of the sphere's points (u, v at cell centres, as `sample_dir` reads them).
-            let mean = (0..GRID * GRID)
-                .map(|k| {
-                    let u = ((k % GRID) * 2 + 1) * 65536 / (2 * GRID);
-                    let v = ((k / GRID) * 2 + 1) * 65536 / (2 * GRID);
-                    scene.target(
-                        s,
-                        Sample {
-                            light,
-                            uv: u | (v << 16),
-                        },
-                    )
-                })
-                .sum::<f32>()
-                / (GRID * GRID) as f32;
-            let r = scene.lights[i].radius;
-            let before = if i > 0 {
-                scene.cdf[i - 1]
-            } else {
-                0.0
-            };
-            LightAt {
-                brings: mean * 4.0 * std::f32::consts::PI * r * r,
-                share: scene.cdf[i] - before,
-            }
-        })
-        .collect()
 }
 
 /// The trace of `candidates` (as `stream` drew them, each with its update's number), merged with the number `u`.
@@ -217,8 +171,6 @@ pub fn trace(candidates: &[Candidate], u: f32) -> Trace {
         split,
         merge_u: u,
         merged,
-        at_p: Vec::new(),
-        at_q: Vec::new(),
     }
 }
 
@@ -251,15 +203,6 @@ pub fn draw(
     let mut rng = Rng::new(UVec2::new(q[0] as u32, q[1] as u32), seed, 0);
     let steps = (state.p("risStep").round().max(0.0) as u32).min(scene.candidates);
     let (candidates, r) = stream(&scene, &s, &mut rng, steps);
-    let mut traced = trace(&candidates, rng.rand());
-    traced.at_p = lights_at(&scene, &s);
-    // Q, a second pixel a quarter of the view to P's left, for what the cheap choice ignores.
-    let q2 = pixel_at(state.p("pickU") - 0.25, state.p("pickV"), size);
-    traced.at_q = surface_named(content, q2, "restir-q")
-        .filter(|s| s.valid)
-        .map(|s2| lights_at(&scene, &s2))
-        .unwrap_or_default();
-    content.script = Some(std::sync::Arc::new(traced));
     let top = candidates.iter().map(|c| c.w).fold(1e-12, f32::max);
     let weigh = state.p("risWeigh").clamp(0.0, 1.0);
     let lit = picked(&candidates, steps, state.p("risPick"), &r);

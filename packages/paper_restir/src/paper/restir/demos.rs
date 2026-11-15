@@ -56,13 +56,18 @@ pub fn build_frame(
     let placed = lights::place(state);
     content.shading_frame = lights::pack(&placed);
     match Demo::of(state.demo) {
-        // The stream through a reservoir draws P's candidates as RIS does; its math scene shows them.
-        Demo::Ris | Demo::Wrs => ris::draw(state, &mut content, &placed, &statics.meshes),
+        Demo::Ris => ris::draw(state, &mut content, &placed, &statics.meshes),
         Demo::Reuse => reuse::draw(state, &mut content, &placed, &statics.meshes),
         Demo::Bias => bias::draw(state, &mut content),
         Demo::Toy => toy::draw(state, &mut content),
         Demo::Spatial => spatial::draw(state, &mut content, &placed, &statics.meshes),
-        Demo::Room | Demo::Reservoirs | Demo::Reference | Demo::Methods => {}
+        // The stream through a reservoir and P's lights are math scenes on the example world (examples.rs).
+        Demo::Room
+        | Demo::Reservoirs
+        | Demo::Reference
+        | Demo::Methods
+        | Demo::Wrs
+        | Demo::Lights => {}
     }
     content
 }

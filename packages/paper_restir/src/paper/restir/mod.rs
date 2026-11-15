@@ -14,6 +14,7 @@
 pub mod controls;
 pub mod cpu;
 pub mod demos;
+pub mod examples;
 pub mod gpu;
 pub mod lights;
 pub mod pseudocode;

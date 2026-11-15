@@ -290,57 +290,62 @@ ${cue "key" {' {glide cameraYaw 28.0 sentence}}}${overText
     {' {pickURange 0.84 0.88}}
     "Take one pixel, P"}, on the floor by the right wall.
 
+### Importance sampling on P's lights {#c2-is-math kind=2d math=lightsMath}
+
+${cue "key" {opening demoLights panelHidden {append baseRoom {append pickCamera {'
+    {lightPhase 0.0}
+    {isStage 0.0}}}}}}
+
 To estimate the light at P, the renderer ${overText
-    {' {restirSeedRange 1.0 5.0}}
+    {' {isStageRange 0.0 1.0}}
     "draws one light sample"}, a point on one of the lights.
 
-The estimate is ${formulaSaid f"{\frac{f(x)}{p(x)}}" "what that sample brings, f, divided by the probability p it was drawn with"
+${overText {' {isStageRange 1.0 2.0}} "The estimate is"} ${formulaSaid f"{\frac{f(x)}{p(x)}}" "what that sample brings, f, divided by the probability p it was drawn with"
     {'}}.
 
-${cue "key" {' {glide cameraYaw 22.0 sentence}}}Dividing by p balances the samples, because ${overText
-    {' {restirSeedRange 5.0 17.0}}
+Dividing by p balances the samples, because ${overText
+    {' {isStageRange 2.0 3.0}}
     "a likely sample is drawn often"} and so must count less.
 
-The closer p follows what each sample brings, the less noise is left.
+${overText {' {isStageRange 3.0 4.0}} "The closer p follows what each sample brings"}, the less noise is left.
 
-${cue "key" {' {callout "eq4"}}}${cue "key" {' {glide cameraDistance 3.3 sentence}}}One more idea from importance sampling comes back later in the paper.
+${cue "key" {' {callout "eq4"}}}${overText
+    {' {isStageRange 4.0 5.0}}
+    "One more idea from importance sampling comes back later in the paper"}.
 
 Multiple importance sampling mixes ${overText
-    {' {restirSeedRange 17.0 21.0}}
+    {' {isStageRange 5.0 6.0}}
     "several ways of drawing samples"}, with weights that sum to one.
 
-### What we would like to sample {#c2-ris-question kind=3d}
+### What we would like to sample {#c2-ris-question kind=2d math=lightsMath}
 
-${cue "key" {opening demoRis panelHidden {append baseRoom {append pickCamera {append
-    {noReuse 1.0}
-    {' {restirSeed 5.0} {risStep 1.0}}}}}}}
-${cue "key" floatPick}
+${cue "key" {' {isStage 6.0}}}
 
-${cue "key" {' {callout "eq5"}}}${cue "key" {' {glide cameraYaw 30.0 sentence}}}So for a single p, the best choice would follow ${overText
-    {' {lightPhaseRange 0.0 0.03}}
+${cue "key" {' {callout "eq5"}}}So for a single p, the best choice would follow ${overText
+    {' {lightPhaseRange 0.0 0.03} {isStageRange 6.0 7.0}}
     "what each light sample brings to P"}.
 
-${cue "key" {' {glide cameraYaw 24.0 sentence}}}What a sample brings depends on ${overText
-    {' {lightIntensityRange 1.0 1.5}}
+What a sample brings depends on ${overText
+    {' {lightIntensityRange 1.0 1.5} {isStageRange 7.0 7.5}}
     "the light's emission"}, on P's surface, and on ${overText
-        {' {lightPhaseRange 0.03 0.07}}
+        {' {lightPhaseRange 0.03 0.05} {isStageRange 7.5 8.0}}
         "the angle and distance between the light and P"}.
 
-The paper calls that ideal p the target.
+${overText {' {isStageRange 8.0 9.0}} "The paper calls that ideal p the target"}.
 
-It writes the target as p-hat.
+${overText {' {isStageRange 9.0 10.0}} "It writes the target as p-hat"}.
 
-The target need not add up to one, so it is not quite a probability.
+${overText {' {isStageRange 10.0 11.0}} "The target need not add up to one"}, so it is not quite a probability.
 
 ${overText
-    {' {restirSeedRange 5.0 9.0}}
+    {' {isStageRange 11.0 12.0}}
     "But no one can draw samples in exact proportion to the target"}.
 
 ${overText
-    {' {restirSeedRange 9.0 13.0}}
+    {' {isStageRange 12.0 13.0}}
     "Instead, a cheap choice draws lights in proportion to their power"}, and ignores P altogether.
 
-That cheap choice is the lab's starting point.
+${overText {' {isStageRange 13.0 14.0}} "That cheap choice is the lab's starting point"}.
 
 ### Resampled importance sampling {#c2-ris kind=3d}
 
@@ -518,7 +523,7 @@ A GPU cannot afford ${overText
 
 ${cue "key" {opening demoWrs panelHidden {append baseRoom {append pickCamera {append
     {noReuse 16.0}
-    {' {restirSeed 7.0} {risStep 16.0} {lightPhase 0.0} {wrsStage 0.0}}}}}}}
+    {' {risStep 16.0} {lightPhase 0.0} {wrsStage 0.0}}}}}}}
 
 What RIS needs is a way to pick ${overText
     {' {wrsStageRange 0.0 1.0}}

@@ -1,6 +1,6 @@
 //! What the investigation's scripts (script/*.lam, lab/src/script/runtime.rs) read from its code: the numbers of
-//! the worked example of RIS (demos/toy.rs), which its math scene draws (script/math.lam, lab/src/math/), so no
-//! number on the canvas is typed in.
+//! the worked example of RIS (demos/toy.rs) and of the math scenes' example world (examples.rs), which its math
+//! scenes draw (lab/src/math/), so no number on the canvas is typed in.
 //!
 //! | Native | Returns |
 //! |---|---|
@@ -11,14 +11,13 @@
 //! | `toyEstimate list drop` | RIS's estimate from list `list`, averaged over the candidate it keeps |
 //! | `toyAverage drop` | the estimate averaged over the lists' chances |
 //! | `toyKept i` | the chance RIS keeps sample i, and W's mean when it does |
-//! | `risTrace` | P's stream through weighted reservoir sampling in this frame (demos/ris.rs `trace`): each candidate's light, weight, number, weight sum, and kept one; none before P's surface is read back |
-//! | `risMerge` | where the trace's second reservoir starts, the merge's number, and the candidate the merge keeps |
-//! | `lightsAt which` | what each light brings to P (0) or a second pixel Q (1), and its share of the power |
+//! | `exampleLights which phase intensity` | the math scenes' example world (examples.rs): what each light brings to P (0) or Q (1), and its share of the power |
+//! | `exampleTrace seed count`, `exampleMerge seed count` | a stream of that world's candidates through the lab's reservoir, its steps and its merge |
 
 use super::demos::ris::Trace;
 use super::demos::toy::{self, Drop};
+use super::examples;
 use lab::script::lamlet::embed::{Error, NativeRegistry};
-use lab::script::runtime::frame_data;
 
 lab::lamlet_record! {
     /// A list of two candidates (the order left out): its samples, and its chance in sixteenths.
@@ -68,9 +67,41 @@ lab::lamlet_record! {
     }
 }
 
-/// The frame's trace of P's stream, or an empty one before P's surface is read back (or on another demonstration).
-fn trace() -> std::sync::Arc<Trace> {
-    frame_data::<Trace>().unwrap_or_default()
+/// A trace's steps as the scripts read them.
+fn steps_of(t: &Trace) -> Vec<RisStep> {
+    t.steps
+        .iter()
+        .map(|s| RisStep {
+            light: i64::from(s.light),
+            p_hat: f64::from(s.p_hat),
+            p: f64::from(s.p),
+            w: f64::from(s.w),
+            u: f64::from(s.u),
+            wsum: f64::from(s.wsum),
+            kept: s.kept.map_or(-1, |k| k as i64),
+            taken: s.taken,
+        })
+        .collect()
+}
+
+/// A trace's merge as the scripts read it.
+fn merge_of(t: &Trace) -> RisMerge {
+    RisMerge {
+        split: t.split as i64,
+        u: f64::from(t.merge_u),
+        kept: t.merged.map_or(-1, |k| k as i64),
+    }
+}
+
+/// Lights as the scripts read them.
+fn lights_of(lights: &[examples::LightAt]) -> Vec<LightAtRecord> {
+    lights
+        .iter()
+        .map(|l| LightAtRecord {
+            brings: f64::from(l.brings),
+            share: f64::from(l.share),
+        })
+        .collect()
 }
 
 /// `toyDrop`'s value as the part of W it removes (0 none, 1 the division by p, 2 the average).
@@ -144,48 +175,25 @@ pub fn register(natives: &mut NativeRegistry) -> Result<(), Error> {
         .doc("Fn([Int], {chance: Float, w: Float}). The chance RIS keeps sample i, and W's mean when it does.")
         .register()?;
     natives
-        .function("paper_restir/ris-trace", |_, ()| {
-            Ok(trace()
-                .steps
-                .iter()
-                .map(|s| RisStep {
-                    light: i64::from(s.light),
-                    p_hat: f64::from(s.p_hat),
-                    p: f64::from(s.p),
-                    w: f64::from(s.w),
-                    u: f64::from(s.u),
-                    wsum: f64::from(s.wsum),
-                    kept: s.kept.map_or(-1, |k| k as i64),
-                    taken: s.taken,
-                })
-                .collect::<Vec<_>>())
-        })
-        .doc("Fn([], List({kept: Int, light: Int, p: Float, pHat: Float, taken: Bool, u: Float, w: Float, wsum: Float})). P's candidates in this frame as weighted reservoir sampling streams them (Alg. 2): each one's light, weight, the uniform number its update drew, its reservoir's weight sum after it and the candidate kept then (-1 while none weighs anything), and whether it replaced the kept one. The first eight go through one reservoir, the rest through a second. Empty before P's surface is read back.")
+        .function(
+            "paper_restir/example-lights",
+            |_, (which, phase, intensity): (i64, f64, f64)| {
+                Ok(lights_of(&examples::lights_at(which, phase as f32, intensity as f32)))
+            },
+        )
+        .doc("Fn([Int, Float, Float], List({brings: Float, share: Float})). The math scenes' example world (examples.rs, the lab's illustration): what each of its 24 lights brings to P (0) or Q (1) at the lights' phase and intensity, and its share of the power.")
         .register()?;
     natives
-        .function("paper_restir/ris-merge", |_, ()| {
-            let t = trace();
-            Ok(RisMerge {
-                split: t.split as i64,
-                u: f64::from(t.merge_u),
-                kept: t.merged.map_or(-1, |k| k as i64),
-            })
+        .function("paper_restir/example-trace", |_, (seed, count): (i64, i64)| {
+            Ok(steps_of(&examples::stream(seed as u64, count.clamp(1, 64) as usize)))
         })
-        .doc("Fn([], {kept: Int, split: Int, u: Float}). The merge of P's two reservoirs: the candidate where the second starts, the merge's uniform number, and the candidate the merged reservoir keeps (-1 for none).")
+        .doc("Fn([Int, Int], List({kept: Int, light: Int, p: Float, pHat: Float, taken: Bool, u: Float, w: Float, wsum: Float})). P's stream in the example world: `count` candidates drawn by power with the numbers of `seed`, through the lab's reservoir (the first eight through one, the rest through a second), ")
         .register()?;
     natives
-        .function("paper_restir/lights-at", |_, (which,): (i64,)| {
-            let t = trace();
-            let lights = if which == 0 { &t.at_p } else { &t.at_q };
-            Ok(lights
-                .iter()
-                .map(|l| LightAtRecord {
-                    brings: f64::from(l.brings),
-                    share: f64::from(l.share),
-                })
-                .collect::<Vec<_>>())
+        .function("paper_restir/example-merge", |_, (seed, count): (i64, i64)| {
+            Ok(merge_of(&examples::stream(seed as u64, count.clamp(1, 64) as usize)))
         })
-        .doc("Fn([Int], List({brings: Float, share: Float})). Each light's contribution to a pixel in this frame (0: P, 1: Q, a quarter of the view to P's left): what it brings (its target over the whole sphere, no shadows) and its share of the power, the chance the cheap choice picks it. Empty before the pixel's surface is read back.")
+        .doc("Fn([Int, Int], {kept: Int, split: Int, u: Float}). The merge of that example stream's two reservoirs.")
         .register()?;
     Ok(())
 }

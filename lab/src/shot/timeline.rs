@@ -117,6 +117,15 @@ impl TimelineBeat {
         })
     }
 
+    /// Both 2D beats show one math scene (src/math/) in one chapter: it runs on from one to the next.
+    pub fn same_math(&self, other: &TimelineBeat) -> bool {
+        self.kind == SceneType::TwoD
+            && other.kind == SceneType::TwoD
+            && self.chapter == other.chapter
+            && self.math.is_some()
+            && self.math == other.math
+    }
+
     /// Both 2D beats show one diagram (or one frame graph scene) in one chapter.
     pub fn same_diagram(&self, other: &TimelineBeat) -> bool {
         self.kind == SceneType::TwoD

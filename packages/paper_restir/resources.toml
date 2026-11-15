@@ -133,6 +133,12 @@ source = "demos/wrs.toml"
 license = "MIT"
 
 [[resource]]
+id = "demo/lights"
+kind = "file"
+source = "demos/lights.toml"
+license = "MIT"
+
+[[resource]]
 id = "listing/ris"
 kind = "file"
 source = "pseudocode/ris.py"
@@ -191,4 +197,10 @@ license = "MIT"
 id = "script/wrs"
 kind = "file"
 source = "script/wrs.lam"
+license = "MIT"
+
+[[resource]]
+id = "script/lights"
+kind = "file"
+source = "script/lights.lam"
 license = "MIT"

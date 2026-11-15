@@ -1,0 +1,25 @@
+# Importance sampling on P's lights: what each light brings to P and the chance the cheap choice picks it (its
+# share of the power), in the math scenes' example world (examples.rs); its math scene (script/lights.lam) shows them
+# in place of the room, a light drawn, its estimate f / p, and what the target is.
+
+key = "lights"
+title-text = "shot-lights_title"
+tab-text = "shot-lights"
+hint-text = "shot-lights_hint"
+scene = "paper_restir.scene/restir-room"
+resets-camera = true
+math = "lightsMath"
+
+[camera]
+target = [0.1, 0.8, -0.5]
+yaw = 24.0
+pitch = 18.0
+distance = 3.6
+fov = 55.0
+
+[params]
+restirStage = 0
+restirTemporal = 0
+restirSpatialPasses = 0
+restirCandidates = 1
+risStep = 1

@@ -1,7 +1,12 @@
 The ReSTIR story's weighted reservoir sampling
 ==============================================
 
-$[Import* std]$[Import* render_lab_runtime]$[Import* render_lab_math]$[Import* paper_restir_values]$[Import* paper_restir_natives]$[Import* paper_restir_common]
+$[Import* std]
+$[Import* render_lab_runtime]
+$[Import* render_lab_math]
+$[Import* paper_restir_values]
+$[Import* paper_restir_natives]
+$[Import* paper_restir_common]
 
 Weighted reservoir sampling at one pixel
 
@@ -9,9 +14,12 @@ What the story draws on the canvas while P's candidates stream through a reservo
 stage by stage as `wrsStage` goes from 0 to 17: the eight candidates as cards on a stream (a tape, at first), the
 reservoir's record of three things, each candidate joining it (its weight into the sum, then its chance to
 replace the kept one, against the number the update drew), the chance each ends kept, and the merge with a second
-reservoir. The numbers are this frame's, from demos/ris.rs's trace of P's stream (the natives `risTrace`,
-`risMerge`); before P's surface is read back the cards show no weights.
+reservoir. The numbers are the math scenes' example world's (examples.rs, the lab's illustration), its stream run
+through the lab's reservoir (the natives `exampleTrace`, `exampleMerge`).
 
+
+The example stream's numbers (the seed of its draws and its updates).
+$[# _seed 10]
 
 The stream's cards, along the top.
 $[# _cardY 2.3]
@@ -252,9 +260,9 @@ The scene
 Fn([Float], List(Mob)). The stream through a reservoir at stage `wrsStage`.
 $[# wrsMath {: {^ {t}
     [# s {wrsStage}]
-    [# steps {risTrace}]
+    [# steps {exampleTrace _seed 16}]
     [# ready {not {isEmpty steps}}]
-    [# merge {risMerge}]
+    [# merge {exampleMerge _seed 16}]
     [# n {!if ready {length steps} 8}]
     [# split {!if ready {.split merge} 8}]
     [# cards {flatten {map {range 0 split} {^ {i} {_card i split steps s}}}}]

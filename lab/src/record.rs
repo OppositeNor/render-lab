@@ -60,11 +60,12 @@ pub fn beat_fade(timeline: &Timeline, frame: u64) -> f32 {
     let local = frame - beat.start_frame;
     let mut fade = 0.0f32;
     // Two beats of one diagram (or one frame graph scene) in a chapter run on
-    // without a fade: the diagram moves to the next beat's focus instead.
+    // without a fade: the diagram moves to the next beat's focus instead; two
+    // beats of one math scene run on, the scene's values carrying it.
     let differs = |a: &crate::shot::TimelineBeat, b: &crate::shot::TimelineBeat| {
         a.kind != b.kind
             || a.chapter != b.chapter
-            || (a.kind != SceneType::ThreeD && !a.same_diagram(b))
+            || (a.kind != SceneType::ThreeD && !a.same_diagram(b) && !a.same_math(b))
     };
     if i > 0 && differs(&timeline.beats[i - 1], beat) && local < FADE_FRAMES {
         fade = fade.max(1.0 - (local as f32 + 1.0) / (FADE_FRAMES as f32 + 1.0));
