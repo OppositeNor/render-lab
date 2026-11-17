@@ -27,7 +27,7 @@ labelText=text-key labelColor=#rrggbb`, a point three numbers or one the
 package publishes, `arrowHide`, `labelHide` (`arrow=""`, `label=""`
 hide all). A range's values `{. from a to b}` jump to `a` where it opens and blend to `b`
 exactly where it closes. A formula's cue (`formula`, `term=n` lighting term
-n of `\\lit{n}{…}`, `card=no` for the caption only, `display=yes`,
+n of `\\lit{n}{…}`, `card` false for the caption only, `display` true,
 `colors="#rrggbb,…"`) opens the formula card; `formula=off` closes it.
 """
 from __future__ import annotations
@@ -123,8 +123,8 @@ def formula_tag(tag: Tag) -> str:
     """The formula as the lab draws it (lab/src/rich_text.rs `formula_text`): its LaTeX, and display style and
     term colours if given."""
     parts = [quote(tag.attr('formula') or '')]
-    if tag.attr('display'):
-        parts.append(f'display: {quote(str(tag.attr("display")))}')
+    if tag.attr('display') is True:
+        parts.append('display: "yes"')
     if tag.attr('colors'):
         parts.append(f'colors: {quote(tag.attr("colors") or "")}')
     return '{ FORMULA(' + ', '.join(parts) + ') }'
@@ -354,8 +354,8 @@ def cue_key(tag: Tag, where: str, fields: Fields) -> Json:
         else:
             # Anything else is a shot parameter of the investigation's.
             params[name] = value(v, where)
-    if tag.kind == 'formula' and tag.attr('card') == 'no':
-        # A formula with `card=no` shows in the caption only, so it opens no card.
+    if tag.kind == 'formula' and tag.attr('card') is False:
+        # A formula with `{card false}` shows in the caption only, so it opens no card.
         key.pop('formula', None)
     check_action(key, where)
     if params:

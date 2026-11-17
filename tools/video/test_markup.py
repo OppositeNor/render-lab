@@ -50,6 +50,10 @@ class CueKey(unittest.TestCase):
         formula = markup.Tag('formula', None, [('formula', FORMULA), ('colors', '#ffd166'), ('say', 'alpha')], 1)
         self.assertEqual(key(formula), {'formula': f'{{ FORMULA("{Q}", colors: "#ffd166") }}'})
         self.assertEqual(key(markup.Tag('formula', None, [('formula', 'off')], 1)), {'formula': ''})
+        # `display` true sets it in display style; `card` false keeps it to the caption (no card opens).
+        shown = markup.Tag('formula', None, [('formula', FORMULA), ('display', True), ('say', 'alpha')], 1)
+        self.assertEqual(key(shown), {'formula': f'{{ FORMULA("{Q}", display: "yes") }}'})
+        self.assertEqual(key(markup.Tag('formula', None, [('formula', FORMULA), ('card', False), ('say', 'alpha')], 1)), {})
         # A range's value. A wrong ease or camera field is the lab's key check's (`lamlet ir --keys`, test_presentation).
         self.assertEqual(key(cue(('opacity', {'from': 0.0, 'to': 1.0}))), {'params': {'opacity': markup.Range(0.0, 1.0)}})
         self.assertEqual(key(cue(('ease', 'sine'))), {'ease': 'sine'})

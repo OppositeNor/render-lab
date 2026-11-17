@@ -207,8 +207,9 @@ fn fields(investigation: &dyn Investigation) -> Result<Vec<Value>, String> {
     out.push(stop);
     // Open: besides `off`, a formula's cue carries its LaTeX (render_lab's `formulaSaid`).
     out.push(options("formula", "formula", ["off".to_string()]));
+    // A formula's card and its display style: on or off.
     for name in ["card", "display"] {
-        out.push(closed(name, name, ["yes", "no"].map(str::to_string)));
+        out.push(key(name, name, "bool"));
     }
     out.push(key("colors", "colors", "text"));
     // render_lab's (`"typed": true`, for tools/video/markup.py): keys the vocabulary has no function for (`any`),
