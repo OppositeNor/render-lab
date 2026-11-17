@@ -97,9 +97,9 @@ has), each with the `{attr "…" "…"}` that still writes it.
   float key has a `…Range a b` function for ranges. Vectors are lists (`{cameraTarget {' 1.0 0.5 0.0}}`).
 - A key with options has a constant per option (`panelCode`, `demoRoom`, `listingTrace`). The option lists the lab
   owns are **closed**: no function that takes any String, so a wrong option is an unknown name. These are panels,
-  demos, listings, eases, corners, image kinds, graph shows, click handlers, arrow sets, actions, `camera`,
-  `card`, `display`, and a value's choices. `inset` (a story names its images) and `formula` (its LaTeX) stay
-  open. `stop` takes a list of action names (`{stop {' "marchCone"}}`).
+  demos, listings, eases, corners, image kinds, graph shows, click handlers, arrow sets, actions, `camera`, and a
+  value's choices. A formula's `card` and `display` are Bools (`{card false}`: the caption only). `inset` (a story
+  names its images) and `formula` (its LaTeX) stay open. `stop` takes a list of action names (`{stop {' "marchCone"}}`).
 - `{attr "key" value}` writes a key the vocabulary has no function for (an image's parameter the package does
   not declare: `{attr "image.level" 1.0}`), as typed data.
 - A misspelled key is an unknown name and a wrong value a type error, reported with the storyboard's line before any
