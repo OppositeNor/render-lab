@@ -292,13 +292,15 @@ $[# {_reuse s c}
         {drop {circumscribe {phase s 11.0 12.0} {_column 4} accentColor} {length {_column 4}}}
         {'}}]
     [# stripBox {box {v2 -5.5 -1.95} {v2 3.5 -1.65}}]
-    [# segments {map {strip "pick" weights stripBox {' weightColor "#c4569a"} 0.04} boxOf}]
+    [# segments {map
+        {strip "pick" weights stripBox {' weightColor [% {rgb "#c4569a"}]} 0.04}
+        boxOf}]
     [# laid {smooth {phase s 13.1 13.6}}]
     [# bars {flatten {map
         {range 0 n}
         {^ {r} {filled f"{bar${str r}}"
             {_between {_barBox t weights r} {nth segments r} laid}
-            {!if {= {% r 2} 0} weightColor "#c4569a"}
+            {!if {= {% r 2} 0} weightColor [% {rgb "#c4569a"}]}
             0.85}}}}]
     [# starts {runningSums weights}]
     [# u {/ {lerp {nth starts kept} {nth starts {+ kept 1}} 0.5} total}]

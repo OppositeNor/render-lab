@@ -33,7 +33,7 @@ $[# {_slot i n}
     [# w {/ {- _x1 _x0} {float n}}]
     [# x {+ _x0 {* w {float i}}}]
     {box {v2 {+ x {* 0.15 w}} 0.0} {v2 {- {+ x w} {* 0.15 w}} 0.0}}]
-Fn([String, Int, Int, Float, Float, String, Float], List(Mob)). Light i's bar on the baseline `base`, `height` high.
+Fn([String, Int, Int, Float, Float, Color, Float], List(Mob)). Light i's bar on the baseline `base`, `height` high.
 $[# {_bar id i n base height color alpha}
     [# s {_slot i n}]
     {filled id

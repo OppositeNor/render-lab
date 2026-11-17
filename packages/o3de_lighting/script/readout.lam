@@ -10,7 +10,7 @@ $[Import* render_lab_runtime]
 $[Import* o3de_lighting_values]
 $[Import* o3de_lighting_natives]
 
-$[# _light "#ffd98a"]
+$[# _light [% {rgb "#ffd98a"}]]
 
 A number as the readout writes one: whole above 1000, two decimals above 10, four below.
 $[# {_number v} {!if {>= {abs v} 1000.0}

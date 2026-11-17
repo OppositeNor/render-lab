@@ -104,7 +104,7 @@ $[# {_scene s steps sixteen}
             {' weightColor targetColor pColor}}
         {add2 _right {v2 0.0 3.3}}}]
     [# stripBox {box {v2 {- {.x _right} 2.2} 1.1} {v2 {+ {.x _right} 2.2} 1.45}}]
-    [# segments {strip "shares" weights stripBox {' weightColor "#c4569a"} 0.03}]
+    [# segments {strip "shares" weights stripBox {' weightColor [% {rgb "#c4569a"}]} 0.03}]
     [# shareStrip {growFrom {phase s 5.0 5.4} {flatten segments} left}]
     [# ux {lerp {.x {.lo stripBox}} {.x {.hi stripBox}} u}]
     [# drop {smooth {phase s 5.4 5.8}}]

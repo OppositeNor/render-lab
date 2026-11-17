@@ -1,7 +1,6 @@
 //! Math scenes: the `Math` hooks a package's scripts define (runtime.lam), their mobs decoded for the canvas
 //! (src/math/), and the natives the library `render_lab_math` measures by.
 
-use super::overlays::{field, number, text};
 use super::*;
 use crate::math::{Mob, Part, Scene};
 
@@ -89,108 +88,188 @@ fn text_of(key: &str) -> Result<String, String> {
         .ok_or_else(|| format!("no text `{key}` in {package}'s text table or the lab's"))
 }
 
-fn vec2_of(d: &Data, label: &str) -> Result<glam::Vec2, String> {
-    let p = field(d, label)?;
-    Ok(glam::Vec2::new(number(p, "x")?, number(p, "y")?))
-}
-
-fn points(d: &Data, label: &str) -> Result<Vec<glam::Vec2>, String> {
-    let Data::List(items) = field(d, label)? else {
-        return Err(format!("`{label}` is not a list of points"));
-    };
-    items
-        .iter()
-        .map(|p| Ok(glam::Vec2::new(number(p, "x")?, number(p, "y")?)))
-        .collect()
-}
-
-fn int(d: &Data, label: &str) -> Result<i64, String> {
-    match field(d, label)? {
-        Data::Int(n) => Ok(*n),
-        other => Err(format!("`{label}` is {other:?}, not an Int")),
+crate::lamlet_record! {
+    /// runtime.lam's `_MathTex`, the parts the canvas draws.
+    struct TexRecord {
+        latex: String = "latex",
+        part: i64 = "part",
+        at: V2 = "at",
+        size: Num = "size",
+        color: ScriptColor = "color",
+        alpha: Num = "alpha",
+        wipe: Num = "wipe",
+        lo: V2 = "lo",
+        hi: V2 = "hi",
     }
 }
 
-/// A colour field (`#rrggbb` or a theme colour's name) with an alpha field, premultiplied.
-fn tinted(d: &Data, color: &str, alpha: &str) -> Result<Color32, String> {
-    let c = super::overlays::color_named(text(d, color)?)?;
-    Ok(c.gamma_multiply(number(d, alpha)?.clamp(0.0, 1.0)))
+crate::lamlet_record! {
+    /// runtime.lam's `_MathText`, the parts the canvas draws: its text written out, or (`key`) a text key.
+    struct TextRecord {
+        text: String = "text",
+        key: bool = "key",
+        at: V2 = "at",
+        size: Num = "size",
+        color: ScriptColor = "color",
+        alpha: Num = "alpha",
+    }
+}
+
+crate::lamlet_record! {
+    /// runtime.lam's `_MathRect`, the parts the canvas draws.
+    struct RectRecord {
+        lo: V2 = "lo",
+        hi: V2 = "hi",
+        fill: ScriptColor = "fill",
+        fill_alpha: Num = "fillAlpha",
+        stroke: ScriptColor = "stroke",
+        stroke_alpha: Num = "strokeAlpha",
+        width: Num = "width",
+        radius: Num = "radius",
+    }
+}
+
+crate::lamlet_record! {
+    /// runtime.lam's `_MathPath`, the parts the canvas draws.
+    struct PathRecord {
+        points: Vec<V2> = "points",
+        color: ScriptColor = "color",
+        alpha: Num = "alpha",
+        width: Num = "width",
+        drawn: Num = "drawn",
+        arrow: bool = "arrow",
+        dashed: bool = "dashed",
+    }
+}
+
+crate::lamlet_record! {
+    /// runtime.lam's `_MathBand`, the parts the canvas draws.
+    struct BandRecord {
+        top: Vec<V2> = "top",
+        bottom: Vec<V2> = "bottom",
+        color: ScriptColor = "color",
+        alpha: Num = "alpha",
+    }
+}
+
+crate::lamlet_record! {
+    /// runtime.lam's `_MathDot`, the parts the canvas draws.
+    struct DotRecord {
+        at: V2 = "at",
+        radius: Num = "radius",
+        color: ScriptColor = "color",
+        alpha: Num = "alpha",
+    }
+}
+
+crate::lamlet_record! {
+    /// runtime.lam's `_MathFrame`.
+    struct FrameRecord {
+        center: V2 = "center",
+        height: Num = "height",
+    }
+}
+
+/// A colour with an alpha, premultiplied.
+fn tinted(color: ScriptColor, alpha: Num) -> Color32 {
+    color.color32().gamma_multiply(alpha.0.clamp(0.0, 1.0))
+}
+
+fn points(list: Vec<V2>) -> Vec<glam::Vec2> {
+    list.into_iter().map(|p| p.0).collect()
+}
+
+/// runtime.lam's `Mob`, read by its type.
+struct MobRecord(Mob);
+
+impl lamlet::embed::FromLamlet for MobRecord {
+    fn from_lamlet(v: &Value) -> Result<Self, String> {
+        use super::typed::payload;
+        let (tag, p) = super::typed::variant(v)?;
+        Ok(MobRecord(match tag {
+            "tex" => {
+                let r: TexRecord = payload(tag, p)?;
+                Mob::Tex {
+                    latex: r.latex,
+                    part: Part::of(r.part)?,
+                    at: r.at.0,
+                    size: r.size.0,
+                    color: tinted(r.color, r.alpha),
+                    wipe: r.wipe.0,
+                    lo: r.lo.0,
+                    hi: r.hi.0,
+                }
+            }
+            "text" => {
+                let r: TextRecord = payload(tag, p)?;
+                Mob::Text {
+                    // A key is looked up in the viewer's language; a written text is drawn as it is.
+                    text: if r.key {
+                        text_of(&r.text)?
+                    } else {
+                        r.text
+                    },
+                    at: r.at.0,
+                    size: r.size.0,
+                    color: tinted(r.color, r.alpha),
+                }
+            }
+            "rect" => {
+                let r: RectRecord = payload(tag, p)?;
+                Mob::Rect {
+                    lo: r.lo.0,
+                    hi: r.hi.0,
+                    fill: tinted(r.fill, r.fill_alpha),
+                    stroke: tinted(r.stroke, r.stroke_alpha),
+                    width: r.width.0,
+                    radius: r.radius.0,
+                }
+            }
+            "path" => {
+                let r: PathRecord = payload(tag, p)?;
+                Mob::Path {
+                    points: points(r.points),
+                    color: tinted(r.color, r.alpha),
+                    width: r.width.0,
+                    drawn: r.drawn.0,
+                    arrow: r.arrow,
+                    dashed: r.dashed,
+                }
+            }
+            "band" => {
+                let r: BandRecord = payload(tag, p)?;
+                Mob::Band {
+                    top: points(r.top),
+                    bottom: points(r.bottom),
+                    color: tinted(r.color, r.alpha),
+                }
+            }
+            "dot" => {
+                let r: DotRecord = payload(tag, p)?;
+                Mob::Dot {
+                    at: r.at.0,
+                    radius: r.radius.0,
+                    color: tinted(r.color, r.alpha),
+                }
+            }
+            "frame" => {
+                let r: FrameRecord = payload(tag, p)?;
+                Mob::Frame {
+                    center: r.center.0,
+                    height: r.height.0,
+                }
+            }
+            other => return Err(format!("no mob `{other}`")),
+        }))
+    }
 }
 
 /// The mobs a math scene returned, each checked.
-fn mobs(list: &Data) -> Result<Vec<Mob>, String> {
-    let Data::List(items) = list else {
-        return Err("a math scene returns a list".into());
-    };
-    items
-        .iter()
-        .map(|item| {
-            let Data::Variant(tag, d) = item else {
-                return Err(format!("{item:?} is not a Mob"));
-            };
-            mob(tag, d)
-        })
-        .collect()
-}
-
-fn mob(tag: &str, d: &Data) -> Result<Mob, String> {
-    Ok(match tag {
-        "tex" => Mob::Tex {
-            latex: text(d, "latex")?.to_string(),
-            part: Part::of(int(d, "part")?)?,
-            at: vec2_of(d, "at")?,
-            size: number(d, "size")?,
-            color: tinted(d, "color", "alpha")?,
-            wipe: number(d, "wipe")?,
-            lo: vec2_of(d, "lo")?,
-            hi: vec2_of(d, "hi")?,
-        },
-        "text" => {
-            let written = text(d, "text")?;
-            let key = matches!(field(d, "key")?, Data::Bool(true));
-            Mob::Text {
-                text: if key {
-                    text_of(written)?
-                } else {
-                    written.to_string()
-                },
-                at: vec2_of(d, "at")?,
-                size: number(d, "size")?,
-                color: tinted(d, "color", "alpha")?,
-            }
-        }
-        "rect" => Mob::Rect {
-            lo: vec2_of(d, "lo")?,
-            hi: vec2_of(d, "hi")?,
-            fill: tinted(d, "fill", "fillAlpha")?,
-            stroke: tinted(d, "stroke", "strokeAlpha")?,
-            width: number(d, "width")?,
-            radius: number(d, "radius")?,
-        },
-        "path" => Mob::Path {
-            points: points(d, "points")?,
-            color: tinted(d, "color", "alpha")?,
-            width: number(d, "width")?,
-            drawn: number(d, "drawn")?,
-            arrow: matches!(field(d, "arrow")?, Data::Bool(true)),
-            dashed: matches!(field(d, "dashed")?, Data::Bool(true)),
-        },
-        "band" => Mob::Band {
-            top: points(d, "top")?,
-            bottom: points(d, "bottom")?,
-            color: tinted(d, "color", "alpha")?,
-        },
-        "dot" => Mob::Dot {
-            at: vec2_of(d, "at")?,
-            radius: number(d, "radius")?,
-            color: tinted(d, "color", "alpha")?,
-        },
-        "frame" => Mob::Frame {
-            center: vec2_of(d, "center")?,
-            height: number(d, "height")?,
-        },
-        other => return Err(format!("no mob `{other}`")),
-    })
+fn mobs(list: &Value) -> Result<Vec<Mob>, String> {
+    Ok(super::typed::items::<MobRecord>(list, "mob")?
+        .into_iter()
+        .map(|m| m.0)
+        .collect())
 }
 
 /// The scripts' math scenes, by name.

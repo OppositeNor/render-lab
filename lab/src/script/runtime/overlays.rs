@@ -37,15 +37,8 @@ pub(super) fn field<'a>(d: &'a Data, label: &str) -> Result<&'a Data, String> {
 
 pub(super) fn number(d: &Data, label: &str) -> Result<f32, String> {
     match field(d, label)? {
-        Data::Float(x) => Ok(*x as f32),
+        Data::Float(x) => typed::single(*x, &format!("`{label}`")),
         other => Err(format!("`{label}` is {other:?}, not a Float")),
-    }
-}
-
-pub(super) fn flag(d: &Data, label: &str) -> Result<bool, String> {
-    match field(d, label)? {
-        Data::Bool(b) => Ok(*b),
-        other => Err(format!("`{label}` is {other:?}, not a Bool")),
     }
 }
 
@@ -56,110 +49,129 @@ pub(super) fn text<'a>(d: &'a Data, label: &str) -> Result<&'a str, String> {
     }
 }
 
-pub(super) fn point(d: &Data, label: &str) -> Result<Vec3, String> {
-    let p = field(d, label)?;
-    Ok(Vec3::new(number(p, "x")?, number(p, "y")?, number(p, "z")?))
-}
-
-/// `#rrggbb`, or a colour of the lab's theme by name: `text`, `textDim`, `textFaint`, `accent`.
-pub(super) fn color(d: &Data) -> Result<Color32, String> {
-    color_named(text(d, "color")?)
-}
-
-/// The colour `s` names: `#rrggbb`, or a colour of the lab's theme by name.
-pub(super) fn color_named(s: &str) -> Result<Color32, String> {
-    use crate::palette;
-    match s {
-        "text" => return Ok(palette::text()),
-        "textDim" => return Ok(palette::text_dim()),
-        "textFaint" => return Ok(palette::text_faint()),
-        "accent" => return Ok(palette::accent()),
-        _ => {}
+crate::lamlet_record! {
+    /// runtime.lam's `_Segment`.
+    struct SegmentRecord {
+        from: V3 = "from",
+        to: V3 = "to",
+        color: ScriptColor = "color",
+        alpha: Num = "alpha",
+        width: Num = "width",
+        arrow: bool = "arrow",
+        dashed: bool = "dashed",
     }
-    let hex = s
-        .strip_prefix('#')
-        .filter(|h| h.len() == 6)
-        .and_then(|h| u32::from_str_radix(h, 16).ok())
-        .ok_or_else(|| format!("the colour {s:?} is not #rrggbb"))?;
-    Ok(crate::palette::rgb(hex))
+}
+
+crate::lamlet_record! {
+    /// runtime.lam's `_Point`.
+    struct PointRecord {
+        at: V3 = "at",
+        radius: Num = "radius",
+        color: ScriptColor = "color",
+        alpha: Num = "alpha",
+    }
+}
+
+crate::lamlet_record! {
+    /// runtime.lam's `_Label`: its text written out, or a text key.
+    struct LabelRecord {
+        at: V3 = "at",
+        text: String = "text",
+        color: ScriptColor = "color",
+    }
+}
+
+crate::lamlet_record! {
+    /// runtime.lam's `Row`.
+    struct RowRecord {
+        name: String = "name",
+        value: String = "value",
+        color: ScriptColor = "color",
+    }
+}
+
+/// runtime.lam's `Shape`, as the script returned it.
+enum ShapeRecord {
+    Segment(SegmentRecord),
+    Point(PointRecord),
+    Label(LabelRecord),
+    LabelText(LabelRecord),
+}
+
+impl lamlet::embed::FromLamlet for ShapeRecord {
+    fn from_lamlet(v: &Value) -> Result<Self, String> {
+        use typed::payload;
+        let (tag, p) = typed::variant(v)?;
+        Ok(match tag {
+            "segment" => ShapeRecord::Segment(payload(tag, p)?),
+            "point" => ShapeRecord::Point(payload(tag, p)?),
+            "label" => ShapeRecord::Label(payload(tag, p)?),
+            "labelText" => ShapeRecord::LabelText(payload(tag, p)?),
+            other => return Err(format!("no shape `{other}`")),
+        })
+    }
 }
 
 /// The overlay's shapes, each checked; a label's text key looked up in `package`'s text, then the lab's.
-pub(super) fn shapes(list: &Data, package: &str) -> Result<Vec<Shape>, String> {
-    let Data::List(items) = list else {
-        return Err("an overlay returns a list".into());
-    };
-    items
-        .iter()
-        .map(|item| {
-            let Data::Variant(tag, d) = item else {
-                return Err(format!("{item:?} is not a Shape"));
-            };
-            Ok(match tag.as_str() {
-                "segment" => {
-                    let flags = if flag(d, "arrow")? {
+pub(super) fn shapes(list: &Value, package: &str) -> Result<Vec<Shape>, String> {
+    typed::items::<ShapeRecord>(list, "shape")?
+        .into_iter()
+        .map(|record| {
+            Ok(match record {
+                ShapeRecord::Segment(s) => Shape::Segment {
+                    from: s.from.0,
+                    to: s.to.0,
+                    color: s.color.color32(),
+                    alpha: s.alpha.0,
+                    width: s.width.0,
+                    flags: if s.arrow {
                         FLAG_ARROW
                     } else {
                         0
-                    } | if flag(d, "dashed")? {
+                    } | if s.dashed {
                         FLAG_DASHED
                     } else {
                         0
-                    };
-                    Shape::Segment {
-                        from: point(d, "from")?,
-                        to: point(d, "to")?,
-                        color: color(d)?,
-                        alpha: number(d, "alpha")?,
-                        width: number(d, "width")?,
-                        flags,
-                    }
-                }
-                "point" => Shape::Point {
-                    at: point(d, "at")?,
-                    radius: number(d, "radius")?,
-                    color: color(d)?,
-                    alpha: number(d, "alpha")?,
+                    },
                 },
-                "label" => Shape::Label {
-                    at: point(d, "at")?,
-                    text: text(d, "text")?.to_string(),
-                    color: color(d)?,
+                ShapeRecord::Point(p) => Shape::Point {
+                    at: p.at.0,
+                    radius: p.radius.0,
+                    color: p.color.color32(),
+                    alpha: p.alpha.0,
                 },
-                "labelText" => {
-                    let key = text(d, "text")?;
-                    let text = crate::i18n::try_package_text(package, key)
-                        .or_else(|| crate::i18n::try_package_text("render_lab", key))
+                ShapeRecord::Label(l) => Shape::Label {
+                    at: l.at.0,
+                    text: l.text,
+                    color: l.color.color32(),
+                },
+                ShapeRecord::LabelText(l) => {
+                    // A label's text is its key's, in the package's text table or the lab's.
+                    let text = crate::i18n::try_package_text(package, &l.text)
+                        .or_else(|| crate::i18n::try_package_text("render_lab", &l.text))
                         .ok_or_else(|| {
-                            format!("no text `{key}` in {package}'s text table or the lab's")
+                            format!(
+                                "no text `{}` in {package}'s text table or the lab's",
+                                l.text
+                            )
                         })?;
                     Shape::Label {
-                        at: point(d, "at")?,
+                        at: l.at.0,
                         text: text.to_string(),
-                        color: color(d)?,
+                        color: l.color.color32(),
                     }
                 }
-                other => return Err(format!("no shape `{other}`")),
             })
         })
         .collect()
 }
 
 /// A readout hook's rows, each checked.
-pub(super) fn readout_rows(list: &Data) -> Result<Vec<(String, String, Color32)>, String> {
-    let Data::List(items) = list else {
-        return Err("a readout returns a list of Rows".into());
-    };
-    items
-        .iter()
-        .map(|r| {
-            Ok((
-                text(r, "name")?.to_string(),
-                text(r, "value")?.to_string(),
-                color(r)?,
-            ))
-        })
-        .collect()
+pub(super) fn readout_rows(list: &Value) -> Result<Vec<(String, String, Color32)>, String> {
+    Ok(typed::items::<RowRecord>(list, "row")?
+        .into_iter()
+        .map(|r| (r.name, r.value, r.color.color32()))
+        .collect())
 }
 
 /// Draws `shapes` at `at` in the frame's lists (`FrameContent::overlay_at`), or after everything; returns where they

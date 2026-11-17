@@ -144,7 +144,7 @@ Fn([], List(Float)). The cheap choice's shares, A's then B's.
 $[# {_shares} {map {' 0 1} {^ {i} {/ {float {toyQuarters i}} 4.0}}}]
 Fn([Float], List(Mob)). The square, its cells dim, the first candidate named above it and the second beside it.
 $[# {_squareFigure s}
-    [# cells {areaSquare "sq" {_shares} {_shares} _square {' "#3b4150"} 0.05}]
+    [# cells {areaSquare "sq" {_shares} {_shares} _square {' [% {rgb "#3b4150"}]} 0.05}]
     [# names {flatten {map
         {' 0 1}
         {^ {i}

@@ -113,7 +113,7 @@ $[# {_drawn alias}
 
 The shapes
 
-Fn([Float, String], List(Mob)). The drawn light's triangle at `t`, and uniform points on it (the square root
+Fn([Float, Color], List(Mob)). The drawn light's triangle at `t`, and uniform points on it (the square root
 spreads them evenly), the last one lit.
 $[# {_triangle t color}
     [# a {add2 _shapeAt {v2 -1.6 -1.3}}]
@@ -140,7 +140,7 @@ $[# {_triangle t color}
                 {caption "triangleNote" {textKey "paramsmath-triangle"} 0.32 textDimColor}
                 {v2 {.x _shapeAt} -2.65}}}}}]
 
-Fn([Float, String], List(Mob)). The found light's sphere at `t`, as its outline, and a point on it.
+Fn([Float, Color], List(Mob)). The found light's sphere at `t`, as its outline, and a point on it.
 $[# {_sphere t color}
     [# circle {map
         {range 0 49}

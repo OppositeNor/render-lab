@@ -12,10 +12,10 @@ $[Import* o3de_lighting_values]
 $[Import* o3de_lighting_natives]
 
 The colours of the light, the half vector, and the two lobes (src/o3de/lighting/demos.rs).
-$[# _light "#ffd98a"]
-$[# _half "#b49cff"]
-$[# _specular "#ff8fc8"]
-$[# _diffuse "#8fe3a0"]
+$[# _light [% {rgb "#ffd98a"}]]
+$[# _half [% {rgb "#b49cff"}]]
+$[# _specular [% {rgb "#ff8fc8"}]]
+$[# _diffuse [% {rgb "#8fe3a0"}]]
 
 The vectors at the inspected point, in the order `vectorsShown` grows them: N, then L and H while the light is
 on, V, and R in the IBL demonstration.

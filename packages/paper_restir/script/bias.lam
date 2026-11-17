@@ -27,16 +27,16 @@ $[# _slotB 0.5]
 $[# _slotC -0.8]
 $[# _slotD -2.1]
 The step's colour, beside the flat distribution's (`pColor`), and the two lines'.
-$[# _stepColor "#b48cff"]
-$[# _truthColor "#6be3b0"]
-$[# _meanColor "#ffa14a"]
+$[# _stepColor [% {rgb "#b48cff"}]]
+$[# _truthColor [% {rgb "#6be3b0"}]]
+$[# _meanColor [% {rgb "#ffa14a"}]]
 
 Fn([Float, Float, Float, List(Mob)], List(Mob)). A figure shown from stage `a` (faded in) to stage `b` (faded out).
 $[# {_during s a b fig} {!if {!or {< s a} {> s b}}
     {'}
     {fadeOut {phase s {- b 0.25} b} {fadeIn {phase s a {+ a 0.3}} fig}}}]
 
-Fn([String, String, String, Float, Bool], List(Mob)). A legend row at height y: a swatch of the curve's colour,
+Fn([String, String, Color, Float, Bool], List(Mob)). A legend row at height y: a swatch of the curve's colour,
 thick or thin, and its formula beside it.
 $[# {_legend id latex color y thick}
     [# swatch {line {++ id "Swatch"} {v2 1.7 y} {v2 2.3 y} color {!if thick 6.0 2.5}}]
@@ -44,7 +44,7 @@ $[# {_legend id latex color y thick}
 
 The plot
 
-Fn([Axes, List(Float), Float, String, Float], List(Mob)). A curve of per-bin values drawn as far as `upTo` across,
+Fn([Axes, List(Float), Float, Color, Float], List(Mob)). A curve of per-bin values drawn as far as `upTo` across,
 each value at its bin's middle (clamped to the plot's top).
 $[# {_binned id ax values upTo color width}
     [# n {length values}]

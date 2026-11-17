@@ -30,7 +30,7 @@ $[# _pBox [% {box {v2 -6.6 -2.5} {v2 0.2 -0.6}}]]
 Fn([List(Float)], List(Float)). Each light's share of the target (the chance RIS ends on it, as candidates grow).
 $[# {_chances brings} [# total {fold brings 0.0 +}] {map brings {^ {b} {over b total}}}]
 
-Fn([String, List(Float), Box, String, Int, Float], List(Mob)). A row of bars, one per light, the sample's bar lit
+Fn([String, List(Float), Box, Color, Int, Float], List(Mob)). A row of bars, one per light, the sample's bar lit
 and the rest dimmed by `dim`, grown at `t`.
 $[# {_row id chances b color y dim t}
     [# top {fold chances 0.000001 max}]

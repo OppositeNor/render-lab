@@ -63,7 +63,7 @@ $[# {boxAround points} {fold
 
 Mobs
 
-Fn([String, String, Int, Vec2, Float, String, Float, Vec2, Vec2], Mob). A formula's part, its box `lo`, `hi`.
+Fn([String, String, Int, Vec2, Float, Color, Float, Vec2, Vec2], Mob). A formula's part, its box `lo`, `hi`.
 $[# {_texMob id latex part at size color alpha lo hi} {: {#tex {.
     id id
     latex latex
@@ -88,7 +88,7 @@ $[# {_textMob id text key at size color}
         lo {v2 {- {.x at} {/ w 2.0}} {- {.y at} {* size 0.6}}}
         hi {v2 {+ {.x at} {/ w 2.0}} {+ {.y at} {* size 0.6}}}}} Mob}]
 
-Fn([String, String, Float, String, List(String), List(String)], List(Mob)). A formula, centred on the origin, an em
+Fn([String, String, Float, Color, List(String), List(Color)], List(Mob)). A formula, centred on the origin, an em
 `size` canvas units: its ink outside the `\lit{n}{…}` terms (named `id`, in `color`), then each term n (named
 the n-th of `names`, in the n-th of `colors`; past their ends, `id.n` and `color`). Display style.
 $[# {texParts id latex size color names colors}
@@ -110,19 +110,19 @@ $[# {texParts id latex size color names colors}
                 1.0
                 {scale2 {.lo b} size}
                 {scale2 {.hi b} size}}}}]
-Fn([String, String, Float, String], List(Mob)). A formula in one colour (its terms named `id.n`).
+Fn([String, String, Float, Color], List(Mob)). A formula in one colour (its terms named `id.n`).
 $[# {tex id latex size color} {texParts id latex size color {'} {'}}]
 
-Fn([String, String, Float, String], List(Mob)). A line of text, written out (a number, a symbol), centred on the
+Fn([String, String, Float, Color], List(Mob)). A line of text, written out (a number, a symbol), centred on the
 origin, an em `size` high.
 $[# {words id text size color} {' {_textMob id text false origin size color}}]
-Fn([String, String, Float, String], List(Mob)). A line of the package's text `key` (`textKey`), in the viewer's
+Fn([String, String, Float, Color], List(Mob)). A line of the package's text `key` (`textKey`), in the viewer's
 language.
 $[# {caption id key size color} {' {_textMob id key true origin size color}}]
 
 Fn([Float, Int], String). A number with `digits` decimals, as LaTeX (a minus sign, not a hyphen).
 $[# {numberLatex x digits} {!if {< x 0.0} f"{-${fixed {neg x} digits}}" {fixed x digits}}]
-Fn([String, Float, Int, Float, String], List(Mob)). A number typeset as a formula: count it by drawing it at a
+Fn([String, Float, Int, Float, Color], List(Mob)). A number typeset as a formula: count it by drawing it at a
 value that moves (`{number "w" {lerp 0.0 12.0 t} 2 0.5 color}`).
 $[# {number id x digits size color} {tex id {numberLatex x digits} size color}]
 Fn([Int, Int], String). A fraction `n/d` as LaTeX, in lowest terms (a whole number when `d` divides `n`).
@@ -133,7 +133,7 @@ $[# {fractionLatex n d}
     [# q {div d g}]
     {!if {= q 1} {str p} f"{\frac{${str p}}{${str q}}}"}]
 
-Fn([String, Box, String, Float, String, Float, Float, Float], Mob). A rectangle: filled (`fillAlpha` 0 leaves the
+Fn([String, Box, Color, Float, Color, Float, Float, Float], Mob). A rectangle: filled (`fillAlpha` 0 leaves the
 fill out), outlined `width` pixels (0 leaves it out), its corners rounded by `radius` canvas units.
 $[# {rectMob id b fill fillAlpha stroke strokeAlpha width radius} {: {#rect {.
     id id
@@ -145,12 +145,12 @@ $[# {rectMob id b fill fillAlpha stroke strokeAlpha width radius} {: {#rect {.
     strokeAlpha strokeAlpha
     width width
     radius radius}} Mob}]
-Fn([String, Box, String, Float], List(Mob)). A filled rectangle.
+Fn([String, Box, Color, Float], List(Mob)). A filled rectangle.
 $[# {filled id b color alpha} {' {rectMob id b color alpha color 0.0 0.0 0.0}}]
-Fn([String, Box, String, Float], List(Mob)). A rectangle's outline, `width` pixels, slightly rounded.
+Fn([String, Box, Color, Float], List(Mob)). A rectangle's outline, `width` pixels, slightly rounded.
 $[# {outlined id b color width} {' {rectMob id b color 0.0 color 1.0 width 0.06}}]
 
-Fn([String, List(Vec2), String, Float, Bool, Bool], Mob). A path through `points`, `width` pixels.
+Fn([String, List(Vec2), Color, Float, Bool, Bool], Mob). A path through `points`, `width` pixels.
 $[# {pathMob id points color width arrow dashed} {: {#path {.
     id id
     points points
@@ -160,18 +160,18 @@ $[# {pathMob id points color width arrow dashed} {: {#path {.
     drawn 1.0
     arrow arrow
     dashed dashed}} Mob}]
-Fn([String, Vec2, Vec2, String, Float], List(Mob)). A line.
+Fn([String, Vec2, Vec2, Color, Float], List(Mob)). A line.
 $[# {line id a b color width} {' {pathMob id {' a b} color width false false}}]
-Fn([String, Vec2, Vec2, String, Float], List(Mob)). An arrow from `a` to `b`.
+Fn([String, Vec2, Vec2, Color, Float], List(Mob)). An arrow from `a` to `b`.
 $[# {arrowLine id a b color width} {' {pathMob id {' a b} color width true false}}]
-Fn([String, Vec2, Vec2, String, Float], List(Mob)). A dashed line.
+Fn([String, Vec2, Vec2, Color, Float], List(Mob)). A dashed line.
 $[# {dashedLine id a b color width} {' {pathMob id {' a b} color width false true}}]
-Fn([String, List(Vec2), String, Float], List(Mob)). A path through points (a curve, sampled).
+Fn([String, List(Vec2), Color, Float], List(Mob)). A path through points (a curve, sampled).
 $[# {pathThrough id points color width} {' {pathMob id points color width false false}}]
-Fn([String, List(Vec2), List(Vec2), String, Float], List(Mob)). The area between two lines of as many points.
+Fn([String, List(Vec2), List(Vec2), Color, Float], List(Mob)). The area between two lines of as many points.
 $[# {bandBetween id top bottom color alpha} {'
     {: {#band {. id id top top bottom bottom color color alpha alpha}} Mob}}]
-Fn([String, Vec2, Float, String], List(Mob)). A dot `radius` canvas units across, at `at`.
+Fn([String, Vec2, Float, Color], List(Mob)). A dot `radius` canvas units across, at `at`.
 $[# {dotAt id at radius color} {'
     {: {#dot {. id id at at radius radius color color alpha 1.0}} Mob}}]
 
@@ -338,7 +338,7 @@ $[# {faded mobs k} {map mobs {^ {m} {: {!case m
     {band r {#band {.alpha= r {* {.alpha r} k}}}}
     {dot r {#dot {.alpha= r {* {.alpha r} k}}}}
     {frame r {#frame r}}} Mob}}}]
-Fn([List(Mob), String], List(Mob)). Recoloured (a rectangle's fill and outline both).
+Fn([List(Mob), Color], List(Mob)). Recoloured (a rectangle's fill and outline both).
 $[# {tinted mobs color} {map mobs {^ {m} {: {!case m
     {tex r {#tex {.color= r color}}}
     {text r {#text {.color= r color}}}
@@ -347,8 +347,8 @@ $[# {tinted mobs color} {map mobs {^ {m} {: {!case m
     {band r {#band {.color= r color}}}
     {dot r {#dot {.color= r color}}}
     {frame r {#frame r}}} Mob}}}]
-Fn([Float, Float, Float], String). The colour of hue `h` (0 to 1, red, yellow, green, cyan, blue, magenta, and
-back), saturation `s`, and value `v` (0 to 1), as `#rrggbb`.
+Fn([Float, Float, Float], Color). The colour of hue `h` (0 to 1, red, yellow, green, cyan, blue, magenta, and
+back), saturation `s`, and value `v` (0 to 1).
 $[# {hsvColor h s v}
     [# x {* 6.0 {- h {float {floor h}}}}]
     [# i {% {floor x} 6}]
@@ -356,8 +356,8 @@ $[# {hsvColor h s v}
     [# p {* v {- 1.0 s}}]
     [# q {* v {- 1.0 {* s f}}}]
     [# t {* v {- 1.0 {* s {- 1.0 f}}}}]
-    [# {_byte c} {hex2 {round {* 255.0 {clamp c 0.0 1.0}}}}]
-    [# {_rgb r g b} f"{#${_byte r}${_byte g}${_byte b}}"]
+    [# {_byte c} {round {* 255.0 {clamp c 0.0 1.0}}}]
+    [# {_rgb r g b} {: {#rgb {+ {* 65536 {_byte r}} {+ {* 256 {_byte g}} {_byte b}}}} Color}]
     {!if {= i 0}
         {_rgb v t p}
         {!if {= i 1}
@@ -366,7 +366,7 @@ $[# {hsvColor h s v}
                 {_rgb p v t}
                 {!if {= i 3} {_rgb p q v} {!if {= i 4} {_rgb t p v} {_rgb v p q}}}}}}]
 
-Fn([Int], List(String)). `n` colours around the hue circle, each a step of the golden ratio from the one before,
+Fn([Int], List(Color)). `n` colours around the hue circle, each a step of the golden ratio from the one before,
 so neighbours differ (manim's color gradients, for many categories at once: a distribution's outcomes).
 $[# {spectrum n} {map
     {range 0 n}
@@ -463,13 +463,13 @@ $[# {growFrom t mobs side}
                 {left u {v2 {+ {.x {.lo b}} {* s {- {.x p} {.x {.lo b}}}}} {.y p}}}
                 {right u {v2 {+ {.x {.hi b}} {* s {- {.x p} {.x {.hi b}}}}} {.y p}}}}}
             1.0}}]
-Fn([Float, List(Mob), String], List(Mob)). Pointed at: scaled up and lit in `color`, then back (manim's
+Fn([Float, List(Mob), Color], List(Mob)). Pointed at: scaled up and lit in `color`, then back (manim's
 `Indicate`).
 $[# {indicate t mobs color}
     [# s {thereAndBack t}]
     [# grown {scaled mobs {+ 1.0 {* 0.2 s}}}]
     {!if {<= s 0.0} mobs {append {faded grown {- 1.0 s}} {faded {tinted grown color} s}}}]
-Fn([Float, List(Mob), String], List(Mob)). An outline drawn around the figure, then faded (manim's
+Fn([Float, List(Mob), Color], List(Mob)). An outline drawn around the figure, then faded (manim's
 `Circumscribe`): the figure with it.
 $[# {circumscribe t mobs color}
     [# b {padded {boxOf mobs} 0.15}]
@@ -486,7 +486,7 @@ $[# {circumscribe t mobs color}
         {append mobs {faded
             {' {_writtenTo {pathMob "circumscribe" corners color 3.0 false false} drawn}}
             alpha}}}]
-Fn([Float, List(Mob), String], List(Mob)). Struck out: a line drawn across the figure, which dims to half (a term
+Fn([Float, List(Mob), Color], List(Mob)). Struck out: a line drawn across the figure, which dims to half (a term
 a counterfactual leaves out).
 $[# {crossOut t mobs color}
     [# s {smooth {clamp t 0.0 1.0}}]
@@ -580,7 +580,7 @@ $[# {_clampY ax y} {clamp y {.lo {.y ax}} {.hi {.y ax}}}]
 Fn([Axes, Float], Float). Where the x axis crosses: y = 0 when the range holds it, else its bottom.
 $[# {_baseY ax} {_clampY ax 0.0}]
 
-Fn([String, Axes, String, Float, Bool, Bool], List(Mob)). The axes drawn: each axis an arrow through its range (at
+Fn([String, Axes, Color, Float, Bool, Bool], List(Mob)). The axes drawn: each axis an arrow through its range (at
 the other's zero, or its edge), ticks, and (`labelX`, `labelY`) each tick's number, `size` canvas units an em.
 $[# {axesFigure id ax color size labelX labelY}
     [# y0 {_baseY ax}]
@@ -624,7 +624,7 @@ $[# {axesFigure id ax color size labelX labelY}
                     0.0}}}}
                 mark}}}}]
     {flatten {' xAxis yAxis xTicks yTicks}}]
-Fn([String, Range, Vec2, Vec2, String, Float], List(Mob)). A number line from `a` to `b` on the canvas, its range's
+Fn([String, Range, Vec2, Vec2, Color, Float], List(Mob)). A number line from `a` to `b` on the canvas, its range's
 ticks numbered, `size` an em (an axis alone).
 $[# {numberLine id r a b color size}
     [# ax {axesIn {box a {v2 {.x b} {+ {.y a} 1.0}}} r {axisRange 0.0 1.0 1.0}}]
@@ -791,7 +791,7 @@ $[# {drawnFrom f lo hi seed count}
     [# w {/ {- hi lo} {float bins}}]
     [# masses {map {range 0 bins} {^ {i} {max 0.0 {f {+ lo {* w {+ {float i} 0.5}}}}}}}]
     {map {rt::samplesFrom masses seed count} {^ {u} {+ lo {* {- hi lo} u}}}}]
-Fn([String, Axes, List(Float), Float, Float, Int, String, Float], List(Mob)). A histogram of samples on the axes,
+Fn([String, Axes, List(Float), Float, Float, Int, Color, Float], List(Mob)). A histogram of samples on the axes,
 `bins` bars from `lo` to `hi`, each as high as its density (its share over its width), so it lies on the curve of
 the density it was drawn from. Each bar is named `id.i`.
 $[# {histogram id ax samples lo hi bins color alpha}
@@ -822,7 +822,7 @@ $[# {firstOf count figures} {flatten {map
 
 Bars, braces, and areas
 
-Fn([String, List(Float), Float, Box, List(String), Float], List(List(Mob))). Bars for values, side by side in
+Fn([String, List(Float), Float, Box, List(Color), Float], List(List(Mob))). Bars for values, side by side in
 `b`, each as high as its value over `top` (the value the box's height stands for), `gap` (a fraction of a bar)
 between them, in its colour (the last colour when they run out). Each bar is named `id.i`; `growFrom … down`
 raises one.
@@ -855,7 +855,7 @@ $[# {_braceDepth u}
     {+
         {* 0.5 {smooth {clamp {/ v 0.1} 0.0 1.0}}}
         {* 0.5 {smooth {clamp {/ {- v 0.38} 0.12} 0.0 1.0}}}}]
-Fn([String, List(Mob), Side, Float, String], List(Mob)). A curly brace along one side of a figure (manim's `Brace`),
+Fn([String, List(Mob), Side, Float, Color], List(Mob)). A curly brace along one side of a figure (manim's `Brace`),
 `gap` from it (`braceLabel` puts a label beyond its tip).
 $[# {brace id mobs side gap color}
     [# b {boxOf mobs}]
@@ -875,12 +875,12 @@ $[# {brace id mobs side gap color}
             2.5
             false
             false}}]
-Fn([String, List(Mob), Side, Float, String, List(Mob)], List(Mob)). A brace and its label beyond its tip.
+Fn([String, List(Mob), Side, Float, Color, List(Mob)], List(Mob)). A brace and its label beyond its tip.
 $[# {braceLabel id mobs side gap color label}
     [# br {brace id mobs side gap color}]
     {append br {nextTo label br side 0.12}}]
 
-Fn([String, List(Float), List(Float), Box, List(String), Float], List(Mob)). Probabilities as areas (a mosaic): the
+Fn([String, List(Float), List(Float), Box, List(Color), Float], List(Mob)). Probabilities as areas (a mosaic): the
 box split into columns as wide as `across`'s shares and rows as high as `down`'s (top to bottom), each cell a
 rectangle named `id.i.j` (column i, row j) whose area is the product of its two shares, in the colour of its
 column (the last colour when they run out), `gap` canvas units apart.
@@ -920,7 +920,7 @@ $[# Table [% {Struct {'
     {Field "cells" {List {List {List Mob}}}}
     {Field "rules" {List Mob}}
     {Field "boxes" {List {List Box}}}}}]]
-Fn([String, List(List(List(Mob))), Float, String], Table). A table of cells (`rows`, each a list of figures, any
+Fn([String, List(List(List(Mob))), Float, Color], Table). A table of cells (`rows`, each a list of figures, any
 size), every column as wide as its widest cell and every row as high as its highest, `pad` canvas units around
 each cell's content, centred on the origin; a rule under the first row and after the first column (headers), in
 `color` (manim's `Table`, `MathTable`).
@@ -973,7 +973,7 @@ Fn([Table, Int], List(Mob)). A column's cells, as placed (rows shorter than it g
 $[# {columnOf t column} {flatten {map
     {.cells t}
     {^ {r} {!if {< column {length r}} {nth r column} {'}}}}}]
-Fn([Table, Int, Int, String, Float], List(Mob)). A cell's highlight, its box filled (draw it before the table).
+Fn([Table, Int, Int, Color, Float], List(Mob)). A cell's highlight, its box filled (draw it before the table).
 $[# {cellLit t row column color alpha} {filled "cell"
     {nth {nth {.boxes t} row} column}
     color
@@ -988,7 +988,7 @@ $[# Graph [% {Struct {'
     {Field "nodes" {List {List Mob}}}
     {Field "edges" {List {List Mob}}}
     {Field "at" {List Vec2}}}}]]
-Fn([String, List(List(Mob)), List({first: Int, second: Int}), String, Box, Bool, String, Int], Graph). A graph
+Fn([String, List(List(Mob)), List({first: Int, second: Int}), String, Box, Bool, Color, Int], Graph). A graph
 (manim's `Graph` and `DiGraph`): each node a figure (centred on the origin), placed by the `layout` (`circular`,
 `grid`, `bipartite`, `tree`, `layered`, or `spring`, seeded by `seed`; lab/src/math/layout.rs) in the box `b`,
 and each edge (from, to) a line or, `directed`, an arrow from the edge of one node's box to the other's, in
@@ -1019,7 +1019,7 @@ $[# {graph id nodes edges layout b directed color seed}
     {: {. nodes placed edges drawn at at} Graph}]
 Fn([Graph], List(Mob)). The whole graph: edges under nodes.
 $[# {graphFigure g} {append {flatten {.edges g}} {flatten {.nodes g}}}]
-Fn([Float, List(Mob), Float, String], List(Mob)). A dot travelling along an edge (or any path) at `t`, `radius`
+Fn([Float, List(Mob), Float, Color], List(Mob)). A dot travelling along an edge (or any path) at `t`, `radius`
 canvas units: what flows along it.
 $[# {flowAlong t edge radius color} {flatten {map edge {^ {m} {!case m
     {path r {!if {< {length {.points r}} 2}
@@ -1037,7 +1037,7 @@ $[# {flowAlong t edge radius color} {flatten {map edge {^ {m} {!case m
 
 Chances and shares
 
-Fn([String, Box, Float, Float, Bool, Float, String], List(Mob)). A chance weighed at progress `t` (the picture of
+Fn([String, Box, Float, Float, Bool, Float, Color], List(Mob)). A chance weighed at progress `t` (the picture of
 `u · total < w` in weighted reservoir sampling, and of any draw against a probability): a bar `b` from 0 to 1, its
 share `chance` lit in `color` (growing over the first 40 % of `t`), and the uniform number `u` dropping onto the bar
 as an arrow (from 45 % to 75 %), lit when it falls inside the share (`taken`). The bar's ends are labelled 0 and 1.
@@ -1046,7 +1046,7 @@ $[# {chanceBar id b chance u taken t color}
     [# x0 {.x {.lo b}}]
     [# x1 {.x {.hi b}}]
     [# h {boxHeight b}]
-    [# track {filled {++ id "Track"} b "#3b4150" 1.0}]
+    [# track {filled {++ id "Track"} b [% {rgb "#3b4150"}] 1.0}]
     [# lit {filled
         {++ id "Lit"}
         {box
@@ -1078,7 +1078,7 @@ $[# {runningSums shares} {.second {fold shares
     {pair 0.0 {' 0.0}}
     {^ {acc x} [# next {+ {.first acc} x}] {pair next {append {.second acc} {' next}}}}}}]
 
-Fn([String, List(Float), Box, List(String), Float], List(List(Mob))). Shares of a whole laid end to end across the
+Fn([String, List(Float), Box, List(Color), Float], List(List(Mob))). Shares of a whole laid end to end across the
 box `b` (the shares' total its width): a strip of segments, each named `id.i`, in the colours in turn (manim's
 stacked bar; a running sum, a distribution's CDF, drawn as lengths), `gap` canvas units between them.
 $[# {strip id shares b colors gap}

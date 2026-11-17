@@ -33,10 +33,10 @@ $[# {_upTo points f}
         head
         {append head {' {lerp2 {nth points {- whole 1}} {nth points whole} {- f {float whole}}}}}}]
 
-Fn([String, List(Float), String, Float], List(Mob)). Each frame's share as a segment of the strip, the newest
+Fn([String, List(Float), Color, Float], List(Mob)). Each frame's share as a segment of the strip, the newest
 outlined, at opacity `alpha`.
 $[# {_shares id shares color alpha}
-    [# segments {strip id shares _stripBox {' color "#c4569a"} 0.01}]
+    [# segments {strip id shares _stripBox {' color [% {rgb "#c4569a"}]} 0.01}]
     [# newest {boxOf {nth segments {- {length segments} 1}}}]
     {faded
         {append {flatten segments} {outlined {++ id "Newest"} {padded newest 0.05} accentColor 3.0}}
@@ -131,7 +131,7 @@ $[# {_scene s}
             {^ {e} {filled
                 {++ "shares." {str {.first e}}}
                 {.second e}
-                {!if {= {% {.first e} 2} 0} estimateColor "#c4569a"}
+                {!if {= {% {.first e} 2} 0} estimateColor [% {rgb "#c4569a"}]}
                 0.9}}}}}]
     {flatten {'
         axes

@@ -32,6 +32,21 @@ fn values(regions: &[&str]) -> Vec<Data> {
 
 /// Each expression region's value of a document that imports std, the runtime library, and `more`.
 fn evaluated(regions: &[&str], more: &str) -> Vec<Data> {
+    raw(regions, more)
+        .iter()
+        .map(|v| Data::from_value(v).unwrap())
+        .collect()
+}
+
+/// Each expression region's value, as a hook returns it (typed), of a document that imports std, the runtime
+/// library, and `more`.
+fn raw(regions: &[&str], more: &str) -> Vec<Value> {
+    checked(regions, more).unwrap_or_else(|e| panic!("{e}"))
+}
+
+/// Each expression region's value of a document that imports std, the runtime library, and `more`; or the error
+/// that stopped it (when it is checked, or evaluated).
+fn checked(regions: &[&str], more: &str) -> Result<Vec<Value>, String> {
     let engine = engine();
     let body: String = regions.iter().map(|r| format!("${{{r}}}\n")).collect();
     let document = engine
@@ -39,14 +54,14 @@ fn evaluated(regions: &[&str], more: &str) -> Vec<Data> {
             "test.lam",
             format!("$[Import* std]$[Import* {LIBRARY_PACKAGE}]{more}\n{body}"),
         ))
-        .unwrap_or_else(|e| panic!("{}", e.render()));
-    let mut instance = engine.instance(&document).unwrap();
-    instance
+        .map_err(|e| e.render())?;
+    let mut instance = engine.instance(&document).map_err(|e| e.render())?;
+    Ok(instance
         .evaluate()
-        .unwrap_or_else(|e| panic!("{}", e.render()))
+        .map_err(|e| e.render())?
         .iter()
-        .map(|(_, v)| Data::from_value(v).unwrap())
-        .collect()
+        .map(|(_, v)| v.clone())
+        .collect())
 }
 
 #[test]
@@ -62,8 +77,8 @@ fn the_library_computes_what_it_says() {
         "hex2 5",
         "vectorText {vec3 1.0 -0.25 0.12345} 3",
         "easeInOut 0.25",
-        "length {grownArrows {vec3 0.0 0.0 0.0} {' {named \"N\" {vec3 0.0 1.0 0.0} \"#ffffff\"} {named \"L\" {vec3 1.0 0.0 0.0} \"#ffffff\"}} 0.5 1.0 4.0 1.5}",
-        "length {lobeLine {vec3 0.0 0.0 0.0} {' {vec3 0.0 1.0 0.0} {vec3 1.0 0.0 0.0}} {' 1.0 2.0} \"#ffffff\" 0.8 1.0 3.0 none}",
+        "length {grownArrows {vec3 0.0 0.0 0.0} {' {named \"N\" {vec3 0.0 1.0 0.0} textColor} {named \"L\" {vec3 1.0 0.0 0.0} textColor}} 0.5 1.0 4.0 1.5}",
+        "length {lobeLine {vec3 0.0 0.0 0.0} {' {vec3 0.0 1.0 0.0} {vec3 1.0 0.0 0.0}} {' 1.0 2.0} {rgb \"#ffffff\"} 0.8 1.0 3.0 none}",
         "inPlane {vec3 0.0 1.0 0.0} {vec3 0.0 1.0 0.0}",
     ]);
     assert_eq!(v[0], Data::Int(91));
@@ -90,20 +105,44 @@ fn the_library_computes_what_it_says() {
 
 #[test]
 fn shapes_are_checked_before_use() {
-    let v = values(&[
-        "' {arrow {vec3 0.0 0.0 0.0} {vec3 1.0 0.0 0.0} \"#ff0000\" 1.0 4.0} {point {vec3 0.0 1.0 0.0} 8.0 \"accent\" 0.5}",
-    ]);
+    let v = raw(
+        &[
+            "' {arrow {vec3 0.0 0.0 0.0} {vec3 1.0 0.0 0.0} {rgb \"#ff0000\"} 1.0 4.0} {point {vec3 0.0 1.0 0.0} 8.0 accentColor 0.5}",
+            "' {row \"a\" \"1\" textDimColor}",
+            "' {point {vec3 0.0 0.0 0.0} 8.0 accentColor 1000000000000000000000000000000000000000.0}",
+        ],
+        "",
+    );
     let s = shapes(&v[0], "render_lab").unwrap();
     assert!(
         matches!(&s[0], Shape::Segment { flags, width, color, .. } if *flags == FLAG_ARROW && *width == 4.0 && *color == crate::palette::rgb(0xff0000))
     );
-    assert!(matches!(&s[1], Shape::Point { alpha, .. } if *alpha == 0.5));
-    let bad = values(&["' {segment {vec3 0.0 0.0 0.0} {vec3 1.0 0.0 0.0} \"red\" 1.0 4.0}"]);
     assert!(
-        shapes(&bad[0], "render_lab")
-            .unwrap_err()
-            .contains("#rrggbb")
+        matches!(&s[1], Shape::Point { alpha, color, .. } if *alpha == 0.5 && *color == crate::palette::accent())
     );
+    assert_eq!(
+        readout_rows(&v[1]).unwrap(),
+        vec![("a".into(), "1".into(), crate::palette::text_dim())]
+    );
+    // A finite number past f32's range is refused, the shape and the field named.
+    let far = shapes(&v[2], "render_lab").unwrap_err();
+    assert!(
+        far.contains("shape 0") && far.contains("`alpha`") && far.contains("32-bit"),
+        "{far}"
+    );
+}
+
+#[test]
+fn a_colour_is_checked_when_its_script_loads() {
+    assert_eq!(
+        values(&["rgb \"#0A0b0c\""])[0],
+        Data::Variant("rgb".into(), Box::new(Data::Int(0x0a0b0c)))
+    );
+    // A named colour is a static binding: a wrong one stops the document before anything runs.
+    for wrong in ["red", "#12345", "#12345g", "#1234567"] {
+        let e = checked(&["1"], &format!("$[# _c [% {{rgb \"{wrong}\"}}]]")).unwrap_err();
+        assert!(e.contains("is not #rrggbb"), "{wrong}: {e}");
+    }
 }
 
 #[test]
@@ -151,17 +190,17 @@ fn the_math_library_computes_what_it_says() {
             "lagged 0.5 1 3 0.5",
             "phase 3.5 3.0 4.0",
             "thereAndBack 0.5",
-            "length {texParts \"w\" f\"{\\lit{1}{a} + \\lit{2}{b}}\" 0.5 \"text\" {' \"a\" \"b\"} {'}}",
-            "map {withId {texParts \"w\" f\"{\\lit{1}{a} + \\lit{2}{b}}\" 0.5 \"text\" {' \"a\" \"b\"} {'}} \"b\"} idOf",
-            "length {transform 0.0 {words \"a\" \"x\" 0.5 \"text\"} {words \"b\" \"y\" 0.5 \"text\"}}",
-            "map {transform 1.0 {words \"a\" \"x\" 0.5 \"text\"} {words \"b\" \"y\" 0.5 \"text\"}} idOf",
-            "boxCenter {boxOf {moveTo {filled \"r\" {box {v2 0.0 0.0} {v2 2.0 1.0}} \"text\" 1.0} {v2 3.0 3.0}}}",
-            "length {plot \"f\" {axesIn {box {v2 0.0 0.0} {v2 4.0 4.0}} {axisRange -1.0 1.0 1.0} {axisRange -1.0 1.0 1.0}} {^ {x} {!if {< x 0.0} -0.5 0.5}} -1.0 1.0 \"text\" 2.0}",
+            "length {texParts \"w\" f\"{\\lit{1}{a} + \\lit{2}{b}}\" 0.5 textColor {' \"a\" \"b\"} {'}}",
+            "map {withId {texParts \"w\" f\"{\\lit{1}{a} + \\lit{2}{b}}\" 0.5 textColor {' \"a\" \"b\"} {'}} \"b\"} idOf",
+            "length {transform 0.0 {words \"a\" \"x\" 0.5 textColor} {words \"b\" \"y\" 0.5 textColor}}",
+            "map {transform 1.0 {words \"a\" \"x\" 0.5 textColor} {words \"b\" \"y\" 0.5 textColor}} idOf",
+            "boxCenter {boxOf {moveTo {filled \"r\" {box {v2 0.0 0.0} {v2 2.0 1.0}} textColor 1.0} {v2 3.0 3.0}}}",
+            "length {plot \"f\" {axesIn {box {v2 0.0 0.0} {v2 4.0 4.0}} {axisRange -1.0 1.0 1.0} {axisRange -1.0 1.0 1.0}} {^ {x} {!if {< x 0.0} -0.5 0.5}} -1.0 1.0 textColor 2.0}",
             "length {rt::graphLayout 4 {' {pair 0 1} {pair 1 2} {pair 2 3}} \"layered\" 0}",
-            "length {cellOf {table \"t\" {' {' {words \"a\" \"a\" 0.4 \"text\"} {words \"b\" \"bb\" 0.4 \"text\"}}} 0.1 \"text\"} 0 1}",
+            "length {cellOf {table \"t\" {' {' {words \"a\" \"a\" 0.4 textColor} {words \"b\" \"bb\" 0.4 textColor}}} 0.1 textColor} 0 1}",
             "runningSums {' 1.0 2.0 3.0}",
-            "boxWidth {boxOf {nth {strip \"s\" {' 1.0 3.0} {box {v2 0.0 0.0} {v2 4.0 1.0}} {' \"text\"} 0.0} 1}}",
-            "length {chanceBar \"c\" {box {v2 0.0 0.0} {v2 4.0 0.3}} 0.5 0.2 true 1.0 \"text\"}",
+            "boxWidth {boxOf {nth {strip \"s\" {' 1.0 3.0} {box {v2 0.0 0.0} {v2 4.0 1.0}} {' textColor} 0.0} 1}}",
+            "length {chanceBar \"c\" {box {v2 0.0 0.0} {v2 4.0 0.3}} 0.5 0.2 true 1.0 textColor}",
             "map {' 0.0 0.5 0.75} {^ {h} {hsvColor h 1.0 1.0}}",
             "length {spectrum 24}",
         ],
@@ -207,8 +246,10 @@ fn the_math_library_computes_what_it_says() {
     // A chance bar's track, its lit share, its arrow and number, and its ends' labels.
     assert!(int(&v[18]) >= 5);
     // Red, cyan, and violet; and as many colours as asked.
-    assert!(
-        matches!(&v[19], Data::List(c) if c.iter().map(text).collect::<Vec<_>>() == vec!["#FF0000", "#00FFFF", "#8000FF"])
+    let rgb = |n: i64| Data::Variant("rgb".into(), Box::new(Data::Int(n)));
+    assert_eq!(
+        v[19],
+        Data::List(vec![rgb(0xff0000), rgb(0x00ffff), rgb(0x8000ff)])
     );
     assert_eq!(int(&v[20]), 24);
 }

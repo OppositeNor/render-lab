@@ -26,10 +26,36 @@ A value a hook sets: a key of the shot (lab/src/values.rs) and its value. The va
 applies any, in order.
 $[# Write [% {Struct {' {Field "key" String} {Field "value" Data}}}]]
 
+A colour, as a shape, a row, or a mob is drawn: one of the theme's, which follow the viewer's theme (its text, dim,
+and faint text, and its accent), or a fixed one, `0xrrggbb` (`rgb`, which reads `#rrggbb`).
+$[# Color [% {Variant {'
+    {Field "text" Unit}
+    {Field "textDim" Unit}
+    {Field "textFaint" Unit}
+    {Field "accent" Unit}
+    {Field "rgb" Int}}}]]
+
+$[# _lowerDigits [% {chars "0123456789abcdef"}]]
+$[# _upperDigits [% {chars "0123456789ABCDEF"}]]
+Fn([String], Int). A hexadecimal digit's value (either case), or -1 for anything else.
+$[# {_digit c} {fold
+    {range 0 16}
+    {- 0 1}
+    {^ {found i} {!if {!or {= {nth _lowerDigits i} c} {= {nth _upperDigits i} c}} i found}}}]
+
+Fn([String], Color). The colour `#rrggbb` (either case). Anything else is an error, which for a static binding
+(`[# brandColor [% {rgb "#8fb8ff"}]]`, as every named colour is) stops the script from loading.
+$[# {rgb hex}
+    [# cs {chars hex}]
+    [# digits {map {tail cs} _digit}]
+    {!if {!and {= {length cs} 7} {= {head cs} "#"} {all digits {^ {d} {>= d 0}}}}
+        {: {#rgb {fold digits 0 {^ {n d} {+ {* n 16} d}}}} Color}
+        {error {++ {++ "the colour " hex} " is not #rrggbb"}}}]
+
 $[# _Segment [% {Struct {'
     {Field "from" Vec3}
     {Field "to" Vec3}
-    {Field "color" String}
+    {Field "color" Color}
     {Field "alpha" Float}
     {Field "width" Float}
     {Field "arrow" Bool}
@@ -37,14 +63,13 @@ $[# _Segment [% {Struct {'
 $[# _Point [% {Struct {'
     {Field "at" Vec3}
     {Field "radius" Float}
-    {Field "color" String}
+    {Field "color" Color}
     {Field "alpha" Float}}}]]
-$[# _Label [% {Struct {' {Field "at" Vec3} {Field "text" String} {Field "color" String}}}]]
+$[# _Label [% {Struct {' {Field "at" Vec3} {Field "text" String} {Field "color" Color}}}]]
 
 What an overlay draws over the scene (lab/src/frame.rs `DrawLists`, `Label`): a segment (an arrow, or dashed), a
 point, or a label beside a point, whose text is written out (`label`) or a key of the package's text table
-(`labelText`). A colour is `#rrggbb`, or one of the theme's, which follow the viewer's theme: `textColor`,
-`textDimColor`, `textFaintColor`, `accentColor`. Nothing with an alpha of 0 or less is drawn.
+(`labelText`), each in a `Color`. Nothing with an alpha of 0 or less is drawn.
 $[# Shape [% {Variant {'
     {Field "segment" _Segment}
     {Field "point" _Point}
@@ -53,7 +78,7 @@ $[# Shape [% {Variant {'
 
 A row of the readout beside the scene (lab/src/frame.rs `Readout`): its name, its value, and the value's colour
 (as a shape's).
-$[# Row [% {Struct {' {Field "name" String} {Field "value" String} {Field "color" String}}}]]
+$[# Row [% {Struct {' {Field "name" String} {Field "value" String} {Field "color" Color}}}]]
 
 A click on an image or the scene: the point clicked, 0 to 1 across and down.
 $[# Click [% {Struct {' {Field "u" Float} {Field "v" Float}}}]]
@@ -198,7 +223,7 @@ $[# {seq spans t}
 
 Shapes
 
-Fn([Vec3, Vec3, String, Float, Float], Shape). A segment, `width` pixels wide.
+Fn([Vec3, Vec3, Color, Float, Float], Shape). A segment, `width` pixels wide.
 $[# {segment from to color alpha width} {: {#segment {.
     from from
     to to
@@ -207,7 +232,7 @@ $[# {segment from to color alpha width} {: {#segment {.
     width width
     arrow false
     dashed false}} Shape}]
-Fn([Vec3, Vec3, String, Float, Float], Shape). An arrow from `from` to `to`.
+Fn([Vec3, Vec3, Color, Float, Float], Shape). An arrow from `from` to `to`.
 $[# {arrow from to color alpha width} {: {#segment {.
     from from
     to to
@@ -216,7 +241,7 @@ $[# {arrow from to color alpha width} {: {#segment {.
     width width
     arrow true
     dashed false}} Shape}]
-Fn([Vec3, Vec3, String, Float, Float], Shape). A dashed segment.
+Fn([Vec3, Vec3, Color, Float, Float], Shape). A dashed segment.
 $[# {dashed from to color alpha width} {: {#segment {.
     from from
     to to
@@ -225,21 +250,21 @@ $[# {dashed from to color alpha width} {: {#segment {.
     width width
     arrow false
     dashed true}} Shape}]
-Fn([Vec3, Float, String, Float], Shape). A point, `radius` pixels across.
+Fn([Vec3, Float, Color, Float], Shape). A point, `radius` pixels across.
 $[# {point at radius color alpha} {: {#point {.
     at at
     radius radius
     color color
     alpha alpha}} Shape}]
-Fn([Vec3, String, String], Shape). A label beside `at`, its text as written (a symbol: `N`).
+Fn([Vec3, String, Color], Shape). A label beside `at`, its text as written (a symbol: `N`).
 $[# {label at text color} {: {#label {. at at text text color color}} Shape}]
-Fn([Vec3, String, String], Shape). A label beside `at`, its text the package's text `key` (`textKey`).
+Fn([Vec3, String, Color], Shape). A label beside `at`, its text the package's text `key` (`textKey`).
 $[# {labelText at key color} {: {#labelText {. at at text key color color}} Shape}]
 Fn([String], String). A key of the package's text table, as `labelText` takes it; the text check
 (lab/check) finds the keys a script names this way.
 $[# {textKey key} key]
 
-Fn([String, String, String], Row). A readout row.
+Fn([String, String, Color], Row). A readout row.
 $[# {row name value color} {: {. name name value value color color} Row}]
 
 Fn([Int], String). A whole number 0 or more in hexadecimal, upper case, at least two digits (`1F`).
@@ -251,18 +276,18 @@ Fn([Vec3, Int], String). A vector as `(x, y, z)`, each with `digits` decimals.
 $[# {vectorText v digits}
     f"{(${fixed {.x v} digits}, ${fixed {.y v} digits}, ${fixed {.z v} digits})}"]
 
-Fn([List(Vec3), String, Float, Float], List(Shape)). Segments through the points in turn.
+Fn([List(Vec3), Color, Float, Float], List(Shape)). Segments through the points in turn.
 $[# {polyline points color alpha width} {!if {isEmpty points}
     {'}
     {map {zip points {tail points}} {^ {p} {segment {.first p} {.second p} color alpha width}}}}]
 
-$[# _Arrow [% {Struct {' {Field "name" String} {Field "dir" Vec3} {Field "color" String}}}]]
+$[# _Arrow [% {Struct {' {Field "name" String} {Field "dir" Vec3} {Field "color" Color}}}]]
 
-Fn([String, Vec3, String], {color: String, dir: Vec3, name: String}). One of `grownArrows`'s arrows: its name,
+Fn([String, Vec3, Color], {color: Color, dir: Vec3, name: String}). One of `grownArrows`'s arrows: its name,
 its direction (a unit vector), and its colour.
 $[# {named name dir color} {: {. name name dir dir color color} _Arrow}]
 
-Fn([Vec3, List({color: String, dir: Vec3, name: String}), Float, Float, Float, Float], List(Shape)). Arrows
+Fn([Vec3, List({color: Color, dir: Vec3, name: String}), Float, Float, Float, Float], List(Shape)). Arrows
 `size` long from `at`, each labelled with its name, the first `count` of them: a fractional count grows the next one
 out of the point (smoothly), and its label shows once it is past 0.6 of its length.
 $[# {grownArrows at arrows size alpha width count} {flatten {map
@@ -287,7 +312,7 @@ $[# {_tip dirs values} {.first {fold
     {head {zip dirs values}}
     {^ {best e} {!if {>= {.second e} {.second best}} e best}}}}]
 
-Fn([Vec3, List(Vec3), List(Float), String, Float, Float, Float, Option(String)], List(Shape)). A polar plot
+Fn([Vec3, List(Vec3), List(Float), Color, Float, Float, Float, Option(String)], List(Shape)). A polar plot
 around `at`: each value as a radius along its direction, scaled so the largest is `size`, closed through `at`;
 with a text key, labelled at its tip. Nothing when no value is above 0.
 $[# {lobeLine at dirs values color size alpha width tag}
@@ -308,17 +333,17 @@ Colours
 
 The lab's palette (lab/src/palette.rs): the normal, the direction to the viewer, a reflected ray, an incident
 one, and what is selected.
-$[# normalColor "#6be3b0"]
-$[# viewColor "#8fb8ff"]
-$[# reflectedColor "#ff6fb5"]
-$[# incidentColor "#ffa14a"]
-$[# selectedColor "#ffd166"]
+$[# normalColor [% {rgb "#6be3b0"}]]
+$[# viewColor [% {rgb "#8fb8ff"}]]
+$[# reflectedColor [% {rgb "#ff6fb5"}]]
+$[# incidentColor [% {rgb "#ffa14a"}]]
+$[# selectedColor [% {rgb "#ffd166"}]]
 
 The theme's text colours (full, dim, faint) and its accent, as the viewer's theme draws them.
-$[# textColor "text"]
-$[# textDimColor "textDim"]
-$[# textFaintColor "textFaint"]
-$[# accentColor "accent"]
+$[# textColor [% {: {#text unit} Color}]]
+$[# textDimColor [% {: {#textDim unit} Color}]]
+$[# textFaintColor [% {: {#textFaint unit} Color}]]
+$[# accentColor [% {: {#accent unit} Color}]]
 
 Math scenes
 
@@ -351,7 +376,7 @@ $[# _MathTex [% {Struct {'
     {Field "part" Int}
     {Field "at" Vec2}
     {Field "size" Float}
-    {Field "color" String}
+    {Field "color" Color}
     {Field "alpha" Float}
     {Field "wipe" Float}
     {Field "lo" Vec2}
@@ -362,7 +387,7 @@ $[# _MathText [% {Struct {'
     {Field "key" Bool}
     {Field "at" Vec2}
     {Field "size" Float}
-    {Field "color" String}
+    {Field "color" Color}
     {Field "alpha" Float}
     {Field "lo" Vec2}
     {Field "hi" Vec2}}}]]
@@ -370,16 +395,16 @@ $[# _MathRect [% {Struct {'
     {Field "id" String}
     {Field "lo" Vec2}
     {Field "hi" Vec2}
-    {Field "fill" String}
+    {Field "fill" Color}
     {Field "fillAlpha" Float}
-    {Field "stroke" String}
+    {Field "stroke" Color}
     {Field "strokeAlpha" Float}
     {Field "width" Float}
     {Field "radius" Float}}}]]
 $[# _MathPath [% {Struct {'
     {Field "id" String}
     {Field "points" {List Vec2}}
-    {Field "color" String}
+    {Field "color" Color}
     {Field "alpha" Float}
     {Field "width" Float}
     {Field "drawn" Float}
@@ -389,13 +414,13 @@ $[# _MathBand [% {Struct {'
     {Field "id" String}
     {Field "top" {List Vec2}}
     {Field "bottom" {List Vec2}}
-    {Field "color" String}
+    {Field "color" Color}
     {Field "alpha" Float}}}]]
 $[# _MathDot [% {Struct {'
     {Field "id" String}
     {Field "at" Vec2}
     {Field "radius" Float}
-    {Field "color" String}
+    {Field "color" Color}
     {Field "alpha" Float}}}]]
 $[# _MathFrame [% {Struct {' {Field "center" Vec2} {Field "height" Float}}}]]
 $[# Mob [% {Variant {'

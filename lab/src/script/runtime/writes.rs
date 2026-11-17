@@ -18,7 +18,7 @@ pub(super) fn writes(list: &Data) -> Result<Vec<(String, Written)>, String> {
             let written = if entry.key != key {
                 // A vector's component.
                 Written::Number(match value {
-                    Data::Float(x) => *x as f32,
+                    Data::Float(x) => typed::single(*x, &format!("`{key}`"))?,
                     other => return Err(format!("`{key}` is a number, not {other:?}")),
                 })
             } else {
@@ -72,7 +72,7 @@ pub(super) fn typed(key: &str, entry: &values::Entry, value: &Data) -> Result<La
             .collect()
     };
     Ok(match (entry.ty, value) {
-        (Type::F32, Data::Float(x)) => LabValue::F32(*x as f32),
+        (Type::F32, Data::Float(x)) => LabValue::F32(typed::single(*x, &format!("`{key}`"))?),
         (Type::I32, Data::Int(n)) => {
             LabValue::I32(whole(*n, i32::MIN as i64, i32::MAX as i64)? as i32)
         }
@@ -424,9 +424,7 @@ pub fn animate(demo: crate::shot::DemoId, t: f32, state: &mut ShotState) -> Opti
     let snapshot = state.clone();
     with_runtime(|rt| {
         let kind = Kind::Animation(name.to_string());
-        let written = rt
-            .call(&kind, vec![Value::Float(t as f64)], &snapshot, None, None)
-            .and_then(|d| writes(&d));
+        let written = rt.call_writes(&kind, vec![Value::Float(t as f64)], &snapshot, None, None);
         match written {
             Ok(w) => {
                 rt.succeeded(&kind.to_string());

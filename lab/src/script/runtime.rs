@@ -42,9 +42,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 mod math;
 mod overlays;
+mod typed;
 mod writes;
 pub use math::*;
 pub use overlays::*;
+pub use typed::{Num, ScriptColor};
 pub use writes::*;
 
 /// The resource that holds the runtime library.
@@ -153,7 +155,7 @@ fn floats(labels: &[&str]) -> TypeDesc {
 
 fn float_field(v: &Value, label: &str) -> Result<f32, String> {
     match v.field(label) {
-        Some(Value::Float(x)) => Ok(*x as f32),
+        Some(Value::Float(x)) => typed::single(*x, &format!("field `{label}`")),
         Some(other) => Err(format!(
             "field `{label}` is a {}, not a Float",
             other.type_name()
@@ -192,8 +194,9 @@ lamlet_vector!(V2, glam::Vec2, x y);
 lamlet_vector!(V3, glam::Vec3, x y z);
 lamlet_vector!(V4, glam::Vec4, x y z w);
 
-/// A Rust struct that crosses to Lamlet as a record, for a package's natives' signatures: each field with its
-/// Lamlet label (`lab::lamlet_record! { pub struct Hit { pub point: V3 = "point", pub light_on: bool = "lightOn" } }`).
+/// A Rust struct that crosses to Lamlet as a record, for a package's natives' signatures and for what a hook returns:
+/// each field with its Lamlet label (`lab::lamlet_record! { pub struct Hit { pub point: V3 = "point", pub light_on:
+/// bool = "lightOn" } }`). It is read back by its type (`FromLamlet`), a field's error naming it.
 #[macro_export]
 macro_rules! lamlet_record {
     ($(#[$meta:meta])* $vis:vis struct $name:ident { $($(#[$fmeta:meta])* $fvis:vis $field:ident : $ty:ty = $label:literal),* $(,)? }) => {
@@ -211,6 +214,16 @@ macro_rules! lamlet_record {
         impl $crate::script::lamlet::embed::IntoLamlet for $name {
             fn into_lamlet(self) -> Result<$crate::script::lamlet::Value, String> {
                 Ok($crate::script::lamlet::Value::record(vec![$((std::rc::Rc::from($label), $crate::script::lamlet::embed::IntoLamlet::into_lamlet(self.$field)?)),*]))
+            }
+        }
+
+        impl $crate::script::lamlet::embed::FromLamlet for $name {
+            fn from_lamlet(v: &$crate::script::lamlet::Value) -> Result<Self, String> {
+                Ok($name { $($field: {
+                    let x = v.field($label).ok_or_else(|| format!("no field `{}`", $label))?;
+                    <$ty as $crate::script::lamlet::embed::FromLamlet>::from_lamlet(x)
+                        .map_err(|e| format!("`{}`: {e}", $label))?
+                }),* })
             }
         }
     };
@@ -869,7 +882,7 @@ impl Runtime {
         }
     }
 
-    /// Calls the hook `kind` with `args` in the context given.
+    /// Calls the hook `kind` with `args` in the context given: what it returned, read by its type.
     fn call(
         &mut self,
         kind: &Kind,
@@ -877,13 +890,26 @@ impl Runtime {
         state: &ShotState,
         frame: Option<&FrameContent>,
         statics: Option<&Statics>,
-    ) -> Result<Data, String> {
+    ) -> Result<Value, String> {
         let h = self.hook(kind).ok_or_else(|| format!("no {kind}"))?;
         let (module, binding) = (h.module, h.binding.clone());
         let instance = &mut self.modules[module].instance;
-        let value = with_context(state, frame, statics, || instance.call(&binding, args))
-            .map_err(|e| e.render())?;
-        Data::from_value(&value).map_err(|e| format!("`{}` returned {e}", binding.name))
+        with_context(state, frame, statics, || instance.call(&binding, args))
+            .map_err(|e| e.render())
+    }
+
+    /// Calls the hook `kind` (`call`) for writes, whose values are data the lab checks against their keys.
+    fn call_writes(
+        &mut self,
+        kind: &Kind,
+        args: Vec<Value>,
+        state: &ShotState,
+        frame: Option<&FrameContent>,
+        statics: Option<&Statics>,
+    ) -> Result<Vec<(String, Written)>, String> {
+        let value = self.call(kind, args, state, frame, statics)?;
+        let data = Data::from_value(&value).map_err(|e| format!("{kind} returned {e}"))?;
+        writes(&data)
     }
 
     /// Calls a hook that returns writes and applies them to `target` (all or none): whether it set anything; None
@@ -900,8 +926,7 @@ impl Runtime {
         self.hook(&kind)?;
         let name = kind.to_string();
         let applied = self
-            .call(&kind, args, state, frame, statics)
-            .and_then(|d| writes(&d))
+            .call_writes(&kind, args, state, frame, statics)
             .map(|w| apply(&w, target));
         match applied {
             Ok(set) => {

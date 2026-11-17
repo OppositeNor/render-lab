@@ -4,8 +4,14 @@ Status (2026-11-05): the first, trivial step is done: render_lab's points, marks
 typed Data, and `tools/video/markup.py` has no String grammar for them. Stage 1 is done too, through lamlet-present
 0.3.0 (556754d, 6f4cad8, 41f4339). The vocabulary writes typed data, the lab's option lists are closed, and every
 cue attribute and heading attribute is checked against the key list (`render-lab lamlet ir --keys`), with the
-headings read by the lab's heading keys. Stages 2 to 5 are open. All of this is lab-side work that needs no change
-to the Lamlet language.
+headings read by the lab's heading keys. All of this is lab-side work that needs no change to the Lamlet language.
+
+Status (2026-11-16): stage 3 is done (ae0d6a2, 2026-11-09). Stages 2 and 4 are done together: hooks' shapes, rows,
+and mobs are read by type (`lamlet_record!` reads records back, runtime/typed.rs), a colour is runtime.lam's `Color`
+(the theme's four, or `{rgb "#rrggbb"}`, checked when a script loads for every named colour), and a number past
+`f32`'s range is refused. Stage 4's premise changed: Lamlet 0.4's Float is finite (literals, arithmetic, and
+natives' results are refused otherwise), so the gap left was a finite `f64` that turns infinite as an `f32`.
+Stage 5 is open.
 
 Out of scope: checks across documents or of a storyboard's structure (the zh-CN edition's alignment, unique ids,
 heading order, "a beat has narration", budgets), and checks against investigation data (source keys, text keys,

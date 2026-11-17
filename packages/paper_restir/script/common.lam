@@ -8,15 +8,15 @@ chance weighed.
 $[Import* std]$[Import* render_lab_runtime]$[Import* render_lab_math]
 
 The cheap choice's probability p, the target p-hat, a candidate's weight w, the true total, and an estimate.
-$[# pColor "#8fb8ff"]
+$[# pColor [% {rgb "#8fb8ff"}]]
 
-$[# targetColor "#ffd166"]
+$[# targetColor [% {rgb "#ffd166"}]]
 
-$[# weightColor "#ff6fb5"]
+$[# weightColor [% {rgb "#ff6fb5"}]]
 
-$[# totalColor "#6be3b0"]
+$[# totalColor [% {rgb "#6be3b0"}]]
 
-$[# estimateColor "#ffa14a"]
+$[# estimateColor [% {rgb "#ffa14a"}]]
 
 Fn([Float], String). A number as LaTeX: a fraction with the smallest denominator up to 16 that makes it whole
 (4/3, 20/3), else two decimals.
@@ -97,7 +97,7 @@ $[# chanceView {:
         {append {fadeIn {phase t 0.0 0.2} formula} bar}}
     {Fn {' String Float Float Float Bool Float Vec2} {List Mob}}}]
 
-Fn([Float, List(Mob), List(String), String], List(Mob)). A figure with its parts named in `ids` pointed at while `t`
+Fn([Float, List(Mob), List(String), Color], List(Mob)). A figure with its parts named in `ids` pointed at while `t`
 runs (`indicate` on those parts alone; the figure as it is before and after).
 $[# {pointParts t mobs ids color} {!if {!and {> t 0.0} {< t 1.0}}
     {append
@@ -105,7 +105,7 @@ $[# {pointParts t mobs ids color} {!if {!and {> t 0.0} {< t 1.0}}
         {indicate t {filter mobs {^ {m} {contains ids {idOf m}}}} color}}
     mobs}]
 
-Fn([Float, List(Mob), List(String), String], List(Mob)). A figure with its parts named in `ids` struck out (`t`).
+Fn([Float, List(Mob), List(String), Color], List(Mob)). A figure with its parts named in `ids` struck out (`t`).
 $[# {crossParts t mobs ids color} {append
     {filter mobs {^ {m} {not {contains ids {idOf m}}}}}
     {crossOut t {filter mobs {^ {m} {contains ids {idOf m}}}} color}}]
