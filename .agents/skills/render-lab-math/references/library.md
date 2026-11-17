@@ -24,22 +24,22 @@ up; widths of lines in pixels at 1080p; an em `size` in canvas units. `t` is an 
 
 ## Mobs
 
-- `texParts`: Fn([String, String, Float, String, List(String), List(String)], List(Mob)). A formula, centred on the origin, an em `size` canvas units: its ink outside the `\lit{n}{…}` terms (named `id`, in `color`), then each term n (named the n-th of `names`, in the n-th of `colors`; past their ends, `id.n` and `color`). Display style.
+- `texParts`: Fn([String, String, Float, Color, List(String), List(Color)], List(Mob)). A formula, centred on the origin, an em `size` canvas units: its ink outside the `\lit{n}{…}` terms (named `id`, in `color`), then each term n (named the n-th of `names`, in the n-th of `colors`; past their ends, `id.n` and `color`). Display style.
 - `tex`: Fn([String, String, Float, String], List(Mob)). A formula in one colour (its terms named `id.n`).
-- `words`: Fn([String, String, Float, String], List(Mob)). A line of text, written out (a number, a symbol), centred on the origin, an em `size` high.
-- `caption`: Fn([String, String, Float, String], List(Mob)). A line of the package's text `key` (`textKey`), in the viewer's language.
+- `words`: Fn([String, String, Float, Color], List(Mob)). A line of text, written out (a number, a symbol), centred on the origin, an em `size` high.
+- `caption`: Fn([String, String, Float, Color], List(Mob)). A line of the package's text `key` (`textKey`), in the viewer's language.
 - `numberLatex`: Fn([Float, Int], String). A number with `digits` decimals, as LaTeX (a minus sign, not a hyphen).
-- `number`: Fn([String, Float, Int, Float, String], List(Mob)). A number typeset as a formula: count it by drawing it at a value that moves (`{number "w" {lerp 0.0 12.0 t} 2 0.5 color}`).
+- `number`: Fn([String, Float, Int, Float, Color], List(Mob)). A number typeset as a formula: count it by drawing it at a value that moves (`{number "w" {lerp 0.0 12.0 t} 2 0.5 color}`).
 - `fractionLatex`: Fn([Int, Int], String). A fraction `n/d` as LaTeX, in lowest terms (a whole number when `d` divides `n`).
-- `rectMob`: Fn([String, Box, String, Float, String, Float, Float, Float], Mob). A rectangle: filled (`fillAlpha` 0 leaves the fill out), outlined `width` pixels (0 leaves it out), its corners rounded by `radius` canvas units.
+- `rectMob`: Fn([String, Box, Color, Float, Color, Float, Float, Float], Mob). A rectangle: filled (`fillAlpha` 0 leaves the fill out), outlined `width` pixels (0 leaves it out), its corners rounded by `radius` canvas units.
 - `filled`: Fn([String, Box, String, Float], List(Mob)). A filled rectangle.
-- `outlined`: Fn([String, Box, String, Float], List(Mob)). A rectangle's outline, `width` pixels, slightly rounded.
-- `pathMob`: Fn([String, List(Vec2), String, Float, Bool, Bool], Mob). A path through `points`, `width` pixels.
+- `outlined`: Fn([String, Box, Color, Float], List(Mob)). A rectangle's outline, `width` pixels, slightly rounded.
+- `pathMob`: Fn([String, List(Vec2), Color, Float, Bool, Bool], Mob). A path through `points`, `width` pixels.
 - `line`: Fn([String, Vec2, Vec2, String, Float], List(Mob)). A line.
-- `arrowLine`: Fn([String, Vec2, Vec2, String, Float], List(Mob)). An arrow from `a` to `b`.
-- `dashedLine`: Fn([String, Vec2, Vec2, String, Float], List(Mob)). A dashed line.
-- `pathThrough`: Fn([String, List(Vec2), String, Float], List(Mob)). A path through points (a curve, sampled).
-- `bandBetween`: Fn([String, List(Vec2), List(Vec2), String, Float], List(Mob)). The area between two lines of as many points.
+- `arrowLine`: Fn([String, Vec2, Vec2, Color, Float], List(Mob)). An arrow from `a` to `b`.
+- `dashedLine`: Fn([String, Vec2, Vec2, Color, Float], List(Mob)). A dashed line.
+- `pathThrough`: Fn([String, List(Vec2), Color, Float], List(Mob)). A path through points (a curve, sampled).
+- `bandBetween`: Fn([String, List(Vec2), List(Vec2), Color, Float], List(Mob)). The area between two lines of as many points.
 - `dotAt`: Fn([String, Vec2, Float, String], List(Mob)). A dot `radius` canvas units across, at `at`.
 
 ## Measuring a figure
@@ -83,7 +83,7 @@ up; widths of lines in pixels at 1080p; an em `size` in canvas units. `t` is an 
 - `tinted`: Fn([List(Mob), String], List(Mob)). Recoloured (a rectangle's fill and outline both).
 - `renamed`: Fn([List(Mob), String], List(Mob)). Renamed: every mob called `id` (a figure that stands for one thing).
 - `hsvColor`: Fn([Float, Float, Float], String). The colour of hue `h`, saturation `s`, and value `v` (each 0 to 1), as `#rrggbb`.
-- `spectrum`: Fn([Int], List(String)). `n` colours around the hue circle, neighbours far apart (one per outcome of a distribution).
+- `spectrum`: Fn([Int], List(Color)). `n` colours around the hue circle, neighbours far apart (one per outcome of a distribution).
 
 ## Progress and rate functions
 
@@ -115,7 +115,7 @@ up; widths of lines in pixels at 1080p; an em `size` in canvas units. `t` is an 
 - `Axes`: Axes: where they are on the canvas (a box), the ranges they show, and how a point of theirs maps to the canvas. Every figure drawn on them (`plot`, `area`, `riemann`, `histogram`, `dotOn`) takes them, so moving the axes moves what is on them.
 - `axesIn`: Fn([Box, Range, Range], Axes). Axes filling `b`.
 - `onAxes`: Fn([Axes, Float, Float], Vec2). The canvas point of the axes' point (x, y).
-- `axesFigure`: Fn([String, Axes, String, Float, Bool, Bool], List(Mob)). The axes drawn: each axis an arrow through its range (at the other's zero, or its edge), ticks, and (`labelX`, `labelY`) each tick's number, `size` canvas units an em.
+- `axesFigure`: Fn([String, Axes, Color, Float, Bool, Bool], List(Mob)). The axes drawn: each axis an arrow through its range (at the other's zero, or its edge), ticks, and (`labelX`, `labelY`) each tick's number, `size` canvas units an em.
 - `numberLine`: Fn([String, Range, Vec2, Vec2, String, Float], List(Mob)). A number line from `a` to `b` on the canvas, its range's ticks numbered, `size` an em (an axis alone).
 - `onLine`: Fn([Range, Vec2, Vec2, Float], Vec2). Where `x` is on a number line from `a` to `b`.
 
@@ -144,10 +144,10 @@ up; widths of lines in pixels at 1080p; an em `size` in canvas units. `t` is an 
 
 ## Bars, braces, and areas
 
-- `bars`: Fn([String, List(Float), Float, Box, List(String), Float], List(List(Mob))). Bars for values, side by side in `b`, each as high as its value over `top` (the value the box's height stands for), `gap` (a fraction of a bar) between them, in its colour (the last colour when they run out). Each bar is named `id.i`; `growFrom … down` raises one.
+- `bars`: Fn([String, List(Float), Float, Box, List(Color), Float], List(List(Mob))). Bars for values, side by side in `b`, each as high as its value over `top` (the value the box's height stands for), `gap` (a fraction of a bar) between them, in its colour (the last colour when they run out). Each bar is named `id.i`; `growFrom … down` raises one.
 - `brace`: Fn([String, List(Mob), Side, Float, String], List(Mob)). A curly brace along one side of a figure (manim's `Brace`), `gap` from it; `braceLabel` puts a label beyond its tip.
 - `braceLabel`: Fn([String, List(Mob), Side, Float, String, List(Mob)], List(Mob)). A brace and its label beyond its tip.
-- `areaSquare`: Fn([String, List(Float), List(Float), Box, List(String), Float], List(Mob)). Probabilities as areas (a mosaic): the box split into columns as wide as `across`'s shares and rows as high as `down`'s (top to bottom), each cell a rectangle named `id.i.j` (column i, row j) whose area is the product of its two shares, in the colour of its column (the last colour when they run out), `gap` canvas units apart.
+- `areaSquare`: Fn([String, List(Float), List(Float), Box, List(Color), Float], List(Mob)). Probabilities as areas (a mosaic): the box split into columns as wide as `across`'s shares and rows as high as `down`'s (top to bottom), each cell a rectangle named `id.i.j` (column i, row j) whose area is the product of its two shares, in the colour of its column (the last colour when they run out), `gap` canvas units apart.
 
 ## Tables
 
@@ -165,4 +165,4 @@ up; widths of lines in pixels at 1080p; an em `size` in canvas units. `t` is an 
 - `Graph`: A graph laid out by `graph`: its nodes' figures placed, its edges drawn between them, and where each node is.
 - `graph`: Fn([String, List(List(Mob)), List({first: Int, second: Int}), String, Box, Bool, String, Int], Graph). A graph (manim's `Graph` and `DiGraph`): each node a figure (centred on the origin), placed by the `layout` (`circular`, `grid`, `bipartite`, `tree`, `layered`, or `spring`, seeded by `seed`; lab/src/math/layout.rs) in the box `b`, and each edge (from, to) a line or, `directed`, an arrow from the edge of one node's box to the other's, in `color`. Each node's figure keeps its names; edge k is named `id.k`.
 - `graphFigure`: Fn([Graph], List(Mob)). The whole graph: edges under nodes.
-- `flowAlong`: Fn([Float, List(Mob), Float, String], List(Mob)). A dot travelling along an edge (or any path) at `t`, `radius` canvas units: what flows along it.
+- `flowAlong`: Fn([Float, List(Mob), Float, Color], List(Mob)). A dot travelling along an edge (or any path) at `t`, `radius` canvas units: what flows along it.

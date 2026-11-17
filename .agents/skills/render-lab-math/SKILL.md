@@ -67,11 +67,11 @@ it is a function of its time and its values (the investigation's values package)
 
 ## Writing a scene, in order
 
-The hook's form, helpers, colours as Strings, LaTeX in templates, and anchors are in `references/recipes.md`, "The
+The hook's form, helpers, colours (`Color`), LaTeX in templates, and anchors are in `references/recipes.md`, "The
 Lamlet a scene needs".
 
 1. **The palette.** One colour per symbol, the same in every figure (p blue, p̂ yellow, w pink, …), as private
-   bindings (`_pColor`). The theme's `textColor`, `textDimColor`, `accentColor` follow the viewer's theme.
+   static bindings (`$[# _pColor [% {rgb "#8fb8ff"}]]`). The theme's `textColor`, `textDimColor`, `accentColor` follow the viewer's theme.
 2. **The figures**, each a function of the stage (`_bars i s`, `_table drop`), their parts named: a formula's
    `\lit{n}{…}` terms get names (`texParts id latex size color names colors`), and a part keeps its name in every
    formula it appears in, so `transform` carries it.

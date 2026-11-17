@@ -199,10 +199,15 @@ marks), since moving them would add a frame-data struct and natives to move a fe
 - **Natives.** `Investigation::script_natives` registers the package's (`<package>/<name>`). One that reads the
   frame takes what `build_frame` left in `FrameContent::script` (`lab::script::runtime::frame_data::<T>()`), so it
   computes nothing twice; `state`, `frame`, and `statics` read the call's context. A native works on a whole list
-  (all of a lobe's directions in one call), and `lab::lamlet_record!` declares a record it returns. Its name must not
+  (all of a lobe's directions in one call), and `lab::lamlet_record!` declares a record it returns (and reads
+  one back). Its name must not
   be a value's key (the key would leave the values package).
 - **Text.** A label's or a row's text is a text key: `{labelText at {textKey "demos-observer"} color}`, or
   `{text {textKey "…"}}` for the string; the text check (`lab/check`) finds `textKey`.
+- **Colours** are runtime.lam's `Color`: the theme's `textColor`, `textDimColor`, `textFaintColor`, `accentColor`,
+  or a fixed `{rgb "#rrggbb"}`. Bind a fixed one once as a static colour (`$[# _light [% {rgb "#ffd98a"}]]`): a
+  wrong one then stops the script from loading. The lab reads what a hook returns by its type
+  (`lab/src/script/runtime/typed.rs`), each error naming the item and the field.
 - **Errors.** A script that does not check fails when its package loads, with its line, and so does a function of
   its own (not `_`) that looks like a hook with the wrong signature: one returning a hook's list (`List(Shape)`,
   `List(Row)`, `List(Write)`) but taking what no hook takes, or one that is generic; the error names the parameters

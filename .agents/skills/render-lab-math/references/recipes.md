@@ -19,8 +19,9 @@ $[# myScene {: {^ {t}
   is never taken for a hook), or a lambda `{^ {x} body}`; a function `plot` takes is either:
   `$[# {_f x} {* {* 2.0 x} {exp {neg x}}}]`, then `{plot "f" ax _f 0.0 4.0 _curveColor 3.0}`. Numbers are Floats
   (`2.0`, not `2`); std's `exp`, `neg`, `sin`, `sqrt`, `lerp`, `clamp`, `min`, `max` come with `$[Import* std]`.
-- **Colours** are Strings: `"#rrggbb"`, or a theme colour's name through the runtime library's `textColor`,
-  `textDimColor`, `textFaintColor`, `accentColor`.
+- **Colours** are the runtime library's `Color`: a fixed one, `{rgb "#rrggbb"}`, bound once as a static colour
+  (`$[# _pColor [% {rgb "#8fb8ff"}]]`, so a wrong one stops the script from loading), or the theme's `textColor`,
+  `textDimColor`, `textFaintColor`, `accentColor`, which follow the viewer's theme.
 - **LaTeX** goes in a template, `f"{\int_{0.5}^{2.5} \lit{1}{f(x)}\,dx}"`: backslashes and braces as LaTeX writes
   them, nothing escaped; `${…}` inserts a call's value (`f"{\frac{1}{${numberLatex x 1}}}"`) and `$name` a variable's
   (`${name}` would call it). A LaTeX command chosen by a condition is a template too: `${!if a "<" f"{\geq}"}`. Terms are `\lit{1}`, `\lit{2}`,
