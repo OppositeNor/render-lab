@@ -268,21 +268,8 @@ fn scene_tabs(ctx: &egui::Context, after: f32, input: &UiInput, viewer: &mut Vie
 /// The viewer's controls: the shown scene's demonstrations, Play or Pause, Step, Reset, the timeline's toggle,
 /// the windows' menu, and Home.
 fn viewer_controls(ui: &mut egui::Ui, input: &UiInput, viewer: &mut ViewerChrome) {
-    let (l, investigation) = (&input.layout, investigation::current());
-    let shown = investigation.demo_scene(input.state.demo);
-    // The shown scene's demonstrations.
-    for (i, demo) in investigation.scene_demos(shown).iter().enumerate() {
-        let selected = input.state.demo == *demo && !viewer.timeline_mode;
-        if ui
-            .selectable_label(
-                selected,
-                format!("{} {}", i + 1, investigation.demo_tab(*demo)),
-            )
-            .clicked()
-        {
-            viewer.actions.push(ViewerAction::SelectDemo(*demo));
-        }
-    }
+    let l = &input.layout;
+    demo_menu(ui, input, viewer);
     ui.separator();
     if ui
         .button(if viewer.playing {
@@ -331,6 +318,44 @@ fn viewer_controls(ui: &mut egui::Ui, input: &UiInput, viewer: &mut ViewerChrome
     {
         viewer.actions.push(ViewerAction::Home);
     }
+}
+
+/// The shown scene's demonstrations, as one menu that shows the current one (numbered as the keys choose them),
+/// so that however many there are the header's other controls keep their room.
+fn demo_menu(ui: &mut egui::Ui, input: &UiInput, viewer: &mut ViewerChrome) {
+    let investigation = investigation::current();
+    let demos = investigation.scene_demos(investigation.demo_scene(input.state.demo));
+    let labels: Vec<String> = demos
+        .iter()
+        .enumerate()
+        .map(|(i, demo)| format!("{} {}", i + 1, investigation.demo_tab(*demo)))
+        .collect();
+    let current = demos.iter().position(|d| *d == input.state.demo);
+    // As wide as its widest entry, so that it keeps its width from one demonstration to the next.
+    let font = egui::TextStyle::Button.resolve(ui.style());
+    let width = labels
+        .iter()
+        .map(|t| {
+            ui.painter()
+                .layout_no_wrap(t.clone(), font.clone(), egui::Color32::WHITE)
+                .size()
+                .x
+        })
+        .fold(0.0, f32::max)
+        + ui.spacing().button_padding.x * 2.0
+        + ui.spacing().icon_width;
+    egui::ComboBox::from_id_salt("viewer-demos")
+        .width(width)
+        .selected_text(current.map_or_else(String::new, |i| labels[i].clone()))
+        .show_ui(ui, |ui| {
+            for (i, (demo, label)) in demos.iter().zip(&labels).enumerate() {
+                // In the timeline's mode none is chosen: a click leaves it for that demonstration.
+                let selected = current == Some(i) && !viewer.timeline_mode;
+                if ui.selectable_label(selected, label).clicked() {
+                    viewer.actions.push(ViewerAction::SelectDemo(*demo));
+                }
+            }
+        });
 }
 
 /// The header's Windows menu: each window shown or not (src/ui/windows.rs), and the layout back to its
