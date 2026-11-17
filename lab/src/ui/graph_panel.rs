@@ -438,7 +438,6 @@ struct Grid {
 /// `<node>.<resource>` (the inspector shows it).
 pub(crate) fn draw_graph_panel(panel: &GraphPanel) -> Option<GraphPick> {
     let GraphPanel {
-        ctx,
         ink,
         rect,
         view,
@@ -452,7 +451,6 @@ pub(crate) fn draw_graph_panel(panel: &GraphPanel) -> Option<GraphPick> {
     let width = right - x;
     let (y, switched) = graph_header(
         &GraphPanel {
-            full: false,
             source: None,
             ..*panel
         },
@@ -485,7 +483,12 @@ pub(crate) fn draw_graph_panel(panel: &GraphPanel) -> Option<GraphPick> {
             )
         })
         .collect();
-    let responses = interact_rects(ctx, "graph-grid", &rects);
+    // A panel without the pointer (a recording's, or the window's under the full-screen one) takes no input.
+    let responses = if panel.interactive {
+        interact_rects(panel, "graph-grid", &rects)
+    } else {
+        Vec::new()
+    };
     let at = |hit: fn(&egui::Response) -> bool| responses.iter().position(hit).map(|i| cells[i]);
     let hovered = at(|r| r.hovered() || r.has_focus());
     let inspected = view
@@ -768,7 +771,7 @@ pub enum GraphPick {
     Inspect(String),
     /// Show the graph as a grid, a DAG, or its resources (`PanelMode::Graph`, `Dag`, `Resources`).
     Panel(PanelMode),
-    /// Open or close the DAG (or the resources) full screen.
+    /// Open or close the panel (the grid, the DAG, or the resources) full screen.
     Overlay(bool),
     /// Put the view's nodes back where the layout placed them.
     Reset,
@@ -807,7 +810,6 @@ pub(super) enum GraphPlace {
 /// starts, and a button's pick.
 pub(super) fn graph_header(panel: &GraphPanel, place: GraphPlace) -> (f32, Option<GraphPick>) {
     let GraphPanel {
-        ctx,
         ink,
         rect,
         view,
@@ -831,7 +833,7 @@ pub(super) fn graph_header(panel: &GraphPanel, place: GraphPlace) -> (f32, Optio
                 button
             })
             .collect();
-        let responses = interact_rects(ctx, ("graph-header", place as u8), &rects);
+        let responses = interact_rects(panel, ("graph-header", place as u8), &rects);
         for ((label, active, action), (button, response)) in
             buttons.into_iter().zip(rects.iter().zip(&responses))
         {
@@ -895,22 +897,24 @@ pub(super) fn graph_header(panel: &GraphPanel, place: GraphPlace) -> (f32, Optio
 }
 
 /// Places the pointer and the keyboard can use, over a panel that is painted rather than laid out: an area
-/// over `rects` (named by `salt`), and a response each that hovers, takes the focus (Tab), and clicks (the
-/// pointer, or Enter and Space while focused).
+/// over `rects` (named by `salt` and by the panel's place, in the window or full screen), and a response each
+/// that hovers, takes the focus (Tab), and clicks (the pointer, or Enter and Space while focused).
 fn interact_rects(
-    ctx: &egui::Context,
+    panel: &GraphPanel,
     salt: impl std::hash::Hash + std::fmt::Debug,
     rects: &[Rect],
 ) -> Vec<egui::Response> {
     let Some(bounds) = rects.iter().copied().reduce(|a, b| a.union(b)) else {
         return Vec::new();
     };
-    egui::Area::new(egui::Id::unique(salt))
+    // The window's panel and the full-screen one are drawn in the same frame: each its own ids, so that a click
+    // on one (Full screen) is never the other's too (Close).
+    let shown = egui::Area::new(egui::Id::unique((salt, panel.full)))
         .fixed_pos(bounds.min)
         .order(egui::Order::Foreground)
         .constrain(false)
         .fade_in(false)
-        .show(ctx, |ui| {
+        .show(panel.ctx, |ui| {
             // The area covers them all, so that its layer is the one under the pointer there.
             ui.allocate_rect(bounds, egui::Sense::hover());
             rects
@@ -918,8 +922,14 @@ fn interact_rects(
                 .enumerate()
                 .map(|(i, r)| ui.interact(*r, ui.scope_id().with(i), egui::Sense::click()))
                 .collect()
-        })
-        .inner
+        });
+    // Painted on a layer of the same order (the full-screen overlay), the panel stays under its places, even
+    // after a press on it brings it to the top.
+    let painted = panel.ink.painter.layer_id();
+    if painted.order == egui::Order::Foreground && painted != shown.response.layer_id {
+        panel.ctx.set_sublayer(painted, shown.response.layer_id);
+    }
+    shown.inner
 }
 
 /// The header's buttons, right to left: full screen (or close), the resources, the DAG, the grid, the WGSL
@@ -945,14 +955,12 @@ fn header_buttons(panel: &GraphPanel, place: GraphPlace) -> Vec<(&'static str, b
             place == GraphPlace::Dag,
             GraphPick::Panel(PanelMode::Dag),
         ),
-    ];
-    if !full {
-        buttons.push((
+        (
             tr("graph-grid"),
             place == GraphPlace::Grid,
             GraphPick::Panel(PanelMode::Graph),
-        ));
-    }
+        ),
+    ];
     // The full-screen DAG, a pass selected: its WGSL beside the graph, or not.
     if let (Some(open), true) = (source, view.inspected.is_some() || source == Some(true)) {
         buttons.push((
@@ -1070,3 +1078,6 @@ fn ms_label(v: f64) -> String {
         "–".into()
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -1,5 +1,5 @@
 //! The Frame graph tab: the frame's render graph (src/graph/) in the panel (`PanelMode::Graph`, `Dag`, or
-//! `Resources`, which a story shows too), the DAG or the cards full screen (with the selected pass's WGSL),
+//! `Resources`, which a story shows too), any of them full screen (the DAG with the selected pass's WGSL),
 //! and the inspector (a resource right after a node, in an inset); the dock describes the hovered or
 //! selected pass.
 
@@ -48,9 +48,12 @@ pub fn inspect(state: &mut ShotState, key: Option<String>) {
     });
 }
 
-/// The panels that show the DAG or the cards, which go full screen.
+/// The panels that show the graph (its grid, its DAG, or the cards), which go full screen.
 fn full_screen_panel(panel: PanelMode) -> bool {
-    matches!(panel, PanelMode::Dag | PanelMode::Resources)
+    matches!(
+        panel,
+        PanelMode::Graph | PanelMode::Dag | PanelMode::Resources
+    )
 }
 
 /// What a snapshot page shows of the graph.
@@ -199,7 +202,7 @@ impl Feature for GraphFeature {
 
 #[derive(Default)]
 struct Graph {
-    /// The DAG (or the cards) full screen, and with the DAG, the selected pass's WGSL beside it.
+    /// The panel full screen, and with the DAG, the selected pass's WGSL beside it.
     full_screen: bool,
     source: bool,
     /// What a click asked the inspector to show (none: hide it).
@@ -329,13 +332,14 @@ impl Graph {
 }
 
 impl FeatureState for Graph {
-    /// What a click asked the inspector; leaving the tab closes the full-screen DAG.
+    /// What a click asked the inspector; leaving the tab, or the panel leaving the graph, closes the full-screen
+    /// view (so that it never opens later by itself).
     fn update(&mut self, host: &mut dyn Host) {
         if let Some(key) = self.inspect.take().filter(|_| host.interactive()) {
             inspect(host.state_mut(), key);
         }
         let on_tab = host.tab() == TAB;
-        if self.on_tab && !on_tab {
+        if (self.on_tab && !on_tab) || !full_screen_panel(host.state().panel) {
             self.full_screen = false;
         }
         self.on_tab = on_tab;
@@ -346,7 +350,8 @@ impl FeatureState for Graph {
         true
     }
 
-    /// The graph, its DAG, or its resources' cards; the wheel scrolls it, not the camera.
+    /// The graph, its DAG, or its resources' cards; the wheel scrolls it, not the camera. Under the full-screen
+    /// view it takes no input.
     fn story_panel(&mut self, panel: &mut StoryPanel) {
         let input = panel.input;
         let l = &input.layout;
@@ -354,6 +359,7 @@ impl FeatureState for Graph {
             return;
         }
         let view = input.graph.cloned().unwrap_or_default();
+        let interactive = panel.interactive && !self.covers(input.state);
         let graph = GraphPanel {
             ctx: panel.ctx,
             ink: panel.ink,
@@ -361,7 +367,7 @@ impl FeatureState for Graph {
             view: &view,
             highlight: &input.state.highlight,
             full: false,
-            interactive: panel.interactive,
+            interactive,
             source: None,
         };
         let pick = match input.state.panel {
@@ -369,7 +375,7 @@ impl FeatureState for Graph {
             PanelMode::Dag => crate::ui::draw_dag_panel(&graph),
             _ => crate::ui::draw_resource_panel(&graph),
         };
-        if panel.interactive {
+        if interactive {
             // Its input is read by hand in the background layer.
             panel.pointer |= panel
                 .ctx
@@ -381,8 +387,8 @@ impl FeatureState for Graph {
         }
     }
 
-    /// The DAG (with the selected pass's WGSL beside it) or the cards full screen, over everything (Esc
-    /// closes it).
+    /// The grid, the DAG (with the selected pass's WGSL beside it), or the cards full screen, over everything
+    /// (Esc closes it).
     fn overlay(&mut self, panel: &mut StoryPanel) {
         let input = panel.input;
         if !(self.covers(input.state) && input.scene_type == SceneType::ThreeD) {
@@ -440,7 +446,7 @@ impl FeatureState for Graph {
                     }
                     pick
                 } else {
-                    crate::ui::draw_resource_panel(&GraphPanel {
+                    let full = GraphPanel {
                         ctx,
                         ink: &overlay_ink,
                         rect: area,
@@ -449,7 +455,12 @@ impl FeatureState for Graph {
                         full: true,
                         interactive: true,
                         source: None,
-                    })
+                    };
+                    if input.state.panel == PanelMode::Graph {
+                        crate::ui::draw_graph_panel(&full)
+                    } else {
+                        crate::ui::draw_resource_panel(&full)
+                    }
                 };
                 ink.min_size
                     .set(ink.min_size.get().min(overlay_ink.min_size.get()));
