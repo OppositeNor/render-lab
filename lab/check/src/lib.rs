@@ -4,6 +4,8 @@
 //! keys. A failure fails the build; nothing is generated. They read only the
 //! package's directory, its code, and the packages beside it it imports.
 
+mod lam_keys;
+
 use fluent_syntax::ast;
 use naga::valid::{Capabilities, ValidationFlags, Validator};
 use std::collections::BTreeMap;
@@ -483,29 +485,10 @@ fn toml_keys(path: &Path, keys: &mut Vec<(String, String)>) {
 }
 
 /// The text keys a Lamlet file names: a storyboard's image title, mark label, and label text, a script's
-/// `{textKey "…"}`, and a data file's `titleText "…"`.
+/// `{textKey "…"}`, and a data file's `titleText "…"`, found by the Lamlet parser (src/lam_keys.rs).
 fn lam_keys(path: &Path, keys: &mut Vec<(String, String)>) {
     println!("cargo:rerun-if-changed={}", path.display());
-    for (n, line) in fs::read_to_string(path).unwrap().lines().enumerate() {
-        // A data file's `titleText "key"`, then each cue that takes a key, called directly or through `attr`.
-        for (i, found) in line.match_indices("titleText \"") {
-            let rest = &line[i + found.len()..];
-            let key = &rest[..rest.find('"').unwrap_or(rest.len())];
-            if !key.is_empty() {
-                keys.push((key.to_string(), format!("{}:{}", path.display(), n + 1)));
-            }
-        }
-        for name in ["imageTitle", "imageMarkText", "labelText", "textKey"] {
-            let (call, attr) = (format!("{{{name} \""), format!("{{attr \"{name}\" \""));
-            for (i, found) in line.match_indices(&call).chain(line.match_indices(&attr)) {
-                let rest = &line[i + found.len()..];
-                let key = &rest[..rest.find('"').unwrap_or(rest.len())];
-                if !key.is_empty() {
-                    keys.push((key.to_string(), format!("{}:{}", path.display(), n + 1)));
-                }
-            }
-        }
-    }
+    keys.extend(lam_keys::keys(path, &fs::read_to_string(path).unwrap()));
 }
 
 /// The text keys a pseudo-code listing names: its title and dispatch line (`# title-text: key`, lab/src/pseudocode.rs).

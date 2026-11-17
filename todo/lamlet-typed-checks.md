@@ -11,7 +11,9 @@ and mobs are read by type (`lamlet_record!` reads records back, runtime/typed.rs
 (the theme's four, or `{rgb "#rrggbb"}`, checked when a script loads for every named colour), and a number past
 `f32`'s range is refused. Stage 4's premise changed: Lamlet 0.4's Float is finite (literals, arithmetic, and
 natives' results are refused otherwise), so the gap left was a finite `f64` that turns infinite as an `f32`.
-Stage 5 is open.
+Stage 5 is done too: `lab/check` finds a `.lam` file's text keys with the pinned parser (src/lam_keys.rs) and
+refuses a computed one; it finds the same 126 keys in the 47 `.lam` files the substring scan did. Only the small
+items left from stage 1 remain.
 
 Out of scope: checks across documents or of a storyboard's structure (the zh-CN edition's alignment, unique ids,
 heading order, "a beat has narration", budgets), and checks against investigation data (source keys, text keys,

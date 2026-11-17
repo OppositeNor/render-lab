@@ -3424,6 +3424,7 @@ name = "render-lab-check"
 version = "0.0.6"
 dependencies = [
  "fluent-syntax",
+ "lamlet",
  "naga",
  "serde_json",
  "toml_edit 0.25.17+spec-1.1.0",

@@ -154,8 +154,11 @@ as `scenes/study-room.lam` is).
 vocabulary, and builds the board the builder reads: each sentence carries a parsed `markup.Sentence` (its caption,
 spoken pieces cut at each cue, tags, formulas), which `narration.py`, `timeline.py`, `zh.py`, and `outputs.py` use
 through `markup.sentence` and `markup.shown`. The lab's own timing rules (`timeline.py`) stay; lamlet-present's
-`schedule` is not used. The lab's text check (`lab/check`) finds the text keys a storyboard names
-(`imageTitle`, `imageMarkText`, `labelText`).
+`schedule` is not used. The lab's text check (`lab/check`, `src/lam_keys.rs`) finds the text keys a `.lam` file
+names with the pinned Lamlet parser, in its code and its templates' holes: a storyboard's `imageTitle`,
+`imageMarkText`, and `labelText` (or `{attr "imageTitle" …}`), a script's `textKey`, and a data file's `titleText`.
+Each key must be a literal String where it is used; a computed one (`{imageTitle {++ "views-" name}}`) fails the
+package's build with its line. A helper may pass on only a `titleText` its caller wrote (`titleText {.titleText r}`).
 
 Tests: `python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py tools/video/test_compare.py`
 (the second skips until the lab is built). A change to a storyboard's form or to the reader leaves every edition's
