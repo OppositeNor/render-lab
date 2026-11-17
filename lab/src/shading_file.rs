@@ -10,18 +10,25 @@
 //!
 //! - `update`: an update pass (they come first), `entry`, `reads`, `writes`,
 //!   `workgroup` (x);
-//! - `depth-views`: the depth views (shadow maps), `name`, `size`,
-//!   `vertices`, `bias` (`[constant, slope]`);
-//! - `prepass`: the depth pre-pass, `entry` (its fragment entry), `writes`
-//!   (the targets it writes besides the depth);
+//! - `raster`: a raster pass (`RasterPass`): the scene's meshes, `name`
+//!   (its `fragment` when left out), `vertex` (`sceneVS`), `fragment` (none:
+//!   depth only), `writes` (the targets it draws into), `reads` (group 2),
+//!   `depth` (`write`: it clears and writes the frame's depth; `test`: it
+//!   tests against the depth a raster pass before it wrote);
+//! - `depth-views`, shorthand for the depth views' raster pass (shadow maps):
+//!   `name`, `size`, `vertices` (one per layer), `bias` (`[constant, slope]`);
+//! - `prepass`, shorthand for a depth pre-pass: `entry` (its fragment entry),
+//!   `writes` (the targets it writes besides the depth); the scene pass then
+//!   tests against its depth;
 //! - `compute`: a compute pass of the chain, `entry`, `reads`, `writes`,
 //!   `workgroup` (`[x, y]`);
 //! - `program`: a pass of the program, `name`, `compute` and `workgroup`
 //!   (`[x, y, z]`) or `vertex` and `fragment`, `instances` (1), `uses`; a run
 //!   of consecutive program nodes is where the plan's commands for them are
 //!   recorded;
-//! - `scene`: the scene pass (exactly one), `entry` (its fragment entry),
-//!   `outputs` (the targets it writes; none: `hdr`), `reads`.
+//! - `scene`, shorthand for the scene pass's raster pass (exactly one):
+//!   `entry` (its fragment entry), `outputs` (the targets it writes; none:
+//!   the lab's HDR target, the sky behind it), `reads`.
 //!
 //! The rest is what the nodes use, in kebab case of `SceneShading`'s fields:
 //!
@@ -52,9 +59,9 @@
 
 use crate::investigation::{
     Access, DepthViews, FrameNode, ImageKind, PassKind, ProgramBuffer, ProgramImage, ProgramPass,
-    ProgramUse, SceneShading, ShadingBuffer, ShadingHook, ShadingPass, ShadingProgram,
-    ShadingResolution, ShadingTarget, ShadingUpdate, ShadingVolume, UpdateBuffer, UpdatePass,
-    Which,
+    ProgramUse, RasterColor, RasterDepth, RasterPass, SceneShading, ShadingBuffer, ShadingHook,
+    ShadingPass, ShadingProgram, ShadingResolution, ShadingTarget, ShadingUpdate, ShadingVolume,
+    UpdateBuffer, UpdatePass, Which,
 };
 use std::sync::RwLock;
 use toml_edit::{Item, TableLike};
@@ -483,28 +490,32 @@ fn program(
     })
 }
 
-/// What the `[[node]]` list declares, gathered by kind.
+/// What the `[[node]]` list declares, gathered by kind: the raster passes in their order, the shorthands
+/// (`scene`, `prepass`, `depth-views`) among them.
 #[derive(Default)]
 struct Nodes {
     order: Vec<FrameNode>,
     updates: Vec<UpdatePass>,
     depth_views: Option<&'static DepthViews>,
-    prepass: Option<(&'static str, &'static [&'static str])>,
     passes: Vec<ShadingPass>,
     programs: Vec<ProgramPass>,
-    scene: Option<(
-        &'static str,
-        &'static [&'static str],
-        &'static [&'static str],
-    )>,
+    rasters: Vec<RasterPass>,
+    /// Which raster pass is the scene pass.
+    scene: Option<usize>,
+    /// Whether the file has a pre-pass, whose depth the scene pass then tests against.
+    prepass: bool,
 }
+
+/// The entry point the scene's meshes are placed by, unless a raster node names its own.
+const SCENE_VERTEX: &str = "sceneVS";
 
 fn nodes(t: &dyn TableLike) -> Result<Nodes, String> {
     let mut n = Nodes::default();
     for (k, x) in tables(t, "node")?.into_iter().enumerate() {
         let what = &format!("node {}", k + 1);
         let kind = required(x, "kind", what)?;
-        match kind {
+        // A raster pass, written out or as a shorthand, is the next of `rasters`.
+        let raster = match kind {
             "update" => {
                 known(x, what, &["kind", "entry", "reads", "writes", "workgroup"])?;
                 let entry = required(x, "entry", what)?;
@@ -516,82 +527,184 @@ fn nodes(t: &dyn TableLike) -> Result<Nodes, String> {
                     writes: strings(x, "writes", what)?,
                     workgroup: u32_or(x, "workgroup", what, None)?,
                 });
-            }
-            "depth-views" => {
-                known(x, what, &["kind", "name", "size", "vertices", "bias"])?;
-                if n.depth_views.is_some() {
-                    return Err(format!("{what}: a second depth-views node"));
-                }
-                let bias = x
-                    .get("bias")
-                    .ok_or_else(|| format!("{what} needs `bias`"))?;
-                let bias = bias
-                    .as_array()
-                    .filter(|a| a.len() == 2)
-                    .ok_or_else(|| format!("{what}: `bias` is [constant, slope]"))?;
-                let constant = bias
-                    .get(0)
-                    .and_then(|v| v.as_integer())
-                    .and_then(|v| i32::try_from(v).ok())
-                    .ok_or_else(|| format!("{what}: the bias's constant is an integer"))?;
-                let slope = bias
-                    .get(1)
-                    .and_then(|v| v.as_float().or_else(|| v.as_integer().map(|i| i as f64)))
-                    .ok_or_else(|| format!("{what}: the bias's slope is a number"))?
-                    as f32;
-                n.depth_views = Some(Box::leak(Box::new(DepthViews {
-                    name: required(x, "name", what)?,
-                    size: u32_or(x, "size", what, None)?,
-                    vertices: strings(x, "vertices", what)?,
-                    bias: (constant, slope),
-                })));
-                n.order.push(FrameNode::DepthViews);
-            }
-            "prepass" => {
-                known(x, what, &["kind", "entry", "writes"])?;
-                if n.prepass.is_some() {
-                    return Err(format!("{what}: a second prepass node"));
-                }
-                n.prepass = Some((required(x, "entry", what)?, strings(x, "writes", what)?));
-                n.order.push(FrameNode::Prepass);
+                None
             }
             "compute" => {
                 known(x, what, &["kind", "entry", "reads", "writes", "workgroup"])?;
                 let entry = required(x, "entry", what)?;
                 let what = &format!("compute pass `{entry}`");
-                let pass = ShadingPass {
+                n.order.push(FrameNode::Compute(n.passes.len()));
+                n.passes.push(ShadingPass {
                     entry,
                     reads: strings(x, "reads", what)?,
                     writes: strings(x, "writes", what)?,
                     workgroup: u32s(x, "workgroup", what)?,
-                };
-                n.order.push(FrameNode::Compute(n.passes.len()));
-                n.passes.push(pass);
+                });
+                None
             }
             "program" => {
                 n.order.push(FrameNode::Program(n.programs.len()));
                 n.programs.push(program_pass(x, what)?);
+                None
+            }
+            "depth-views" => {
+                if n.depth_views.is_some() {
+                    return Err(format!("{what}: a second depth-views node"));
+                }
+                let views = depth_views(x, what)?;
+                n.depth_views = Some(views);
+                Some(RasterPass {
+                    name: "depthViews",
+                    timing: "depth views",
+                    vertex: views.vertices.first().copied().unwrap_or(SCENE_VERTEX),
+                    fragment: None,
+                    color: RasterColor::Targets(&[]),
+                    depth: RasterDepth::Layers,
+                    reads: &[],
+                    some_reads: false,
+                    depth_first: false,
+                })
+            }
+            "prepass" => {
+                if std::mem::replace(&mut n.prepass, true) {
+                    return Err(format!("{what}: a second prepass node"));
+                }
+                Some(prepass(x, what)?)
             }
             "scene" => {
-                known(x, what, &["kind", "entry", "outputs", "reads"])?;
-                if n.scene.is_some() {
+                if n.scene.replace(n.rasters.len()).is_some() {
                     return Err(format!("{what}: a second scene node"));
                 }
-                n.scene = Some((
-                    required(x, "entry", what)?,
-                    strings(x, "outputs", what)?,
-                    strings(x, "reads", what)?,
-                ));
-                n.order.push(FrameNode::Scene);
+                Some(scene(x, what)?)
             }
+            "raster" => Some(raster(x, what)?),
             other => {
                 return Err(format!(
-                    "{what}: kind `{other}` is not one of update, depth-views, prepass, compute, program, scene"
+                    "{what}: kind `{other}` is not one of update, depth-views, prepass, compute, program, scene, raster"
                 ));
             }
+        };
+        if let Some(r) = raster {
+            n.order.push(FrameNode::Raster(n.rasters.len()));
+            n.rasters.push(r);
         }
     }
+    // After a pre-pass, the scene pass tests against its depth.
+    if let (true, Some(scene)) = (n.prepass, n.scene) {
+        n.rasters[scene].depth = RasterDepth::Test;
+    }
     Ok(n)
+}
+
+/// A `prepass` node, shorthand for a depth pre-pass: its fragment entry (`entry`) writes the depth and its `writes`,
+/// and may use none of group 2 but the program's scene uses.
+fn prepass(x: &dyn TableLike, what: &str) -> Result<RasterPass, String> {
+    known(x, what, &["kind", "entry", "writes"])?;
+    let entry = required(x, "entry", what)?;
+    Ok(RasterPass {
+        name: entry,
+        timing: "depth pre-pass",
+        vertex: SCENE_VERTEX,
+        fragment: Some(entry),
+        color: RasterColor::Targets(strings(x, "writes", what)?),
+        depth: RasterDepth::Write,
+        reads: &[],
+        some_reads: true,
+        depth_first: true,
+    })
+}
+
+/// A `scene` node, shorthand for the scene pass: its fragment entry (`entry`) writes its `outputs` (none: the HDR
+/// target, the sky behind it) and reads its `reads`. It writes the depth, unless a pre-pass did (`nodes` settles
+/// that once every node is read).
+fn scene(x: &dyn TableLike, what: &str) -> Result<RasterPass, String> {
+    known(x, what, &["kind", "entry", "outputs", "reads"])?;
+    let entry = required(x, "entry", what)?;
+    let outputs = strings(x, "outputs", what)?;
+    Ok(RasterPass {
+        name: entry,
+        timing: "scene pass",
+        vertex: SCENE_VERTEX,
+        fragment: Some(entry),
+        color: if outputs.is_empty() {
+            RasterColor::Hdr
+        } else {
+            RasterColor::Targets(outputs)
+        },
+        depth: RasterDepth::Write,
+        reads: strings(x, "reads", what)?,
+        some_reads: false,
+        depth_first: false,
+    })
+}
+
+/// A `depth-views` node's views: their name, size, a vertex entry per layer, and their bias.
+fn depth_views(x: &dyn TableLike, what: &str) -> Result<&'static DepthViews, String> {
+    known(x, what, &["kind", "name", "size", "vertices", "bias"])?;
+    let bias = x
+        .get("bias")
+        .ok_or_else(|| format!("{what} needs `bias`"))?;
+    let bias = bias
+        .as_array()
+        .filter(|a| a.len() == 2)
+        .ok_or_else(|| format!("{what}: `bias` is [constant, slope]"))?;
+    let constant = bias
+        .get(0)
+        .and_then(|v| v.as_integer())
+        .and_then(|v| i32::try_from(v).ok())
+        .ok_or_else(|| format!("{what}: the bias's constant is an integer"))?;
+    let slope = bias
+        .get(1)
+        .and_then(|v| v.as_float().or_else(|| v.as_integer().map(|i| i as f64)))
+        .ok_or_else(|| format!("{what}: the bias's slope is a number"))? as f32;
+    Ok(Box::leak(Box::new(DepthViews {
+        name: required(x, "name", what)?,
+        size: u32_or(x, "size", what, None)?,
+        vertices: strings(x, "vertices", what)?,
+        bias: (constant, slope),
+    })))
+}
+
+/// A `raster` node: its name (else its fragment entry's), vertex entry (`sceneVS` unless named), fragment entry
+/// (none: depth only), the targets it writes, its group-2 reads, and its depth, `write` or `test`.
+fn raster(x: &dyn TableLike, what: &str) -> Result<RasterPass, String> {
+    known(
+        x,
+        what,
+        &[
+            "kind", "name", "vertex", "fragment", "writes", "reads", "depth",
+        ],
+    )?;
+    let fragment = string(x, "fragment", what)?;
+    let name = match (string(x, "name", what)?, fragment) {
+        (Some(name), _) | (None, Some(name)) => name,
+        (None, None) => {
+            return Err(format!(
+                "{what}: a raster node without a fragment entry needs a `name`"
+            ));
+        }
+    };
+    let what = &format!("raster pass `{name}`");
+    let depth = match required(x, "depth", what)? {
+        "write" => RasterDepth::Write,
+        "test" => RasterDepth::Test,
+        other => {
+            return Err(format!(
+                "{what}: `depth` is `write` or `test`, not `{other}`"
+            ));
+        }
+    };
+    Ok(RasterPass {
+        name,
+        timing: name,
+        vertex: string(x, "vertex", what)?.unwrap_or(SCENE_VERTEX),
+        fragment,
+        color: RasterColor::Targets(strings(x, "writes", what)?),
+        depth,
+        reads: strings(x, "reads", what)?,
+        some_reads: false,
+        depth_first: false,
+    })
 }
 
 /// Reads a shading file, its hooks looked up in `hooks`.
@@ -626,7 +739,7 @@ pub fn parse(text: &str, hooks: &Hooks) -> Result<SceneShading, String> {
     };
     let (targets, buffers, volumes) = read_storage(t)?;
     let n = nodes(t)?;
-    let (fragment, outputs, scene_reads) = n.scene.ok_or("the frame needs a `scene` node")?;
+    let scene = n.scene.ok_or("the frame needs a `scene` node")?;
     let resolution = read_resolution(t, hooks)?;
     let update = match (table(t, "update")?, n.updates.is_empty()) {
         (None, true) => None,
@@ -653,16 +766,13 @@ pub fn parse(text: &str, hooks: &Hooks) -> Result<SceneShading, String> {
     };
     Ok(SceneShading {
         module: required(t, "module", "the file")?,
-        fragment,
         data,
         verify: strings(t, "verify", "the file")?,
         targets: leak_slice(targets),
-        outputs,
         passes: leak_slice(n.passes),
-        prepass: n.prepass.map(|(entry, _)| entry),
-        prepass_outputs: n.prepass.map_or(&[][..], |(_, writes)| writes),
+        rasters: leak_slice(n.rasters),
+        scene,
         buffers: leak_slice(buffers),
-        scene_reads,
         depth_views: n.depth_views,
         volumes: leak_slice(volumes),
         update,
@@ -866,9 +976,16 @@ mips = "all"
     #[test]
     fn reads_the_frame_in_order() {
         let s = parse(FILE, HOOKS).unwrap();
+        let scene = s.scene_pass();
         assert_eq!(
-            (s.module, s.fragment, s.outputs, s.scene_reads),
-            ("p.shader/s", "fs", &["color"][..], &["half"][..])
+            (s.module, s.name(), scene.color, scene.reads, scene.depth),
+            (
+                "p.shader/s",
+                "fs",
+                RasterColor::Targets(&["color"]),
+                &["half"][..],
+                RasterDepth::Test
+            )
         );
         assert_eq!((s.data)(), vec![[1.0; 4]]);
         assert_eq!(
@@ -879,10 +996,10 @@ mips = "all"
             s.nodes,
             &[
                 FrameNode::Program(0),
-                FrameNode::DepthViews,
-                FrameNode::Prepass,
+                FrameNode::Raster(0),
+                FrameNode::Raster(1),
                 FrameNode::Compute(0),
-                FrameNode::Scene,
+                FrameNode::Raster(2),
                 FrameNode::Compute(1)
             ]
         );
@@ -890,7 +1007,17 @@ mips = "all"
             (s.passes[0].entry, s.passes[1].entry, s.passes[1].workgroup),
             ("tilesCS", "blurCS", [8, 8])
         );
-        assert_eq!((s.prepass, s.prepass_outputs), (Some("prepassFS"), &[][..]));
+        // The shorthands' raster passes: the depth views' layers, the pre-pass (its depth written), the scene pass.
+        let r = s.rasters;
+        assert_eq!(s.scene, 2);
+        assert_eq!(
+            (r[0].name, r[0].timing, r[0].depth, r[0].fragment),
+            ("depthViews", "depth views", RasterDepth::Layers, None)
+        );
+        assert_eq!(
+            (r[1].fragment, r[1].targets(), r[1].depth, r[1].some_reads),
+            (Some("prepassFS"), &[][..], RasterDepth::Write, true)
+        );
         let d = s.depth_views.unwrap();
         assert_eq!((d.name, d.size, d.bias), ("shadow", 512, (-2, -1.5)));
         assert_eq!(s.shows, &[("half", "ramp?range=0,1")]);
@@ -913,6 +1040,56 @@ mips = "all"
         assert_eq!(p.scene_uses[0].which, Which::First);
         assert_eq!(s.program_runs(), vec![0]);
         assert!(s.update.is_none() && s.resolution.is_none());
+    }
+
+    #[test]
+    fn a_raster_node_declares_any_raster_pass() {
+        let s = parse(
+            "module = \"m\"\n[[target]]\nname = \"albedo\"\nformat = \"rgba8unorm\"\n\
+             [[node]]\nkind = \"raster\"\nfragment = \"gbufferFS\"\nwrites = [\"albedo\"]\ndepth = \"write\"\n\
+             [[node]]\nkind = \"raster\"\nname = \"decals\"\nvertex = \"decalVS\"\nfragment = \"decalFS\"\n\
+             writes = [\"albedo\"]\nreads = [\"depth\"]\ndepth = \"test\"\n\
+             [[node]]\nkind = \"scene\"\nentry = \"fs\"\n",
+            HOOKS,
+        )
+        .unwrap();
+        let [g, d, scene] = s.rasters else {
+            panic!("{} raster passes", s.rasters.len())
+        };
+        assert_eq!(
+            (g.name, g.timing, g.vertex, g.depth, g.targets()),
+            (
+                "gbufferFS",
+                "gbufferFS",
+                "sceneVS",
+                RasterDepth::Write,
+                &["albedo"][..]
+            )
+        );
+        assert_eq!(
+            (d.name, d.vertex, d.fragment, d.reads, d.depth),
+            (
+                "decals",
+                "decalVS",
+                Some("decalFS"),
+                &["depth"][..],
+                RasterDepth::Test
+            )
+        );
+        // Without a pre-pass the scene pass writes its own depth; without outputs it draws the HDR target.
+        assert_eq!(
+            (scene.depth, scene.color),
+            (RasterDepth::Write, RasterColor::Hdr)
+        );
+        assert!(s.chained() && s.attachment("albedo"));
+        assert_eq!(
+            s.nodes,
+            &[
+                FrameNode::Raster(0),
+                FrameNode::Raster(1),
+                FrameNode::Raster(2)
+            ]
+        );
     }
 
     #[test]
@@ -947,8 +1124,18 @@ mips = "all"
             "a second scene node",
         );
         fails(
-            &format!("module = \"m\"{scene}[[node]]\nkind = \"raster\""),
-            "kind `raster`",
+            &format!("module = \"m\"{scene}[[node]]\nkind = \"blit\""),
+            "kind `blit`",
+        );
+        fails(
+            &format!("module = \"m\"{scene}[[node]]\nkind = \"raster\"\ndepth = \"write\""),
+            "needs a `name`",
+        );
+        fails(
+            &format!(
+                "module = \"m\"{scene}[[node]]\nkind = \"raster\"\nfragment = \"f\"\ndepth = \"layers\""
+            ),
+            "`depth` is `write` or `test`",
         );
         fails(
             &format!(

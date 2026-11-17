@@ -1,9 +1,49 @@
 use super::*;
-use crate::investigation::{ShadingBuffer, ShadingPass, ShadingTarget};
+use crate::investigation::{
+    FrameNode, RasterColor, RasterDepth, RasterPass, ShadingBuffer, ShadingPass, ShadingTarget,
+};
+
+/// The test chain's depth pre-pass: it writes the depth alone.
+const PREPASS: RasterPass = RasterPass {
+    name: "prepassFS",
+    timing: "depth pre-pass",
+    vertex: "sceneVS",
+    fragment: Some("prepassFS"),
+    color: RasterColor::Targets(&[]),
+    depth: RasterDepth::Write,
+    reads: &[],
+    some_reads: true,
+    depth_first: true,
+};
+
+/// The test chain's scene pass: it writes `color`, reads the tiles, and tests against the pre-pass's depth.
+const SCENE: RasterPass = RasterPass {
+    name: "sceneFS",
+    timing: "scene pass",
+    vertex: "sceneVS",
+    fragment: Some("sceneFS"),
+    color: RasterColor::Targets(&["color"]),
+    depth: RasterDepth::Test,
+    reads: &["tiles"],
+    some_reads: false,
+    depth_first: false,
+};
+
+/// The pre-pass (`Raster(0)`) and the scene pass (`Raster(1)`) of a chain.
+static RASTERS: &[RasterPass] = &[PREPASS, SCENE];
+
+/// The same without a chain: the scene pass writes the frame and reads nothing of group 2.
+static UNCHAINED: &[RasterPass] = &[
+    PREPASS,
+    RasterPass {
+        color: RasterColor::Hdr,
+        reads: &[],
+        ..SCENE
+    },
+];
 
 /// A chain: the pre-pass, `early`, the scene pass, then `after`.
 fn shading(early: &'static [ShadingPass], after: &'static [ShadingPass]) -> &'static SceneShading {
-    use crate::investigation::FrameNode;
     static TARGETS: &[ShadingTarget] = &[
         ShadingTarget {
             name: "color",
@@ -34,22 +74,19 @@ fn shading(early: &'static [ShadingPass], after: &'static [ShadingPass]) -> &'st
             .collect::<Vec<_>>()
             .into_boxed_slice(),
     );
-    let mut nodes = vec![FrameNode::Prepass];
+    let mut nodes = vec![FrameNode::Raster(0)];
     nodes.extend((0..early.len()).map(FrameNode::Compute));
-    nodes.push(FrameNode::Scene);
+    nodes.push(FrameNode::Raster(1));
     nodes.extend((early.len()..passes.len()).map(FrameNode::Compute));
     Box::leak(Box::new(SceneShading {
         module: "test",
-        fragment: "sceneFS",
         data: Vec::new,
         verify: &[],
         targets: TARGETS,
-        outputs: &["color"],
         passes,
-        prepass: Some("prepassFS"),
-        prepass_outputs: &[],
+        rasters: RASTERS,
+        scene: 1,
         buffers: BUFFERS,
-        scene_reads: &["tiles"],
         depth_views: None,
         volumes: &[],
         update: None,
@@ -159,23 +196,21 @@ fn test_program() -> &'static crate::investigation::ShadingProgram {
 
 #[test]
 fn a_program_places_its_passes_where_its_nodes_are() {
-    use crate::investigation::FrameNode;
     let program = test_program();
     let s = shading(&[], &[]);
     // No chain (the scene pass writes the frame), as a program's investigation may have.
     // Its pre-pass does not run without a chain.
     static NODES: &[FrameNode] = &[
         FrameNode::Program(0),
-        FrameNode::Prepass,
+        FrameNode::Raster(0),
         FrameNode::Program(1),
-        FrameNode::Scene,
+        FrameNode::Raster(1),
         FrameNode::Program(2),
     ];
     let with = |nodes: &'static [FrameNode]| -> &'static SceneShading {
         Box::leak(Box::new(SceneShading {
             program: Some(program),
-            outputs: &[],
-            scene_reads: &[],
+            rasters: UNCHAINED,
             nodes,
             ..*s
         }))
@@ -187,10 +222,10 @@ fn a_program_places_its_passes_where_its_nodes_are() {
     // A pass in no node, or in two, is an error; so is a pre-pass after the scene pass.
     let missing = FrameGraph::new(
         Some(with(&[
-            FrameNode::Prepass,
+            FrameNode::Raster(0),
             FrameNode::Program(0),
             FrameNode::Program(1),
-            FrameNode::Scene,
+            FrameNode::Raster(1),
         ])),
         &[],
     );
@@ -206,10 +241,10 @@ fn a_program_places_its_passes_where_its_nodes_are() {
         Some(with(&[
             FrameNode::Program(0),
             FrameNode::Program(1),
-            FrameNode::Scene,
+            FrameNode::Raster(1),
             FrameNode::Program(2),
             FrameNode::Program(2),
-            FrameNode::Prepass,
+            FrameNode::Raster(0),
         ])),
         &[],
     );
@@ -508,4 +543,110 @@ fn without_a_chain() {
     assert!(g.errors.is_empty());
     let names: Vec<&str> = g.order.iter().map(|&i| g.nodes[i].name).collect();
     assert_eq!(names, ["scene", "overlay", "composite"]);
+}
+
+#[test]
+fn a_raster_pass_is_a_node_of_what_it_reads_and_writes() {
+    // A decal pass between the pre-pass and the scene pass: it tests against the pre-pass's depth.
+    static DECALS: &[RasterPass] = &[
+        PREPASS,
+        RasterPass {
+            name: "decals",
+            timing: "decals",
+            vertex: "decalVS",
+            fragment: Some("decalFS"),
+            color: RasterColor::Targets(&["unused"]),
+            depth: RasterDepth::Test,
+            reads: &["tiles"],
+            some_reads: false,
+            depth_first: false,
+        },
+        RasterPass {
+            depth: RasterDepth::Test,
+            ..SCENE
+        },
+    ];
+    // The tile pass before them, the blur and the merge after (`post_shading`).
+    let s = post_shading();
+    let with = |nodes: &'static [FrameNode]| -> &'static SceneShading {
+        Box::leak(Box::new(SceneShading {
+            rasters: DECALS,
+            scene: 2,
+            nodes,
+            ..*s
+        }))
+    };
+    let g = FrameGraph::new(
+        Some(with(&[
+            FrameNode::Raster(0),
+            FrameNode::Compute(0),
+            FrameNode::Raster(1),
+            FrameNode::Raster(2),
+            FrameNode::Compute(1),
+            FrameNode::Compute(2),
+        ])),
+        &["unused"],
+    );
+    assert!(g.errors.is_empty(), "{:?}", g.errors);
+    let decals = &g.nodes[g.node("decals").unwrap()];
+    assert_eq!(
+        (
+            &decals.reads[..],
+            &decals.writes[..],
+            decals.step,
+            decals.timing
+        ),
+        (
+            &["tiles", "depth"][..],
+            &["unused"][..],
+            Step::Raster(1),
+            "decals"
+        )
+    );
+    // The pre-pass writes the depth first, then the decals and the scene pass test against it.
+    let names: Vec<&str> = g.order.iter().map(|&i| g.nodes[i].name).collect();
+    assert_eq!(&names[..4], ["prepassFS", "tilesCS", "decals", "sceneFS"]);
+    // A pass that tests against the depth before any pass writes it is an error.
+    let early = FrameGraph::new(
+        Some(with(&[
+            FrameNode::Raster(1),
+            FrameNode::Raster(0),
+            FrameNode::Compute(0),
+            FrameNode::Raster(2),
+            FrameNode::Compute(1),
+            FrameNode::Compute(2),
+        ])),
+        &[],
+    );
+    assert!(
+        early
+            .errors
+            .iter()
+            .any(|e| e.contains("the depth pre-pass comes after the decals")),
+        "{:?}",
+        early.errors
+    );
+    let unwritten = FrameGraph::new(
+        Some(Box::leak(Box::new(SceneShading {
+            rasters: &DECALS[1..],
+            scene: 1,
+            nodes: &[
+                FrameNode::Compute(0),
+                FrameNode::Raster(0),
+                FrameNode::Raster(1),
+                FrameNode::Compute(1),
+                FrameNode::Compute(2),
+            ],
+            ..*s
+        }))),
+        &[],
+    );
+    assert!(
+        unwritten
+            .errors
+            .iter()
+            .any(|e| e.contains("`decals` tests against a depth no raster pass writes")),
+        "{:?}",
+        unwritten.errors
+    );
 }

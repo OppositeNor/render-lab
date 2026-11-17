@@ -13,8 +13,8 @@ of its own.
 
 The declaration is data: the package's `shading.toml` (a `shading` resource; the format is in
 `lab/src/shading_file.rs`), read at run time into a `SceneShading`, so an edit shows on the next launch without a
-rebuild. The frame is its `[[node]]` list, in order, each node a `kind`: `update`, `depth-views`, `prepass`,
-`compute`, `program`, `scene` (exactly one); the rest is what they use, the struct's fields in kebab case
+rebuild. The frame is its `[[node]]` list, in order, each node a `kind`: `update`, `compute`, `program`, `raster`,
+and the raster passes' shorthands `depth-views`, `prepass`, and `scene` (exactly one); the rest is what they use, the struct's fields in kebab case
 (`[[target]]`, `[[buffer]]`, `[[volume]]`, `[update]`, `[resolution]`, `[shows]`, `[program]` with
 `[[program.image]]` and `[[program.buffer]]`). Below, `SceneShading::x` is the file's `x`; `passes` are the compute
 nodes' passes, in their order. What computes stays code, named in the file and
@@ -29,14 +29,18 @@ Nodes, in the order of the file's `[[node]]` list (`SceneShading::nodes`, `Frame
 | Node (`kind`) | Name | What it is |
 |---|---|---|
 | `update` | its entry point | an update pass (run when its plan's key changes, its dispatches in the plan's order, before the rest: update nodes come first) |
-| `depth-views` | `depthViews` | the depth views, `SceneShading::depth_views` (drawn when what they see changes) |
-| `prepass` | its fragment entry | the pre-pass (writes `depth` and its `writes`, `prepass_outputs`; reads nothing of group 2; before the scene node) |
+| `raster` | its `name` (else its fragment entry) | a raster pass (`RasterPass`): the scene's meshes, its `vertex` (`sceneVS`) and `fragment` (none: depth only) entries, into its `writes` (multisampled targets), reading its `reads` (group 2, each used), the depth written (`depth = "write"`: cleared) or tested against (`"test"`) |
+| `depth-views` | `depthViews` | shorthand: the depth views' raster pass, `SceneShading::depth_views` (a layer per vertex entry, drawn when what they see changes) |
+| `prepass` | its fragment entry | shorthand: a depth pre-pass (writes `depth` and its `writes`; uses none of group 2 but the program's scene uses; before the scene node, which then tests against its depth) |
 | `compute` | its entry point (a repeated entry: `name#2`) | a compute pass of the chain |
 | `program` | its name | a program's pass, below |
-| `scene` | its fragment entry (`scene` without a shading) | the scene's meshes into `outputs` (or `hdr`, with none), MSAA |
+| `scene` | its fragment entry (`scene` without a shading) | shorthand: the scene pass, the scene's meshes into `outputs` (or `hdr` with the sky behind, with none), MSAA |
 | overlay, composite | `overlay`, `composite` | the lab's |
 
-The graph checks the list: every declared node once, update nodes first, the pre-pass before the scene pass.
+The shorthands are raster passes in code: the parser turns each into a `RasterPass` (`SceneShading::rasters`,
+`FrameNode::Raster`), and the graph, the lint, the pipelines, and the renderer know only those. Besides the scene
+pass, a raster pass runs only in a chain. The graph checks the list: every declared node once, update nodes first,
+a raster pass that tests against the depth after one that writes it.
 
 Resources:
 
@@ -51,11 +55,11 @@ The order: for each resource, its accesses keep their declared order (a writer b
 before the next writer); nodes with no path between them keep their declared order. A compute node whose writes
 nothing live reads is **culled**: live are the composite, cached nodes, writers of history, writers of what an image
 kind reads (`reads=`), and the inspected resource's writer. The raster nodes are the scene pass, the pre-pass, the
-depth views, and a program's raster passes; there is no general raster node yet.
+depth views, any `raster` node, and a program's raster passes.
 
-A chain without `outputs` but with `prepass_outputs` (a depth and normal pre-pass, Godot's normal-roughness buffer)
-is the pre-pass and compute nodes before an ordinary scene pass, which writes `hdr` and may read what they wrote
-(`scene_reads`); it has no compute nodes after the scene.
+A chain whose scene pass has no `outputs` but whose pre-pass writes targets (a depth and normal pre-pass, Godot's
+normal-roughness buffer) is the pre-pass and compute nodes before an ordinary scene pass, which writes `hdr` and may
+read what they wrote (its `reads`); it has no compute nodes after the scene.
 
 **Programs** (`SceneShading::program`, `lab/src/program.rs`) are an engine's own GPU work that
 the chain cannot express: images (2D, 2D arrays, 3D; integer formats; `count` elements, bound one at a time or as a

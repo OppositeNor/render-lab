@@ -27,7 +27,7 @@ pub use lint::*;
 pub use scene::*;
 pub use show::*;
 
-/// The names of the lab's own nodes (`Step::DepthViews`, `Overlay`,
+/// The names of the lab's own nodes (the depth views' raster pass, `Overlay`,
 /// `Composite`, and the scene pass of a frame without a shading).
 pub const LAB_NODES: [&str; 4] = ["depthViews", "overlay", "composite", "scene"];
 
@@ -181,11 +181,10 @@ pub struct Resource {
 pub enum Step {
     /// Update pass `i` of `SceneShading::update` (run when its plan's key changes).
     Update(usize),
-    /// The depth views, one render pass per layer (drawn when what they see changes).
-    DepthViews,
-    /// The depth pre-pass.
-    Prepass,
-    /// The scene pass: the scene's meshes, MSAA, into the outputs (or `hdr`).
+    /// Raster pass `i` of `SceneShading::rasters`: the scene's meshes (the depth views one render pass per layer,
+    /// drawn when what they see changes).
+    Raster(usize),
+    /// The scene pass of a frame without a shading: the scene's meshes, MSAA, into `hdr`.
     Scene,
     /// Compute pass `i` of `SceneShading::passes`.
     Compute(usize),
@@ -449,16 +448,19 @@ impl FrameGraph {
     /// pass that writes the frame, a history of no target, a view of no resource or that does not parse.
     fn check_declarations(&mut self, shading: Option<&'static SceneShading>) {
         if let Some(s) = shading.filter(|s| !s.chained() && !s.passes.is_empty()) {
-            self.errors.push(format!("{}: compute passes without scene or pre-pass outputs never run (SceneShading::outputs is empty)", s.fragment));
+            self.errors.push(format!(
+                "{}: compute passes without a raster pass that writes targets never run",
+                s.name()
+            ));
         }
         let after_scene = |s: &SceneShading| {
             s.nodes
                 .iter()
-                .skip_while(|n| **n != crate::investigation::FrameNode::Scene)
+                .skip_while(|n| **n != crate::investigation::FrameNode::Raster(s.scene))
                 .any(|n| matches!(n, crate::investigation::FrameNode::Compute(_)))
         };
-        if let Some(s) = shading.filter(|s| s.outputs.is_empty() && after_scene(s)) {
-            self.errors.push(format!("{}: passes after a scene pass that writes the frame (no outputs) have nothing to read", s.fragment));
+        if let Some(s) = shading.filter(|s| s.scene_pass().targets().is_empty() && after_scene(s)) {
+            self.errors.push(format!("{}: passes after a scene pass that writes the frame (no outputs) have nothing to read", s.name()));
         }
         if let Some(s) = shading {
             for h in s.history {
@@ -468,7 +470,7 @@ impl FrameGraph {
                 {
                     self.errors.push(format!(
                         "{}: history `{h}` is none of its targets or buffers",
-                        s.fragment
+                        s.name()
                     ));
                 }
             }
@@ -476,12 +478,12 @@ impl FrameGraph {
                 if self.resource(name).is_none() {
                     self.errors.push(format!(
                         "{}: shows `{name}`, which is no resource",
-                        s.fragment
+                        s.name()
                     ));
                 }
                 if let Err(e) = parse_view(spec) {
                     self.errors
-                        .push(format!("{}: shows `{name}` as `{spec}`: {e}", s.fragment));
+                        .push(format!("{}: shows `{name}` as `{spec}`: {e}", s.name()));
                 }
             }
         }
@@ -527,7 +529,7 @@ impl FrameGraph {
             if update && !leading {
                 errors.push(format!(
                     "{}: update passes run before the frame; list them first",
-                    s.fragment
+                    s.name()
                 ));
             }
             leading &= update;
@@ -541,10 +543,12 @@ impl FrameGraph {
                         timing: p.entry,
                         cached: true,
                     }),
-                    None => errors.push(format!("{}: no update pass {i}", s.fragment)),
+                    None => errors.push(format!("{}: no update pass {i}", s.name())),
                 },
-                FrameNode::DepthViews => nodes.extend(Self::depth_views_node(s, errors)),
-                FrameNode::Prepass => nodes.extend(Self::prepass_node(s, errors)),
+                FrameNode::Raster(i) => match s.rasters.get(i) {
+                    Some(r) => nodes.extend(Self::raster_node(s, i, r, scene_uses, errors)),
+                    None => errors.push(format!("{}: no raster pass {i}", s.name())),
+                },
                 FrameNode::Compute(i) => match computes.get(i) {
                     // Without a chain they never run (an error below).
                     Some(p) if chained => nodes.push(Node {
@@ -556,7 +560,7 @@ impl FrameGraph {
                         cached: false,
                     }),
                     Some(_) => {}
-                    None => errors.push(format!("{}: no compute pass {i}", s.fragment)),
+                    None => errors.push(format!("{}: no compute pass {i}", s.name())),
                 },
                 FrameNode::Program(i) => match programs.get(i) {
                     Some(p) => nodes.push(Node {
@@ -567,136 +571,95 @@ impl FrameGraph {
                         timing: p.name,
                         cached: false,
                     }),
-                    None => errors.push(format!("{}: no program pass {i}", s.fragment)),
+                    None => errors.push(format!("{}: no program pass {i}", s.name())),
                 },
-                FrameNode::Scene => {
-                    let (reads, writes) = Self::scene_access(s, scene_uses);
-                    nodes.push(Node {
-                        name: s.fragment,
-                        step: Step::Scene,
-                        reads,
-                        writes,
-                        timing: "scene pass",
-                        cached: false,
-                    });
-                }
             }
         }
         Self::check_placed(s, &placed, errors);
     }
 
-    /// What the scene pass reads and writes: with a chain, its declared reads and the program's scene uses, the
-    /// chain's outputs (or the HDR target), and the depth (read after a pre-pass, else written).
-    fn scene_access(
+    /// A raster pass's node. Besides the scene pass, it runs only in a chain (no node without one). With a chain it
+    /// reads its declared reads (and, unless it uses only some of what it binds, the program's scene uses) and the
+    /// depth it tests against; it writes its targets (or the HDR target), and the depth it writes or the depth
+    /// views' layers. Without one, the scene pass writes the HDR target and the depth, reading the program's scene
+    /// uses alone.
+    fn raster_node(
         s: &'static SceneShading,
+        i: usize,
+        r: &'static crate::investigation::RasterPass,
         scene_uses: &[&'static str],
-    ) -> (Vec<&'static str>, Vec<&'static str>) {
+        errors: &mut Vec<String>,
+    ) -> Option<Node> {
+        use crate::investigation::{RasterColor, RasterDepth};
         let chained = s.chained();
+        if !chained && i != s.scene {
+            return None;
+        }
         let (reads, writes) = if chained {
-            let mut reads = s.scene_reads.to_vec();
-            reads.extend(
-                scene_uses
-                    .iter()
-                    .copied()
-                    .filter(|r| !s.scene_reads.contains(r)),
-            );
-            // Without outputs, the scene pass writes the frame's HDR target, as without a chain.
-            let mut writes = if s.outputs.is_empty() {
-                vec!["hdr"]
-            } else {
-                s.outputs.to_vec()
+            let mut reads = r.reads.to_vec();
+            if !r.some_reads {
+                reads.extend(scene_uses.iter().copied().filter(|u| !r.reads.contains(u)));
+            }
+            let mut writes = match r.color {
+                RasterColor::Hdr => vec!["hdr"],
+                RasterColor::Targets(t) => t.to_vec(),
             };
-            if s.prepass.is_some() {
-                reads.push("depth");
-            } else {
-                writes.push("depth");
+            match (r.depth, s.depth_views) {
+                (RasterDepth::Write, _) if r.depth_first => writes.insert(0, "depth"),
+                (RasterDepth::Write, _) => writes.push("depth"),
+                (RasterDepth::Test, _) => reads.push("depth"),
+                (RasterDepth::Layers, Some(d)) => writes.push(d.name),
+                (RasterDepth::Layers, None) => {
+                    errors.push(format!(
+                        "{}: `{}` draws depth views it has none of",
+                        s.name(),
+                        r.name
+                    ));
+                }
             }
             (reads, writes)
         } else {
             (scene_uses.to_vec(), vec!["hdr", "depth"])
         };
-        (reads, writes)
+        Some(Node {
+            name: r.name,
+            step: Step::Raster(i),
+            reads,
+            writes,
+            timing: r.timing,
+            cached: r.depth == RasterDepth::Layers,
+        })
     }
 
-    /// The depth views' node, with a chain (none without one); an error when the shading has no depth views.
-    fn depth_views_node(s: &'static SceneShading, errors: &mut Vec<String>) -> Option<Node> {
-        match s.depth_views {
-            Some(d) if s.chained() => Some(Node {
-                name: "depthViews",
-                step: Step::DepthViews,
-                reads: Vec::new(),
-                writes: vec![d.name],
-                timing: "depth views",
-                cached: true,
-            }),
-            Some(_) => None,
-            None => {
-                errors.push(format!(
-                    "{}: a depth views node without depth views",
-                    s.fragment
-                ));
-                None
-            }
-        }
-    }
-
-    /// The pre-pass's node, with a chain (none without one): it writes the depth and its outputs; an error when
-    /// the shading has no pre-pass.
-    fn prepass_node(s: &'static SceneShading, errors: &mut Vec<String>) -> Option<Node> {
-        match s.prepass {
-            Some(entry) if s.chained() => {
-                let mut writes = vec!["depth"];
-                writes.extend(s.prepass_outputs.iter().copied());
-                Some(Node {
-                    name: entry,
-                    step: Step::Prepass,
-                    reads: Vec::new(),
-                    writes,
-                    timing: "depth pre-pass",
-                    cached: false,
-                })
-            }
-            Some(_) => None,
-            None => {
-                errors.push(format!(
-                    "{}: a pre-pass node without a pre-pass",
-                    s.fragment
-                ));
-                None
-            }
-        }
-    }
-
-    /// Each declared node once in the frame, the scene pass once, the pre-pass before it: what is not, as errors.
+    /// Each declared node once in the frame, and a raster pass that tests against the depth after one that writes
+    /// it: what is not, as errors.
     fn check_placed(
         s: &'static SceneShading,
         placed: &std::collections::BTreeMap<crate::investigation::FrameNode, usize>,
         errors: &mut Vec<String>,
     ) {
         use crate::investigation::FrameNode;
-        let frame = s.nodes;
         let updates = s.update.map_or(&[][..], |u| u.passes);
         let programs = s.program.map_or(&[][..], |p| p.passes);
         let computes = s.passes;
-        // Each declared node once, the scene pass once, the pre-pass before it.
+        // Each declared node once, and a pass that tests against the depth after one that writes it.
         let count = |n: FrameNode| placed.get(&n).copied().unwrap_or(0);
-        let mut wanted: Vec<(FrameNode, String)> =
-            vec![(FrameNode::Scene, format!("the scene pass `{}`", s.fragment))];
+        let mut wanted: Vec<(FrameNode, String)> = s
+            .rasters
+            .iter()
+            .enumerate()
+            .map(|(i, r)| {
+                (
+                    FrameNode::Raster(i),
+                    format!("the {} `{}`", r.timing, r.name),
+                )
+            })
+            .collect();
         wanted.extend(
             updates
                 .iter()
                 .enumerate()
                 .map(|(i, p)| (FrameNode::Update(i), format!("update pass `{}`", p.entry))),
-        );
-        wanted.extend(s.depth_views.map(|d| {
-            (
-                FrameNode::DepthViews,
-                format!("the depth views `{}`", d.name),
-            )
-        }));
-        wanted.extend(
-            s.prepass
-                .map(|e| (FrameNode::Prepass, format!("the pre-pass `{e}`"))),
         );
         wanted.extend(computes.iter().enumerate().map(|(i, p)| {
             (
@@ -713,21 +676,45 @@ impl FrameGraph {
         for (node, what) in wanted {
             match count(node) {
                 1 => {}
-                0 => errors.push(format!("{}: {what} is in no node of the frame", s.fragment)),
-                n => errors.push(format!(
-                    "{}: {what} is in {n} nodes of the frame",
-                    s.fragment
-                )),
+                0 => errors.push(format!("{}: {what} is in no node of the frame", s.name())),
+                n => errors.push(format!("{}: {what} is in {n} nodes of the frame", s.name())),
             }
         }
-        let at = |n: FrameNode| frame.iter().position(|x| *x == n);
-        if let (Some(p), Some(scene)) = (at(FrameNode::Prepass), at(FrameNode::Scene))
-            && p > scene
-        {
-            errors.push(format!(
-                "{}: the pre-pass comes after the scene pass, which tests against its depth",
-                s.fragment
-            ));
+        Self::check_depth_order(s, errors);
+    }
+
+    /// Every raster pass that tests against the depth after one that writes it: an error for each that comes
+    /// first (the pre-pass after the scene pass), or that no raster pass writes for.
+    fn check_depth_order(s: &'static SceneShading, errors: &mut Vec<String>) {
+        use crate::investigation::{FrameNode, RasterDepth};
+        let mut written = false;
+        for node in s.nodes {
+            // In order: a pass that writes the depth makes the passes after it able to test against it.
+            let FrameNode::Raster(i) = *node else {
+                continue;
+            };
+            let Some(r) = s.rasters.get(i) else { continue };
+            match r.depth {
+                RasterDepth::Write => written = true,
+                RasterDepth::Test if !written => {
+                    let writer = s.rasters.iter().find(|w| w.depth == RasterDepth::Write);
+                    errors.push(match writer {
+                        Some(w) => format!(
+                            "{}: the {} comes after the {}, which tests against its depth",
+                            s.name(),
+                            w.timing,
+                            r.timing
+                        ),
+                        None => format!(
+                            "{}: the {} `{}` tests against a depth no raster pass writes",
+                            s.name(),
+                            r.timing,
+                            r.name
+                        ),
+                    });
+                }
+                RasterDepth::Test | RasterDepth::Layers => {}
+            }
         }
     }
 

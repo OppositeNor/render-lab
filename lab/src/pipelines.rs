@@ -10,6 +10,9 @@ use anyhow::{Result, anyhow};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
+mod raster;
+pub use raster::RasterPipelines;
+
 pub const VERIFY_ENTRIES: &[&str] = &[
     "dumpObjects",
     "dumpFrame",
@@ -48,16 +51,11 @@ pub struct Pipelines {
     scene_module: wgpu::ShaderModule,
 }
 
-/// An investigation's shading: its scene pass, its chain's compute passes
+/// An investigation's shading: its raster passes, its chain's compute passes
 /// (each with its group-2 layout), and its verification kernels.
 pub struct ShadingPipelines {
-    pub scene: wgpu::RenderPipeline,
-    /// The depth pre-pass, when the shading has one.
-    pub prepass: Option<wgpu::RenderPipeline>,
-    /// One pipeline per layer of the depth views (`SceneShading::depth_views`).
-    pub depth_views: Vec<wgpu::RenderPipeline>,
-    /// Group 2 of the scene pass (`SceneShading::scene_reads`).
-    pub scene_group: wgpu::BindGroupLayout,
+    /// The raster passes, in `SceneShading::rasters` order, each with its group-2 layout.
+    pub rasters: Vec<RasterPipelines>,
     /// The shading's compute passes, in `SceneShading::passes` order.
     pub passes: Vec<(wgpu::ComputePipeline, wgpu::BindGroupLayout)>,
     pub verify: BTreeMap<&'static str, wgpu::ComputePipeline>,
@@ -170,7 +168,7 @@ pub fn chain_binding(shading: &SceneShading, name: &str, written: bool) -> u32 {
                 .unwrap_or_else(|| {
                     panic!(
                         "{}: no target {name} to {}",
-                        shading.fragment,
+                        shading.name(),
                         if written {
                             "write"
                         } else {
@@ -192,7 +190,7 @@ pub fn target_format(shading: &SceneShading, name: &str) -> wgpu::TextureFormat 
                 .targets
                 .iter()
                 .find(|t| t.name == name)
-                .unwrap_or_else(|| panic!("{}: no target {name}", shading.fragment))
+                .unwrap_or_else(|| panic!("{}: no target {name}", shading.name()))
                 .format
         }
     }
@@ -453,7 +451,7 @@ impl Pipelines {
         Ok(pipelines)
     }
 
-    /// The pipelines of an investigation's own shading: its scene pass, its
+    /// The pipelines of an investigation's own shading: its raster passes, its
     /// chain's compute passes with their group-2 layouts, and its
     /// verification kernels by entry point.
     pub fn shading(
@@ -472,34 +470,23 @@ impl Pipelines {
         }
         let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
         let module = module(device, shading.module, shaders::module(shading.module)?);
-        let chain_layout =
-            |label: &str, reads: &[&str], writes: &[&str], visibility: wgpu::ShaderStages| {
-                chain_layout(device, shading, label, reads, writes, visibility)
-            };
-        let scene_group = chain_layout(
-            "scene reads",
-            shading.scene_reads,
-            &[],
-            wgpu::ShaderStages::FRAGMENT,
-        );
-        // What the scene pass reads of the program: group 3.
+        // What the raster passes read of the program: group 3.
         let program_scene = shading
             .program
             .and_then(|p| crate::program::scene_layout(device, shading, p));
-        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("frame + shading"),
-            bind_group_layouts: &[
-                Some(&self.frame_layout),
-                Some(&self.shading_layout),
-                Some(&scene_group),
-                program_scene.as_ref(),
-            ],
-            immediate_size: 0,
-        });
-        let scene = Self::scene_pipeline(device, &module, shading, &layout);
-        let prepass = Self::prepass_pipeline(device, &module, shading, &layout);
-        // The depth views: the scene's meshes, depth only, one pipeline per layer.
-        let depth_views = self.depth_view_pipelines(device, &module, shading);
+        let raster = raster::RasterContext {
+            device,
+            module: &module,
+            shading,
+            frame: &self.frame_layout,
+            own: &self.shading_layout,
+            program_scene: program_scene.as_ref(),
+        };
+        let rasters = shading
+            .rasters
+            .iter()
+            .map(|r| raster.pipelines(r))
+            .collect();
         let volumes = (!shading.volumes.is_empty()).then(|| volume_layout(device, shading));
         let passes = self.pass_pipelines(
             device,
@@ -523,207 +510,16 @@ impl Pipelines {
         if let Some(error) = pollster::block_on(scope.pop()) {
             return Err(anyhow!(
                 "{} pipeline creation failed: {error}",
-                shading.fragment
+                shading.name()
             ));
         }
         Ok(ShadingPipelines {
-            scene,
-            prepass,
-            depth_views,
-            scene_group,
+            rasters,
             passes,
             verify,
             volumes,
             updates,
             program,
-        })
-    }
-
-    /// The scene pass: the meshes, into the chain's outputs (or the HDR target); after a depth pre-pass it only tests
-    /// against its depth (reversed: nearer is greater).
-    fn scene_pipeline(
-        device: &wgpu::Device,
-        module: &wgpu::ShaderModule,
-        shading: &SceneShading,
-        layout: &wgpu::PipelineLayout,
-    ) -> wgpu::RenderPipeline {
-        let [mesh, objects] = mesh_layouts();
-        // After a depth pre-pass, the scene pass only tests against its depth (reversed: nearer is greater).
-        let (compare, write) = if shading.prepass.is_some() {
-            (wgpu::CompareFunction::GreaterEqual, false)
-        } else {
-            (wgpu::CompareFunction::Greater, true)
-        };
-        let formats: Vec<wgpu::TextureFormat> = if shading.outputs.is_empty() {
-            vec![HDR_FORMAT]
-        } else {
-            shading
-                .outputs
-                .iter()
-                .map(|o| target_format(shading, o))
-                .collect()
-        };
-        let targets: Vec<Option<wgpu::ColorTargetState>> = formats
-            .iter()
-            .map(|&format| {
-                Some(wgpu::ColorTargetState {
-                    format,
-                    blend: None,
-                    write_mask: wgpu::ColorWrites::ALL,
-                })
-            })
-            .collect();
-
-        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some(shading.fragment),
-            layout: Some(layout),
-            vertex: wgpu::VertexState {
-                module,
-                entry_point: Some("sceneVS"),
-                compilation_options: Default::default(),
-                buffers: &[Some(mesh), Some(objects)],
-            },
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                cull_mode: None,
-                ..Default::default()
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: DEPTH_FORMAT,
-                depth_write_enabled: Some(write),
-                depth_compare: Some(compare),
-                stencil: Default::default(),
-                bias: Default::default(),
-            }),
-            multisample: wgpu::MultisampleState {
-                count: MSAA,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            fragment: Some(wgpu::FragmentState {
-                module,
-                entry_point: Some(shading.fragment),
-                compilation_options: Default::default(),
-                targets: &targets,
-            }),
-            multiview_mask: None,
-            cache: None,
-        })
-    }
-
-    /// The depth pre-pass, and what it writes besides the depth.
-    fn prepass_pipeline(
-        device: &wgpu::Device,
-        module: &wgpu::ShaderModule,
-        shading: &SceneShading,
-        layout: &wgpu::PipelineLayout,
-    ) -> Option<wgpu::RenderPipeline> {
-        let prepass_targets: Vec<Option<wgpu::ColorTargetState>> = shading
-            .prepass_outputs
-            .iter()
-            .map(|o| {
-                Some(wgpu::ColorTargetState {
-                    format: target_format(shading, o),
-                    blend: None,
-                    write_mask: wgpu::ColorWrites::ALL,
-                })
-            })
-            .collect();
-
-        shading.prepass.map(|entry| {
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some(entry),
-                layout: Some(layout),
-                vertex: wgpu::VertexState {
-                    module,
-                    entry_point: Some("sceneVS"),
-                    compilation_options: Default::default(),
-                    buffers: &[
-                        Some(mesh_layouts()[0].clone()),
-                        Some(mesh_layouts()[1].clone()),
-                    ],
-                },
-                primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::TriangleList,
-                    cull_mode: None,
-                    ..Default::default()
-                },
-                depth_stencil: Some(wgpu::DepthStencilState {
-                    format: DEPTH_FORMAT,
-                    depth_write_enabled: Some(true),
-                    depth_compare: Some(wgpu::CompareFunction::Greater),
-                    stencil: Default::default(),
-                    bias: Default::default(),
-                }),
-                multisample: wgpu::MultisampleState {
-                    count: MSAA,
-                    mask: !0,
-                    alpha_to_coverage_enabled: false,
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module,
-                    entry_point: Some(entry),
-                    compilation_options: Default::default(),
-                    targets: &prepass_targets,
-                }),
-                multiview_mask: None,
-                cache: None,
-            })
-        })
-    }
-
-    /// The depth views: the scene's meshes, depth only, one pipeline per layer.
-    fn depth_view_pipelines(
-        &self,
-        device: &wgpu::Device,
-        module: &wgpu::ShaderModule,
-        shading: &SceneShading,
-    ) -> Vec<wgpu::RenderPipeline> {
-        let views_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("frame + shading (depth views)"),
-            bind_group_layouts: &[Some(&self.frame_layout), Some(&self.shading_layout)],
-            immediate_size: 0,
-        });
-
-        shading.depth_views.map_or_else(Vec::new, |d| {
-            d.vertices
-                .iter()
-                .map(|&entry| {
-                    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                        label: Some(entry),
-                        layout: Some(&views_layout),
-                        vertex: wgpu::VertexState {
-                            module,
-                            entry_point: Some(entry),
-                            compilation_options: Default::default(),
-                            buffers: &[
-                                Some(mesh_layouts()[0].clone()),
-                                Some(mesh_layouts()[1].clone()),
-                            ],
-                        },
-                        primitive: wgpu::PrimitiveState {
-                            topology: wgpu::PrimitiveTopology::TriangleList,
-                            cull_mode: None,
-                            ..Default::default()
-                        },
-                        depth_stencil: Some(wgpu::DepthStencilState {
-                            format: DEPTH_FORMAT,
-                            depth_write_enabled: Some(true),
-                            depth_compare: Some(wgpu::CompareFunction::Greater),
-                            stencil: Default::default(),
-                            bias: wgpu::DepthBiasState {
-                                constant: d.bias.0,
-                                slope_scale: d.bias.1,
-                                clamp: 0.0,
-                            },
-                        }),
-                        multisample: wgpu::MultisampleState::default(),
-                        fragment: None,
-                        multiview_mask: None,
-                        cache: None,
-                    })
-                })
-                .collect()
         })
     }
 

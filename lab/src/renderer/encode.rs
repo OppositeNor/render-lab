@@ -2,6 +2,7 @@
 //! of the views, an experiment's reference, and the homepage's backdrop.
 
 use super::*;
+use crate::investigation::{RasterColor, RasterDepth, RasterPass};
 
 impl Renderer {
     /// The frame cleared to the background colour.
@@ -253,8 +254,8 @@ impl Renderer {
 
     /// Encode a frame's scene in its graph's order (src/graph.rs): the
     /// update passes (their plan's dispatches), then each live node: the
-    /// depth views, the pre-pass, the chain's compute passes, the scene pass,
-    /// and the overlay. The composite is the caller's.
+    /// raster passes (the depth views, a pre-pass, the scene pass), the
+    /// chain's compute passes, the program's passes, and the overlay. The composite is the caller's.
     /// The scene and overlay passes into the viewport targets (the composite
     /// reads them).
     /// With `timed`, its passes write GPU timestamps (src/timing.rs).
@@ -289,7 +290,6 @@ impl Renderer {
             self.chain = Some(ChainTargets::new(&self.gpu.device, s, targets));
         }
         let chain = chained.and(self.chain.as_ref());
-        let prepassed = chain.is_some() && chained.is_some_and(|s| s.pipelines.prepass.is_some());
         // Every view runs its program, from its own slot (its images and history; `Renderer::enter`).
         self.bind_program(shading, chain, targets);
         // A program that traces the scene gets its TLAS rebuilt from this frame's records.
@@ -313,7 +313,7 @@ impl Renderer {
                 targets,
             },
             chained,
-            prepassed,
+            depth_written: std::cell::Cell::new(false),
             // Each program pass's run of nodes.
             runs: shading.map_or(Vec::new(), |s| s.source.program_runs()),
             graph: &graph,
@@ -360,9 +360,8 @@ impl Renderer {
                         );
                     }
                 }
-                Step::DepthViews => self.encode_depth_views(encoder, &frame, timing.as_mut()),
-                Step::Prepass => self.encode_prepass(encoder, &frame, timing.as_mut()),
-                Step::Scene => self.encode_scene_pass(encoder, &frame, timing.as_mut()),
+                Step::Raster(i) => self.encode_raster(encoder, &frame, i, timing.as_mut()),
+                Step::Scene => self.encode_lab_scene(encoder, &frame, timing.as_mut()),
                 Step::Overlay => self.encode_overlay(encoder, &frame, timing.as_mut()),
             }
             if inspected {
@@ -409,12 +408,111 @@ impl Renderer {
         }
     }
 
-    /// The depth views (shadow maps), one layer at a time, when what
-    /// they see (the objects, the light, the shading values) changed.
+    /// Raster pass `i` (`SceneShading::rasters`): the depth views' layers, or one render pass of the scene's meshes
+    /// into its colour (its targets, or the HDR target with the sky behind) and the frame's depth, which it clears
+    /// and writes, or tests against what a raster pass before it wrote. Before the scene pass, the program's
+    /// commands after its plan's passes; besides the scene pass, it draws only in a chain.
+    fn encode_raster(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        frame: &SceneFrame,
+        i: usize,
+        mut timing: Option<&mut crate::timing::Timing>,
+    ) {
+        let FrameTargets {
+            chain,
+            shading,
+            targets,
+        } = frame.targets;
+        let Some(s) = shading else { return };
+        let r = &s.source.rasters[i];
+        if r.depth == RasterDepth::Layers {
+            return self.encode_depth_views(encoder, frame, i, timing);
+        }
+        let scene = i == s.source.scene;
+        if scene {
+            self.record_program(
+                encoder,
+                crate::program::ProgramRun {
+                    runs: &frame.runs,
+                    run: crate::program::BEFORE_SCENE,
+                },
+                frame.graph,
+                &frame.targets,
+                timing.as_deref_mut(),
+            );
+        } else if chain.is_none() {
+            return;
+        }
+        let color_attachments = raster_attachments(r, chain, targets);
+        // A pass that tests against the depth loads what a pass before it wrote; one that writes it clears it.
+        let load = if r.depth == RasterDepth::Test && frame.depth_written.get() {
+            wgpu::LoadOp::Load
+        } else {
+            wgpu::LoadOp::Clear(0.0)
+        };
+        if r.depth == RasterDepth::Write {
+            frame.depth_written.set(true);
+        }
+        let span = timing.as_mut().and_then(|t| t.render_writes(r.timing));
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some(r.timing),
+            color_attachments: &color_attachments,
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &targets.depth,
+                depth_ops: Some(wgpu::Operations {
+                    load,
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: span.as_ref().map(|t| t.writes()),
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        pass.set_bind_group(0, &self.frame_bind_group, &[]);
+        // Into the HDR target, the sky is the background; a chain's passes draw their own.
+        if r.color == RasterColor::Hdr {
+            pass.set_pipeline(&self.pipelines.sky);
+            pass.draw(0..3, 0..1);
+        }
+        pass.set_pipeline(&s.pipelines.rasters[i].pipelines[0]);
+        pass.set_bind_group(1, &s.group, &[]);
+        if r.fragment.is_some() {
+            // Its fragment's groups: its reads in the chain, or (the scene pass without one) an empty stand-in (2),
+            // and the program's scene uses (3).
+            let reads = chain.and_then(|c| c.raster_groups[i].as_ref());
+            if let Some(group) = reads.or(s.empty_scene_group.as_ref().filter(|_| scene)) {
+                pass.set_bind_group(2, group, &[]);
+            }
+            if let Some(group) = s
+                .program
+                .as_ref()
+                .and_then(|p| p.borrow().scene_group.clone())
+            {
+                pass.set_bind_group(3, &group, &[]);
+            }
+        }
+        self.draw_meshes(&mut pass);
+    }
+
+    /// The scene's meshes, each object once (its instance index is its id).
+    fn draw_meshes(&self, pass: &mut wgpu::RenderPass) {
+        pass.set_vertex_buffer(0, self.mesh_vertices.slice(..));
+        pass.set_vertex_buffer(1, self.object_ids.slice(..));
+        pass.set_index_buffer(self.mesh_indices.slice(..), wgpu::IndexFormat::Uint32);
+        for (i, range) in self.statics.meshes.ranges.iter().enumerate() {
+            pass.draw_indexed(range.clone(), 0, i as u32..i as u32 + 1);
+        }
+    }
+
+    /// The depth views (shadow maps, raster pass `i`), one layer at a time, in a chain, when what they see (the
+    /// objects, the light, the shading values) changed.
     fn encode_depth_views(
         &self,
         encoder: &mut wgpu::CommandEncoder,
         frame: &SceneFrame,
+        i: usize,
         mut timing: Option<&mut crate::timing::Timing>,
     ) {
         let (Some(s), Some(c)) = (frame.chained, frame.targets.chain) else {
@@ -426,14 +524,20 @@ impl Renderer {
             .as_ref()
             .filter(|_| c.depth_views_drawn.replace(Some(key)) != Some(key))
         {
-            let span = timing.as_mut().and_then(|t| t.render_writes("depth views"));
+            let r = &s.source.rasters[i];
+            let span = timing.as_mut().and_then(|t| t.render_writes(r.timing));
             let last = layers.len().saturating_sub(1);
-            for (i, (pipeline, layer)) in s.pipelines.depth_views.iter().zip(layers).enumerate() {
-                // Each layer of the depth views clears and draws the scene; the timer brackets the first and the last.
+            for (k, (pipeline, layer)) in s.pipelines.rasters[i]
+                .pipelines
+                .iter()
+                .zip(layers)
+                .enumerate()
+            {
+                // Each layer clears and draws the scene; the timer brackets the first and the last.
                 let writes = span
                     .as_ref()
-                    .filter(|_| i == 0 || i == last)
-                    .map(|t| t.span(i == 0, i == last));
+                    .filter(|_| k == 0 || k == last)
+                    .map(|t| t.span(k == 0, k == last));
                 let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("depth view"),
                     color_attachments: &[],
@@ -452,108 +556,21 @@ impl Renderer {
                 pass.set_pipeline(pipeline);
                 pass.set_bind_group(0, &self.frame_bind_group, &[]);
                 pass.set_bind_group(1, &s.group, &[]);
-                pass.set_vertex_buffer(0, self.mesh_vertices.slice(..));
-                pass.set_vertex_buffer(1, self.object_ids.slice(..));
-                pass.set_index_buffer(self.mesh_indices.slice(..), wgpu::IndexFormat::Uint32);
-                for (i, range) in self.statics.meshes.ranges.iter().enumerate() {
-                    pass.draw_indexed(range.clone(), 0, i as u32..i as u32 + 1);
-                }
+                self.draw_meshes(&mut pass);
             }
         }
     }
 
-    /// The depth pre-pass, and what it writes besides the depth (`prepass_outputs`).
-    fn encode_prepass(
+    /// The scene pass of a frame without a shading: the sky, then the meshes with the lab's own pipeline, into the
+    /// HDR target.
+    fn encode_lab_scene(
         &self,
         encoder: &mut wgpu::CommandEncoder,
         frame: &SceneFrame,
         mut timing: Option<&mut crate::timing::Timing>,
     ) {
-        let (Some(s), Some(c)) = (frame.chained, frame.targets.chain) else {
-            return;
-        };
         let targets = frame.targets.targets;
-        if let Some(prepass) = &s.pipelines.prepass {
-            let span = timing
-                .as_mut()
-                .and_then(|t| t.render_writes("depth pre-pass"));
-            // What the pre-pass writes besides the depth (`prepass_outputs`).
-            let outputs: Vec<Option<wgpu::RenderPassColorAttachment>> = s
-                .source
-                .prepass_outputs
-                .iter()
-                .map(|name| {
-                    Some(wgpu::RenderPassColorAttachment {
-                        view: c.view(name),
-                        depth_slice: None,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })
-                })
-                .collect();
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("depth pre-pass"),
-                color_attachments: &outputs,
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &targets.depth,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(0.0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: span.as_ref().map(|t| t.writes()),
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            pass.set_pipeline(prepass);
-            pass.set_bind_group(0, &self.frame_bind_group, &[]);
-            pass.set_bind_group(1, &s.group, &[]);
-            pass.set_bind_group(2, &c.scene_group, &[]);
-            if let Some(group) = s
-                .program
-                .as_ref()
-                .and_then(|p| p.borrow().scene_group.clone())
-            {
-                pass.set_bind_group(3, &group, &[]);
-            }
-            pass.set_vertex_buffer(0, self.mesh_vertices.slice(..));
-            pass.set_vertex_buffer(1, self.object_ids.slice(..));
-            pass.set_index_buffer(self.mesh_indices.slice(..), wgpu::IndexFormat::Uint32);
-            for (i, range) in self.statics.meshes.ranges.iter().enumerate() {
-                pass.draw_indexed(range.clone(), 0, i as u32..i as u32 + 1);
-            }
-        }
-    }
-
-    /// The scene pass: the program's commands before it, the sky (without a chain that draws its own), and the
-    /// meshes with the shading's pipeline.
-    fn encode_scene_pass(
-        &self,
-        encoder: &mut wgpu::CommandEncoder,
-        frame: &SceneFrame,
-        mut timing: Option<&mut crate::timing::Timing>,
-    ) {
-        let FrameTargets {
-            chain,
-            shading,
-            targets,
-        } = frame.targets;
-        self.record_program(
-            encoder,
-            crate::program::ProgramRun {
-                runs: &frame.runs,
-                run: crate::program::BEFORE_SCENE,
-            },
-            frame.graph,
-            &frame.targets,
-            timing.as_deref_mut(),
-        );
-        let color_attachments = scene_attachments(chain, targets);
-        let prepassed = frame.prepassed;
+        let color_attachments = [Some(hdr_attachment(targets))];
         let span = timing.as_mut().and_then(|t| t.render_writes("scene pass"));
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("scene"),
@@ -561,11 +578,7 @@ impl Renderer {
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &targets.depth,
                 depth_ops: Some(wgpu::Operations {
-                    load: if prepassed {
-                        wgpu::LoadOp::Load
-                    } else {
-                        wgpu::LoadOp::Clear(0.0)
-                    },
+                    load: wgpu::LoadOp::Clear(0.0),
                     store: wgpu::StoreOp::Store,
                 }),
                 stencil_ops: None,
@@ -575,34 +588,10 @@ impl Renderer {
             multiview_mask: None,
         });
         pass.set_bind_group(0, &self.frame_bind_group, &[]);
-        // Without a chain (or one that ends before the scene pass), the sky is the background; a chain's passes draw their own.
-        if chain.is_none_or(|c| c.source.outputs.is_empty()) {
-            pass.set_pipeline(&self.pipelines.sky);
-            pass.draw(0..3, 0..1);
-        }
-        pass.set_pipeline(shading.map_or(&self.pipelines.scene, |s| &s.pipelines.scene));
-        if let Some(s) = shading {
-            // The shading's groups: its own (1), the chain's targets or an empty stand-in (2), and the program's (3).
-            pass.set_bind_group(1, &s.group, &[]);
-            if let Some(c) = chain {
-                pass.set_bind_group(2, &c.scene_group, &[]);
-            } else if let Some(empty) = &s.empty_scene_group {
-                pass.set_bind_group(2, empty, &[]);
-            }
-            if let Some(group) = s
-                .program
-                .as_ref()
-                .and_then(|p| p.borrow().scene_group.clone())
-            {
-                pass.set_bind_group(3, &group, &[]);
-            }
-        }
-        pass.set_vertex_buffer(0, self.mesh_vertices.slice(..));
-        pass.set_vertex_buffer(1, self.object_ids.slice(..));
-        pass.set_index_buffer(self.mesh_indices.slice(..), wgpu::IndexFormat::Uint32);
-        for (i, range) in self.statics.meshes.ranges.iter().enumerate() {
-            pass.draw_indexed(range.clone(), 0, i as u32..i as u32 + 1);
-        }
+        pass.set_pipeline(&self.pipelines.sky);
+        pass.draw(0..3, 0..1);
+        pass.set_pipeline(&self.pipelines.scene);
+        self.draw_meshes(&mut pass);
     }
 
     /// The overlay pass: ghosts, boxes, segments, and points over the scene.
@@ -826,7 +815,8 @@ impl Renderer {
 struct SceneFrame<'a> {
     targets: FrameTargets<'a>,
     chained: Option<&'a Shading>,
-    prepassed: bool,
+    /// Whether a raster pass wrote the frame's depth yet (a pass that tests against it loads it then).
+    depth_written: std::cell::Cell<bool>,
     runs: Vec<u32>,
     graph: &'a crate::graph::FrameGraph,
     content: &'a FrameContent,
@@ -853,17 +843,16 @@ impl SceneFrame<'_> {
     }
 }
 
-/// The scene pass's colour attachments: the chain's outputs (from zero: its passes decide what the background
+/// A raster pass's colour attachments: its targets (from transparent: the passes after it decide what the background
 /// is), else the viewport's HDR target.
-fn scene_attachments<'a>(
+fn raster_attachments<'a>(
+    r: &RasterPass,
     chain: Option<&'a ChainTargets>,
     targets: &'a ViewportTargets,
 ) -> Vec<Option<wgpu::RenderPassColorAttachment<'a>>> {
-    match chain.filter(|c| !c.source.outputs.is_empty()) {
-        // The chain's targets start at zero: its passes decide what the background is.
-        Some(c) => c
-            .source
-            .outputs
+    match (r.color, chain) {
+        (RasterColor::Hdr, _) => vec![Some(hdr_attachment(targets))],
+        (RasterColor::Targets(names), Some(c)) => names
             .iter()
             .map(|name| {
                 Some(wgpu::RenderPassColorAttachment {
@@ -877,14 +866,19 @@ fn scene_attachments<'a>(
                 })
             })
             .collect(),
-        None => vec![Some(wgpu::RenderPassColorAttachment {
-            view: &targets.hdr_msaa,
-            depth_slice: None,
-            resolve_target: Some(&targets.hdr),
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                store: wgpu::StoreOp::Discard,
-            },
-        })],
+        (RasterColor::Targets(_), None) => Vec::new(),
+    }
+}
+
+/// The viewport's HDR target, multisampled and resolved, from black.
+fn hdr_attachment(targets: &ViewportTargets) -> wgpu::RenderPassColorAttachment<'_> {
+    wgpu::RenderPassColorAttachment {
+        view: &targets.hdr_msaa,
+        depth_slice: None,
+        resolve_target: Some(&targets.hdr),
+        ops: wgpu::Operations {
+            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+            store: wgpu::StoreOp::Discard,
+        },
     }
 }

@@ -79,43 +79,32 @@ pub struct Wording {
 /// Its compute entry points in `verify` take the verification buffers as
 /// group 2 (`Renderer::run_shading_verify`).
 ///
-/// The frame runs its `nodes` in order. With no `outputs`, the scene pass
-/// writes the lab's HDR target. With `outputs`, it starts a chain: the
-/// fragment shader writes those `targets` (in order), which stay
-/// multisampled, the compute nodes after it run `passes`, and the last
-/// writes `"hdr"`, which the frame shows. A pass binds group 2 as described
-/// on `ShadingPass`.
+/// The frame runs its `nodes` in order. Its raster passes (`rasters`) draw the scene's meshes; one of them is the
+/// scene pass (`scene`). When a raster pass writes `targets`, the frame is a chain: those targets stay
+/// multisampled, the compute nodes run `passes`, and the last writes `"hdr"`, which the frame shows; without one,
+/// the scene pass writes the lab's HDR target. A pass binds group 2 as described on `ShadingPass`.
 ///
-/// With a `prepass` fragment entry, a depth pre-pass node (that entry writes
-/// `prepass_outputs`, if any, and `@builtin(sample_mask)`, and reads nothing
-/// of group 2) comes before the scene pass, which tests against its depth
-/// (LessEqual, no depth writes); compute nodes between them read what it
-/// wrote. The scene pass's fragment shader may read `scene_reads` from
-/// group 2, bound as for a pass.
+/// A file's `scene`, `prepass`, and `depth-views` nodes are shorthands for raster passes (src/shading_file.rs):
+/// the scene pass; a depth pre-pass before it (it writes the depth and its targets, and the scene pass then only
+/// tests against that depth); and the depth views (`depth_views`). A `raster` node declares any other.
 pub struct SceneShading {
     /// The full key of its shader module (`[[shader]]` in its package).
     pub module: &'static str,
-    /// The fragment entry point of the scene pass.
-    pub fragment: &'static str,
     pub data: fn() -> Vec<[f32; 4]>,
     pub verify: &'static [&'static str],
     /// The chain's colour targets, besides `"hdr"` and `"depth"`.
     pub targets: &'static [ShadingTarget],
-    /// The scene pass's colour outputs, by target name; empty for `"hdr"` alone.
-    pub outputs: &'static [&'static str],
     /// The chain's compute passes, in the order of their nodes
     /// (`FrameNode::Compute(i)` is `passes[i]`).
     pub passes: &'static [ShadingPass],
-    pub prepass: Option<&'static str>,
-    /// The targets the pre-pass's fragment entry writes besides the depth
-    /// (multisampled, as the scene pass's outputs; a depth and normal pre-pass).
-    /// With them and no `outputs`, the chain is the pre-pass and the compute
-    /// passes after it before an ordinary scene pass, which writes the lab's HDR target.
-    pub prepass_outputs: &'static [&'static str],
+    /// The frame's raster passes, in the order of their nodes (`FrameNode::Raster(i)` is `rasters[i]`).
+    pub rasters: &'static [RasterPass],
+    /// Which of `rasters` is the scene pass.
+    pub scene: usize,
     /// The chain's storage buffers, besides its targets.
     pub buffers: &'static [ShadingBuffer],
-    pub scene_reads: &'static [&'static str],
-    /// Depth-only views of the scene's meshes (shadow maps), drawn first.
+    /// Depth-only views of the scene's meshes (shadow maps): a depth texture array, which a raster pass with
+    /// `RasterDepth::Layers` draws.
     pub depth_views: Option<&'static DepthViews>,
     /// 3D textures the chain's passes sample (group 3), written by `update`.
     pub volumes: &'static [ShadingVolume],
@@ -150,19 +139,71 @@ pub enum FrameNode {
     /// Pass `i` of `ShadingUpdate::passes`; update passes come first (they
     /// run before the frame, when their plan's key changes).
     Update(usize),
-    /// The depth views (`SceneShading::depth_views`).
-    DepthViews,
-    /// The depth pre-pass (`SceneShading::prepass`).
-    Prepass,
+    /// Raster pass `i` of `SceneShading::rasters`. Before the scene pass, the program's commands after its plan's
+    /// last pass command are recorded.
+    Raster(usize),
     /// Compute pass `i` of `SceneShading::passes`.
     Compute(usize),
     /// Pass `i` of `ShadingProgram::passes`. A run of consecutive program
     /// nodes is recorded where the run is: the plan's commands for its passes,
     /// in the plan's order, with the uploads, clears, and copies before each.
     Program(usize),
-    /// The scene pass (`SceneShading::fragment`); a plan's commands after its
-    /// last pass command are recorded right before it.
-    Scene,
+}
+
+/// A raster pass of a shading's frame: the scene's meshes, each object once, drawn with a vertex entry point and
+/// (unless it draws depth only) a fragment entry point, into colour attachments and a depth.
+pub struct RasterPass {
+    /// Its node's name in the frame graph.
+    pub name: &'static str,
+    /// Its row in the performance panel and its timer (`scene pass`, `depth pre-pass`, `depth views`, or its name).
+    pub timing: &'static str,
+    /// Its vertex entry point (the depth views draw each layer with their own, `DepthViews::vertices`).
+    pub vertex: &'static str,
+    /// Its fragment entry point; none draws depth only.
+    pub fragment: Option<&'static str>,
+    pub color: RasterColor,
+    pub depth: RasterDepth,
+    /// What its fragment entry reads of group 2, bound as for a compute pass's reads.
+    pub reads: &'static [&'static str],
+    /// Its fragment entry may use any of `reads` and of the program's scene uses, and declares none in the graph
+    /// (the pre-pass, which runs before the passes that fill what the scene pass reads); otherwise it uses every
+    /// one of `reads`, and the graph counts the program's scene uses as its reads.
+    pub some_reads: bool,
+    /// It lists the depth before its colour among its writes, so the depth is its result (what its node shows in
+    /// the frame graph's views): the pre-pass, whose depth is what it is for.
+    pub depth_first: bool,
+}
+
+/// Where a raster pass draws its colour.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RasterColor {
+    /// The lab's HDR target (multisampled, resolved), the sky behind the meshes: the scene pass without a chain
+    /// to write.
+    Hdr,
+    /// Chain targets by name, in its fragment entry's output order (multisampled, from transparent).
+    Targets(&'static [&'static str]),
+}
+
+/// How a raster pass uses depth (reversed: nearer is greater).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RasterDepth {
+    /// It clears the frame's depth and writes it (`Greater`).
+    Write,
+    /// It tests against the depth a raster pass before it wrote (`GreaterEqual`), without writing it.
+    Test,
+    /// It draws the depth views' layers (`SceneShading::depth_views`), each with its own vertex entry and the
+    /// views' bias, when what they see changed.
+    Layers,
+}
+
+impl RasterPass {
+    /// The colour targets it writes (none for the HDR target).
+    pub fn targets(&self) -> &'static [&'static str] {
+        match self.color {
+            RasterColor::Targets(t) => t,
+            RasterColor::Hdr => &[],
+        }
+    }
 }
 
 impl SceneShading {
@@ -187,15 +228,26 @@ impl SceneShading {
         runs
     }
 
-    /// Whether its frame is a pass chain: the scene pass writes `outputs`, or
-    /// a pre-pass writes targets for the passes before the scene pass.
+    /// Whether its frame is a pass chain: a raster pass writes targets, for the passes after it.
     pub fn chained(&self) -> bool {
-        !self.outputs.is_empty() || !self.prepass_outputs.is_empty()
+        self.rasters.iter().any(|r| !r.targets().is_empty())
     }
 
-    /// Whether `target` is drawn into (multisampled) by the scene pass or the pre-pass.
+    /// Whether `target` is drawn into (multisampled) by a raster pass.
     pub fn attachment(&self, target: &str) -> bool {
-        self.outputs.contains(&target) || self.prepass_outputs.contains(&target)
+        self.rasters.iter().any(|r| r.targets().contains(&target))
+    }
+
+    /// The scene pass.
+    pub fn scene_pass(&self) -> &'static RasterPass {
+        let rasters: &'static [RasterPass] = self.rasters;
+        &rasters[self.scene]
+    }
+
+    /// Its name in messages: the scene pass's fragment entry.
+    pub fn name(&self) -> &'static str {
+        let scene = self.scene_pass();
+        scene.fragment.unwrap_or(scene.name)
     }
 }
 

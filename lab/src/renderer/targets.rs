@@ -228,8 +228,8 @@ pub(super) struct ChainTargets {
     pub(super) depth_views_drawn: std::cell::Cell<Option<u64>>,
     /// Group 2 of each compute pass (`SceneShading::passes`).
     pub(super) groups: Vec<wgpu::BindGroup>,
-    /// Group 2 of the scene pass.
-    pub(super) scene_group: wgpu::BindGroup,
+    /// Group 2 of each raster pass (`SceneShading::rasters`; none for one that draws depth only).
+    pub(super) raster_groups: Vec<Option<wgpu::BindGroup>>,
 }
 
 /// Each chain target's name and divisor of the viewport's size.
@@ -280,7 +280,7 @@ impl ChainTargets {
                     &views
                         .iter()
                         .find(|(n, _)| *n == name)
-                        .unwrap_or_else(|| panic!("{}: no target {name}", source.fragment))
+                        .unwrap_or_else(|| panic!("{}: no target {name}", source.name()))
                         .1
                 }
             })
@@ -314,12 +314,16 @@ impl ChainTargets {
             .zip(&shading.pipelines.passes)
             .map(|(pass, (_, layout))| group(pass.entry, layout, pass.reads, pass.writes))
             .collect();
-        let scene_group = group(
-            "scene reads",
-            &shading.pipelines.scene_group,
-            source.scene_reads,
-            &[],
-        );
+        let raster_groups = source
+            .rasters
+            .iter()
+            .zip(&shading.pipelines.rasters)
+            .map(|(r, p)| {
+                p.group
+                    .as_ref()
+                    .map(|layout| group(r.name, layout, r.reads, &[]))
+            })
+            .collect();
         ChainTargets {
             made: targets_made(),
             source,
@@ -331,7 +335,7 @@ impl ChainTargets {
             depth_views,
             depth_views_drawn: std::cell::Cell::new(None),
             groups,
-            scene_group,
+            raster_groups,
         }
     }
 
@@ -501,7 +505,7 @@ impl ChainTargets {
                     .views
                     .iter()
                     .find(|(n, _)| *n == name)
-                    .unwrap_or_else(|| panic!("{}: no target {name}", self.source.fragment))
+                    .unwrap_or_else(|| panic!("{}: no target {name}", self.source.name()))
                     .1
             }
         }

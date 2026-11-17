@@ -55,14 +55,19 @@ pub fn lint(shading: &SceneShading) -> Result<Vec<String>> {
         lint.check_chain(pass.entry, pass.reads, Some(pass.writes), false);
     }
     if shading.chained() {
-        lint.check_chain(shading.fragment, shading.scene_reads, None, false);
-        // The pre-pass runs before the passes that fill the scene's reads: it reads none of them,
-        // but may read the program's scene group, which it binds too.
-        if let Some(entry) = shading.prepass {
-            let scene_uses: Vec<&str> = shading
-                .program
-                .map_or(Vec::new(), |p| program_reads(p.scene_uses));
-            lint.check_chain(entry, &scene_uses, None, true);
+        let scene_uses: Vec<&str> = shading
+            .program
+            .map_or(Vec::new(), |p| program_reads(p.scene_uses));
+        for r in shading.rasters {
+            // A raster pass's fragment entry uses its reads (the pre-pass, which runs before the passes that fill
+            // what the scene pass reads, may use some of them and of the program's scene group, which it binds too).
+            let Some(fragment) = r.fragment else { continue };
+            if r.some_reads {
+                let listed: Vec<&str> = r.reads.iter().chain(&scene_uses).copied().collect();
+                lint.check_chain(fragment, &listed, None, true);
+            } else {
+                lint.check_chain(fragment, r.reads, None, false);
+            }
         }
     }
     for pass in shading.passes.iter() {
@@ -82,8 +87,15 @@ pub fn lint(shading: &SceneShading) -> Result<Vec<String>> {
     }
     let mut problems = std::mem::take(&mut lint.problems);
     if let Some(program) = shading.program {
-        // The scene group is bound by the scene pass, the pre-pass, and (a shading without volumes) the chain's compute passes.
-        let mut chain_entries: Vec<&str> = shading.prepass.into_iter().collect();
+        // The scene group is bound by every raster pass with a fragment entry, and (a shading without volumes) the
+        // chain's compute passes.
+        let scene = shading.scene_pass().fragment.unwrap_or_default();
+        let mut chain_entries: Vec<&str> = shading
+            .rasters
+            .iter()
+            .filter_map(|r| r.fragment)
+            .filter(|f| *f != scene)
+            .collect();
         if shading.volumes.is_empty() {
             chain_entries.extend(shading.passes.iter().map(|p| p.entry));
         }
@@ -93,7 +105,7 @@ pub fn lint(shading: &SceneShading) -> Result<Vec<String>> {
             &|entry: &str| lint.uses(entry),
             &mut problems,
             shading.module,
-            shading.fragment,
+            scene,
             &chain_entries,
         );
     }

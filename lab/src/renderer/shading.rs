@@ -250,15 +250,22 @@ impl Renderer {
                     .as_ref()
                     .map_or(Vec::new(), |p| p.borrow().handles()),
             );
-            let empty_scene_group = (source.program.is_some_and(|p| !p.scene_uses.is_empty())
-                && source.scene_reads.is_empty())
-            .then(|| {
-                device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("no scene reads"),
-                    layout: &pipelines.scene_group,
-                    entries: &[],
+            // Without a chain the scene pass binds no group 2 of its own; one that reads the program at group 3
+            // binds an empty one in its place.
+            let empty_scene_group = pipelines.rasters[source.scene]
+                .group
+                .as_ref()
+                .filter(|_| {
+                    source.program.is_some_and(|p| !p.scene_uses.is_empty())
+                        && source.scene_pass().reads.is_empty()
                 })
-            });
+                .map(|layout| {
+                    device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: Some("no scene reads"),
+                        layout,
+                        entries: &[],
+                    })
+                });
             self.shadings.push(Shading {
                 source,
                 pipelines,
@@ -519,7 +526,7 @@ impl Renderer {
             assert!(
                 plan.dispatches.len() as u64 <= UPDATE_DISPATCHES_MAX,
                 "{}: {} update dispatches, at most {UPDATE_DISPATCHES_MAX}",
-                source.fragment,
+                source.name(),
                 plan.dispatches.len()
             );
             shading.update_runs.retain(|r| r.0 != set);
@@ -652,7 +659,7 @@ impl Renderer {
                     .iter()
                     .position(|pass| pass.entry == dispatches[i].pass)
                     .unwrap_or_else(|| {
-                        panic!("{}: no update pass {}", source.fragment, dispatches[i].pass)
+                        panic!("{}: no update pass {}", source.name(), dispatches[i].pass)
                     });
                 let mut end = i + 1;
                 while end < dispatches.len() && dispatches[end].pass == dispatches[i].pass {

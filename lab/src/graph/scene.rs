@@ -315,14 +315,23 @@ pub fn source_of(shading: Option<&SceneShading>, node: &Node) -> (&'static str, 
             ],
         ),
         (Step::Composite, _) => (crate::shaders::SCENE, vec!["fullscreenVS", "compositeFS"]),
-        (Step::Scene, None) => (crate::shaders::SCENE, vec!["sceneVS", "sceneFS"]),
-        (Step::Scene | Step::Prepass, Some(s)) => (s.module, vec!["sceneVS", entry]),
-        (Step::DepthViews, Some(s)) => (
-            s.module,
-            s.depth_views.map_or_else(Vec::new, |d| d.vertices.to_vec()),
-        ),
+        (Step::Scene, _) => (crate::shaders::SCENE, vec!["sceneVS", "sceneFS"]),
+        (Step::Raster(i), Some(s)) => (s.module, raster_entries(s, i)),
         (_, Some(s)) => (s.module, vec![entry]),
         (_, None) => (crate::shaders::SCENE, vec![entry]),
+    }
+}
+
+/// The entry points raster pass `i` draws with: the depth views' vertex entry for each layer, else its vertex entry
+/// and its fragment entry (if any).
+fn raster_entries(s: &SceneShading, i: usize) -> Vec<&'static str> {
+    use crate::investigation::RasterDepth;
+    let Some(r) = s.rasters.get(i) else {
+        return Vec::new();
+    };
+    match (r.depth, s.depth_views) {
+        (RasterDepth::Layers, Some(d)) => d.vertices.to_vec(),
+        _ => std::iter::once(r.vertex).chain(r.fragment).collect(),
     }
 }
 
