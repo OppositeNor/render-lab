@@ -45,6 +45,15 @@ edition also checks its alignment with English. Motion lengths such as
 `sentence` and `beat` stay symbolic: this does not measure speech or establish
 exact word times, frame boundaries, or chapter budgets.
 
+The narration measured for the ear (new-story's spoken-sentence rules; a report, never a failure):
+
+```sh
+python3 tools/video/lint.py --investigation godot/ssr [--lang zh-CN] [--json]
+```
+
+It prints the edition's numbers (sentences, median length, shares over the limits) and each sentence over a limit,
+with its place in the storyboard and what it is over.
+
 One beat at a time:
 
 ```sh
@@ -213,7 +222,7 @@ changes between captures; changing the host is expected. Comparison exits nonzer
 Run the gate in CI where its builds and narration cache are available. Test the gate itself with:
 
 ```sh
-python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py tools/video/test_compare.py tools/video/test_regression.py tools/video/test_preflight.py tools/video/test_structure.py
+python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py tools/video/test_compare.py tools/video/test_regression.py tools/video/test_preflight.py tools/video/test_structure.py tools/video/test_lint.py
 ```
 
 This gate proves real-document compilation and preparation compatibility, including script hook discovery. It

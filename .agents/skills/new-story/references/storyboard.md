@@ -71,6 +71,12 @@ revising narration): map each chapter's sentences with it and fix what the map s
 - **Re-check every edited sentence** against this list, not only the one a review flagged: a fix often breaks a rule
   elsewhere.
 
+`python3 tools/video/lint.py --investigation <id> [--lang zh-CN]` measures an edition against the rules it can count
+(length, commas, colons and semicolons, a formula or a participle first, provenance at the end; for zh-CN, 的 and
+length per Chinese sentence) and lists the sentences over its limits. It reports and never fails: read each listed
+sentence and decide. It cannot see a term used before its definition or a pronoun with two referents; the
+cold-listener review does (`references/review.md`).
+
 Before and after, from the stories:
 
 | Before | After |

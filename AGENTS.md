@@ -130,10 +130,11 @@ cargo run --release -- --investigation o3de/lighting selftest --report /path/to/
 O3DE_SOURCE_DIR=/path/to/o3de python3 packages/o3de_lighting/src/o3de/lighting/source_index.py   # O3DE: rewrite its package's source-index.json from the source (asks where it is without the variable)
 python3 tools/video/build.py --investigation o3de/lighting --snapshots-only   # the video's timeline and one still per beat; look at them
 python3 tools/video/check.py --investigation godot/ssr --explain c1-adds      # one beat: its sentences, cues in source order, the channels each writes and takes over (frames once prepared)
+python3 tools/video/lint.py --investigation godot/ssr --lang zh-CN           # the narration measured for the ear (length, commas, colons, openings; 的 for zh-CN): a report, the sentences over its limits
 python3 tools/video/build.py --investigation godot/ssr --preview c1-adds --cached-audio-only   # one beat's stills: each cue, the frame before it, motion and blend ends
 python3 tools/video/build.py --investigation o3de/lighting                    # the full video (~15 min, GPU; run it in the background)
 python3 tools/video/build.py --all                                            # every package's video, in all its languages, one after another (GPU; background)
-python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py tools/video/test_compare.py   # cue attributes, the storyboard format (a Lamlet presentation; the lab built first), the comparison
+python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py tools/video/test_compare.py tools/video/test_lint.py   # cue attributes, the storyboard format (a Lamlet presentation; the lab built first), the comparison, the narration lint
 python3 tools/video/compare.py save /tmp/before; python3 tools/video/compare.py /tmp/before /tmp/after   # every edition's prepared outputs unchanged by a change (after build.py --all --prepare-only each time)
 cargo run --release -- lamlet toml packages/render_lab/scenes/study-room.lam studyRoom   # a Lamlet content file's binding as the TOML the lab reads
 python3 tools/lamlet_fmt.py --check                                           # every tracked .lam file laid out (without --check: lays them out)
