@@ -7,14 +7,17 @@ hooks written as Lamlet scripts instead of Rust).
 
 ## The Play animation
 
-A demonstration's Play animation is a script's `Animation` hook (`render-lab-lamlet`), named by the demonstration's
-file (`animation = "playRoom"`): the values `t` seconds after Play, as Writes, usually a sine about a centre each
+A demonstration's Play animation is the first of its file's `clips` (`clips = ["playRoom"]`, `lab/src/clip.rs`): a
+clip of the scripts, or a script's `Animation` hook (`render-lab-lamlet`), which is a clip of its own name, one run of
+it for ever. A hook gives the values `t` seconds after Play, as Writes, usually a sine about a centre each
 (`{setFloorRoughness {wave 0.35 0.35 14.0 t}}`, `packages/godot_ssr/script/animations.lam`); every public package's
 are in its `script/animations.lam`. The viewer adds the camera's slow sway, the sliders follow, and stopping leaves the
 values in them. Sweep the parameter the demonstration is about (O3DE: the light circles the room; roughness sweeps
 through the cubemap's mips). A motion a script cannot express stays in the code: a `Clip` (`lab/src/animation.rs`) of
 looping motions (a `Wave`, an `Orbit`, a `Path`) sampled for the trait's `animation`
-(`lab::utility::demo::animation(demos(), &clip, t)`), to which the script's is applied after.
+(`lab::utility::demo::animation(demos(), &clip, t)`; a code clip, not the scripts', so the Animation tab does not
+show it), to which the demonstration's clip is applied after. A clip of keyframes and motions with an end (a
+demonstration that walks through steps) is the scripts' `Clip`; the Animation tab shows it as a dopesheet.
 
 ## Actions
 

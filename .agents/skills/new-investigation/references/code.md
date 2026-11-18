@@ -98,7 +98,7 @@ Optional ones include `backdrop` (its homepage scene), `animation` (Play), `shad
     checks that shader once the lab has run). Stories then set `viewMode` to `ndotl`. `render-lab values` lists every
     key (`packages/o3de_lighting/shaders/standard_lighting.wgsl`'s `O3deShading` is the example).
   - `demos/<key>.toml`: one demonstration (its title and tab text keys, hint, scene, listing, presets, camera, the
-    parameters it changes, and optionally the script `animation` its Play runs); `demos/index.toml` orders them;
+    parameters it changes, and optionally its `clips`, the first its Play animation); `demos/index.toml` orders them;
     `demos/presets/` holds cameras and parameters several share. A storyboard `demo` key resets to the
     demonstration's state.
 - **Every value has a help text**: `help = "help.<key>"` (`help=help.<key>` in a WGSL tag), a key of the package's text

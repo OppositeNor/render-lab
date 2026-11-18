@@ -273,6 +273,14 @@ impl Runtime {
     }
 }
 
+/// The scripts' animation hooks, by name (each a clip of its own too).
+pub fn animations() -> Vec<String> {
+    with_runtime(|rt| rt.animations.keys().cloned().collect())
+        .ok()
+        .flatten()
+        .unwrap_or_default()
+}
+
 /// The scripts' clips, by name.
 pub fn clips() -> Vec<Arc<Clip>> {
     with_runtime(|rt| rt.clips.values().cloned().collect())

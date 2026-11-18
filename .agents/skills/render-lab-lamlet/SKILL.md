@@ -131,6 +131,9 @@ has), each with the `{attr "…" "…"}` that still writes it.
   (typeset within the lab's limits). They check against the investigation `render-lab --investigation <id> lamlet ir`
   names (the video builder passes it); without one they fail, but an empty name (clearing) needs none.
 - **Ranges** without names: `over`, `overText`, `overCallout`.
+- **Clips** (section 6): `play<Clip>` plays one at a cue's word at its own pace; `playOver<Clip>`, in a range only,
+  stretches it to end as the range's words do (a one-second clip of keyframes at 0 and 1 then moves exactly as a
+  `…Range` would). They are the vocabulary's closed options, one per clip of the scripts.
 - **Another view's values:** `{view "field" {' {fieldMorph 1.0}}}` renames each attribute `view.field.<key>`, so a
   cue or a range sets the values (and the own camera) of a view the investigation stacks over the main one
   (lab/src/view.rs) rather than the main view's; join it to other attributes with `append`
@@ -192,7 +195,7 @@ marks), since moving them would add a frame-data struct and natives to move a fe
   | readout | `Readout` = `Fn([Float], List(Row))` | adds its rows to the frame's readout |
   | click handler | `ClickHandler` = `Fn([Click], List(Write))` | runs it for an image's `imageClick` of its name; the one named `scene` takes a click on the scene, before `Investigation::click` |
   | action | `{Action Args}` = `Fn([Float, Args], List(Write))` | runs it from a story's `{run "name"}`, with `run.<arg>` as the record `Args` (its fields' types are the arguments' kinds) |
-  | animation | `Animation` = `Fn([Float], List(Write))` | the viewer's Play animation of a demonstration whose file names it (`animation = "playSurface"`), after the code's |
+  | animation | `Animation` = `Fn([Float], List(Write))` | a clip of its own name too (one run of it for ever): the viewer's Play animation of a demonstration whose file lists it first (`clips = ["playSurface"]`), after the code's |
   | math scene | `Math` = `Fn([Float], List(Mob))` | draws its mobs on the canvas in place of the 3D scene, for a story's `kind=2d math=<name>` beat and a demonstration whose file names it (`math = "toyMath"`); built with the library `render_lab_math` (the `render-lab-math` skill) |
 
 - **No state.** A hook is a function of what it is passed (the time, a click, its arguments) and what it reads;
@@ -217,6 +220,15 @@ marks), since moving them would add a frame-data struct and natives to move a fe
   a hook takes (`render-lab --investigation <id> script check` lists the hooks, or the diagnostic). At run time a failing hook fails a recording or a selftest
   (`set_strict`); in the viewer it keeps its last good shapes, sets nothing, and shows its message as a note until
   it succeeds again. A script hook named like one of the code's (`#[click]`, `#[action]`) is an error.
+- **Clips** (runtime.lam's `Clip`, `lab/src/clip.rs`): a static binding of the type (`$[# combineSteps [% {clip
+  {' …}}]]`), named by it, read and checked once when the scripts load: tracks of a channel through keyframes
+  (`keys`, `tweenTo`, `progressKeys`, `progressIn`, `animate`, `fade`), a motion (`pathTrack`, `orbitTrack`,
+  `waveTrack`), or a run of an `Animation` hook (`runTrack`, 0 seconds for ever), composed with `after`,
+  `sequence`, `together`, `laggedClips`, `delayed`, and `reversed` (keyframes only). A progress (`progress.<name>`)
+  is a channel of the package's own that scenes, overlays, and readouts read (`progress`, `hasProgress`); two
+  tracks of one clip on one channel: the later takes it. A played clip holds its end; a demonstration's switch
+  clears the progresses and ends its runs. `render-lab --investigation <id> clips` lists them; the story check
+  warns of a declared clip no cue plays and no demonstration lists (`story.clip.unused`).
 - **Examples.** `packages/o3de_lighting/script/` (overlay, readout, picks, animations; natives in `script.rs`) and
   `packages/godot_voxelgi/script/logic.lam` (`marchCone`, `pickSliceCell`).
 

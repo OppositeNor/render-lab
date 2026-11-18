@@ -172,7 +172,13 @@ the motion that counts is the motion that explains.
   - *Coverage*: every sentence that names a mechanism has an animation that shows that mechanism working.
 
   A local edit to one beat keeps its chapter inside the three rules. A math beat (`kind=2d math=<scene>`, the
-  `render-lab-math` skill) counts as any beat: each stage its sentence sweeps is an animation.
+  `render-lab-math` skill) counts as any beat: each step a clip plays under its sentence is an animation.
+- **Play a clip, or range over words** (`render-lab-lamlet`, clips). What should move with the speech, a value
+  swept while the sentence names it or a scene's step over its sentence, ranges over the words (`…Range a b`, or
+  `playOver<Clip>`, stretched to end as the words do). What has a natural pace, a formula written, a bar grown, a
+  fade, a camera's move to a pose, plays at a word at its own pace (`play<Clip>`, manim's one second by default)
+  and holds its end: it does not crawl through a long sentence or rush through a short one. A clip a script
+  declares that no cue plays and no demonstration lists is warned of (`story.clip.unused`).
 - **What counts as supporting** (required). An animation counts when the sentence it plays under explains something
   with it: a ray marching to its hit, a texel picked and read, a count growing until the noise settles, a step of the
   algorithm played out, a value read off the picture, a cause and its effect. Filler is cut, never counted: a sweep

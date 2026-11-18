@@ -27,15 +27,22 @@ scenes.
 - A math beat is a beat of its chapter: its supporting animations count toward ⌈T / 6 s⌉, under `new-story`'s
   Phase 6 rules, and each is a value the dock shows.
 
-## The model: values, not a timeline of plays
+## The model: progresses moved by clips
 
 manim builds a scene from `play()` calls on objects that change. A Render Lab scene keeps nothing between frames:
-it is a function of its time and its values (the investigation's values package), as manim's `ValueTracker` with
-`always_redraw`, made the only model. So:
+it is a function of its time and of what the shot holds, as manim's `ValueTracker` with `always_redraw`; what moves
+those values is a **clip** (runtime.lam's `Clip`, `lab/src/clip.rs`; the `render-lab-lamlet` skill), as manim's
+`play()` would. So:
 
-- **One stage value per beat** (`toyStage`, 0 to its number of stages, default its last), a `#[value]` in the
-  investigation's `values.rs` with a slider in the demonstration's dock group. Each sentence sweeps one stage
-  (`${overText {' {toyStageRange 3.0 4.0}} "words"}`); `{phase s 3.0 4.0}` is that stage's progress in the scene.
+- **A step per sentence, each a progress.** Step `k` of a scene is a progress of its own (`toy.5`, 0 to 1), which
+  a clip of the scene's script moves: ReSTIR's `script/common.lam` makes them (`stepClip`, `stepsAt`,
+  `stepsInOrder`, `stepsRun`) and reads where the scene is (`[# s {stepOf "toy" 23}]`: the furthest step moved,
+  `5.4` for step 6 four tenths done, and the last step when nothing set any, so a demonstration opens on the
+  finished picture). The storyboard plays a step's clip over its sentence's words
+  (`${overText {' playOverToyStep4} "words"}`), sets the steps where a beat starts (`playToyAt0`), and the
+  demonstration's Play plays every step (`clips = ["toySteps"]`); `{phase s 3.0 4.0}` is step 4's progress in the
+  scene. A new scene may read its progresses directly (`{progress "toy.4"}`) and give its clips tracks of their
+  own (a formula's write, a bar's growth) at their own pace (`play…` at a word); no `#[value]` and no slider.
 - **Every animation takes its progress `t`** (0 to 1) and the figure, and gives the figure at that moment:
   `{write {phase s 5.0 5.8} formula}`. Several in one stage split it (`{phase s 5.0 5.4}`, `{phase s 5.4 5.8}`) or
   stagger (`lagged`).
@@ -46,7 +53,7 @@ it is a function of its time and its values (the investigation's values package)
   `crossParts`, `pointParts` in `script/common.lam`); to ring a figure for one stage alone, keep only the ring:
   `{drop {circumscribe t fig color} {length fig}}`.
 - **The demonstration shows the same scene** (`math = "toyMath"` in its file): the viewer draws the canvas in place of
-  the room, and dragging the stage value replays the beat.
+  the room; its Play plays its first clip, and the Animation tab shows its clips as a dopesheet and scrubs them.
 
 ## Procedural only
 
@@ -104,7 +111,7 @@ function.
 
 | Change | Check |
 |---|---|
-| A scene | `render-lab --investigation <id> script check`; the demonstration's canvas at several stages (`render-lab --investigation <id> home --snapshot <png> --page viewer:<demo>`, its stage value set in the demo's `[params]` while you look, then restored), looked at |
+| A scene | `render-lab --investigation <id> script check`; the demonstration's canvas at several stages (`render-lab --investigation <id> home --snapshot <png> --page viewer:<demo>`, and `--page "viewer-animation:<demo>@<clip>=<seconds>"` to scrub its clip to each step), looked at |
 | A math beat | both languages' `--prepare-only`; `python3 tools/video/build.py --investigation <id> --preview <beat> --cached-audio-only`, every still looked at; the beat's frames rendered with `--report` (`render-lab --investigation <id> render --timeline … --snapshot … --report …`): smallest text at least 24 px, no label issues |
 | The library | `cargo test --release --locked --offline -p render-lab-core -- script::runtime math` (its arithmetic and layouts), every investigation's `script check`, and their values packages unchanged (`script stubs`: a library name a value key also has drops that key's reader) |
 | The canvas (`lab/src/math/`, the `Math` hook) | `render-lab-lamlet`'s checks for the runtime library, and the frame identity check (AGENTS.md) |

@@ -1,13 +1,14 @@
 # Recipes: manim's techniques in `render_lab_math`
 
 Each recipe is code that ran in a scene (ReSTIR's scenes in `packages/paper_restir/script/`: `toy.lam`, `wrs.lam`,
-`params.lam`, `combine.lam`, `rounds.lam`, `history.lam`, `source.lam`, `bias.lam`; or the library's check scenes), with `s` the stage value and `t` a progress. A scene starts:
+`params.lam`, `combine.lam`, `rounds.lam`, `history.lam`, `source.lam`, `bias.lam`; or the library's check scenes), with `s` where the scene is (`stepOf`, from its steps' progresses, which clips move; `SKILL.md`'s model) and `t` a
+progress. A scene starts:
 
 ```text
-$[Import* std]$[Import* render_lab_runtime]$[Import* render_lab_math]$[Import* <package>_values]$[Import* <package>_natives]
+$[Import* std]$[Import* render_lab_runtime]$[Import* render_lab_math]$[Import* <package>_values]$[Import* <package>_natives]$[Import* <package>_common]
 
 $[# myScene {: {^ {t}
-    [# s {myStage}]
+    [# s {stepOf "my" 12}]
     …
     {flatten {' figureA figureB {showFrame frame}}}} Math}]
 ```
@@ -15,7 +16,7 @@ $[# myScene {: {^ {t}
 ## The Lamlet a scene needs
 
 - **The hook** is a binding ascribed `Math`: `$[# myScene {: {^ {t} … result} Math}]`, `t` the seconds (most scenes
-  ignore it and read their stage value instead). A helper is `$[# {_name a b} body]` (its name starts with `_`, so it
+  ignore it and read where they are from their progresses instead). A helper is `$[# {_name a b} body]` (its name starts with `_`, so it
   is never taken for a hook), or a lambda `{^ {x} body}`; a function `plot` takes is either:
   `$[# {_f x} {* {* 2.0 x} {exp {neg x}}}]`, then `{plot "f" ax _f 0.0 4.0 _curveColor 3.0}`. Numbers are Floats
   (`2.0`, not `2`); std's `exp`, `neg`, `sin`, `sqrt`, `lerp`, `clamp`, `min`, `max` come with `$[Import* std]`.
@@ -181,8 +182,9 @@ halves step by step, each step `{phase f …}` of its slice of the stage.
 ## A scene driven by the demonstration's own values (ReSTIR's `bias.lam`)
 
 When a demonstration already has values a story sweeps (`biasReveal`, `biasMark`, `biasCandidates`), the math
-scene reads them, so the storyboard's ranges keep working and the dock still explores it; one more stage value
-(`biasStage`) adds what each sentence explains beside the figure. Show each addition for a span of stages:
+scene reads them, so the storyboard's ranges keep working and the dock still explores it; the scene's steps
+(`stepOf "bias" 31`, its clips in `bias.lam`) add what each sentence explains beside the figure. Show each addition
+for a span of steps:
 
 ```text
 $[# {_during s a b fig} {!if {!or {< s a} {> s b}} {'} {fadeOut {phase s {- b 0.25} b} {fadeIn {phase s a {+ a 0.3}} fig}}}]
@@ -190,7 +192,8 @@ $[# {_during s a b fig} {!if {!or {< s a} {> s b}} {'} {fadeOut {phase s {- b 0.
 
 ## One scene over two beats, a 3D beat between (ReSTIR's `rounds.lam`)
 
-Give the second beat's opening the stage it starts from (`{roundsStage 2.0}`) and cut to its figure: after the
+Give the second beat's opening the step it starts from (`playRoundsAt2`, a clip that sets the steps up to 2) and
+cut to its figure: after the
 room, a fade from the first beat's figure only shows what is gone. Two consecutive beats of one scene do not fade
 (`TimelineBeat::same_math`).
 

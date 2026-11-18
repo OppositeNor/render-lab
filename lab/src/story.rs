@@ -2,6 +2,7 @@
 //! they never execute an action, synthesize speech, or render a frame.
 
 use crate::animation::{Ease, Motion};
+use crate::investigation;
 use crate::shot::{Cue, CueChecks, CueProblem, Timeline, TimelineCueProblem};
 use serde::{Deserialize, Serialize};
 
@@ -150,12 +151,14 @@ fn untimed(input: &str) -> Result<Vec<Diagnostic>, Diagnostic> {
     let mut checks = CueChecks::default();
     let mut warnings = Vec::new();
     let mut entries = Vec::new();
+    let mut played: Vec<String> = Vec::new();
     for entry in story.cues {
         crate::story_refs::check_options(&entry.key)
             .map_err(|e| Diagnostic::problem(&entry.context, e))?;
         let key: UntimedKey = serde_json::from_value(entry.key)
             .map_err(|e| Diagnostic::new(&entry.context, "story.key", "key", e.to_string()))?;
         checks.declare(&key.cue);
+        played.extend(key.cue.play.iter().chain(&key.cue.play_over).cloned());
         entries.push((entry.context, key));
     }
     for (context, key) in entries {
@@ -190,7 +193,52 @@ fn untimed(input: &str) -> Result<Vec<Diagnostic>, Diagnostic> {
             }
         }
     }
+    warnings.extend(unplayed_clips(&played));
     Ok(warnings)
+}
+
+/// A warning for each clip a script declares that the story never plays and no demonstration lists
+/// (`clips = […]`): one nothing shows. An animation hook's own clip is the hook's, and is left out.
+fn unplayed_clips(played: &[String]) -> Vec<Diagnostic> {
+    let listed: Vec<&str> = investigation::current()
+        .demo_specs()
+        .map(|d| {
+            d.specs
+                .iter()
+                .flat_map(|s| s.clips.iter().copied())
+                .collect()
+        })
+        .unwrap_or_default();
+    let hooks = crate::script::runtime::animations();
+    crate::script::runtime::clips()
+        .iter()
+        .filter(|c| !hooks.contains(&c.name))
+        .filter(|c| !played.contains(&c.name) && !listed.contains(&c.name.as_str()))
+        .map(|c| {
+            // The clip's place is its package's scripts, which `render-lab clips` lists.
+            let scripts = Context {
+                source: Source {
+                    file: Some(format!(
+                        "{}'s scripts",
+                        investigation::current().package().unwrap_or("render_lab")
+                    )),
+                    ..Source::default()
+                },
+                ..Context::default()
+            };
+            Diagnostic::warning(
+                &scripts,
+                CueProblem::new(
+                    "story.clip.unused",
+                    "play",
+                    format!(
+                        "the clip `{}` is played by no cue of the story and listed by no demonstration",
+                        c.name
+                    ),
+                ),
+            )
+        })
+        .collect()
 }
 
 #[allow(clippy::result_large_err)] // one diagnostic, once per check
