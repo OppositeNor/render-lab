@@ -36,6 +36,10 @@ $[# {_decides i} {!if {= i 0}
     {' 6.0 7.0}
     {!if {= i 1} {' 8.0 9.0} {' {+ {_joins i} 0.5} {+ {_joins i} 1.0}}}}]
 
+Fn([Int], Float). When candidate i's verdict is in the record: a replacing name has flown there (most of the way
+through its chance, so the record changes before the chance view closes).
+$[# {_lands i} {lerp {nth {_decides i} 0} {nth {_decides i} 1} 0.95}]
+
 Fn([Vec2], List(Mob)). The highlight behind the card at `at`.
 $[# {_cardLit at} {filled "lit"
     {box {sub2 at {v2 0.62 0.5}} {add2 at {v2 0.62 0.5}}}
@@ -106,7 +110,7 @@ the first reservoir's record shows at stage s: the kept candidate, the sum (coun
 count.
 $[# {_fieldsAt s steps split}
     [# joined {filter {range 0 split} {^ {i} {>= s {_joins i}}}}]
-    [# decided {filter {range 0 split} {^ {i} {>= s {nth {_decides i} 1}}}}]
+    [# decided {filter {range 0 split} {^ {i} {>= s {_lands i}}}}]
     [# last {!if {isEmpty joined} -1 {nth joined {- {length joined} 1}}}]
     [# before {!if {< last 1} 0.0 {.wsum {nth steps {- last 1}}}}]
     [# sum {!if {< last 0}
@@ -136,14 +140,14 @@ $[# {_chance steps split s}
     {!if {isEmpty now} {'} {_weigh steps s {head now}}}]
 
 Fn([List({kept: Int, light: Int, taken: Bool, u: Float, w: Float, wsum: Float}), Int, Float], List(Mob)). The
-name of a candidate that replaces the kept one, flying from its card into the record's first field over the last
-half of its chance (the record shows it once its chance is weighed).
+name of a candidate that replaces the kept one, flying from its card into the record's first field once its number
+has landed and the comparison shows (from 80 % to 95 % of its chance; the record shows it from then, `_lands`).
 $[# {_keptFly steps split s}
     [# flying {filter
         {range 0 split}
         {^ {i}
             [# d {_decides i}]
-            {!and {.taken {nth steps i}} {>= s {lerp {nth d 0} {nth d 1} 0.5}} {< s {nth d 1}}}}}]
+            {!and {.taken {nth steps i}} {>= s {lerp {nth d 0} {nth d 1} 0.8}} {< s {_lands i}}}}}]
     {flatten {map flying {^ {i}
         [# d {_decides i}]
         [# from {moveTo
@@ -152,7 +156,7 @@ $[# {_keptFly steps split s}
         [# to {moveTo
             {tex "flyName" {keptName i} 0.44 textColor}
             {add2 _recordPlace {v2 -1.8 0.0}}}]
-        {fromCopy {phase s {lerp {nth d 0} {nth d 1} 0.5} {nth d 1}} from to}}}}]
+        {fromCopy {phase s {lerp {nth d 0} {nth d 1} 0.8} {_lands i}} from to}}}}]
 
 Merging two reservoirs
 

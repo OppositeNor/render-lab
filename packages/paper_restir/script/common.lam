@@ -77,7 +77,8 @@ $[# record {:
 
 Fn([String, Float, Float, Float, Bool, Float, Vec2], List(Mob)). A chance weighed at progress `t`, about `at`: the
 fraction `left` (LaTeX) with its numbers, `w` over `total`, the chance as a lit part of a bar from 0 to 1, and the
-number `u` the update drew dropping onto the bar (inside the lit part, `taken`: the new one replaces the kept one).
+number `u` the update drew dropping onto the bar (inside the lit part, `taken`: the new one replaces the kept one), and
+once it lands (from 76 %), the comparison it made, `u` against the chance, under the bar.
 $[# chanceView {:
     {^ {left w total u taken t at}
         [# c {over w total}]
@@ -94,7 +95,18 @@ $[# chanceView {:
             taken
             t
             estimateColor}]
-        {append {fadeIn {phase t 0.0 0.2} formula} bar}}
+        [# verdict {moveTo
+            {tex "chanceVerdict"
+                {!if taken
+                    f"{u = ${numberLatex u 2} < ${numberLatex c 2}}"
+                    f"{u = ${numberLatex u 2} \ge ${numberLatex c 2}}"}
+                0.36
+                {!if taken accentColor textColor}}
+            {v2 {.x at} {- y 0.85}}}]
+        {flatten {'
+            {fadeIn {phase t 0.0 0.2} formula}
+            bar
+            {!if {>= t 0.76} {fadeIn {phase t 0.76 0.82} verdict} {'}}}}}
     {Fn {' String Float Float Float Bool Float Vec2} {List Mob}}}]
 
 Fn([Float, List(Mob), List(String), Color], List(Mob)). A figure with its parts named in `ids` pointed at while `t`

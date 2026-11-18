@@ -567,11 +567,25 @@ ${cue "key" {' {callout "eq9"}}}Each later candidate ${overText
     {' {wrsStageRange 7.0 8.0}}
     "first adds its weight to the sum"}.
 
-It then ${overText {' {wrsStageRange 8.0 9.0}} "replaces the kept one"} with a chance equal to its own weight divided by that new sum.
+It then replaces the kept one ${overText
+    {' {wrsStageRange 8.0 8.4}}
+    "with a chance equal to its own weight divided by that new sum"}.
+
+To decide, the reservoir draws ${overText
+    {' {wrsStageRange 8.4 8.75}}
+    "a random number between zero and one"}.
+
+The number ${overText {' {wrsStageRange 8.75 8.8}} "falls inside that chance"}, so ${overText
+    {' {wrsStageRange 8.8 9.0}}
+    "the second candidate replaces the first"}.
+
+${overText {' {wrsStageRange 9.0 9.6}} "The third candidate's chance is smaller"}, and ${overText
+    {' {wrsStageRange 9.6 9.92}}
+    "its number falls outside it"}, so the reservoir keeps the second.
 
 ${overText
-    {' {wrsStageRange 9.0 15.0}}
-    "One by one, all eight candidates pass through the reservoir"}.
+    {' {wrsStageRange 9.92 15.0}}
+    "One by one, the other five candidates pass through the reservoir the same way"}.
 
 At the end, each candidate has been kept ${overText
     {' {wrsStageRange 15.0 16.0}}
