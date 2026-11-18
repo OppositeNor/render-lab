@@ -419,75 +419,75 @@ So the light at P is ${overText
 
 ### Two samples, worked by hand {#c2-toy kind=2d math=toyMath}
 
-${cue "key" {' {toyStage 0.0} {toyDrop 0.0}}}
+${cue "key" {' playToyAt0 {toyDrop 0.0}}}
 
 Each part of W has a job, and ${overText
-    {' {toyStageRange 0.0 1.0}}
+    {' playOverToyStep1}
     "a world small enough to work by hand shows it"}.
 
 It has only two light samples, A and B, and it is the lab's example, not the paper's.
 
-The cheap choice draws ${overText {' {toyStageRange 1.0 2.0}} "A three times in four, and B once"}.
+The cheap choice draws ${overText {' playOverToyStep2} "A three times in four, and B once"}.
 
-But ${overText {' {toyStageRange 2.0 3.0}} "B brings three times as much light as A"}.
+But ${overText {' playOverToyStep3} "B brings three times as much light as A"}.
 
-${overText {' {toyStageRange 3.0 4.0}} "Here the target is exactly what each sample brings"}.
+${overText {' playOverToyStep4} "Here the target is exactly what each sample brings"}.
 
-So the true total is ${overText {' {toyStageRange 4.0 5.0}} "four, one from A and three from B"}.
+So the true total is ${overText {' playOverToyStep5} "four, one from A and three from B"}.
 
 Dividing by the probability ${overText
-    {' {toyStageRange 5.0 6.0}}
+    {' playOverToyStep6}
     "gives A a weight of four thirds, and B a weight of twelve"}.
 
 B is drawn rarely, ${overText
-    {' {toyStageRange 6.0 7.0}}
+    {' playOverToyStep7}
     "so its weight is large when it does turn up"}.
 
 ${cue "key" {' {callout "eq6"}}}Now RIS ${overText
-    {' {toyStageRange 7.0 8.0}}
+    {' playOverToyStep8}
     "draws two candidates, and keeps one"}.
 
-${overText {' {toyStageRange 8.0 9.0}} "Two A's come up nine times in sixteen"}, and the estimate is then four thirds.
+${overText {' playOverToyStep9} "Two A's come up nine times in sixteen"}, and the estimate is then four thirds.
 
-${overText {' {toyStageRange 9.0 10.0}} "One A and one B come up six times in sixteen"}, and the estimate is then six and two thirds.
+${overText {' playOverToyStep10} "One A and one B come up six times in sixteen"}, and the estimate is then six and two thirds.
 
 It is the same whichever one is kept, ${overText
-    {' {toyStageRange 10.0 11.0}}
+    {' playOverToyStep11}
     "because the target here equals what each sample brings"}.
 
-${overText {' {toyStageRange 11.0 12.0}} "Two B's come up once in sixteen"}, and the estimate is then twelve.
+${overText {' playOverToyStep12} "Two B's come up once in sixteen"}, and the estimate is then twelve.
 
-${overText {' {toyStageRange 12.0 13.0}} "No single estimate is four"}.
+${overText {' playOverToyStep13} "No single estimate is four"}.
 
 But ${overText
-    {' {toyStageRange 13.0 14.0}}
+    {' playOverToyStep14}
     "averaged with these chances, the estimates come to exactly four"}.
 
 ${cue "key" {' {callout "ris-unbiased"}}}That is what unbiased means, ${overText
-    {' {toyStageRange 14.0 15.0}}
+    {' playOverToyStep15}
     "correct on average"}, though not in every run.
 
-${overText {' {toyStageRange 15.0 16.0}} "W does one more job"}.
+${overText {' playOverToyStep16} "W does one more job"}.
 
 On average, ${overText
-    {' {toyStageRange 16.0 17.0}}
+    {' playOverToyStep17}
     "it is one over the chance that RIS keeps the sample"}.
 
-${overText {' {toyStageRange 17.0 18.0}} "RIS keeps B four times in ten"}, and when it does, W averages two and a half.
+${overText {' playOverToyStep18} "RIS keeps B four times in ten"}, and when it does, W averages two and a half.
 
-${overText {' {toyStageRange 18.0 18.6}} "Without the average of the weights"}, every estimate is one, far below four.
+${overText {' playOverToyStep19From0To60} "Without the average of the weights"}, every estimate is one, far below four.
 
-That average estimates the target's total, ${overText {' {toyStageRange 18.6 19.0}} "four here"}, and so it puts back the scale.
+That average estimates the target's total, ${overText {' playOverToyStep19From60To100} "four here"}, and so it puts back the scale.
 
-${overText {' {toyStageRange 19.0 20.0}} "Without dividing by the probability"}, the estimates average one and a half.
+${overText {' playOverToyStep20} "Without dividing by the probability"}, the estimates average one and a half.
 
-${overText {' {toyStageRange 20.0 21.0}} "The rarely drawn B then counts for far too little"}.
+${overText {' playOverToyStep21} "The rarely drawn B then counts for far too little"}.
 
-${overText {' {toyStageRange 21.0 22.0}} "So W needs both"}, ${formulaSaid f"{W = \frac{\sum w}{M\, \hat{p}(y)}}" "the sum of the weights, over the count M, over the kept candidate's target"
+${overText {' playOverToyStep22} "So W needs both"}, ${formulaSaid f"{W = \frac{\sum w}{M\, \hat{p}(y)}}" "the sum of the weights, over the count M, over the kept candidate's target"
     {'}}.
 
 With only two candidates, ${overText
-    {' {toyStageRange 22.0 23.0}}
+    {' playOverToyStep23}
     "the estimates still spread from four thirds to twelve"}.
 
 ### More candidates, less noise {#c2-ris-more kind=3d}
@@ -537,78 +537,78 @@ A GPU cannot afford ${overText
 
 ${cue "key" {opening demoWrs panelHidden {append baseRoom {append pickCamera {append
     {noReuse 16.0}
-    {' {risStep 16.0} {lightPhase 0.0} {wrsStage 0.0}}}}}}}
+    {' {risStep 16.0} {lightPhase 0.0} playWrsAt0}}}}}}
 
 What RIS needs is a way to pick ${overText
-    {' {wrsStageRange 0.0 1.0}}
+    {' playOverWrsStep1}
     "while the candidates arrive, one at a time"}, without storing them.
 
 ${cue "key" {' {callout "reservoir-history"}}}The same problem came up decades ago, ${overText
-    {' {wrsStageRange 1.0 2.0}}
+    {' playOverWrsStep2}
     "with data stored on tape drives"}.
 
 Reservoir sampling, from the early 1980s, picks data from a tape at random ${overText
-    {' {wrsStageRange 2.0 3.0}}
+    {' playOverWrsStep3}
     "in a single pass"}, without rewinding or storing it all.
 
 ${cue "key" {' {callout "wrs"}}}Its weighted form, weighted reservoir sampling, picks one item from a stream, ${overText
-    {' {wrsStageRange 3.0 4.0}}
+    {' playOverWrsStep4}
     "a sequence that arrives one item at a time and is seen only once"}.
 
 ${cue "key" {' {callout "alg2"}}}It keeps a small record of three things, ${overText
-    {' {wrsStageRange 4.0 5.0}}
+    {' playOverWrsStep5}
     "the kept item, the running sum of weights, and the count of items so far"}.
 
-${overText {' {wrsStageRange 5.0 6.0}} "This record is the reservoir from chapter one"}.
+${overText {' playOverWrsStep6} "This record is the reservoir from chapter one"}.
 
-When ${overText {' {wrsStageRange 6.0 7.0}} "P's first candidate arrives"}, the reservoir keeps it.
+When ${overText {' playOverWrsStep7} "P's first candidate arrives"}, the reservoir keeps it.
 
 ${cue "key" {' {callout "eq9"}}}Each later candidate ${overText
-    {' {wrsStageRange 7.0 8.0}}
+    {' playOverWrsStep8}
     "first adds its weight to the sum"}.
 
 It then replaces the kept one ${overText
-    {' {wrsStageRange 8.0 8.4}}
+    {' playOverWrsStep9From0To40}
     "with a chance equal to its own weight divided by that new sum"}.
 
 To decide, the reservoir draws ${overText
-    {' {wrsStageRange 8.4 8.75}}
+    {' playOverWrsStep9From40To75}
     "a random number between zero and one"}.
 
-The number ${overText {' {wrsStageRange 8.75 8.8}} "falls inside that chance"}, so ${overText
-    {' {wrsStageRange 8.8 9.0}}
+The number ${overText {' playOverWrsStep9From75To80} "falls inside that chance"}, so ${overText
+    {' playOverWrsStep9From80To100}
     "the second candidate replaces the first"}.
 
-${overText {' {wrsStageRange 9.0 9.6}} "The third candidate's chance is smaller"}, and ${overText
-    {' {wrsStageRange 9.6 9.92}}
+${overText {' playOverWrsStep10From0To60} "The third candidate's chance is smaller"}, and ${overText
+    {' playOverWrsStep10From60To92}
     "its number falls outside it"}, so the reservoir keeps the second.
 
 ${overText
-    {' {wrsStageRange 9.92 15.0}}
+    {' playOverWrsRun992To1500}
     "One by one, the other five candidates pass through the reservoir the same way"}.
 
 At the end, each candidate has been kept ${overText
-    {' {wrsStageRange 15.0 16.0}}
+    {' playOverWrsStep16}
     "with a chance in proportion to its weight"}, exactly as RIS needs.
 
 ${cue "key" {' {callout "combine"}}}And two reservoirs can be merged into one, ${overText
-    {' {wrsStageRange 16.0 17.0}}
+    {' playOverWrsStep17}
     "as if both their streams had passed through a single reservoir"}.
 
 To merge them, ${overText
-    {' {wrsStageRange 17.0 18.0}}
+    {' playOverWrsStep18}
     "each reservoir's kept candidate becomes a fresh candidate"}, whose weight is that reservoir's whole sum of weights.
 
 A new reservoir ${overText
-    {' {wrsStageRange 18.0 19.0}}
+    {' playOverWrsStep19}
     "takes the two in turn, keeping the second with a chance of its weight over the new sum"}.
 
 ${cue "key" {' {callout "alg4"}}}Its count is ${overText
-    {' {wrsStageRange 19.0 20.0}}
+    {' playOverWrsStep20}
     "the two counts added"}, sixteen here.
 
 ${cue "key" {' {callout "combine"}}}The merge ${overText
-    {' {wrsStageRange 20.0 21.0}}
+    {' playOverWrsStep21}
     "takes a fixed amount of work"}, and needs neither stream, only each reservoir's record.
 
 That merge is what will let pixels share.

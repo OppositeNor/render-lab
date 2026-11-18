@@ -9,6 +9,7 @@ listing = "frame"
 resets-camera = true
 # Its math scene (script/math.lam): the canvas shows the example in place of the room.
 math = "toyMath"
+clips = ["toySteps"]
 
 [camera]
 target = [0.0, 0.9, -0.6]

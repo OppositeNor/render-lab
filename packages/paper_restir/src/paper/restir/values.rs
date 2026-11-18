@@ -67,18 +67,6 @@ pub struct RestirValues {
     /// The part of W the worked example removes (toy.rs): 0 none, 1 the division by p, 2 the average of the weights.
     #[value(default = 0.0, range = 0.0..=2.0, unit = index, text = "controls-toy_drop", color = palette::SELECTED, label(toy), help = "help-toyDrop")]
     pub toy_drop: f32,
-    /// How far the worked example's math scene has come (script/math.lam `toyMath`), one stage per sentence of
-    /// the story's beat: 1 to 3 the samples' p and p-hat, 4 the true total, 5 and 6 the weights, 7 to 12 the lists
-    /// of two candidates, 13 to 15 their average, 16 to 18 how often RIS keeps B, 18 to 22 W without each part, 23
-    /// the estimates' spread.
-    #[value(default = 23.0, range = 0.0..=23.0, unit = plain, text = "controls-toy_stage", color = palette::SELECTED, label(toy), help = "help-toyStage")]
-    pub toy_stage: f32,
-    /// How far the stream through a reservoir has come (script/math.lam `wrsMath`), one stage per sentence of the
-    /// story's beat: 1 to 3 the stream and the tape, 4 and 5 the reservoir's record, 6 to 15 P's candidates
-    /// through it, 15 to 16 the chances of keeping each, 16 to 21 two reservoirs merged (a second beside the first,
-    /// each a fresh candidate, a new reservoir taking them, the counts added, the new reservoir kept alone).
-    #[value(default = 21.0, range = 0.0..=21.0, unit = plain, text = "controls-wrs_stage", color = palette::SELECTED, label(wrs), help = "help-wrsStage")]
-    pub wrs_stage: f32,
     /// How far importance sampling on P's lights has come (script/lights.lam `lightsMath`), one stage per sentence
     /// of the story's two beats: 1 to 3 a light drawn and its estimate f / p among others, 4 p following f, 5 and 6
     /// two ways of drawing mixed, 7 to 14 the target and the cheap choice.

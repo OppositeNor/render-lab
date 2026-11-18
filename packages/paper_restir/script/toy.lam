@@ -2,7 +2,7 @@ The ReSTIR story's worked example of RIS
 ========================================
 
 What the story draws on the canvas (lab/src/math/) with render_lab's math library (`render_lab_math`): the worked
-example of RIS (chapter 2, demos/toy.rs's numbers through the package's natives), stage by stage as `toyStage`
+example of RIS (chapter 2, demos/toy.rs's numbers through the package's natives), stage by stage as its stage (`stepOf "toy" 23`, the clips below)
 goes from 0 to 23. Each stage is one sentence's animation; `toyDrop` (or the counterfactual stages) removes a
 part of W.
 
@@ -288,9 +288,9 @@ $[# {_keptB s}
 
 The scene
 
-Fn([Float], List(Mob)). The worked example at stage `toyStage`.
+Fn([Float], List(Mob)). The worked example at stage its stage (`stepOf "toy" 23`, the clips below).
 $[# toyMath {: {^ {t}
-    [# s {toyStage}]
+    [# s {stepOf "toy" 23}]
     [# one {flatten {' {_legend s} {_bars 0 s} {_bars 1 s} {_total s}}}]
     [# drop1 {- {smooth {phase s 19.2 19.7}} {smooth {phase s 21.0 21.5}}}]
     [# tables {transform drop1
@@ -391,3 +391,34 @@ $[# toyMath {: {^ {t}
             {!if {< s 12.0} {'} {_marks s}}
             {fadeIn {phase s 22.2 22.8} spread}
             {showFrame frame}}}}} Math}]
+
+Clips
+
+The scene's steps as clips (lab/src/clip.rs): its demonstration's Play plays every step in order, a second each;
+the story plays each over its sentence's words, and sets the scene back to a step where a beat starts.
+$[# toySteps [% {stepsInOrder "toy" 23}]]
+$[# toyAt0 [% {stepsAt "toy" 23 0}]]
+$[# toyStep1 [% {stepClip "toy" 1 0.0 1.0}]]
+$[# toyStep10 [% {stepClip "toy" 10 0.0 1.0}]]
+$[# toyStep11 [% {stepClip "toy" 11 0.0 1.0}]]
+$[# toyStep12 [% {stepClip "toy" 12 0.0 1.0}]]
+$[# toyStep13 [% {stepClip "toy" 13 0.0 1.0}]]
+$[# toyStep14 [% {stepClip "toy" 14 0.0 1.0}]]
+$[# toyStep15 [% {stepClip "toy" 15 0.0 1.0}]]
+$[# toyStep16 [% {stepClip "toy" 16 0.0 1.0}]]
+$[# toyStep17 [% {stepClip "toy" 17 0.0 1.0}]]
+$[# toyStep18 [% {stepClip "toy" 18 0.0 1.0}]]
+$[# toyStep19From0To60 [% {stepClip "toy" 19 0.0 0.6000000000000014}]]
+$[# toyStep19From60To100 [% {stepClip "toy" 19 0.6000000000000014 1.0}]]
+$[# toyStep2 [% {stepClip "toy" 2 0.0 1.0}]]
+$[# toyStep20 [% {stepClip "toy" 20 0.0 1.0}]]
+$[# toyStep21 [% {stepClip "toy" 21 0.0 1.0}]]
+$[# toyStep22 [% {stepClip "toy" 22 0.0 1.0}]]
+$[# toyStep23 [% {stepClip "toy" 23 0.0 1.0}]]
+$[# toyStep3 [% {stepClip "toy" 3 0.0 1.0}]]
+$[# toyStep4 [% {stepClip "toy" 4 0.0 1.0}]]
+$[# toyStep5 [% {stepClip "toy" 5 0.0 1.0}]]
+$[# toyStep6 [% {stepClip "toy" 6 0.0 1.0}]]
+$[# toyStep7 [% {stepClip "toy" 7 0.0 1.0}]]
+$[# toyStep8 [% {stepClip "toy" 8 0.0 1.0}]]
+$[# toyStep9 [% {stepClip "toy" 9 0.0 1.0}]]

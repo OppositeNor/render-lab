@@ -121,3 +121,86 @@ Fn([Float, List(Mob), List(String), Color], List(Mob)). A figure with its parts 
 $[# {crossParts t mobs ids color} {append
     {filter mobs {^ {m} {not {contains ids {idOf m}}}}}
     {crossOut t {filter mobs {^ {m} {contains ids {idOf m}}}} color}}]
+
+Steps as clips
+
+A math scene of this package goes through steps, one per sentence of its beat (or a part of one). Each step `k` is a
+progress of the scene's own, `<scene>.<k>`, from 0 to 1, and a clip moves it (lab/src/clip.rs): the story plays a
+step's clip over its sentence's words (`playOver…`), and a beat that starts the scene sets every step where the
+beat begins (`play…`). The scene reads where it is from them (`stepOf`).
+
+Fn([String, Int], String). The progress of step `k` of the scene `name`.
+$[# {_stepKey name k} {++ name {++ "." {str k}}}]
+
+Fn([String, Int], Float). Where the scene `name` of `count` steps is: the furthest step a clip has moved, its
+number before it plus its progress (5.4: step 6 four tenths done). A scene no clip has set yet (a demonstration
+opened on it) is at its end, `count`, as the finished picture.
+$[# stepOf {: {^ {name count}
+    [# ks {range 1 {+ count 1}}]
+    {!if {any ks {^ {k} {hasProgress {_stepKey name k}}}}
+        {fold ks 0.0 {^ {m k}
+            [# p {progress {_stepKey name k}}]
+            {!if {> p 0.0} {max m {+ {float {- k 1}} p}} m}}}
+        {float count}}} {Fn {' String Int} Float}}]
+
+Fn([String, Int, Float, Float], Clip). Step `k` of the scene `name` from `a` to `b` of it (0 to 1, the whole
+step), over a second, eased as a story's range is (`smooth`).
+$[# stepClip {: {^ {name k a b} {clip {'
+    {progressKeys
+        {_stepKey name k}
+        {'
+            {keyframe 0.0 a "linear"}
+            {keyframe 1.0 b "smooth"}}}}}} {Fn {' String Int Float Float} Clip}}]
+
+Fn([String, Int, Int], Clip). The scene `name` of `count` steps set at once to the end of step `n`: the steps up
+to it done, the others not begun.
+$[# stepsAt {: {^ {name count n} {clip {map
+    {range 1 {+ count 1}}
+    {^ {k} {progressKeys
+        {_stepKey name k}
+        {' {keyframe 0.0 {!if {<= k n} 1.0 0.0} "linear"}}}}}}} {Fn {' String Int Int} Clip}}]
+
+Fn([String, Int], Clip). Every step of the scene `name` of `count` steps in order from none, a second each: its
+demonstration's Play. Each step's progress is 0 from the start until its second, then rises to 1.
+$[# stepsInOrder {: {^ {name count} {clip {map
+    {range 1 {+ count 1}}
+    {^ {k}
+        [# begins {float {- k 1}}]
+        {progressKeys
+            {_stepKey name k}
+            {'
+                {keyframe 0.0 0.0 "linear"}
+                {keyframe begins 0.0 "linear"}
+                {keyframe {+ begins defaultSeconds} 1.0 "smooth"}}}}}}} {Fn {' String Int} Clip}}]
+
+Fn([Float], Float). Where smootherstep reaches `y` (0 to 1), by halving.
+$[# {_unsmooth y} {.first {fold
+    {range 0 40}
+    {pair 0.0 1.0}
+    {^ {r e}
+        [# mid {/ {+ {.first r} {.second r}} 2.0}]
+        {!if {< {smooth mid} y} {pair mid {.second r}} {pair {.first r} mid}}}}}]
+
+Fn([String, Float, Float], Clip). The scene `name` from `a` to `b` across several steps over a second, as one
+smooth range: each step's progress moves while the whole passes through it, through sixteen keyframes on the
+curve (a close fit to the range's easing, not an exact one).
+$[# stepsRun {: {^ {name a b}
+    [# {at x} {+ a {* {- b a} {smooth x}}}]
+    [# first {+ {floor a} 1}]
+    [# last {ceil b}]
+    {clip {map
+        {range first {+ last 1}}
+        {^ {k}
+            [# lo {max a {float {- k 1}}}]
+            [# hi {min b {float k}}]
+            [# x0 {_unsmooth {/ {- lo a} {- b a}}}]
+            [# x1 {_unsmooth {/ {- hi a} {- b a}}}]
+            {progressKeys
+                {_stepKey name k}
+                {map
+                    {range 0 17}
+                    {^ {i}
+                        [# x {+ x0 {* {- x1 x0} {/ {float i} 16.0}}}]
+                        {keyframe x
+                            {clamp {- {at x} {float {- k 1}}} 0.0 1.0}
+                            "linear"}}}}}}}} {Fn {' String Float Float} Clip}}]

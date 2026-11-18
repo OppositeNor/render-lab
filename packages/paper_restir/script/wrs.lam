@@ -11,7 +11,7 @@ $[Import* paper_restir_common]
 Weighted reservoir sampling at one pixel
 
 What the story draws on the canvas while P's candidates stream through a reservoir (chapter 2, beat `c2-wrs-stream`),
-stage by stage as `wrsStage` goes from 0 to 17: the eight candidates as cards on a stream (a tape, at first), the
+stage by stage as its stage (`stepOf "wrs" 21`, the clips below) goes from 0 to 17: the eight candidates as cards on a stream (a tape, at first), the
 reservoir's record of three things, each candidate joining it (its weight into the sum, then its chance to
 replace the kept one, against the number the update drew), the chance each ends kept, and the merge with a second
 reservoir. The numbers are the math scenes' example world's (examples.rs, the lab's illustration), its stream run
@@ -261,9 +261,9 @@ $[# {_merging m first s}
 
 The scene
 
-Fn([Float], List(Mob)). The stream through a reservoir at stage `wrsStage`.
+Fn([Float], List(Mob)). The stream through a reservoir at stage its stage (`stepOf "wrs" 21`, the clips below).
 $[# wrsMath {: {^ {t}
-    [# s {wrsStage}]
+    [# s {stepOf "wrs" 21}]
     [# steps {exampleTrace _seed 16}]
     [# ready {not {isEmpty steps}}]
     [# merge {exampleMerge _seed 16}]
@@ -319,3 +319,31 @@ $[# wrsMath {: {^ {t}
         {!if merges {_merging merged record s} record}
         {!if {!and ready {>= s 6.0} {< s 15.0}} {_chance steps split s} {'}}
         {!if ready {_keptFly steps split s} {'}}}}} Math}]
+
+Clips
+
+The scene's steps as clips (lab/src/clip.rs): its demonstration's Play plays every step in order, a second each;
+the story plays each over its sentence's words, and sets the scene back to a step where a beat starts.
+$[# wrsSteps [% {stepsInOrder "wrs" 21}]]
+$[# wrsAt0 [% {stepsAt "wrs" 21 0}]]
+$[# wrsRun992To1500 [% {stepsRun "wrs" 9.92 15.0}]]
+$[# wrsStep1 [% {stepClip "wrs" 1 0.0 1.0}]]
+$[# wrsStep10From0To60 [% {stepClip "wrs" 10 0.0 0.5999999999999996}]]
+$[# wrsStep10From60To92 [% {stepClip "wrs" 10 0.5999999999999996 0.9199999999999999}]]
+$[# wrsStep16 [% {stepClip "wrs" 16 0.0 1.0}]]
+$[# wrsStep17 [% {stepClip "wrs" 17 0.0 1.0}]]
+$[# wrsStep18 [% {stepClip "wrs" 18 0.0 1.0}]]
+$[# wrsStep19 [% {stepClip "wrs" 19 0.0 1.0}]]
+$[# wrsStep2 [% {stepClip "wrs" 2 0.0 1.0}]]
+$[# wrsStep20 [% {stepClip "wrs" 20 0.0 1.0}]]
+$[# wrsStep21 [% {stepClip "wrs" 21 0.0 1.0}]]
+$[# wrsStep3 [% {stepClip "wrs" 3 0.0 1.0}]]
+$[# wrsStep4 [% {stepClip "wrs" 4 0.0 1.0}]]
+$[# wrsStep5 [% {stepClip "wrs" 5 0.0 1.0}]]
+$[# wrsStep6 [% {stepClip "wrs" 6 0.0 1.0}]]
+$[# wrsStep7 [% {stepClip "wrs" 7 0.0 1.0}]]
+$[# wrsStep8 [% {stepClip "wrs" 8 0.0 1.0}]]
+$[# wrsStep9From0To40 [% {stepClip "wrs" 9 0.0 0.40000000000000036}]]
+$[# wrsStep9From40To75 [% {stepClip "wrs" 9 0.40000000000000036 0.75}]]
+$[# wrsStep9From75To80 [% {stepClip "wrs" 9 0.75 0.8000000000000007}]]
+$[# wrsStep9From80To100 [% {stepClip "wrs" 9 0.8000000000000007 1.0}]]
