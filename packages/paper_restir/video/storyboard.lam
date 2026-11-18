@@ -835,14 +835,14 @@ ${cue "key" {' {callout "spatial"}}}${overText
 
 ### Rounds as a tree {#c4-rounds-tree kind=2d math=roundsMath}
 
-${cue "key" {opening demoRounds panelHidden {' {roundsStage 0.0}}}}
+${cue "key" {opening demoRounds panelHidden {' playRoundsAt0}}}
 
 ${cue "key" {' {callout "spatial"}}}${overText
-    {' {roundsStageRange 0.0 1.0}}
+    {' playOverRoundsStep1}
     "A second round combines the reservoirs the first round made, so the candidates multiply"}.
 
 So after n rounds, a pixel can stand for ${over
-    {' {roundsStageRange 1.0 2.0}}
+    {' playOverRoundsStep2}
     {cat {'
         {formulaSaid f"{k^n M}" "k to the power n, times M" {'}}
         {text " candidates, if every round finds new neighbours"}}}}.
@@ -861,16 +861,16 @@ This view shows M, now far larger than the thirty-two each pixel drew.
 
 ### Where the gain fades {#c4-rounds-reach kind=2d math=roundsMath}
 
-${cue "key" {opening demoRounds panelHidden {' {roundsStage 2.0}}}}
+${cue "key" {opening demoRounds panelHidden {' playRoundsAt2}}}
 
 ${overText
-    {' {roundsStageRange 2.0 3.0}}
+    {' playOverRoundsStep3}
     "The gain fades once the rounds have gathered the nearby candidates"}, because later rounds find the same ones again.
 
 ${cue "key" {' {callout "spatial-passes"}}}${overText
-    {' {roundsStageRange 3.0 3.5}}
+    {' playOverRoundsStep4From0To50}
     "The paper uses two rounds"}, or ${overText
-        {' {roundsStageRange 3.5 4.0}}
+        {' playOverRoundsStep4From50To100}
         "one in its unbiased version"}.
 
 ### Neighbours across an edge {#c4-test kind=3d}
@@ -942,20 +942,20 @@ ${cue "key" {' {glide cameraYaw 22.0 sentence}}}That kept reservoir was itself c
 
 ### M over frames {#c5-temporal-math kind=2d math=historyMath}
 
-${cue "key" {opening demoHistory panelHidden {' {historyStage 0.0} {restirTemporalClamp 20.0}}}}
+${cue "key" {opening demoHistory panelHidden {' playHistoryAt0 {restirTemporalClamp 20.0}}}}
 
 Each combination adds the counts, ${overText
-    {' {historyStageRange 0.0 1.0}}
+    {' playOverHistoryStep1}
     "so M climbs from frame to frame"}.
 
 ${cue "key" {' {callout "clamp"}}}If nothing stops it, ${overText
-    {' {historyStageRange 1.0 2.0}}
+    {' playOverHistoryStep2}
     "M grows without limit"}.
 
-Then ${overText {' {historyStageRange 2.0 3.0}} "old samples would outweigh new ones"}.
+Then ${overText {' playOverHistoryStep3} "old samples would outweigh new ones"}.
 
 ${overText
-    {' {historyStageRange 3.0 4.0}}
+    {' playOverHistoryStep4}
     "So the paper clamps the previous frame's M to at most twenty times this frame's"}.
 
 ### Lights on the move {#c5-dynamic kind=3d}

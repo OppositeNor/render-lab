@@ -8,6 +8,7 @@ hint-text = "shot-history_hint"
 scene = "paper_restir.scene/restir-room"
 resets-camera = true
 math = "historyMath"
+clips = ["historySteps"]
 
 [camera]
 target = [0.1, 0.8, -0.5]
@@ -17,4 +18,3 @@ distance = 3.6
 fov = 55.0
 
 [params]
-historyStage = 4

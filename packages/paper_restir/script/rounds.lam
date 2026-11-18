@@ -2,7 +2,7 @@ The ReSTIR story's rounds of spatial reuse
 ==========================================
 
 What the story draws on the canvas (lab/src/math/) for chapter 4's beats `c4-rounds-tree` and `c4-rounds-reach`,
-stage by stage as `roundsStage` goes from 0 to 4: the paper's tree of reservoirs, P's round-2 reservoir combining
+stage by stage as its stage (`stepOf "rounds" 4`, the clips below) goes from 0 to 4: the paper's tree of reservoirs, P's round-2 reservoir combining
 k neighbours' round-1 reservoirs, each combining k pixels' own (k and the radius are the dock's `restirNeighbours`
 and `restirRadius`); its count, k to the n times M; then, on a logarithmic scale, that count against the distinct
 pixels the rounds reach with the lab's neighbour pattern (examples.rs `reach`), and the paper's rounds marked.
@@ -172,5 +172,18 @@ $[# {_scene s}
 
 The hook
 
-Fn([Float], List(Mob)). The rounds of spatial reuse at stage `roundsStage`.
-$[# roundsMath {: {^ {t} {_scene {roundsStage}}} Math}]
+Fn([Float], List(Mob)). The rounds of spatial reuse at stage its stage (`stepOf "rounds" 4`, the clips below).
+$[# roundsMath {: {^ {t} {_scene {stepOf "rounds" 4}}} Math}]
+
+Clips
+
+The scene's steps as clips (lab/src/clip.rs): its demonstration's Play plays every step in order, a second each;
+the story plays each over its sentence's words, and sets the scene back to a step where a beat starts.
+$[# roundsSteps [% {stepsInOrder "rounds" 4}]]
+$[# roundsAt0 [% {stepsAt "rounds" 4 0}]]
+$[# roundsAt2 [% {stepsAt "rounds" 4 2}]]
+$[# roundsStep1 [% {stepClip "rounds" 1 0.0 1.0}]]
+$[# roundsStep2 [% {stepClip "rounds" 2 0.0 1.0}]]
+$[# roundsStep3 [% {stepClip "rounds" 3 0.0 1.0}]]
+$[# roundsStep4From0To50 [% {stepClip "rounds" 4 0.0 0.5}]]
+$[# roundsStep4From50To100 [% {stepClip "rounds" 4 0.5 1.0}]]

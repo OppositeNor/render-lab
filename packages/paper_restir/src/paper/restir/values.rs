@@ -67,15 +67,6 @@ pub struct RestirValues {
     /// The part of W the worked example removes (toy.rs): 0 none, 1 the division by p, 2 the average of the weights.
     #[value(default = 0.0, range = 0.0..=2.0, unit = index, text = "controls-toy_drop", color = palette::SELECTED, label(toy), help = "help-toyDrop")]
     pub toy_drop: f32,
-    /// How far the rounds of spatial reuse have come (script/rounds.lam `roundsMath`), one stage per sentence of the
-    /// story's two beats: 1 a second round combining the first round's reservoirs, 2 k to the n times M, 3 the
-    /// distinct pixels the rounds reach, 4 the paper's rounds marked.
-    #[value(default = 4.0, range = 0.0..=4.0, unit = plain, text = "controls-rounds_stage", color = palette::SELECTED, label(rounds), help = "help-roundsStage")]
-    pub rounds_stage: f32,
-    /// How far temporal reuse's count has come (script/history.lam `historyMath`), one stage per sentence of the
-    /// story's beat: 1 M climbing frame by frame, 2 without limit, 3 old frames outweighing this one, 4 the clamp.
-    #[value(default = 4.0, range = 0.0..=4.0, unit = plain, text = "controls-history_stage", color = palette::SELECTED, label(history), help = "help-historyStage")]
-    pub history_stage: f32,
     /// How far the flaw in reusing a neighbour's sample has come (script/source.lam `sourceMath`), one stage per
     /// sentence of the story's beat: 1 Q's sample chosen by Q's target, 2 W, 3 W as one over the chance RIS keeps
     /// the sample, 4 too bright or too dark, 5 that chance at P.

@@ -2,7 +2,7 @@ The ReSTIR story's count over frames
 ====================================
 
 What the story draws on the canvas (lab/src/math/) for chapter 5's beat `c5-temporal-math`, stage by stage as
-`historyStage` goes from 0 to 4: a pixel's M over frames of temporal reuse alone, as the lab's temporal pass counts
+its stage (`stepOf "history" 4`, the clips below) goes from 0 to 4: a pixel's M over frames of temporal reuse alone, as the lab's temporal pass counts
 it (examples.rs `history`, cpu.rs `temporal_m`; the dock's `restirCandidates` and `restirTemporalClamp`): M
 climbing frame by frame, without limit; each past frame's share of the reservoir, every one as large as this
 frame's; then the clamp, M levelling off and the oldest frames fading.
@@ -159,5 +159,16 @@ $[# {_scene s}
 
 The hook
 
-Fn([Float], List(Mob)). Temporal reuse's count at stage `historyStage`.
-$[# historyMath {: {^ {t} {_scene {historyStage}}} Math}]
+Fn([Float], List(Mob)). Temporal reuse's count at stage its stage (`stepOf "history" 4`, the clips below).
+$[# historyMath {: {^ {t} {_scene {stepOf "history" 4}}} Math}]
+
+Clips
+
+The scene's steps as clips (lab/src/clip.rs): its demonstration's Play plays every step in order, a second each;
+the story plays each over its sentence's words, and sets the scene back to a step where a beat starts.
+$[# historySteps [% {stepsInOrder "history" 4}]]
+$[# historyAt0 [% {stepsAt "history" 4 0}]]
+$[# historyStep1 [% {stepClip "history" 1 0.0 1.0}]]
+$[# historyStep2 [% {stepClip "history" 2 0.0 1.0}]]
+$[# historyStep3 [% {stepClip "history" 3 0.0 1.0}]]
+$[# historyStep4 [% {stepClip "history" 4 0.0 1.0}]]
