@@ -669,19 +669,19 @@ ${cue "key" {' {callout "alias"}}}${cue "key" {' {glide cameraYaw 24.0 sentence}
 
 ### Picking a light by power {#c3-params-power kind=2d math=paramsMath}
 
-${cue "key" {opening demoParams panelHidden {' {paramsStage 0.0}}}}
+${cue "key" {opening demoParams panelHidden {' playParamsAt0}}}
 
 ${cue "key" {' {callout "alias"}}}It picks ${overText
-    {' {paramsStageRange 0.0 1.0}}
+    {' playOverParamsStep1}
     "each candidate's triangle by power, from an alias table, a lookup table that draws by weight"}.
 
-Then it ${overText {' {paramsStageRange 1.0 2.0}} "picks a uniform point on that triangle"}.
+Then it ${overText {' playOverParamsStep2} "picks a uniform point on that triangle"}.
 
 ${overText
-    {' {paramsStageRange 2.0 3.0}}
+    {' playOverParamsStep3}
     "The lab's lights are spheres instead, picked by power with a table of summed powers and a binary search"}.
 
-This gives ${overText {' {paramsStageRange 3.0 4.0}} "the same distribution"}.
+This gives ${overText {' playOverParamsStep4} "the same distribution"}.
 
 ### The target and the cost {#c3-params-target kind=3d}
 
@@ -724,67 +724,63 @@ After the first pass, P holds one reservoir, and so does ${overText
 
 ### Combining, worked out {#c4-combine-math kind=2d math=combineMath}
 
-${cue "key" {opening demoCombine panelHidden {' {combineStage 0.0}}}}
+${cue "key" {opening demoCombine panelHidden {' playCombineAt0}}}
 
 ${cue "key" {' {callout "combine"}}}To combine two reservoirs, the method ${overText
-    {' {combineStageRange 0.0 1.0}}
+    {' playOverCombineStep1}
     "treats each one's kept sample as a single new candidate"}.
 
 ${overText
-    {' {combineStageRange 1.0 2.0}}
+    {' playOverCombineStep2}
     "A new candidate needs a weight, its target over the chance it was drawn"}, as in chapter two.
 
 For a neighbour's sample, ${overText
-    {' {combineStageRange 2.0 3.0}}
+    {' playOverCombineStep3}
     "that chance is the chance that the neighbour's reservoir kept it"}.
 
-${overText {' {combineStageRange 3.0 4.0}} "No one recorded that chance"}.
+${overText {' playOverCombineStep4} "No one recorded that chance"}.
 
 ${cue "key" {' {callout "weight-meaning"}}}But on average, ${overText
-    {' {combineStageRange 4.0 5.0}}
+    {' playOverCombineStep5}
     "that reservoir's W is one over it, as the worked example showed"}.
 
-So ${overText {' {combineStageRange 5.0 6.0}} "the target times W takes the place of the weight"}.
+So ${overText {' playOverCombineStep6} "the target times W takes the place of the weight"}.
 
 ${overText
-    {' {combineStageRange 6.0 7.0}}
+    {' playOverCombineStep7}
     "The target is taken at P, because a sample that suits a neighbour may not suit P"}.
 
 ${overText
-    {' {combineStageRange 7.0 8.0}}
+    {' playOverCombineStep8}
     "Times M, P's own reservoir gets back exactly its sum of weights, because W divided that sum by M"}.
 
-So ${overText
-    {' {combineStageRange 8.0 9.0}}
-    "a reservoir counts as much as all the candidates behind it"}.
+So ${overText {' playOverCombineStep9} "a reservoir counts as much as all the candidates behind it"}.
 
-${cue "key" {' {callout "reweight"}}}${overText
-    {' {combineStageRange 9.0 10.0}}
-    "So a sample's weight is"} ${formulaSaid f"{\hat{p}_P(y) \cdot W \cdot M}" "the target at P, times its reservoir's W, times its M"
-        {'}}.
+${cue "key" {' {callout "reweight"}}}${overText {' playOverCombineStep10} "So a sample's weight is"} ${formulaSaid f"{\hat{p}_P(y) \cdot W \cdot M}" "the target at P, times its reservoir's W, times its M"
+    {'}}.
 
 ${overText
-    {' {combineStageRange 10.0 11.0}}
+    {' playOverCombineStep11}
     "The table works it out for P's own reservoir and each neighbour's"}, factor by factor.
 
 Here every reservoir drew thirty-two candidates, so ${overText
-    {' {combineStageRange 11.0 12.0}}
+    {' playOverCombineStep12}
     "M scales every weight alike, and changes nothing yet"}.
 
 It matters in the next chapter, ${overText
-    {' {combineStageRange 12.0 13.0}}
+    {' playOverCombineStep13}
     "where the frame before can stand for far more"}.
 
 ${cue "key" {' {callout "alg4"}}}The combined reservoir ${overText
-    {' {combineStageRange 13.0 14.0}}
+    {' playOverCombineStep14}
     "keeps one of the samples, in proportion to these weights"}.
 
 It stands for every candidate behind them, ${overText
-    {' {combineStageRange 14.0 15.0}}
+    {' playOverCombineStep15}
     "so their counts add up"}.
 
 ${overText
-    {' {combineStageRange 15.0 16.0}}
+    {' playOverCombineStep16}
     "Its W then comes out as in chapter two, from the sum of the weights and the new count"}.
 
 ### Neighbours in a disc {#c4-neighbours kind=3d}

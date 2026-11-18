@@ -2,7 +2,7 @@ The ReSTIR story's choice of a light by power
 =============================================
 
 What the story draws on the canvas (lab/src/math/) for chapter 3's beat `c3-params-power`, stage by stage as
-`paramsStage` goes from 0 to 4: the math scenes' example world's 24 lights (examples.rs, the lab's illustration),
+its stage (`stepOf "params" 4`, the clips below) goes from 0 to 4: the math scenes' example world's 24 lights (examples.rs, the lab's illustration),
 each one's share of the power laid end to end; the paper's alias table built from those shares (Vose's method, in
 the lab's code) and one draw from it, a column and then a part; a uniform point on the drawn triangle; the lab's
 way, the shares summed and a binary search halving its range onto one light (cpu.rs `bisect`); and the alias
@@ -281,5 +281,16 @@ $[# {_scene s}
 
 The hook
 
-Fn([Float], List(Mob)). The choice of a light by power at stage `paramsStage`.
-$[# paramsMath {: {^ {t} {_scene {paramsStage}}} Math}]
+Fn([Float], List(Mob)). The choice of a light by power at stage its stage (`stepOf "params" 4`, the clips below).
+$[# paramsMath {: {^ {t} {_scene {stepOf "params" 4}}} Math}]
+
+Clips
+
+The scene's steps as clips (lab/src/clip.rs): its demonstration's Play plays every step in order, a second each;
+the story plays each over its sentence's words, and sets the scene back to a step where a beat starts.
+$[# paramsSteps [% {stepsInOrder "params" 4}]]
+$[# paramsAt0 [% {stepsAt "params" 4 0}]]
+$[# paramsStep1 [% {stepClip "params" 1 0.0 1.0}]]
+$[# paramsStep2 [% {stepClip "params" 2 0.0 1.0}]]
+$[# paramsStep3 [% {stepClip "params" 3 0.0 1.0}]]
+$[# paramsStep4 [% {stepClip "params" 4 0.0 1.0}]]

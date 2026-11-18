@@ -2,7 +2,7 @@ The ReSTIR story's reservoirs combined
 ======================================
 
 What the story draws on the canvas (lab/src/math/) for chapter 4's beat `c4-combine-math`, stage by stage as
-`combineStage` goes from 0 to 16: in the math scenes' example world (examples.rs, the lab's illustration), P's
+its stage (`stepOf "combine" 16`, the clips below) goes from 0 to 16: in the math scenes' example world (examples.rs, the lab's illustration), P's
 reservoir and a neighbour's, Q's, each of 32 candidates; their kept samples as two new candidates; the weight a
 candidate needs, its target over the chance it was drawn, a chance no one recorded, W in its place, the target taken
 at P, and M, which gives P's own reservoir back its sum of weights; then P's and its three neighbours' reservoirs
@@ -357,5 +357,28 @@ $[# {_scene s}
 
 The hook
 
-Fn([Float], List(Mob)). The reservoirs combined at stage `combineStage`.
-$[# combineMath {: {^ {t} {_scene {combineStage}}} Math}]
+Fn([Float], List(Mob)). The reservoirs combined at stage its stage (`stepOf "combine" 16`, the clips below).
+$[# combineMath {: {^ {t} {_scene {stepOf "combine" 16}}} Math}]
+
+Clips
+
+The scene's steps as clips (lab/src/clip.rs): its demonstration's Play plays every step in order, a second each;
+the story plays each over its sentence's words, and sets the scene back to a step where a beat starts.
+$[# combineSteps [% {stepsInOrder "combine" 16}]]
+$[# combineAt0 [% {stepsAt "combine" 16 0}]]
+$[# combineStep1 [% {stepClip "combine" 1 0.0 1.0}]]
+$[# combineStep10 [% {stepClip "combine" 10 0.0 1.0}]]
+$[# combineStep11 [% {stepClip "combine" 11 0.0 1.0}]]
+$[# combineStep12 [% {stepClip "combine" 12 0.0 1.0}]]
+$[# combineStep13 [% {stepClip "combine" 13 0.0 1.0}]]
+$[# combineStep14 [% {stepClip "combine" 14 0.0 1.0}]]
+$[# combineStep15 [% {stepClip "combine" 15 0.0 1.0}]]
+$[# combineStep16 [% {stepClip "combine" 16 0.0 1.0}]]
+$[# combineStep2 [% {stepClip "combine" 2 0.0 1.0}]]
+$[# combineStep3 [% {stepClip "combine" 3 0.0 1.0}]]
+$[# combineStep4 [% {stepClip "combine" 4 0.0 1.0}]]
+$[# combineStep5 [% {stepClip "combine" 5 0.0 1.0}]]
+$[# combineStep6 [% {stepClip "combine" 6 0.0 1.0}]]
+$[# combineStep7 [% {stepClip "combine" 7 0.0 1.0}]]
+$[# combineStep8 [% {stepClip "combine" 8 0.0 1.0}]]
+$[# combineStep9 [% {stepClip "combine" 9 0.0 1.0}]]
