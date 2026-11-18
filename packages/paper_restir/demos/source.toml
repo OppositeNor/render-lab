@@ -8,6 +8,7 @@ hint-text = "shot-source_hint"
 scene = "paper_restir.scene/restir-room"
 resets-camera = true
 math = "sourceMath"
+clips = ["sourceSteps"]
 
 [camera]
 target = [0.1, 0.8, -0.5]
@@ -17,4 +18,3 @@ distance = 3.6
 fov = 55.0
 
 [params]
-sourceStage = 5

@@ -5,7 +5,7 @@ What the story draws on the canvas (lab/src/math/) for chapter 6's beats `c6-1d`
 redrawn from the lab's runs of it (demos/bias.rs): the target ramp, the flat and the step distributions, the true
 inverse of RIS's output density (the thick line), and the mean of W (the thin line), as `biasReveal` draws them,
 for the candidates, weight, and step of `biasCandidates`, `biasWeight`, and `biasNearZero`, with a marker at
-`biasMark`. Beside the plot, one stage per sentence of the two beats as `biasStage` goes from 0 to 31: what the
+`biasMark`. Beside the plot, one stage per sentence of the two beats as its stage (`stepOf "bias" 31`, the clips below) goes from 0 to 31: what the
 lines are, the count W divides by, Eq. 19, the fix, the near-zero step's huge weights, the balance heuristic, and
 Talbot's weight, whose cost the grid of every candidate and every distribution shows.
 
@@ -220,7 +220,7 @@ $[# {_beside s mark m near ax c}
 
 The scene
 
-Fn([Float], List(Mob)). The plot as the bias values draw it, its legend, and what the sentence at `biasStage` adds.
+Fn([Float], List(Mob)). The plot as the bias values draw it, its legend, and what the sentence at its stage (`stepOf "bias" 31`, the clips below) adds.
 $[# {_scene s}
     [# m {round {biasCandidates}}]
     [# near {biasNearZero}]
@@ -232,5 +232,44 @@ $[# {_scene s}
 
 The hook
 
-Fn([Float], List(Mob)). The 1D example at stage `biasStage`.
-$[# biasMath {: {^ {t} {_scene {biasStage}}} Math}]
+Fn([Float], List(Mob)). The 1D example at stage its stage (`stepOf "bias" 31`, the clips below).
+$[# biasMath {: {^ {t} {_scene {stepOf "bias" 31}}} Math}]
+
+Clips
+
+The scene's steps as clips (lab/src/clip.rs): its demonstration's Play plays every step in order, a second each;
+the story plays each over its sentence's words, and sets the scene back to a step where a beat starts.
+$[# biasSteps [% {stepsInOrder "bias" 31}]]
+$[# biasAt0 [% {stepsAt "bias" 31 0}]]
+$[# biasAt17 [% {stepsAt "bias" 31 17}]]
+$[# biasStep1 [% {stepClip "bias" 1 0.0 1.0}]]
+$[# biasStep10 [% {stepClip "bias" 10 0.0 1.0}]]
+$[# biasStep11 [% {stepClip "bias" 11 0.0 1.0}]]
+$[# biasStep12 [% {stepClip "bias" 12 0.0 1.0}]]
+$[# biasStep13 [% {stepClip "bias" 13 0.0 1.0}]]
+$[# biasStep14 [% {stepClip "bias" 14 0.0 1.0}]]
+$[# biasStep15 [% {stepClip "bias" 15 0.0 1.0}]]
+$[# biasStep16 [% {stepClip "bias" 16 0.0 1.0}]]
+$[# biasStep17 [% {stepClip "bias" 17 0.0 1.0}]]
+$[# biasStep18 [% {stepClip "bias" 18 0.0 1.0}]]
+$[# biasStep19 [% {stepClip "bias" 19 0.0 1.0}]]
+$[# biasStep2 [% {stepClip "bias" 2 0.0 1.0}]]
+$[# biasStep20 [% {stepClip "bias" 20 0.0 1.0}]]
+$[# biasStep21 [% {stepClip "bias" 21 0.0 1.0}]]
+$[# biasStep22 [% {stepClip "bias" 22 0.0 1.0}]]
+$[# biasStep23 [% {stepClip "bias" 23 0.0 1.0}]]
+$[# biasStep24 [% {stepClip "bias" 24 0.0 1.0}]]
+$[# biasStep25 [% {stepClip "bias" 25 0.0 1.0}]]
+$[# biasStep26 [% {stepClip "bias" 26 0.0 1.0}]]
+$[# biasStep27 [% {stepClip "bias" 27 0.0 1.0}]]
+$[# biasStep28 [% {stepClip "bias" 28 0.0 1.0}]]
+$[# biasStep29 [% {stepClip "bias" 29 0.0 1.0}]]
+$[# biasStep3 [% {stepClip "bias" 3 0.0 1.0}]]
+$[# biasStep30 [% {stepClip "bias" 30 0.0 1.0}]]
+$[# biasStep31 [% {stepClip "bias" 31 0.0 1.0}]]
+$[# biasStep4 [% {stepClip "bias" 4 0.0 1.0}]]
+$[# biasStep5 [% {stepClip "bias" 5 0.0 1.0}]]
+$[# biasStep6 [% {stepClip "bias" 6 0.0 1.0}]]
+$[# biasStep7 [% {stepClip "bias" 7 0.0 1.0}]]
+$[# biasStep8 [% {stepClip "bias" 8 0.0 1.0}]]
+$[# biasStep9 [% {stepClip "bias" 9 0.0 1.0}]]

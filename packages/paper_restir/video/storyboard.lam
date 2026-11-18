@@ -1051,24 +1051,24 @@ ${cue "key" {' {callout "bias-source"}}}${cue "key" {' {glide cameraYaw 28.0 sen
 
 ### A neighbour's W at P {#c6-source-math kind=2d math=sourceMath}
 
-${cue "key" {opening demoSource panelHidden {' {sourceStage 0.0}}}}
+${cue "key" {opening demoSource panelHidden {' playSourceAt0}}}
 
 So ${overText
-    {' {sourceStageRange 0.0 1.0}}
+    {' playOverSourceStep1}
     "a sample from a neighbour was chosen for the neighbour's target, not for P's"}.
 
-${cue "key" {' {callout "eq12"}}}${overText {' {sourceStageRange 1.0 2.0}} "Recall what W does"}.
+${cue "key" {' {callout "eq12"}}}${overText {' playOverSourceStep2} "Recall what W does"}.
 
 It stands in for ${overText
-    {' {sourceStageRange 2.0 3.0}}
+    {' playOverSourceStep3}
     "one over the chance that RIS keeps that sample"}.
 
 ${cue "key" {' {callout "weight-meaning"}}}On average, ${overText
-    {' {sourceStageRange 3.0 4.0}}
+    {' playOverSourceStep4}
     "W must equal one over that chance exactly, or the image comes out too bright or too dark"}.
 
 But ${overText
-    {' {sourceStageRange 4.0 5.0}}
+    {' playOverSourceStep5}
     "a neighbour's W was built for the neighbour's target, so for P it may be wrong"}.
 
 ### The paper's example in one dimension {#c6-1d kind=2d math=biasMath}
@@ -1079,72 +1079,68 @@ ${cue "key" {opening demoBias panelHidden {'
     {biasNearZero 0.0}
     {biasReveal 0.0}
     {biasMark -1.0}
-    {biasStage 0.0}}}}
+    playBiasAt0}}}
 
 ${cue "key" {' {callout "fig7"}}}${overText
-    {' {biasStageRange 0.0 1.0}}
+    {' playOverBiasStep1}
     "The paper shows what goes wrong in one dimension"}.
 
-${overText {' {biasRevealRange 0.0 1.0} {biasStageRange 1.0 2.0}} "Here the target is"} ${formulaSaid f"{\hat{p}(x) = 2 - 2x}" "a ramp that falls from two to zero"
+${overText {' {biasRevealRange 0.0 1.0} playOverBiasStep2} "Here the target is"} ${formulaSaid f"{\hat{p}(x) = 2 - 2x}" "a ramp that falls from two to zero"
     {'}}.
 
 Half the candidates come from ${overText
-    {' {biasRevealRange 1.0 2.0} {biasStageRange 2.0 3.0}}
+    {' {biasRevealRange 1.0 2.0} playOverBiasStep3}
     "a flat distribution"}, one that picks every place equally.
 
-The other candidates come from ${overText
-    {' {biasRevealRange 2.0 3.0} {biasStageRange 3.0 4.0}}
-    "a step"}, a distribution that covers ${overText
-        {' {biasMarkRange 0.05 0.45}}
-        "only the left half of the range"}.
+The other candidates come from ${overText {' {biasRevealRange 2.0 3.0} playOverBiasStep4} "a step"}, a distribution that covers ${overText
+    {' {biasMarkRange 0.05 0.45}}
+    "only the left half of the range"}.
 
 ${overText
-    {' {biasRevealRange 3.0 4.0} {biasCandidatesRange 2.0 4.0} {biasStageRange 4.0 5.0}}
+    {' {biasRevealRange 3.0 4.0} {biasCandidatesRange 2.0 4.0} playOverBiasStep5}
     "The thick line shows what W should equal at each place"}.
 
 It is one over the chance that RIS outputs that place, ${overText
-    {' {biasCandidatesRange 4.0 6.0} {biasStageRange 5.0 6.0}}
+    {' {biasCandidatesRange 4.0 6.0} playOverBiasStep6}
     "measured over many runs"}.
 
 ${overText
-    {' {biasRevealRange 4.0 5.0} {biasCandidatesRange 6.0 10.0} {biasStageRange 6.0 7.0}}
+    {' {biasRevealRange 4.0 5.0} {biasCandidatesRange 6.0 10.0} playOverBiasStep7}
     "The thin line shows what W really averages at each place"}.
 
-${overText {' {biasStageRange 7.0 8.0}} "If W is correct, the two lines match"}.
+${overText {' playOverBiasStep8} "If W is correct, the two lines match"}.
 
-On the left half, ${overText {' {biasMarkRange 0.05 0.45} {biasStageRange 8.0 9.0}} "they agree"}.
+On the left half, ${overText {' {biasMarkRange 0.05 0.45} playOverBiasStep9} "they agree"}.
 
 On the right half, ${overText
-    {' {biasMarkRange 0.45 0.9} {biasStageRange 9.0 10.0}}
+    {' {biasMarkRange 0.45 0.9} playOverBiasStep10}
     "only the flat candidates can produce a sample"}.
 
 Yet W still divides by ${overText
-    {' {biasMarkRange 0.9 0.6} {biasStageRange 10.0 11.0}}
+    {' {biasMarkRange 0.9 0.6} playOverBiasStep11}
     "the count of every candidate"}, the step ones included.
 
 ${cue "key" {' {callout "eq19"}}}${overText
-    {' {biasCandidatesRange 10.0 20.0} {biasStageRange 11.0 12.0}}
+    {' {biasCandidatesRange 10.0 20.0} playOverBiasStep12}
     "So W comes out half as large as it should"}.
 
-${cue "key" {' {callout "eq19"}}}${overText
-    {' {biasStageRange 12.0 13.0}}
-    "The paper writes this as"} ${formulaSaid f"{E[W \mid y] = \frac{1}{p(y)} \cdot \frac{|Z(y)|}{M}}" "on average, W is one over the chance, times the share of the candidates that could produce the sample"
-        {'}}.
+${cue "key" {' {callout "eq19"}}}${overText {' playOverBiasStep13} "The paper writes this as"} ${formulaSaid f"{E[W \mid y] = \frac{1}{p(y)} \cdot \frac{|Z(y)|}{M}}" "on average, W is one over the chance, times the share of the candidates that could produce the sample"
+    {'}}.
 
 ${overText
-    {' {biasMarkRange 0.6 0.75} {biasStageRange 13.0 14.0}}
+    {' {biasMarkRange 0.6 0.75} playOverBiasStep14}
     "At the marker, half the candidates could produce the sample"}, so W averages half of one over the chance.
 
 An image would then come out ${overText
-    {' {lightIntensityRange 1.0 0.6} {biasStageRange 14.0 15.0}}
+    {' {lightIntensityRange 1.0 0.6} playOverBiasStep15}
     "too dark"}.
 
 ${cue "key" {' {callout "approx-pdf"}}}In ReSTIR, each reservoir a pixel combines acts like the step, ${overText
-    {' {biasMarkRange 0.6 0.2} {biasStageRange 15.0 16.0}}
+    {' {biasMarkRange 0.6 0.2} playOverBiasStep16}
     "a source that covers only some of the places"}.
 
 ${overText
-    {' {biasStageRange 16.0 17.0}}
+    {' playOverBiasStep17}
     "A neighbour whose surface faces away from a light, or whose view of it is blocked, cannot produce samples of that light that P can use"}.
 
 ### Counting only those that could {#c6-fix kind=2d math=biasMath}
@@ -1154,62 +1150,62 @@ ${cue "key" {opening demoBias panelHidden {'
     {biasCandidates 4.0}
     {biasNearZero 0.0}
     {biasReveal 5.0}
-    {biasStage 17.0}}}}
+    playBiasAt17}}}
 
 ${cue "key" {' {callout "eq20"}}}The fix is to divide only by ${overText
-    {' {biasMarkRange 0.55 0.9} {biasStageRange 17.0 18.0}}
+    {' {biasMarkRange 0.55 0.9} playOverBiasStep18}
     "the count of the candidates that could have produced the sample"}.
 
 ${cue "key" {' {callout "naive-m"}}}${overText
-    {' {biasWeightRange 0.0 1.0} {biasStageRange 18.0 19.0}}
+    {' {biasWeightRange 0.0 1.0} playOverBiasStep19}
     "With that count, the two lines agree"}.
 
 ${overText
-    {' {biasStageRange 19.0 20.0}}
+    {' playOverBiasStep20}
     "At the marker, W now divides by two, the candidates that could, not by all four"}.
 
 ${overText
-    {' {biasNearZeroRange 0.0 1.0} {biasStageRange 20.0 21.0}}
+    {' {biasNearZeroRange 0.0 1.0} playOverBiasStep21}
     "Now let the step be nearly zero on the right half, instead of exactly zero"}.
 
 Then its candidates still count there, and ${overText
-    {' {biasCandidatesRange 4.0 10.0} {biasStageRange 21.0 22.0}}
+    {' {biasCandidatesRange 4.0 10.0} playOverBiasStep22}
     "W becomes very noisy"}.
 
 That is because ${overText
-    {' {biasMarkRange 0.9 0.6} {biasStageRange 22.0 23.0}}
+    {' {biasMarkRange 0.9 0.6} playOverBiasStep23}
     "a step candidate on the right half"} has a tiny probability there, and so a huge weight.
 
 ${cue "key" {' {callout "eq22"}}}${cue "key" {' {biasMark -1.0}}}${overText
-    {' {biasWeightRange 1.0 2.0} {biasStageRange 23.0 24.0}}
+    {' {biasWeightRange 1.0 2.0} playOverBiasStep24}
     "The paper's better weight asks, for each candidate, how likely its own distribution was to produce the sample"}.
 
 ${overText
-    {' {biasStageRange 24.0 25.0}}
+    {' playOverBiasStep25}
     "It divides that chance by the sum of the chances of all the distributions"}.
 
 ${overText
-    {' {biasStageRange 25.0 26.0}}
+    {' playOverBiasStep26}
     "This weight is the balance heuristic, from multiple importance sampling, the mix of ways to draw samples from chapter two"}.
 
 With it, the two lines agree, and ${overText
-    {' {biasCandidatesRange 10.0 14.0} {biasStageRange 26.0 27.0}}
+    {' {biasCandidatesRange 10.0 14.0} playOverBiasStep27}
     "W stays steady"}.
 
 ${cue "key" {' {callout "talbot-cost"}}}${overText
-    {' {biasStageRange 27.0 28.0}}
+    {' playOverBiasStep28}
     "The original RIS, by Talbot and colleagues, uses another weight here, the target divided by the sum of every distribution's probability"}.
 
 ${overText
-    {' {biasStageRange 28.0 29.0}}
+    {' playOverBiasStep29}
     "When every candidate has its own distribution, each candidate's weight needs every distribution's probability"}.
 
 So that weight's cost grows with the square of ${overText
-    {' {biasCandidatesRange 14.0 20.0} {biasStageRange 29.0 30.0}}
+    {' {biasCandidatesRange 14.0 20.0} playOverBiasStep30}
     "the number of candidates"}.
 
 ${overText
-    {' {biasStageRange 30.0 31.0}}
+    {' playOverBiasStep31}
     "The paper's weight is needed only for the sample that is kept, so its cost grows only with the number of candidates"}.
 
 ### The unbiased combination {#c6-alg6 kind=3d}

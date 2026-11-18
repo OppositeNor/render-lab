@@ -2,7 +2,7 @@ The ReSTIR story's neighbour's W at P
 =====================================
 
 What the story draws on the canvas (lab/src/math/) for chapter 6's beat `c6-source-math`, stage by stage as
-`sourceStage` goes from 0 to 5: in the math scenes' example world (examples.rs, the lab's illustration), Q's target
+its stage (`stepOf "source" 5`, the clips below) goes from 0 to 5: in the math scenes' example world (examples.rs, the lab's illustration), Q's target
 and P's over the 24 lights, each as the chance RIS ends on a light (its share of the target, the limit of many
 candidates); Q's sample, the one Q's reservoir keeps in the combining beat's example; W, standing in for one over
 that chance; why its mean must be exact (an estimate too bright or too dark); and that chance at P, so Q's W is not
@@ -139,5 +139,17 @@ $[# {_scene s}
 
 The hook
 
-Fn([Float], List(Mob)). A neighbour's W at P at stage `sourceStage`.
-$[# sourceMath {: {^ {t} {_scene {sourceStage}}} Math}]
+Fn([Float], List(Mob)). A neighbour's W at P at stage its stage (`stepOf "source" 5`, the clips below).
+$[# sourceMath {: {^ {t} {_scene {stepOf "source" 5}}} Math}]
+
+Clips
+
+The scene's steps as clips (lab/src/clip.rs): its demonstration's Play plays every step in order, a second each;
+the story plays each over its sentence's words, and sets the scene back to a step where a beat starts.
+$[# sourceSteps [% {stepsInOrder "source" 5}]]
+$[# sourceAt0 [% {stepsAt "source" 5 0}]]
+$[# sourceStep1 [% {stepClip "source" 1 0.0 1.0}]]
+$[# sourceStep2 [% {stepClip "source" 2 0.0 1.0}]]
+$[# sourceStep3 [% {stepClip "source" 3 0.0 1.0}]]
+$[# sourceStep4 [% {stepClip "source" 4 0.0 1.0}]]
+$[# sourceStep5 [% {stepClip "source" 5 0.0 1.0}]]

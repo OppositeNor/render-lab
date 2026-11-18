@@ -8,6 +8,7 @@ hint-text = "shot-bias_hint"
 scene = "paper_restir.scene/restir-room"
 resets-camera = true
 math = "biasMath"
+clips = ["biasSteps"]
 
 [camera]
 target = [0.0, 0.9, -0.6]
@@ -18,4 +19,3 @@ fov = 55.0
 
 
 [params]
-biasStage = 31
