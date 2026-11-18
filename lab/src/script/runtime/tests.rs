@@ -253,3 +253,64 @@ fn the_math_library_computes_what_it_says() {
     );
     assert_eq!(int(&v[20]), 24);
 }
+
+#[test]
+fn clips_compose_and_read_into_the_lab_s() {
+    use crate::clip::{Track, sample_keys};
+    let v = raw(
+        &[
+            "clip {' {animate \"a\"} {tweenTo \"camera.yaw\" 30.0 2.0 \"linear\"}}",
+            "after {clip {' {fade \"a\"}}} {clip {' {animate \"b\"}}}",
+            "laggedClips 0.25 {' {clip {' {animate \"a\"}}} {clip {' {animate \"b\"}}} {clip {' {animate \"c\"}}}}",
+            "reversed {clip {' {progressKeys \"a\" {' {keyframe 0.0 0.0 \"linear\"} {keyframe 2.0 1.0 \"in\"}}}}}",
+            "clipSeconds {sequence {' {clip {' {fade \"a\"}}} {clip {' {animate \"b\"}}} {delayed 1.0 {clip {' {fade \"c\"}}}}}}",
+            "clip {' {runTrack 0.5 2.0 \"playIt\"} {waveTrack 0.0 \"camera.pitch\" 2.0 4.0 8.0}}",
+        ],
+        "",
+    );
+    let clip = |i: usize| clips::clip_of("c", &v[i]).unwrap_or_else(|e| panic!("{e}"));
+    let first = clip(0);
+    assert_eq!(first.seconds(), 2.0);
+    assert!(
+        matches!(&first.tracks[0], Track::Keys { channel, keys } if channel == "progress.a" && keys.len() == 2)
+    );
+    let after = clip(1);
+    assert_eq!(after.seconds(), 1.5);
+    let Track::Keys { keys, .. } = &after.tracks[1] else {
+        panic!("keys")
+    };
+    assert_eq!((keys[0].at, keys[1].at), (0.5, 1.5));
+    assert_eq!(clip(2).seconds(), 1.5);
+    let Track::Keys { keys, .. } = &clip(3).tracks[0] else {
+        panic!("keys")
+    };
+    // Backwards: from 1 at 0 to 0 at 2, by the ease that brought it up.
+    assert_eq!(sample_keys(keys, 0.0, 0.5), 1.0);
+    assert_eq!(sample_keys(keys, 2.0, 0.5), 0.0);
+    assert_eq!(keys[1].ease, crate::animation::Ease::In);
+    assert!(
+        matches!(v[4], Value::Float(x) if x == 3.0),
+        "{:?}",
+        v[4].type_name()
+    );
+    let runs = clip(5);
+    assert!(
+        matches!(&runs.tracks[0], Track::Run { at, seconds, animation } if *at == 0.5 && *seconds == 2.0 && animation == "playIt")
+    );
+    assert_eq!(runs.seconds(), 8.0);
+}
+
+#[test]
+fn a_clip_s_ease_and_its_keyframes_order_are_checked() {
+    let v = raw(
+        &[
+            "clip {' {progressKeys \"a\" {' {keyframe 1.0 1.0 \"bounce\"}}}}",
+            "clip {' {progressKeys \"a\" {' {keyframe 1.0 1.0 \"linear\"} {keyframe 0.5 0.0 \"linear\"}}}}",
+        ],
+        "",
+    );
+    let e = clips::clip_of("c", &v[0]).unwrap_err();
+    assert!(e.contains("no ease `bounce`"), "{e}");
+    let e = clips::clip_of("c", &v[1]).unwrap_err();
+    assert!(e.contains("not in time order"), "{e}");
+}

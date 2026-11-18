@@ -147,6 +147,7 @@ cargo run --release -- i18n --check                                           # 
 cargo run --release -- --investigation o3de/lighting values                   # the keys the dock, timelines, and stories set (shader tags, derived structs)
 cargo run --release -- --investigation o3de/lighting choices                  # the choices (enums) and their options; the lab writes their WGSL constants into build/ itself
 cargo run --release -- --investigation godot/sdfgi actions                    # the actions a story runs (`{run "…"}` with `run.<arg>`, `{stop "…"}`) and their arguments
+cargo run --release -- --investigation paper/restir clips                      # the clips its scripts declare (a story's play/playOver, a demonstration's Play): each one's length and tracks
 cargo run --release -- --investigation godot/sdfgi images                     # the images it publishes for a story to show (`{inset "…"}`; a PNG resource is one too), and its shaders' GPU image kinds (`imageFrom`) with their parameters
 cargo run --release -- home --snapshot /path/to/perf.png --page viewer-performance   # the performance panel (GPU time per pass), its most expensive pass called out
 cargo run --release -- home --snapshot /path/to/free.png --page viewer-free         # the free camera on (C): the main camera and its view cone seen from beside it, its own view in a corner

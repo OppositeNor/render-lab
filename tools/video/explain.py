@@ -17,7 +17,7 @@ Json = dict[str, Any]
 
 # Key fields that name something the lab resolves (a resource, an entry, an action), not a channel.
 NAMES = ('demo', 'callout', 'code', 'record', 'panel', 'image', 'imageFrom', 'imageGraph', 'imageShow', 'imageTitle', 'imageMarkText',
-         'labelText', 'run', 'stop', 'highlightPasses', 'highlightCode', 'highlightFields', 'formula')
+         'labelText', 'run', 'stop', 'highlightPasses', 'highlightCode', 'highlightFields', 'formula', 'play', 'playOver')
 
 
 def _at(source: Json) -> str:
@@ -43,6 +43,10 @@ def writes(key: Json) -> list[Json]:
         channels = body.get('params') or [body.get('param')]
         for c in channels:
             out.append({'channel': c, 'how': kind, 'length': body.get('seconds')})
+    for field in ('play', 'playOver'):
+        # A clip writes its tracks' channels (render-lab clips lists them), from the key on.
+        if key.get(field):
+            out.append({'channel': f'clip {key[field]}', 'how': field})
     return out
 
 

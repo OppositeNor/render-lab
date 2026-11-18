@@ -334,8 +334,8 @@ impl ShotState {
             self.values.insert(name.to_string(), Value::F32(value));
             return;
         }
-        // A movable object's value (src/entity.rs).
-        if crate::entity::is_key(name) {
+        // A clip's progress (src/clip.rs), or a movable object's value (src/entity.rs).
+        if name.starts_with(crate::clip::PROGRESS) || crate::entity::is_key(name) {
             self.values.insert(name.to_string(), Value::F32(value));
             return;
         }

@@ -40,10 +40,12 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+mod clips;
 mod math;
 mod overlays;
 mod typed;
 mod writes;
+pub use clips::*;
 pub use math::*;
 pub use overlays::*;
 pub use typed::{Num, ScriptColor};
@@ -243,6 +245,18 @@ fn register(engine: &mut Engine) -> Result<(), lamlet::embed::Error> {
     r.function("rl_runtime/value-float", |_, (key,): (String,)| Ok(value_of(&key)?.f32() as f64))
         .doc("Fn([String], Float). The shot's value `key` as a number (the values package's readers call it).")
         .register()?;
+    r.function("rl_runtime/progress", |_, (name,): (String,)| {
+        let channel = crate::clip::progress_channel(&name);
+        Ok(state(|s| s.try_get(&channel).map_or(0.0, |v| v.f32()))? as f64)
+    })
+    .doc("Fn([String], Float). The shot's progress `name` (`progress.<name>`, a clip's track), 0 until a clip moves it.")
+    .register()?;
+    r.function("rl_runtime/has-progress", |_, (name,): (String,)| {
+        let channel = crate::clip::progress_channel(&name);
+        state(|s| s.values.get(&channel).is_some())
+    })
+    .doc("Fn([String], Bool). Whether a clip has set the shot's progress `name` (to any value, 0 included).")
+    .register()?;
     r.function("rl_runtime/value-int", |_, (key,): (String,)| {
         Ok(match value_of(&key)? {
             LabValue::I32(n) => n as i64,
@@ -478,6 +492,8 @@ pub struct Runtime {
     animations: BTreeMap<String, Hook>,
     /// The math scenes (src/math/), by name.
     maths: BTreeMap<String, Hook>,
+    /// The clips (src/clip.rs), by name: static bindings of `Clip`, read when the scripts load.
+    clips: BTreeMap<String, Arc<crate::clip::Clip>>,
     /// Each math scene's last mobs that drew: what the viewer keeps showing while it fails.
     last_math: BTreeMap<String, crate::math::Scene>,
     /// Each overlay's last shapes that drew, by view: what the viewer keeps showing while it fails.
@@ -681,6 +697,7 @@ struct HookTypes {
     rows: TypeDesc,
     writes: TypeDesc,
     click: TypeDesc,
+    clip: TypeDesc,
 }
 
 impl HookTypes {
@@ -702,6 +719,7 @@ impl HookTypes {
             rows: TypeDesc::List(Rc::new(library_type(&library, "Row")?)),
             writes: TypeDesc::List(Rc::new(library_type(&library, "Write")?)),
             click: library_type(&library, "Click")?,
+            clip: library_type(&library, "Clip")?,
         })
     }
 }
@@ -729,6 +747,7 @@ impl Runtime {
             actions: BTreeMap::new(),
             animations: BTreeMap::new(),
             maths: BTreeMap::new(),
+            clips: BTreeMap::new(),
             last_math: BTreeMap::new(),
             last: BTreeMap::new(),
             errors: BTreeMap::new(),
@@ -744,6 +763,7 @@ impl Runtime {
             runtime.add_module(key, source, &types)?;
         }
         runtime.check_names(investigation)?;
+        runtime.check_clips()?;
         Ok(Some(runtime))
     }
 
@@ -775,6 +795,16 @@ impl Runtime {
     /// A binding of the script `key` added as the hook its type makes it, if it is one.
     fn add_hook(&mut self, key: &str, hook: Hook, types: &HookTypes) -> Result<(), String> {
         let binding = &hook.binding;
+        // A static binding of `Clip` is a clip, read once now.
+        if binding.ty.as_ref() == Some(&types.clip) {
+            if self.clips.contains_key(&binding.name) {
+                return Err(format!("{key}: a second clip `{}`", binding.name));
+            }
+            let clip =
+                clips::clip_of(&binding.name, &binding.value).map_err(|e| format!("{key}: {e}"))?;
+            self.clips.insert(binding.name.clone(), Arc::new(clip));
+            return Ok(());
+        }
         let Some(TypeDesc::Func(params, ret)) = &binding.ty else {
             // A generic function (a parameter it never constrains) has no hook's type.
             if binding.ty.is_none() && matches!(binding.value, Value::Closure(_) | Value::Native(_))

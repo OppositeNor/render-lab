@@ -363,6 +363,12 @@ pub struct Cue {
     /// The actions it stops.
     #[serde(default)]
     pub stop: Vec<String>,
+    /// A clip it plays at its own pace (src/clip.rs), by name.
+    #[serde(default)]
+    pub play: Option<String>,
+    /// A clip it plays stretched over its range's words (over a timeline key's `blend`), by name.
+    #[serde(default)]
+    pub play_over: Option<String>,
 }
 
 impl Cue {

@@ -22,7 +22,7 @@ from narration import Durations, Narration
 from locations import DiagnosticError, describe
 
 NOTICES = 8.0    # the closing card of the package's legal notices
-KEY_FIELDS = {'demo', 'camera', 'record', 'highlight', 'panel', 'params', 'callout', 'code', 'animate', 'formula', 'term', 'run', 'stop', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageGraph', 'imageShow', 'imageParams', 'imageHide', 'imageClick', 'imageMark', 'imageMarkText', 'arrow', 'arrowFrom', 'arrowTo', 'arrowColor', 'arrowWidth', 'arrows', 'arrowHide', 'label', 'labelAt', 'labelText', 'labelColor', 'labelHide'}
+KEY_FIELDS = {'demo', 'camera', 'record', 'highlight', 'panel', 'params', 'callout', 'code', 'animate', 'formula', 'term', 'run', 'stop', 'image', 'imageTitle', 'imageCorner', 'imageFrom', 'imageGraph', 'imageShow', 'imageParams', 'imageHide', 'imageClick', 'imageMark', 'imageMarkText', 'arrow', 'arrowFrom', 'arrowTo', 'arrowColor', 'arrowWidth', 'arrows', 'arrowHide', 'label', 'labelAt', 'labelText', 'labelColor', 'labelHide', 'play', 'playOver'}
 Board = dict[str, Any]
 Json = dict[str, Any]
 
@@ -231,6 +231,9 @@ def tag_keys(s: Json, beat: Json, narration: Narration, fps: int, start: int, wh
                 keys.append({'params': jump, 'delay': delay, '_provenance': provenance})
             keys.append({**key, 'blend': length / fps, 'delay': delay})
             continue
+        if 'playOver' in key:
+            # A clip stretched over words needs the words: only a range has them.
+            raise DiagnosticError('story.clip.over', 'playOver stretches a clip over a range\'s words: put it in a range (overText), or play it at its own pace with play', tag.source, beat=beat['id'])
         if 'term' in key and 'blend' not in key:
             # A lit term fades in over the default time when its cue names no blend.
             key['blend'] = pacing.termFade

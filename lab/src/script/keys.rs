@@ -205,6 +205,13 @@ fn fields(investigation: &dyn Investigation) -> Result<Vec<Value>, String> {
         stop["closed"] = json!(true);
     }
     out.push(stop);
+    // A clip a cue plays at its own pace, or stretched over its range's words: closed to the scripts' clips.
+    let clips: Vec<String> = crate::script::runtime::clips()
+        .iter()
+        .map(|c| c.name.clone())
+        .collect();
+    out.push(closed("play", "play", clips.clone()));
+    out.push(closed("playOver", "playOver", clips));
     // Open: besides `off`, a formula's cue carries its LaTeX (render_lab's `formulaSaid`).
     out.push(options("formula", "formula", ["off".to_string()]));
     // A formula's card and its display style: on or off.

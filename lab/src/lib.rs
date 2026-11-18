@@ -22,6 +22,7 @@ pub mod audio;
 pub mod bindings;
 pub mod camera;
 pub mod cli;
+pub mod clip;
 pub mod code_view;
 pub mod config;
 pub mod controls;

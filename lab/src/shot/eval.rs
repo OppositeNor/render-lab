@@ -2,20 +2,65 @@
 //! notes and images the keys move, and the shot's state at a frame.
 
 use super::*;
+use crate::clip::{Keyframe, Track};
 
 /// A channel's value over time: eased from its value at a key to the key's
-/// target, or a motion's.
+/// target, a motion's, or a played clip's keyframes (src/clip.rs).
 #[derive(Clone, Debug)]
 pub(super) enum Channel {
     Blend(Segment),
-    /// The `index`th channel of a motion that started at `from` from `start`.
+    /// The `index`th channel of a motion that started at `from` from `start`, on `clock` (a clip's, stretched
+    /// over words; a key's motions run at their own pace).
     Motion {
         motion: Rc<Motion>,
         index: usize,
         from: u64,
-        fps: f32,
+        clock: Clock,
         start: Rc<Vec<f32>>,
     },
+    /// A clip's keyframes, played from `from` on `clock`, from the channel's value `start`.
+    Keys {
+        keys: Rc<Vec<Keyframe>>,
+        from: u64,
+        clock: Clock,
+        start: f32,
+    },
+}
+
+/// How frames since a start become seconds: at the timeline's pace, or a clip of `length` seconds stretched over
+/// `frames` (a range's words), as a key's blend divides by its frames.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Clock {
+    fps: f32,
+    over: Option<(u64, f32)>,
+}
+
+impl Clock {
+    fn seconds(self, frames: u64) -> f32 {
+        match self.over {
+            Some((over, length)) => frames as f32 / over as f32 * length,
+            None => frames as f32 / self.fps,
+        }
+    }
+
+    /// The frames until `seconds` into it.
+    fn frames(self, seconds: f32) -> u64 {
+        let frames = match self.over {
+            Some((over, length)) => seconds / length * over as f32,
+            None => seconds * self.fps,
+        };
+        frames.round().max(0.0) as u64
+    }
+}
+
+/// A run of an animation hook (a clip's `run` track): from frame `from` for `frames` (none: for ever), on `clock`;
+/// held at its end, as a clip's keyframes are, until the demonstration changes.
+#[derive(Clone, Debug)]
+pub(super) struct Run {
+    animation: String,
+    from: u64,
+    frames: Option<u64>,
+    clock: Clock,
 }
 
 impl Channel {
@@ -30,9 +75,15 @@ impl Channel {
                 motion,
                 index,
                 from,
-                fps,
+                clock,
                 start,
-            } => motion.sample(frame.saturating_sub(*from) as f32 / fps, start)[*index],
+            } => motion.sample(clock.seconds(frame.saturating_sub(*from)), start)[*index],
+            Channel::Keys {
+                keys,
+                from,
+                clock,
+                start,
+            } => crate::clip::sample_keys(keys, clock.seconds(frame.saturating_sub(*from)), *start),
         }
     }
 }
@@ -443,6 +494,15 @@ impl Timeline {
                     .map(|warning| (index, warning)),
             );
             key.check_motions(&key.animate).map_err(at)?;
+            // A clip played over words is stretched to its range's blend, so it needs one.
+            if key.play_over.is_some() && key.blend == 0 {
+                return Err(at(CueProblem::new(
+                    "story.clip.over",
+                    "playOver",
+                    "playOver stretches a clip over a range's words: put it in a range (`overText`), or play it at its own pace with `play`".into(),
+                ))
+                .into());
+            }
             for motion in &key.animate {
                 if let Some(problem) = motion
                     .seconds()
@@ -539,9 +599,15 @@ impl Timeline {
         let mut state = ShotState::for_demo(investigation::current().demos()[0]);
         let mut segments: BTreeMap<String, Channel> = BTreeMap::new();
         let camera = camera_channels();
+        let mut runs: Vec<Run> = Vec::new();
         Self::reset(&mut segments, &state, 0);
         for key in self.keys.iter().take_while(|k| k.frame <= frame) {
             // Each key up to the frame, in order, may switch the demonstration, sets its cues, and blends its values.
+            if key.demo.is_some() {
+                // A new demonstration's state starts without the clips' progresses and runs of the one before.
+                segments.retain(|c, _| !c.starts_with(crate::clip::PROGRESS));
+                runs.clear();
+            }
             Self::switch_demo(key, &mut state, &mut segments, &camera);
             Self::apply_cues(key, &mut state);
             let mut targets: Vec<(String, f32)> = key
@@ -572,6 +638,7 @@ impl Timeline {
             Self::camera_targets(key, &mut targets);
             Self::blend_to(key, targets, &mut segments);
             self.animate(key, &mut segments);
+            self.play(key, &mut segments, &mut runs);
         }
         self.channel_values(&mut state, &segments, &camera, frame);
         state.formula_lit = segments.get(FORMULA_LIT).map_or(0.0, |s| s.value(frame));
@@ -582,9 +649,90 @@ impl Timeline {
         Self::image_values(&mut state, &segments, frame);
         state.images.retain(|i| i.alpha > 0.0);
         finish_notes(&mut state, &segments, frame);
-        // The running actions set the state last, in the order they started.
+        // A clip's runs of animations set the state from when they start, in the order they started, each held at
+        // its end once it is over; then the running actions set it last, in the order they started.
+        for run in runs.iter().filter(|r| frame >= r.from) {
+            let since = frame - run.from;
+            let t = run
+                .clock
+                .seconds(run.frames.map_or(since, |n| since.min(n)));
+            crate::script::runtime::run_animation(&run.animation, t, &mut state);
+        }
         self.run_actions(&mut state, frame);
         state
+    }
+
+    /// The clip `key` plays (src/clip.rs): `play` at its own pace, `playOver` stretched to the key's blend (a
+    /// range's words). Each of its tracks becomes its channels' source from the key on, a later key or clip
+    /// taking a channel over; its runs join `runs`.
+    fn play(&self, key: &Key, segments: &mut BTreeMap<String, Channel>, runs: &mut Vec<Run>) {
+        let fps = self.fps as f32;
+        for (name, over) in [(&key.play, false), (&key.play_over, true)] {
+            let Some(name) = name else {
+                continue;
+            };
+            let clip = crate::script::runtime::clip(name)
+                .unwrap_or_else(|| panic!("no clip `{name}`, in key at frame {}", key.frame));
+            let length = clip.seconds();
+            // Stretched over a range, a clip's time runs so that it ends as the range closes.
+            let clock = Clock {
+                fps,
+                over: (over && key.blend > 0 && length > 0.0).then_some((key.blend, length)),
+            };
+            let frame_at = |seconds: f32| key.frame + clock.frames(seconds);
+            for track in &clip.tracks {
+                match track {
+                    Track::Keys { channel, keys } => {
+                        let start = segments.get(channel).map_or(0.0, |s| s.value(key.frame));
+                        segments.insert(
+                            channel.clone(),
+                            Channel::Keys {
+                                keys: Rc::new(keys.clone()),
+                                from: key.frame,
+                                clock,
+                                start,
+                            },
+                        );
+                    }
+                    Track::Motion { at, motion } => {
+                        // A motion takes its channels from where they are when it starts.
+                        let from = frame_at(*at);
+                        let params = motion.params();
+                        let start: Vec<f32> = params
+                            .iter()
+                            .map(|p| segments.get(*p).map_or(0.0, |s| s.value(from)))
+                            .collect();
+                        let (motion, start) = (Rc::new(motion.clone()), Rc::new(start));
+                        for (index, p) in params.iter().enumerate() {
+                            segments.insert(
+                                p.to_string(),
+                                Channel::Motion {
+                                    motion: motion.clone(),
+                                    index,
+                                    from,
+                                    clock,
+                                    start: start.clone(),
+                                },
+                            );
+                        }
+                    }
+                    Track::Run {
+                        at,
+                        seconds,
+                        animation,
+                    } => {
+                        // A run of no length runs for ever.
+                        let from = frame_at(*at);
+                        runs.push(Run {
+                            animation: animation.clone(),
+                            from,
+                            frames: (*seconds > 0.0).then(|| frame_at(at + seconds) - from),
+                            clock,
+                        });
+                    }
+                }
+            }
+        }
     }
 
     /// Every channel of `state` held at its value from frame `at` on.
@@ -874,7 +1022,10 @@ impl Timeline {
                         motion: motion.clone(),
                         index,
                         from: key.frame,
-                        fps: self.fps as f32,
+                        clock: Clock {
+                            fps: self.fps as f32,
+                            over: None,
+                        },
                         start: start.clone(),
                     },
                 );
@@ -916,12 +1067,14 @@ impl Timeline {
         for (name, _) in state.value_channels() {
             state.set(&name, value(&name));
         }
-        // Other views' values (src/view.rs), which a state starts without.
-        for (name, segment) in segments
-            .range("view.".to_string()..)
-            .take_while(|(c, _)| c.starts_with("view."))
-        {
-            state.set(name, segment.value(frame));
+        // Other views' values (src/view.rs) and the clips' progresses (src/clip.rs), which a state starts without.
+        for prefix in ["view.", crate::clip::PROGRESS] {
+            for (name, segment) in segments
+                .range(prefix.to_string()..)
+                .take_while(|(c, _)| c.starts_with(prefix))
+            {
+                state.set(name, segment.value(frame));
+            }
         }
     }
 

@@ -436,3 +436,173 @@ A math scene, found by its type: what the canvas shows at its time in seconds (t
 named by its binding (`math = "toyMath"` in a demonstration, `math=toyMath` on a beat). The frame is rendered
 under the canvas, unseen on a beat, so the package's natives can read what its `build_frame` left (`frame_data`).
 $[# Math [% {Fn {' Float} {List Mob}}]]
+
+Clips
+
+A clip is a named animation with a length of its own (lab/src/clip.rs): its tracks start together when it starts.
+A story's cue plays it at a word (`play…`, at its own speed) or over a range of words (`playOver…`, stretched to
+them); a demonstration's Play plays the first of its `clips`; the viewer's Animation panel shows each as a row of
+tracks. A clip is a static binding of the type `Clip` (`$$[# combineWeights [% {clip {' …}}]]`), named by its
+binding, and checked when the scripts load: every channel a value's (a key, a vector's component, `camera.yaw`) or
+a progress, every keyframe's value one its channel takes, every animation a run names one of the scripts'.
+
+A keyframe: the channel's value `value` at `at` seconds into the clip, reached from the keyframe before (from the
+channel's value when the clip started, before the first) by `ease`, one of the lab's eases: `smooth`, `linear`,
+`in`, `out`, `inOut`, `sine`.
+$[# Keyframe [% {Struct {' {Field "at" Float} {Field "value" Float} {Field "ease" String}}}]]
+$[# _Keys [% {Struct {' {Field "channel" String} {Field "keys" {List Keyframe}}}}]]
+$[# _PathTrack [% {Struct {'
+    {Field "at" Float}
+    {Field "params" {List String}}
+    {Field "through" {List {List Float}}}
+    {Field "seconds" Float}
+    {Field "ease" String}
+    {Field "closed" Bool}
+    {Field "repeat" String}}}]]
+$[# _OrbitTrack [% {Struct {'
+    {Field "at" Float}
+    {Field "params" {List String}}
+    {Field "center" {List Float}}
+    {Field "degrees" Float}
+    {Field "seconds" Float}
+    {Field "ease" String}
+    {Field "repeat" String}}}]]
+$[# _WaveTrack [% {Struct {'
+    {Field "at" Float}
+    {Field "param" String}
+    {Field "amplitude" Float}
+    {Field "period" Float}
+    {Field "phase" Float}
+    {Field "seconds" Float}
+    {Field "fade" Float}}}]]
+$[# _RunTrack [% {Struct {'
+    {Field "at" Float}
+    {Field "seconds" Float}
+    {Field "animation" String}}}]]
+
+A clip's track: a channel through keyframes (`keys`), a motion of the lab's from `at` seconds (`path`, `orbit`,
+`wave`, as a story's motions; lab/src/animation.rs), or a run of one of the scripts' `Animation` hooks from `at`
+for `seconds`, given the seconds since the run began (`run`), for what keyframes cannot say.
+$[# Track [% {Variant {'
+    {Field "keys" _Keys}
+    {Field "path" _PathTrack}
+    {Field "orbit" _OrbitTrack}
+    {Field "wave" _WaveTrack}
+    {Field "run" _RunTrack}}}]]
+$[# Clip [% {Struct {' {Field "tracks" {List Track}}}}]]
+
+A clip's lengths when it does not say (manim's): an animation's second, and half of one for a fade.
+$[# defaultSeconds 1.0]
+$[# fadeSeconds 0.5]
+
+Fn([Float, Float, String], Keyframe). The value `value` at `at` seconds, reached by `ease`.
+$[# {keyframe at value ease} {: {. at at value value ease ease} Keyframe}]
+Fn([String, List(Keyframe)], Track). A value's channel through keyframes in time order (`cameraYaw`'s channel is
+`camera.yaw`; a vector's components are its keys' components).
+$[# {keys channel frames} {: {#keys {. channel channel keys frames}} Track}]
+Fn([String, List(Keyframe)], Track). A progress of the package's own through keyframes: a scene, an overlay, or a
+readout reads it (`progress`), 0 until a clip moves it.
+$[# {progressKeys name frames} {keys {++ "progress." name} frames}]
+Fn([String, Float, Float, String], Track). A value's channel from where it is to `value` over `seconds`.
+$[# {tweenTo channel value seconds ease} {keys channel {' {keyframe seconds value ease}}}]
+Fn([String, Float, String], Track). A progress from 0 to 1 over `seconds`, eased.
+$[# {progressIn name seconds ease} {progressKeys name {'
+    {keyframe 0.0 0.0 "linear"}
+    {keyframe seconds 1.0 ease}}}]
+Fn([String], Track). A progress from 0 to 1 over the default second, smooth (manim's `play` of one animation).
+$[# {animate name} {progressIn name defaultSeconds "smooth"}]
+Fn([String], Track). A progress from 0 to 1 over half a second, smooth (a fade's length).
+$[# {fade name} {progressIn name fadeSeconds "smooth"}]
+Fn([Float, List(String), List(List(Float)), Float, String], Track). A path of the channels `params` from `at`
+seconds through the waypoints `through` (one value per channel, after where they are), over `seconds`, paced by
+`ease`, once.
+$[# {pathTrack at params through seconds ease} {: {#path {.
+    at at
+    params params
+    through through
+    seconds seconds
+    ease ease
+    closed false
+    repeat "once"}} Track}]
+Fn([Float, List(String), List(Float), Float, Float], Track). The channels `params` turned `degrees` about `center`
+from `at` seconds, over `seconds`, smooth, once.
+$[# {orbitTrack at params center degrees seconds} {: {#orbit {.
+    at at
+    params params
+    center center
+    degrees degrees
+    seconds seconds
+    ease "smooth"
+    repeat "once"}} Track}]
+Fn([Float, String, Float, Float, Float], Track). The channel `param` waved about where it is, `amplitude` high,
+every `period` seconds, from `at` for `seconds`, growing in and dying out over a quarter period.
+$[# {waveTrack at param amplitude period seconds} {: {#wave {.
+    at at
+    param param
+    amplitude amplitude
+    period period
+    phase 0.0
+    seconds seconds
+    fade {/ period 4.0}}} Track}]
+Fn([Float, Float, String], Track). The scripts' animation hook `animation` from `at` for `seconds` (0: for ever,
+as a demonstration's Play runs it), given the seconds since the run began.
+$[# {runTrack at seconds animation} {: {#run {. at at seconds seconds animation animation}} Track}]
+
+Fn([List(Track)], Clip). A clip of the tracks, starting together.
+$[# {clip tracks} {: {. tracks tracks} Clip}]
+
+Fn([Track], Float). Where a track ends, in seconds into its clip.
+$[# {_trackEnd t} {!case t
+    {keys k {fold {.keys k} 0.0 {^ {m f} {max m {.at f}}}}}
+    {path p {+ {.at p} {.seconds p}}}
+    {orbit p {+ {.at p} {.seconds p}}}
+    {wave p {+ {.at p} {.seconds p}}}
+    {run p {+ {.at p} {.seconds p}}}}]
+Fn([Clip], Float). A clip's length: where its last track ends.
+$[# {clipSeconds c} {fold {.tracks c} 0.0 {^ {m t} {max m {_trackEnd t}}}}]
+
+Fn([Float, Track], Track). A track `s` seconds later.
+$[# {_shifted s t} {: {!case t
+    {keys k {#keys {.keys= k {map {.keys k} {^ {f} {.at= f {+ {.at f} s}}}}}}}
+    {path p {#path {.at= p {+ {.at p} s}}}}
+    {orbit p {#orbit {.at= p {+ {.at p} s}}}}
+    {wave p {#wave {.at= p {+ {.at p} s}}}}
+    {run p {#run {.at= p {+ {.at p} s}}}}} Track}]
+
+Fn([Float, Clip], Clip). The clip starting `seconds` later.
+$[# {delayed seconds c} {clip {map {.tracks c} {^ {t} {_shifted seconds t}}}}]
+Fn([List(Clip)], Clip). The clips starting together (manim's `AnimationGroup`).
+$[# {together clips} {clip {flatten {map clips {^ {c} {.tracks c}}}}}]
+Fn([Clip, Clip], Clip). `b` once `a` is over.
+$[# {after a b} {together {' a {delayed {clipSeconds a} b}}}]
+Fn([List(Clip)], Clip). The clips one after another (manim's `Succession`).
+$[# {sequence clips} {fold clips {clip {'}} after}]
+Fn([Float, List(Clip)], Clip). The clips each `lag` seconds after the one before (manim's `LaggedStart`).
+$[# {laggedClips lag clips} {together {map
+    {zip {range 0 {length clips}} clips}
+    {^ {e} {delayed {* lag {float {.first e}}} {.second e}}}}}]
+
+Fn([Clip], Clip). The clip run backwards, its keyframes mirrored in time: what it changed goes back, by the same
+eases. Only keyframes run backwards; a clip with a motion or a run fails.
+$[# {reversed c}
+    [# length {clipSeconds c}]
+    [# {_back k}
+        [# frames {.keys k}]
+        [# eases {append {tail {map frames {^ {f} {.ease f}}}} {' "linear"}}]
+        {#keys {.keys= k {reverse {map
+            {zip frames eases}
+            {^ {e} {keyframe {- length {.at {.first e}}} {.value {.first e}} {.second e}}}}}}}]
+    {clip {map
+        {.tracks c}
+        {^ {t} {: {!case t
+            {keys k {_back k}}
+            {path p {error "a path cannot run backwards"}}
+            {orbit p {error "an orbit cannot run backwards"}}
+            {wave p {error "a wave cannot run backwards"}}
+            {run p {error "a run cannot run backwards"}}} Track}}}}]
+
+Fn([String], Float). The shot's progress `name` (a clip's `progressKeys`), 0 until a clip moves it.
+$[# {progress name} {rt::progress name}]
+Fn([String], Bool). Whether a clip has set the shot's progress `name` (to any value, 0 included): a scene can
+tell a progress a story set to 0 from one nothing set (a demonstration opened on it).
+$[# {hasProgress name} {rt::hasProgress name}]

@@ -52,6 +52,7 @@ pub(super) fn report(command: Command, chosen: &'static dyn Investigation) -> Re
         Command::Story(StoryCommand::Check { file, timeline }) => story_check(&file, timeline),
         Command::Choices => choices(),
         Command::Actions => actions(),
+        Command::Clips => clips(),
         Command::Images => images(),
         Command::Packages { json } => packages(json),
         Command::Resources { json } => resources(json),
@@ -196,6 +197,30 @@ fn actions() -> Result<()> {
         println!("{}({})", spec.key, args.join(", "));
         if !spec.doc.is_empty() {
             println!("    {}", spec.doc);
+        }
+    }
+    Ok(())
+}
+
+/// `clips`: the scripts' clips, each with its length and its tracks.
+fn clips() -> Result<()> {
+    use crate::clip::Track;
+    for clip in crate::script::runtime::clips() {
+        println!("{} ({:.2} s)", clip.name, clip.seconds());
+        for track in &clip.tracks {
+            let what = match track {
+                Track::Keys { keys, .. } => keys
+                    .iter()
+                    .map(|k| format!("{:.2} s: {}", k.at, k.value))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                Track::Motion { at, motion } => format!(
+                    "a motion from {at:.2} s for {:.2} s",
+                    motion.seconds().copied().unwrap_or(0.0)
+                ),
+                Track::Run { at, seconds, .. } => format!("from {at:.2} s for {seconds:.2} s"),
+            };
+            println!("    {}: {what}", track.label());
         }
     }
     Ok(())

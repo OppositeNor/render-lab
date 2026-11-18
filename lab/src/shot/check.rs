@@ -253,6 +253,24 @@ impl CueChecks {
                 .unwrap_or_else(|| investigation::current().actions().check(call));
             checked.map_err(|e| CueProblem::new("story.action", "run", e))?;
         }
+        for (name, field) in [(&cue.play, "play"), (&cue.play_over, "playOver")] {
+            // A clip it plays is one of the scripts' (src/clip.rs).
+            if let Some(name) = name
+                .as_deref()
+                .filter(|n| crate::script::runtime::clip(n).is_none())
+            {
+                let all = crate::script::runtime::clips();
+                let known: Vec<&str> = all.iter().map(|c| c.name.as_str()).collect();
+                return Err(CueProblem::new(
+                    "story.clip",
+                    field,
+                    format!(
+                        "no clip `{name}` in the scripts (theirs: {})",
+                        crate::story_refs::names_or_none(&known)
+                    ),
+                ));
+            }
+        }
         Ok(())
     }
 }

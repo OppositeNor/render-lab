@@ -696,6 +696,57 @@ fn a_story_runs_and_stops_an_action() {
 }
 
 #[test]
+fn a_story_plays_clips_at_their_pace_and_over_words() {
+    use crate::animation::Ease;
+    use crate::clip::{Clip, Keyframe, Track};
+    with_test(|| {
+        let key = |at, value| Keyframe {
+            at,
+            value,
+            ease: Ease::Linear,
+        };
+        let clip = Clip {
+            name: "raise".into(),
+            tracks: vec![
+                Track::Keys {
+                    channel: "exposure".into(),
+                    keys: vec![key(2.0, 3.0)],
+                },
+                Track::Keys {
+                    channel: "progress.raise".into(),
+                    keys: vec![key(0.0, 0.0), key(2.0, 1.0)],
+                },
+            ],
+        };
+        crate::script::runtime::TEST_CLIPS
+            .with(|t| *t.borrow_mut() = vec![std::sync::Arc::new(clip)]);
+        let t = timeline(serde_json::json!([
+            {"frame": 10, "play": "raise"},
+            {"frame": 50, "blend": 0, "params": {"exposure": 1.0}},
+            {"frame": 60, "blend": 30, "playOver": "raise"}
+        ]));
+        t.validate().unwrap();
+        // At its own pace (2 s at 10 fps): from the value it starts at, half way, done, and held.
+        let progress = |f: u64| t.state_at(f).try_get("progress.raise").unwrap().f32();
+        assert_eq!(t.state_at(5).p("exposure"), 1.0);
+        assert_eq!(t.state_at(20).p("exposure"), 2.0);
+        assert_eq!(progress(20), 0.5);
+        assert_eq!(t.state_at(40).p("exposure"), 3.0);
+        // A later key takes the channel over; stretched over 30 frames, it ends with them.
+        assert_eq!(t.state_at(55).p("exposure"), 1.0);
+        assert!((t.state_at(75).p("exposure") - 2.0).abs() < 1e-5);
+        assert!((progress(75) - 0.5).abs() < 1e-5);
+        assert_eq!(t.state_at(95).p("exposure"), 3.0);
+        // Over words needs a range: a key without a blend is refused.
+        let point = timeline(serde_json::json!([{"frame": 10, "playOver": "raise"}]));
+        assert!(point.validate().is_err());
+        let unknown = timeline(serde_json::json!([{"frame": 10, "play": "nothing"}]));
+        assert!(format!("{:#}", unknown.validate().unwrap_err()).contains("no clip `nothing`"));
+        crate::script::runtime::TEST_CLIPS.with(|t| t.borrow_mut().clear());
+    });
+}
+
+#[test]
 fn a_timeline_with_a_wrong_action_does_not_load() {
     with_test(|| {
         let error = |run: serde_json::Value| {

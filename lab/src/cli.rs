@@ -219,6 +219,10 @@ enum Command {
     /// arguments it gives them (`run.<argument>=…`); and its click handlers,
     /// which a story gives an image (`imageClick=<key>`).
     Actions,
+    /// List the current investigation's clips (lab/src/clip.rs): the animations its scripts declare, which a
+    /// story plays (`play…` at a word, `playOver…` over a range's words) and a demonstration's Play plays;
+    /// each one's length and tracks, with their keyframes' times and values.
+    Clips,
     /// List the images the current investigation publishes for a story to
     /// show (`{inset "<key>"}`), and the image kinds its package's shaders
     /// define (`{inset "<name>"} {imageFrom "<kind>"}`, their parameters
