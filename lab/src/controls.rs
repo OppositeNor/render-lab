@@ -70,6 +70,11 @@ pub fn draw_dock(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut V
         .fade_in(false)
         .show(ctx, |ui| {
             ui.set_width(inner.width());
+            if !side {
+                // The area's room is its last frame's size: it takes the window's height, or a tab after a short one
+                // would get only that one's height.
+                ui.set_height(inner.height());
+            }
             ui.set_clip_rect(inner);
             // Labels keep their width; anything too wide shows as overflow, not as wrapped text.
             ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
@@ -98,12 +103,13 @@ pub fn draw_dock(ctx: &egui::Context, ink: &Ink, input: &UiInput, viewer: &mut V
                     inner.max.x - ui.cursor().min.x,
                     inner.max.y - ui.cursor().min.y,
                 );
-                let overflow_id = egui::Id::unique("viewer-dock-overflow");
+                // Each tab keeps its own scroll offset, so one tab's never shifts another's groups.
+                let overflow_id = egui::Id::unique("viewer-dock-overflow").with(tab.0);
                 let overflow = ctx
                     .data(|d| d.get_temp::<[bool; 2]>(overflow_id))
                     .unwrap_or([true, false]);
                 let output = egui::ScrollArea::new(overflow)
-                    .id_salt("viewer-dock-scroll")
+                    .id_salt(("viewer-dock-scroll", tab.0))
                     .max_width(room.x)
                     .max_height(room.y)
                     .show(ui, |ui| {
@@ -470,7 +476,7 @@ impl Dock<'_> {
             ui.horizontal(|ui| {
                 let heading = ui.label(
                     RichText::new(title)
-                        .font(FontId::new(24.0, ui::bold()))
+                        .font(heading_font())
                         .color(palette::accent()),
                 );
                 if let Some(hint) = hint.filter(|h| !h.is_empty()) {
@@ -481,6 +487,13 @@ impl Dock<'_> {
             add(self, ui);
         });
         ui.add_space(22.0);
+    }
+
+    /// The height a group's title row takes (`group`), with the spacing below it: what a group that fills its
+    /// room (src/ui/layout.rs) leaves for its contents.
+    pub fn heading_height(ui: &Ui) -> f32 {
+        let row = ui.ctx().fonts_mut(|f| f.row_height(&heading_font()));
+        row.max(ui.spacing().interact_size.y) + ui.spacing().item_spacing.y
     }
 
     /// Slider rows with their labels aligned in a column.
@@ -562,6 +575,11 @@ pub struct SliderRow<'a> {
 }
 
 /// A "?" that shows `text` when hovered.
+/// A group's title (`Dock::group`).
+fn heading_font() -> FontId {
+    FontId::new(24.0, ui::bold())
+}
+
 fn hint_mark(ui: &mut Ui, text: &str) {
     let mark = RichText::new(" ? ")
         .monospace()

@@ -30,6 +30,7 @@ mod dag_panel;
 mod graph_panel;
 mod help_card;
 mod knowledge_panel;
+pub mod layout;
 mod panel;
 mod resource_panel;
 mod scene_window;

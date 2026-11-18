@@ -9,9 +9,10 @@ use crate::i18n::{args, tr, tr_with};
 use crate::investigation;
 use crate::palette;
 use crate::shot::{PanelMode, SceneType, ShotState};
-use crate::ui::{DockTab, GraphPanel, GraphPick, GraphView, Ink, ViewerAction};
+use crate::ui::layout::{self, Size};
+use crate::ui::{DockTab, GraphNodeView, GraphPanel, GraphPick, GraphView, Ink, ViewerAction};
 use anyhow::{Result, anyhow, bail};
-use egui::{CornerRadius, Pos2, Rect, RichText, Ui, pos2};
+use egui::{CornerRadius, Pos2, Rect, RichText, Ui, Vec2, pos2, vec2};
 
 /// The tab (another tab's button may select it).
 pub const TAB: DockTab = DockTab("graph");
@@ -234,7 +235,8 @@ impl Graph {
     /// under the pointer in the panel, else the selected one (the inspected
     /// result's): its engine pass, what it does, its GPU time, and what it
     /// reads and writes (a click inspects that resource right after it); then
-    /// every pass in order, a click selecting it.
+    /// every pass in order, a click selecting it. The passes flow down columns
+    /// as tall as the window, the pass's details take the width they leave.
     fn frame_graph(&mut self, dock: &mut Dock, ui: &mut Ui) {
         let Some(view) = dock.input.graph else { return };
         let hovered: Option<String> = ui
@@ -250,67 +252,125 @@ impl Graph {
         let focus = hovered
             .or(inspected)
             .and_then(|name| view.nodes.iter().find(|n| n.name == name));
-        const COLUMN: f32 = 640.0;
+        let font = egui::TextStyle::Monospace.resolve(ui.style());
+        let list = PassList {
+            cell: layout::text_cell(ui, view.nodes.iter().map(|n| n.name.clone()), &font),
+            gap: vec2(12.0, ui.spacing().item_spacing.y),
+        };
+        let height = ui.available_height() - Dock::heading_height(ui);
+        let width = layout::flow_width(view.nodes.len(), list.cell, list.gap, height);
+        let sizes = [
+            Size::Stretch {
+                weight: 1.0,
+                min: 360.0,
+            },
+            Size::Fixed(width.max(list.cell.x)),
+        ];
         let mut asked = None;
-        dock.group(
-            ui,
-            &focus.map_or(tr("graph-pass").to_string(), |n| n.name.clone()),
-            None,
-            |_, ui| {
-                ui.set_width(COLUMN);
-                let Some(node) = focus else {
-                    ui.add(
-                        egui::Label::new(
-                            RichText::new(tr("graph-pick_hint")).color(palette::text_dim()),
-                        )
-                        .wrap(),
-                    );
-                    return;
-                };
-                if let Some((pass, at)) = &node.engine {
-                    ui.label(
+        layout::boxes(ui, &sizes, 32.0, true, |i, ui| {
+            if i == 0 {
+                // The details scroll on their own when the pass says more than the window holds.
+                layout::fill_scroll(ui, "frame-graph-pass", |ui| {
+                    pass_details(dock, ui, focus, &mut asked);
+                });
+            } else {
+                list.show(dock, ui, view, focus, &mut asked);
+            }
+        });
+        if asked.is_some() {
+            self.inspect = Some(asked);
+        }
+    }
+}
+
+/// The focused pass (none: a hint to pick one): its engine pass, what it does, its GPU time, and what it
+/// reads and writes, a click asking the inspector for that resource right after it.
+fn pass_details(
+    dock: &mut Dock,
+    ui: &mut Ui,
+    focus: Option<&GraphNodeView>,
+    asked: &mut Option<String>,
+) {
+    dock.group(
+        ui,
+        &focus.map_or(tr("graph-pass").to_string(), |n| n.name.clone()),
+        None,
+        |_, ui| {
+            let Some(node) = focus else {
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(tr("graph-pick_hint")).color(palette::text_dim()),
+                    )
+                    .wrap(),
+                );
+                return;
+            };
+            if let Some((pass, at)) = &node.engine {
+                ui.add(
+                    egui::Label::new(
                         RichText::new(format!(
                             "≈ {}: {pass} · {at}",
                             investigation::current().wording().engine_short
                         ))
                         .color(palette::accent()),
-                    );
-                }
-                if let Some(about) = node.about {
-                    ui.add(egui::Label::new(RichText::new(about).color(palette::text())).wrap());
-                }
-                if let Some(ms) = node.ms {
-                    ui.label(
-                        RichText::new(tr_with("graph-gpu_time", args!(time = format!("{ms:.3}"))))
-                            .color(palette::text_dim()),
-                    );
-                }
-                // What it reads and writes: a click shows that resource right after it.
-                for (label, names) in [
-                    (tr("graph-reads"), &node.reads),
-                    (tr("graph-writes"), &node.writes),
-                ] {
-                    ui.horizontal_wrapped(|ui| {
-                        ui.label(RichText::new(label).color(palette::text_dim()));
-                        for name in names.iter().filter(|n| n.as_str() != "frame") {
-                            if ui
-                                .selectable_label(false, RichText::new(name).monospace())
-                                .clicked()
-                            {
-                                asked = Some(format!("{}.{name}", node.name));
-                            }
+                    )
+                    .wrap(),
+                );
+            }
+            if let Some(about) = node.about {
+                ui.add(egui::Label::new(RichText::new(about).color(palette::text())).wrap());
+            }
+            if let Some(ms) = node.ms {
+                ui.label(
+                    RichText::new(tr_with("graph-gpu_time", args!(time = format!("{ms:.3}"))))
+                        .color(palette::text_dim()),
+                );
+            }
+            // What it reads and writes: a click shows that resource right after it.
+            for (label, names) in [
+                (tr("graph-reads"), &node.reads),
+                (tr("graph-writes"), &node.writes),
+            ] {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(RichText::new(label).color(palette::text_dim()));
+                    for name in names.iter().filter(|n| n.as_str() != "frame") {
+                        if ui
+                            .selectable_label(false, RichText::new(name).monospace())
+                            .clicked()
+                        {
+                            *asked = Some(format!("{}.{name}", node.name));
                         }
-                    });
-                }
-            },
-        );
+                    }
+                });
+            }
+        },
+    );
+}
+
+/// The frame's passes in order, one cell each, flowing down columns as tall as the window leaves them.
+struct PassList {
+    /// A cell: the longest name's width, a button's height.
+    cell: Vec2,
+    gap: Vec2,
+}
+
+impl PassList {
+    /// Every pass, the focused one selected (dead ones faint); a click asks the inspector for its result.
+    fn show(
+        &self,
+        dock: &mut Dock,
+        ui: &mut Ui,
+        view: &GraphView,
+        focus: Option<&GraphNodeView>,
+        asked: &mut Option<String>,
+    ) {
         dock.group(
             ui,
             tr("graph-passes"),
             Some(tr("graph-passes_hint")),
             |_, ui| {
-                ui.set_width(COLUMN * 0.6);
-                for node in &view.nodes {
+                layout::flow(ui, view.nodes.len(), self.cell, self.gap, |i, ui| {
+                    let node = &view.nodes[i];
                     let selected = focus.is_some_and(|f| f.name == node.name);
                     let label = RichText::new(&node.name).monospace().color(if node.live {
                         palette::text()
@@ -320,14 +380,11 @@ impl Graph {
                     if ui.selectable_label(selected, label).clicked()
                         && let Some(result) = &node.result
                     {
-                        asked = Some(format!("{}.{result}", node.name));
+                        *asked = Some(format!("{}.{result}", node.name));
                     }
-                }
+                });
             },
         );
-        if asked.is_some() {
-            self.inspect = Some(asked);
-        }
     }
 }
 
