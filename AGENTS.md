@@ -163,6 +163,7 @@ cargo run --release -- home --snapshot /path/to/src.png --page viewer-source:<no
 cargo run --release -- home --snapshot /path/to/layout.png --page viewer-layout   # the viewer's windows moved, docked, and resized by the pointer; the layout written to layout.toml beside it
 cargo run --release -- home --snapshot /path/to/camera.png --page viewer-camera   # the camera's modes driven through the viewer's input and checked: drag orbits, Shift-drag pans, right-held flies (WASD, Q/E on world Y, wheel speed)
 cargo run --release -- home --snapshot /path/to/scene.png --page "viewer-scene[:<entity>][@move|rotate|scale]"   # the Scene window open, an entity selected (object.teapot, value.lightX), its gizmo dragged
+cargo run --release -- home --snapshot /path/to/anim.png --page "viewer-animation[:<demo>][@<clip>=<seconds>]"   # the Animation tab: the demonstration's clips as a dopesheet, a clip scrubbed to a time
 cargo run --release -- home --snapshot /path/to/exp.png --page viewer-experiments   # the Experiment button's viewer: the Experiments tab (viewer-compare: a reference, a wipe, a measurement)
 cargo run --release -- home --snapshot /path/to/quiz.png --page viewer-quiz:<n>@<letter>   # the Quiz button's viewer: question n answered with that choice (none: unanswered; past the last: the score)
 cargo run --release -- --investigation godot/voxelgi experiment godot_voxelgi.experiment/cones-and-bias --out /path/to/dir   # a research experiment headless (--dry-run lists its runs; GPU)

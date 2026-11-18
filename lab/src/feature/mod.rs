@@ -11,6 +11,7 @@
 //! viewer, as a feature may change it). Nothing in the viewer names a feature:
 //! a new one is a module of its own and an entry in `BUILT_IN`.
 
+pub mod animation;
 pub mod captions;
 pub mod code;
 pub mod experiments;
@@ -270,6 +271,7 @@ pub trait Host {
 /// The lab's own features, in no order (`Feature::order` orders their tabs).
 static BUILT_IN: &[&dyn Feature] = &[
     &parameters::ParametersFeature,
+    &animation::AnimationFeature,
     &experiments::ExperimentsFeature,
     &code::CodeFeature,
     &sources::SourcesFeature,
