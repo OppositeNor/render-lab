@@ -65,7 +65,8 @@ enum Command {
         /// starting (the homepage's loading page, while the title's scene loads), loading (the
         /// viewer's loading page, while the current investigation's first scene loads), viewer (the
         /// viewer on its first demonstration, with the dock), viewer:<demo> (the viewer on that demonstration), or viewer-timeline (the viewer playing
-        /// the investigation's first timeline, with its bar), viewer-diagram (that timeline paused on its first 2D
+        /// the investigation's first timeline, with its bar), viewer-timeline@<frame>[+<frames>] (that timeline
+        /// played from a frame, one frame per render, its last frame saved), viewer-diagram (that timeline paused on its first 2D
         /// scene with an image, the image's panel zoomed in), viewer-sources (paused on its first sources card),
         /// viewer-layout (the viewer's windows moved, docked, and resized; the layout written beside the PNG as .toml), or
         /// viewer-scene[:<entity>][@move|rotate|scale] (the Scene window open, an entity selected, its gizmo dragged), or

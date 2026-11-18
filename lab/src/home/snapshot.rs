@@ -209,6 +209,31 @@ pub fn snapshot_viewer(
     snapshot_viewer_page(options, timeline, demo, None, png)
 }
 
+/// The viewer offscreen playing the current investigation's timeline in the viewer's language from `from`,
+/// `frames` frames one per render (`viewer::snapshot_played`; `--page viewer-timeline@<from>[+<frames>]`).
+pub fn snapshot_timeline_at(
+    options: &HomeOptions,
+    from: u64,
+    frames: u64,
+    png: &Path,
+) -> Result<()> {
+    let mut home = Home::new(options.manifest_dir.clone(), options.config_path.clone());
+    let current = investigation::current();
+    let rows = home.timeline_rows(current);
+    let row = rows
+        .get(preferred_edition(&rows, home.applied.language))
+        .with_context(|| format!("{} has no timeline", current.path()))?;
+    let choice = Choice::Watch {
+        investigation: current,
+        timeline: row.info,
+        start_frame: from,
+    };
+    let size = PhysicalSize::new(options.width, options.height);
+    let viewer_options =
+        viewer_options(choice, &home, options, size).expect("a choice that opens the viewer");
+    viewer::snapshot_played(viewer_options, frames, png)
+}
+
 /// The viewer's options as the homepage opens it on the current
 /// investigation with the choice `choose` makes, for a snapshot.
 pub(super) fn opened_by(

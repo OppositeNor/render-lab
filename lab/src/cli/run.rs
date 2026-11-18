@@ -177,6 +177,15 @@ fn home_snapshot(options: &home::HomeOptions, page: &str, png: &Path) -> Result<
         "viewer" | "viewer-timeline" => {
             home::snapshot_viewer(options, page == "viewer-timeline", None, png)
         }
+        _ if page.starts_with("viewer-timeline@") => {
+            let at = &page["viewer-timeline@".len()..];
+            let (from, frames) = at.split_once('+').unwrap_or((at, "0"));
+            let number = |s: &str| {
+                s.parse::<u64>()
+                    .with_context(|| format!("`{page}`: `{s}` is not a frame count"))
+            };
+            home::snapshot_timeline_at(options, number(from)?, number(frames)?, png)
+        }
         "viewer-diagram" => home::snapshot_viewer_page(
             options,
             true,

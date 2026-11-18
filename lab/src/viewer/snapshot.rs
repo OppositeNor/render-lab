@@ -613,6 +613,47 @@ pub fn snapshot_page(
     Ok(())
 }
 
+/// The viewer offscreen playing its timeline from `options.start_frame`: held there while egui and the view's
+/// history settle, then played `frames` frames, one per render, as a playing viewer moves on; the last one as
+/// a PNG (`home --snapshot … --page viewer-timeline@<frame>[+<frames>]`).
+pub fn snapshot_played(options: ViewerOptions, frames: u64, png: &std::path::Path) -> Result<()> {
+    use crate::readback::{read_rgba, readback_buffer, write_png};
+    anyhow::ensure!(options.timeline.is_some(), "no timeline to play");
+    let (mut app, gpu, size) = offscreen_app(options, None)?;
+    app.playing = true;
+    // The clock holds the frame while the view settles: it starts counting an hour from now.
+    app.timeline_anchor = (
+        Instant::now() + std::time::Duration::from_secs(3600),
+        app.timeline_frame,
+    );
+    let buffer = readback_buffer(&gpu.device, size[0], size[1]);
+    settle(&mut app, &buffer, 16)?;
+    let from = app.timeline_frame;
+    app.frame_by_frame = true;
+    for _ in 0..frames {
+        app.render(Some(&buffer))?;
+    }
+    write_png(
+        png,
+        size[0],
+        size[1],
+        &read_rgba(&gpu.device, &gpu.queue, &buffer, size),
+    )?;
+    let beat = app
+        .timeline
+        .as_ref()
+        .map(|t| t.beat_at(app.timeline_frame).1.id.clone())
+        .unwrap_or_default();
+    eprintln!(
+        "viewer: {} ({}x{}, the timeline played from frame {from} to {} in {beat})",
+        png.display(),
+        size[0],
+        size[1],
+        app.timeline_frame,
+    );
+    Ok(())
+}
+
 /// The left button pressed (or let go) at `at`, as egui sees it.
 fn press(app: &mut App, at: egui::Pos2, pressed: bool) {
     app.egui_events.push(egui::Event::PointerButton {

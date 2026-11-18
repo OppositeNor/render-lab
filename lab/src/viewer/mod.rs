@@ -232,6 +232,9 @@ pub struct App {
     last_tick: Instant,
     frames: u64,
     autotest: Option<Box<dyn ViewerTest>>,
+    /// A playing timeline moves on one frame per render, not by the wall clock (the autotest's, and a
+    /// snapshot's that plays it, `snapshot_played`).
+    frame_by_frame: bool,
     pub exit: ViewerExit,
     /// The Home button was pressed: the event loop exits after this frame.
     pub leaving: bool,
@@ -333,6 +336,7 @@ impl App {
             last_tick: Instant::now(),
             frames: 0,
             autotest,
+            frame_by_frame: false,
             exit: ViewerExit::Closed,
             leaving: false,
             screenshot: false,

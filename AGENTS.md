@@ -124,6 +124,7 @@ cargo run --release -- home --snapshot /path/to/home.png    # the title screen a
 cargo run --release -- home --snapshot /path/to/loading.png --page loading   # the viewer's loading page, offscreen, while a scene loads
 cargo run --release -- home --snapshot /path/to/starting.png --page starting # the homepage's loading page, while the title's scene loads
 cargo run --release -- home --snapshot /path/to/viewer.png --page viewer     # the viewer offscreen: its windows (viewer:<demo> for one demonstration; viewer-timeline: a timeline playing, its bar)
+cargo run --release -- home --snapshot /path/to/played.png --page viewer-timeline@25456+60   # the timeline played in the viewer from a frame, one frame per render; the last one saved
 cargo run --release -- home --snapshot /path/to/diagram.png --page viewer-diagram   # a timeline paused on a 2d scene with an image: its panel, zoomed
 cargo run --release -- home --snapshot /path/to/sources.png --page viewer-sources   # a timeline paused on a 2d scene's sources card
 cargo run --release -- --investigation o3de/lighting selftest --report /path/to/o3de.json   # O3DE: the WGSL port against its CPU mirror

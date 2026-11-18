@@ -166,6 +166,7 @@ impl App {
         };
         // The focused view's state, when it is not the main view's (src/view.rs): the dock shows and sets it.
         let focus = self.focus_state(&chrome.features, &state);
+        let clock = self.clock();
         let renderer = self.renderer.as_mut().expect("renderer");
         renderer.user_layout = self.layout;
         let result = renderer.render_frame(
@@ -179,7 +180,7 @@ impl App {
                 references: shown.references,
                 chapter_number: shown.chapter,
                 fade: shown.fade,
-                time: self.demo_time,
+                time: clock,
                 raw_input,
                 chrome: Chrome::Viewer(&mut chrome),
                 stamp: None,
@@ -265,7 +266,7 @@ impl App {
                 if let Some(t) = &self.timeline {
                     // The wall clock since the anchor, so the narration stays in
                     // step; the autotest advances one frame per redraw.
-                    let frame = if self.autotest.is_some() {
+                    let frame = if self.autotest.is_some() || self.frame_by_frame {
                         self.timeline_frame + 1
                     } else {
                         self.anchored_frame(now)
@@ -427,6 +428,18 @@ impl App {
             notices,
             references,
             math,
+        }
+    }
+
+    /// The seconds a frame is drawn at (`FrameRequest::time`: math scenes, `build_frame`): a timeline's frame
+    /// time while it plays or is paused on its page, as a recording gives it (src/record.rs), else the
+    /// demonstration's time.
+    pub(super) fn clock(&self) -> f32 {
+        match &self.timeline {
+            Some(t) if self.timeline_playing() || self.paused_page() => {
+                self.timeline_frame as f32 / t.fps.max(1) as f32
+            }
+            _ => self.demo_time,
         }
     }
 
