@@ -407,36 +407,9 @@ pub fn run_action(action: &crate::actions::RunningAction, state: &mut ShotState)
 // ---------------------------------------------------------------------------------------------------------
 // Animations
 
-/// The script animation of `demo` (its `animation`), if it has one.
-pub(super) fn animation_of(demo: crate::shot::DemoId) -> Option<&'static str> {
-    investigation::current()
-        .demo_specs()?
-        .specs
-        .iter()
-        .find(|s| s.id == demo)?
-        .animation
-}
-
-/// Applies `demo`'s script animation at `t` seconds to `state` (after the investigation's own animation): the keys
-/// it set, or None when the demonstration has no script animation. Its writes apply all or none.
+/// Applies `demo`'s Play animation at `t` seconds to `state` (after the investigation's own animation): its first
+/// clip (src/clip.rs), played from `state`. The keys it set, or None when the demonstration has no clip.
 pub fn animate(demo: crate::shot::DemoId, t: f32, state: &mut ShotState) -> Option<Vec<String>> {
-    let name = animation_of(demo)?;
-    let snapshot = state.clone();
-    with_runtime(|rt| {
-        let kind = Kind::Animation(name.to_string());
-        let written = rt.call_writes(&kind, vec![Value::Float(t as f64)], &snapshot, None, None);
-        match written {
-            Ok(w) => {
-                rt.succeeded(&kind.to_string());
-                apply(&w, state);
-                w.into_iter().map(|(k, _)| k).collect()
-            }
-            Err(e) => {
-                rt.failed(&kind.to_string(), e);
-                Vec::new()
-            }
-        }
-    })
-    .ok()
-    .flatten()
+    let clip = crate::clip::demo_clips(demo).into_iter().next()?;
+    Some(crate::clip::apply(&clip, t, state))
 }

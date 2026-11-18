@@ -762,6 +762,7 @@ impl Runtime {
                 .expect("a script's source");
             runtime.add_module(key, source, &types)?;
         }
+        runtime.add_animation_clips()?;
         runtime.check_names(investigation)?;
         runtime.check_clips()?;
         Ok(Some(runtime))
@@ -876,7 +877,7 @@ impl Runtime {
                 a.key
             ));
         }
-        // A demonstration's animation and math scene are the scripts'.
+        // A demonstration's clips and math scene are the scripts'.
         if let Some(demos) = investigation.demo_specs() {
             for spec in &demos.specs {
                 if let Some(name) = spec.math.filter(|n| !self.maths.contains_key(*n)) {
@@ -887,10 +888,10 @@ impl Runtime {
                         crate::story_refs::names_or_none(&known)
                     ));
                 }
-                if let Some(name) = spec.animation.filter(|n| !self.animations.contains_key(*n)) {
-                    let known: Vec<&str> = self.animations.keys().map(String::as_str).collect();
+                if let Some(name) = spec.clips.iter().find(|n| !self.clips.contains_key(**n)) {
+                    let known: Vec<&str> = self.clips.keys().map(String::as_str).collect();
                     return Err(format!(
-                        "demonstration `{}`: no animation `{name}` in the scripts (theirs: {})",
+                        "demonstration `{}`: no clip `{name}` in the scripts (theirs: {})",
                         spec.id.key(),
                         crate::story_refs::names_or_none(&known)
                     ));

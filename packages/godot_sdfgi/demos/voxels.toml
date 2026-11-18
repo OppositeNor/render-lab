@@ -8,7 +8,7 @@ scene = "render_lab.scene/study-room"
 listing = "voxelize"
 resets-camera = true
 # Its Play animation (script/animations.lam).
-animation = "playVoxels"
+clips = ["playVoxels"]
 include = ["render_lab.demo-preset/room-camera"]
 
 [params]

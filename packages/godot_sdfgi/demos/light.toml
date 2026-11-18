@@ -8,7 +8,7 @@ scene = "render_lab.scene/study-room"
 listing = "direct-light"
 resets-camera = true
 # Its Play animation (script/animations.lam).
-animation = "playLight"
+clips = ["playLight"]
 include = ["render_lab.demo-preset/room-camera"]
 
 [params]

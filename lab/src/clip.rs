@@ -141,6 +141,70 @@ pub fn ease_named(name: &str) -> Option<Ease> {
     })
 }
 
+/// Plays `clip` `t` seconds in over `state`, as the viewer shows it (a demonstration's Play, the Animation tab):
+/// each keyframe track from its channel's value in `state`, each motion from its channels', each run of an
+/// animation once it has begun, held at its end. The keys it set, in its tracks' order.
+pub fn apply(clip: &Clip, t: f32, state: &mut crate::shot::ShotState) -> Vec<String> {
+    let start = state.clone();
+    let value = |channel: &str| start.try_get(channel).map_or(0.0, |v| v.f32());
+    let mut set = Vec::new();
+    for track in &clip.tracks {
+        match track {
+            Track::Keys { channel, keys } => {
+                state.set(channel, sample_keys(keys, t, value(channel)));
+                set.push(channel.clone());
+            }
+            Track::Motion { at, motion } => {
+                // A motion holds its channels' values until it begins.
+                let params = motion.params();
+                let from: Vec<f32> = params.iter().map(|p| value(p)).collect();
+                for (p, v) in params.iter().zip(motion.sample((t - at).max(0.0), &from)) {
+                    state.set(p, v);
+                    set.push(p.to_string());
+                }
+            }
+            Track::Run {
+                at,
+                seconds,
+                animation,
+            } => {
+                // A run sets nothing before it begins, and holds its end once it is over (0 seconds: for ever).
+                if t >= *at {
+                    let local = if *seconds > 0.0 {
+                        (t - at).min(*seconds)
+                    } else {
+                        t - at
+                    };
+                    set.extend(
+                        crate::script::runtime::run_animation(animation, local, state)
+                            .unwrap_or_default(),
+                    );
+                }
+            }
+        }
+    }
+    set
+}
+
+/// The clips of the demonstration `demo` (its file's `clips`, src/demo.rs), its Play clip first; those the
+/// scripts lack are left out (the scripts' check refuses them when they load).
+pub fn demo_clips(demo: crate::shot::DemoId) -> Vec<std::sync::Arc<Clip>> {
+    let Some(demos) = crate::investigation::current().demo_specs() else {
+        return Vec::new();
+    };
+    demos
+        .specs
+        .iter()
+        .find(|s| s.id == demo)
+        .map(|s| {
+            s.clips
+                .iter()
+                .filter_map(|n| crate::script::runtime::clip(n))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

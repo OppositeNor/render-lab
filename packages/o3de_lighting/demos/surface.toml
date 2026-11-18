@@ -5,7 +5,7 @@ hint-text = "investigation-demo_hint"
 scene = "render_lab.scene/study-room"
 listing = "surface-setup"
 # Its Play animation (script/animations.lam).
-animation = "playSurface"
+clips = ["playSurface"]
 include = ["close-up", "sphere-camera"]
 
 [params]

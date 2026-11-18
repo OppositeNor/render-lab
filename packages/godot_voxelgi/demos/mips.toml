@@ -8,7 +8,7 @@ scene = "render_lab.scene/study-room"
 listing = "update-mipmaps"
 resets-camera = true
 # Its Play animation (script/animations.lam).
-animation = "playMips"
+clips = ["playMips"]
 include = ["top-camera"]
 
 [params]

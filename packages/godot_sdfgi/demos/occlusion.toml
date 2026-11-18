@@ -8,7 +8,7 @@ scene = "render_lab.scene/study-room"
 listing = "occlusion"
 resets-camera = true
 # Its Play animation (script/animations.lam).
-animation = "playOcclusion"
+clips = ["playOcclusion"]
 include = ["top-camera"]
 
 [params]

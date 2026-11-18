@@ -11,7 +11,7 @@ resets-camera = true
 # half of it), so a pixel's walk is the one the story narrates (video/story.lam `depthFrame`).
 frame = [1100, 1080]
 # Its Play animation (script/animations.lam).
-animation = "playTrace"
+clips = ["playTrace"]
 include = ["room-camera"]
 
 [params]

@@ -218,6 +218,9 @@ fn clips() -> Result<()> {
                     "a motion from {at:.2} s for {:.2} s",
                     motion.seconds().copied().unwrap_or(0.0)
                 ),
+                Track::Run { at, seconds, .. } if *seconds <= 0.0 => {
+                    format!("from {at:.2} s for ever")
+                }
                 Track::Run { at, seconds, .. } => format!("from {at:.2} s for {seconds:.2} s"),
             };
             println!("    {}: {what}", track.label());

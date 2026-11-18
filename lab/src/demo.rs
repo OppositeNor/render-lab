@@ -65,9 +65,9 @@ pub struct DemoSpec {
     pub params: Vec<(&'static str, f32)>,
     /// The scene's own size, when it does not follow the viewport's (`frame = [w, h]`, src/shot/mod.rs `FrameSize`).
     pub frame: FrameSize,
-    /// Its Play animation in the package's scripts (`animation = "playSurface"`, src/script/runtime.rs), applied
-    /// after the investigation's own (`Investigation::animation`).
-    pub animation: Option<&'static str>,
+    /// Its clips in the package's scripts (`clips = ["playSurface"]`, src/clip.rs), the first its Play animation,
+    /// applied after the investigation's own (`Investigation::animation`); the Animation tab shows them all.
+    pub clips: Vec<&'static str>,
     /// The math scene the viewer shows in place of the 3D scene (`math = "toyMath"`, a `Math` hook of the
     /// package's scripts, src/math/), the dock's values driving it.
     pub math: Option<&'static str>,
@@ -102,6 +102,26 @@ fn string<'a>(table: &'a toml_edit::Table, key: &str) -> Result<Option<&'a str>>
             .map(Some)
             .ok_or_else(|| anyhow!("`{key}` is a string")),
     }
+}
+
+/// A demonstration's clips, `clips = ["…", …]` (none without it). Its Play animation was `animation = "…"`; that
+/// is its first clip now, and the old key is refused rather than ignored.
+fn clips(table: &toml_edit::Table) -> Result<Vec<&'static str>> {
+    if table.contains_key("animation") {
+        bail!("`animation = \"…\"` is `clips = [\"…\"]` now: its first clip is its Play animation");
+    }
+    let Some(item) = table.get("clips") else {
+        return Ok(Vec::new());
+    };
+    item.as_array()
+        .context("`clips` is a list of clips' names")?
+        .iter()
+        .map(|v| {
+            v.as_str()
+                .map(leak)
+                .context("`clips` is a list of clips' names")
+        })
+        .collect()
 }
 
 /// The camera a `[camera]` table describes.
@@ -390,7 +410,7 @@ impl Demos {
             hint: string(table, "hint-text")?.map(leak),
             scene,
             listing: string(table, "listing")?.map(leak),
-            animation: string(table, "animation")?.map(leak),
+            clips: clips(table)?,
             math: string(table, "math")?.map(leak),
             frame: frame_size(table)?,
             resets_camera: table

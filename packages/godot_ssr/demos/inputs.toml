@@ -8,7 +8,7 @@ scene = "render_lab.scene/study-room"
 listing = "prepass"
 resets-camera = true
 # Its Play animation (script/animations.lam).
-animation = "playInputs"
+clips = ["playInputs"]
 include = ["room-camera"]
 
 [params]

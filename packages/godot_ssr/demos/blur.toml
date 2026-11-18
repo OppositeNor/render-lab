@@ -8,7 +8,7 @@ scene = "render_lab.scene/study-room"
 listing = "blur"
 resets-camera = true
 # Its Play animation (script/animations.lam).
-animation = "playBlur"
+clips = ["playBlur"]
 include = ["room-camera"]
 
 [params]

@@ -8,7 +8,7 @@ scene = "render_lab.scene/study-room"
 listing = "begin-bake"
 resets-camera = true
 # Its Play animation (script/animations.lam).
-animation = "playBounds"
+clips = ["playBounds"]
 include = ["wide-camera"]
 
 [params]

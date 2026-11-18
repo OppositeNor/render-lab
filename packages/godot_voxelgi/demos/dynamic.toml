@@ -8,7 +8,7 @@ scene = "render_lab.scene/study-room"
 listing = "dynamic-object"
 resets-camera = true
 # Its Play animation (script/animations.lam).
-animation = "playDynamic"
+clips = ["playDynamic"]
 include = ["teapot-camera"]
 
 [params]

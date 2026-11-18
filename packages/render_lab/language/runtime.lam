@@ -91,8 +91,8 @@ one):
 - a click handler, `ClickHandler`, named by its binding as a `#[click]` handler is (`imageClick`);
 - an action, `{Action Args}`, which a story runs (`{run "name"}`) with its arguments as the record `Args`, at the
   seconds since the story started it;
-- an animation, `Animation`, the values at a demonstration's time in seconds (its `animation` in the demo's
-  TOML);
+- an animation, `Animation`, the values at a time in seconds: a clip of its own name too (one run of it for
+  ever, below), which a demonstration's Play plays when it is the first of its `clips` in the demo's TOML;
 - a math scene, `Math`, what the canvas draws at its time in seconds, named by its binding (a story's
   `kind=2d math=<name>` beat, or a demonstration's `math`; below, and `render_lab_math`).
 

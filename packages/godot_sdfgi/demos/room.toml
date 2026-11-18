@@ -8,5 +8,5 @@ scene = "render_lab.scene/study-room"
 listing = "frame"
 resets-camera = true
 # Its Play animation (script/animations.lam).
-animation = "playMix"
+clips = ["playMix"]
 include = ["render_lab.demo-preset/room-camera"]

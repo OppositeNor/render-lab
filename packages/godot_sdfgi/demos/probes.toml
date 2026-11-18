@@ -8,7 +8,7 @@ scene = "render_lab.scene/study-room"
 listing = "probe-rays"
 resets-camera = true
 # Its Play animation (script/animations.lam).
-animation = "playProbes"
+clips = ["playProbes"]
 include = ["sphere-camera"]
 
 [params]

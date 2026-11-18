@@ -216,6 +216,29 @@ fn channel_problem(channel: &str, value: f32) -> Option<String> {
 }
 
 impl Runtime {
+    /// Every animation hook is a clip of its own name too: one run of it for ever, what a demonstration's Play
+    /// plays (`clips = ["playRoom"]`) and a story can play. A clip a script declares under a hook's name is
+    /// refused.
+    pub(super) fn add_animation_clips(&mut self) -> Result<(), String> {
+        for name in self.animations.keys() {
+            if self.clips.contains_key(name) {
+                return Err(format!(
+                    "the clip `{name}` has the name of an animation, which is a clip of its own"
+                ));
+            }
+            let clip = Clip {
+                name: name.clone(),
+                tracks: vec![Track::Run {
+                    at: 0.0,
+                    seconds: 0.0,
+                    animation: name.clone(),
+                }],
+            };
+            self.clips.insert(name.clone(), Arc::new(clip));
+        }
+        Ok(())
+    }
+
     /// Refuses a clip whose channel is not a value's, the camera's, or a progress, whose keyframe a value does not
     /// take, whose motion does not fit its channels, or whose run names no animation of the scripts.
     pub(super) fn check_clips(&self) -> Result<(), String> {

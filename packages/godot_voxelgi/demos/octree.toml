@@ -8,7 +8,7 @@ scene = "render_lab.scene/study-room"
 listing = "plot-face"
 resets-camera = true
 # Its Play animation (script/animations.lam).
-animation = "playOctree"
+clips = ["playOctree"]
 include = ["teapot-camera"]
 
 [params]

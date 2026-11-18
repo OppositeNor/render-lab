@@ -8,7 +8,7 @@ scene = "render_lab.scene/study-room-grounds"
 listing = "regions"
 resets-camera = true
 # Its Play animation (script/animations.lam).
-animation = "playWalk"
+clips = ["playWalk"]
 include = ["wide-camera"]
 
 [params]

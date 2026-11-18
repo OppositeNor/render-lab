@@ -8,7 +8,7 @@ scene = "render_lab.scene/study-room"
 listing = "pack-cell"
 resets-camera = true
 # Its Play animation (script/animations.lam).
-animation = "playCells"
+clips = ["playCells"]
 include = ["teapot-camera"]
 
 [params]
