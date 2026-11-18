@@ -67,15 +67,6 @@ pub struct RestirValues {
     /// The part of W the worked example removes (toy.rs): 0 none, 1 the division by p, 2 the average of the weights.
     #[value(default = 0.0, range = 0.0..=2.0, unit = index, text = "controls-toy_drop", color = palette::SELECTED, label(toy), help = "help-toyDrop")]
     pub toy_drop: f32,
-    /// How far importance sampling on P's lights has come (script/lights.lam `lightsMath`), one stage per sentence
-    /// of the story's two beats: 1 to 3 a light drawn and its estimate f / p among others, 4 p following f, 5 and 6
-    /// two ways of drawing mixed, 7 to 14 the target and the cheap choice.
-    #[value(default = 14.0, range = 0.0..=14.0, unit = plain, text = "controls-is_stage", color = palette::SELECTED, label(sampling), help = "help-isStage")]
-    pub is_stage: f32,
-    /// How far RIS's weights, pick, and W have come (script/weights.lam `risMath`), one stage per sentence of the
-    /// story's beat: 1 to 5 the candidates' weights, 6 the pick, 7 to 10 the correction, 11 to 13 W and the light.
-    #[value(default = 13.0, range = 0.0..=13.0, unit = plain, text = "controls-weights_stage", color = palette::SELECTED, label(weights), help = "help-weightsStage")]
-    pub weights_stage: f32,
     /// How far the choice of a light by power has come (script/params.lam `paramsMath`), one stage per sentence of
     /// the story's beat: 1 the alias table built from the shares and a draw from it, 2 a uniform point on the
     /// triangle, 3 the lab's running sum and binary search, 4 the two giving the same shares.

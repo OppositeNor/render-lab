@@ -2,7 +2,7 @@ The ReSTIR story's importance sampling on P's lights
 ====================================================
 
 What the story draws on the canvas (lab/src/math/) for chapter 2's beats `c2-is-math` and `c2-ris-question`,
-stage by stage as `isStage` goes from 0 to 14: each light of the math scenes' example world (examples.rs, the lab's
+stage by stage as its stage (`stepOf "is" 14`, the clips below) goes from 0 to 14: each light of the math scenes' example world (examples.rs, the lab's
 illustration: 24 lights above P, every one reaching it) as a pair of bars, above what it brings to P, below the
 chance the cheap choice picks it (its share of the power); a light drawn and its estimate f / p on a line of estimates around the true total; p reshaped
 toward f until every estimate is the total; two ways of drawing mixed with weights that sum to one; then the target,
@@ -260,9 +260,32 @@ $[# {_scene s atP atQ}
 
 The hook
 
-Fn([Float], List(Mob)). P's lights at stage `isStage`.
+Fn([Float], List(Mob)). P's lights at stage its stage (`stepOf "is" 14`, the clips below).
 $[# lightsMath {: {^ {t}
-    [# s {isStage}]
+    [# s {stepOf "is" 14}]
     [# atP {exampleLights 0 {lightPhase} {lightIntensity}}]
     [# atQ {exampleLights 1 {lightPhase} {lightIntensity}}]
     {_scene s atP atQ}} Math}]
+
+Clips
+
+The scene's steps as clips (lab/src/clip.rs): its demonstration's Play plays every step in order, a second each;
+the story plays each over its sentence's words, and sets the scene back to a step where a beat starts.
+$[# isSteps [% {stepsInOrder "is" 14}]]
+$[# isAt0 [% {stepsAt "is" 14 0}]]
+$[# isAt6 [% {stepsAt "is" 14 6}]]
+$[# isStep1 [% {stepClip "is" 1 0.0 1.0}]]
+$[# isStep10 [% {stepClip "is" 10 0.0 1.0}]]
+$[# isStep11 [% {stepClip "is" 11 0.0 1.0}]]
+$[# isStep12 [% {stepClip "is" 12 0.0 1.0}]]
+$[# isStep13 [% {stepClip "is" 13 0.0 1.0}]]
+$[# isStep14 [% {stepClip "is" 14 0.0 1.0}]]
+$[# isStep2 [% {stepClip "is" 2 0.0 1.0}]]
+$[# isStep3 [% {stepClip "is" 3 0.0 1.0}]]
+$[# isStep4 [% {stepClip "is" 4 0.0 1.0}]]
+$[# isStep5 [% {stepClip "is" 5 0.0 1.0}]]
+$[# isStep6 [% {stepClip "is" 6 0.0 1.0}]]
+$[# isStep7 [% {stepClip "is" 7 0.0 1.0}]]
+$[# isStep8From0To50 [% {stepClip "is" 8 0.0 0.5}]]
+$[# isStep8From50To100 [% {stepClip "is" 8 0.5 1.0}]]
+$[# isStep9 [% {stepClip "is" 9 0.0 1.0}]]

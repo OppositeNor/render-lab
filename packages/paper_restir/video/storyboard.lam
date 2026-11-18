@@ -294,58 +294,50 @@ ${cue "key" {' {glide cameraYaw 28.0 sentence}}}${overText
 
 ${cue "key" {opening demoLights panelHidden {append baseRoom {append pickCamera {'
     {lightPhase 0.0}
-    {isStage 0.0}}}}}}
+    playIsAt0}}}}}
 
-To estimate the light at P, the renderer ${overText
-    {' {isStageRange 0.0 1.0}}
-    "draws one light sample"}, a point on one of the lights.
+To estimate the light at P, the renderer ${overText {' playOverIsStep1} "draws one light sample"}, a point on one of the lights.
 
-${overText {' {isStageRange 1.0 2.0}} "The estimate is"} ${formulaSaid f"{\frac{f(x)}{p(x)}}" "what that sample brings, f, divided by the probability p it was drawn with"
+${overText {' playOverIsStep2} "The estimate is"} ${formulaSaid f"{\frac{f(x)}{p(x)}}" "what that sample brings, f, divided by the probability p it was drawn with"
     {'}}.
 
 Dividing by p balances the samples, because ${overText
-    {' {isStageRange 2.0 3.0}}
+    {' playOverIsStep3}
     "a likely sample is drawn often"} and so must count less.
 
-${overText {' {isStageRange 3.0 4.0}} "The closer p follows what each sample brings"}, the less noise is left.
+${overText {' playOverIsStep4} "The closer p follows what each sample brings"}, the less noise is left.
 
 ${cue "key" {' {callout "eq4"}}}${overText
-    {' {isStageRange 4.0 5.0}}
+    {' playOverIsStep5}
     "One more idea from importance sampling comes back later in the paper"}.
 
-Multiple importance sampling mixes ${overText
-    {' {isStageRange 5.0 6.0}}
-    "several ways of drawing samples"}, with weights that sum to one.
+Multiple importance sampling mixes ${overText {' playOverIsStep6} "several ways of drawing samples"}, with weights that sum to one.
 
 ### What we would like to sample {#c2-ris-question kind=2d math=lightsMath}
 
-${cue "key" {' {isStage 6.0}}}
+${cue "key" {' playIsAt6}}
 
 ${cue "key" {' {callout "eq5"}}}So for a single p, the best choice would follow ${overText
-    {' {lightPhaseRange 0.0 0.03} {isStageRange 6.0 7.0}}
+    {' {lightPhaseRange 0.0 0.03} playOverIsStep7}
     "what each light sample brings to P"}.
 
 What a sample brings depends on ${overText
-    {' {lightIntensityRange 1.0 1.5} {isStageRange 7.0 7.5}}
+    {' {lightIntensityRange 1.0 1.5} playOverIsStep8From0To50}
     "the light's emission"}, on P's surface, and on ${overText
-        {' {lightPhaseRange 0.03 0.05} {isStageRange 7.5 8.0}}
+        {' {lightPhaseRange 0.03 0.05} playOverIsStep8From50To100}
         "the angle and distance between the light and P"}.
 
-${overText {' {isStageRange 8.0 9.0}} "The paper calls that ideal p the target"}.
+${overText {' playOverIsStep9} "The paper calls that ideal p the target"}.
 
-${overText {' {isStageRange 9.0 10.0}} "It writes the target as p-hat"}.
+${overText {' playOverIsStep10} "It writes the target as p-hat"}.
 
-${overText {' {isStageRange 10.0 11.0}} "The target need not add up to one"}, so it is not quite a probability.
+${overText {' playOverIsStep11} "The target need not add up to one"}, so it is not quite a probability.
 
-${overText
-    {' {isStageRange 11.0 12.0}}
-    "But no one can draw samples in exact proportion to the target"}.
+${overText {' playOverIsStep12} "But no one can draw samples in exact proportion to the target"}.
 
-${overText
-    {' {isStageRange 12.0 13.0}}
-    "Instead, a cheap choice draws lights in proportion to their power"}, and ignores P altogether.
+${overText {' playOverIsStep13} "Instead, a cheap choice draws lights in proportion to their power"}, and ignores P altogether.
 
-${overText {' {isStageRange 13.0 14.0}} "That cheap choice is the lab's starting point"}.
+${overText {' playOverIsStep14} "That cheap choice is the lab's starting point"}.
 
 ### Resampled importance sampling {#c2-ris kind=3d}
 
@@ -368,54 +360,48 @@ So those candidates turn up often, whatever they bring to P.
 
 ### Weights, the pick, and W {#c2-ris-math kind=2d math=risMath}
 
-${cue "key" {opening demoWeights panelHidden {' {weightsStage 0.0}}}}
+${cue "key" {opening demoWeights panelHidden {' playWeightsAt0}}}
 
-To take away that head start, ${overText
-    {' {weightsStageRange 0.0 1.0}}
-    "each candidate gets a weight"}.
+To take away that head start, ${overText {' playOverWeightsStep1} "each candidate gets a weight"}.
 
-${overText {' {weightsStageRange 1.0 2.0}} "The weight is"} ${formulaSaid f"{w = \frac{\hat{p}(x)}{p(x)}}" "its target divided by the probability it was drawn with"
+${overText {' playOverWeightsStep2} "The weight is"} ${formulaSaid f"{w = \frac{\hat{p}(x)}{p(x)}}" "its target divided by the probability it was drawn with"
     {'}}.
 
-${overText
-    {' {weightsStageRange 2.0 3.0}}
-    "A candidate drawn often is divided by a large probability"}, so each time it turns up, it counts for less.
+${overText {' playOverWeightsStep3} "A candidate drawn often is divided by a large probability"}, so each time it turns up, it counts for less.
 
-Here ${overText {' {weightsStageRange 3.0 4.0}} "the taller a bar"}, the larger its candidate's weight.
+Here ${overText {' playOverWeightsStep4} "the taller a bar"}, the larger its candidate's weight.
 
 ${overText
-    {' {weightsStageRange 4.0 5.0}}
+    {' playOverWeightsStep5}
     "The table lists each candidate's target, the probability it was drawn with, and the weight between them"}.
 
 Second, P keeps one candidate, ${overText
-    {' {weightsStageRange 5.0 6.0}}
+    {' playOverWeightsStep6}
     "picked with a chance in proportion to its weight"}.
 
 ${cue "key" {' {callout "eq6"}}}P then shades the kept candidate ${overText
-    {' {weightsStageRange 6.0 7.0}}
+    {' playOverWeightsStep7}
     "as if it had been drawn in proportion to the target"}.
 
-${overText {' {weightsStageRange 7.0 8.0}} "But the candidate was not drawn that way"}.
+${overText {' playOverWeightsStep8} "But the candidate was not drawn that way"}.
 
 So the shaded result is multiplied by a correction, ${overText
-    {' {weightsStageRange 8.0 9.0}}
+    {' playOverWeightsStep9}
     "the average of all eight weights"}.
 
 ${cue "key" {' {callout "ris-unbiased"}}}With that correction, RIS is unbiased, right on average, ${overText
-    {' {weightsStageRange 9.0 10.0}}
+    {' playOverWeightsStep10}
     "however many candidates it draws"}.
 
 Shading as if drawn by the target means ${overText
-    {' {weightsStageRange 10.0 11.0}}
+    {' playOverWeightsStep11}
     "dividing by the kept candidate's target"}.
 
 Together with the correction, ${overText
-    {' {weightsStageRange 11.0 12.0}}
+    {' playOverWeightsStep12}
     "that division makes a single number, called W"}.
 
-So the light at P is ${overText
-    {' {weightsStageRange 12.0 13.0}}
-    "what the kept candidate brings, times W"}.
+So the light at P is ${overText {' playOverWeightsStep13} "what the kept candidate brings, times W"}.
 
 ### Two samples, worked by hand {#c2-toy kind=2d math=toyMath}
 
@@ -439,9 +425,7 @@ Dividing by the probability ${overText
     {' playOverToyStep6}
     "gives A a weight of four thirds, and B a weight of twelve"}.
 
-B is drawn rarely, ${overText
-    {' playOverToyStep7}
-    "so its weight is large when it does turn up"}.
+B is drawn rarely, ${overText {' playOverToyStep7} "so its weight is large when it does turn up"}.
 
 ${cue "key" {' {callout "eq6"}}}Now RIS ${overText
     {' playOverToyStep8}
@@ -469,9 +453,7 @@ ${cue "key" {' {callout "ris-unbiased"}}}That is what unbiased means, ${overText
 
 ${overText {' playOverToyStep16} "W does one more job"}.
 
-On average, ${overText
-    {' playOverToyStep17}
-    "it is one over the chance that RIS keeps the sample"}.
+On average, ${overText {' playOverToyStep17} "it is one over the chance that RIS keeps the sample"}.
 
 ${overText {' playOverToyStep18} "RIS keeps B four times in ten"}, and when it does, W averages two and a half.
 

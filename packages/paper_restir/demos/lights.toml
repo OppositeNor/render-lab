@@ -9,6 +9,7 @@ hint-text = "shot-lights_hint"
 scene = "paper_restir.scene/restir-room"
 resets-camera = true
 math = "lightsMath"
+clips = ["isSteps"]
 
 [camera]
 target = [0.1, 0.8, -0.5]

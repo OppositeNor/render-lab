@@ -2,7 +2,7 @@ The ReSTIR story's RIS weights, pick, and W
 ===========================================
 
 What the story draws on the canvas (lab/src/math/) for chapter 2's beat `c2-ris-math`, stage by stage as
-`weightsStage` goes from 0 to 13: P's eight candidates in the math scenes' example world (examples.rs, the lab's
+its stage (`stepOf "weights" 13`, the clips below) goes from 0 to 13: P's eight candidates in the math scenes' example world (examples.rs, the lab's
 illustration; the same eight the next beats stream through a reservoir) in a table of their target p-hat, the
 probability p they were drawn with, and their weight w = p-hat / p, each weight a bar beside its row; the pick in
 proportion to the weights, on the weights laid end to end; the correction, the average of the weights; and W, the
@@ -196,5 +196,28 @@ $[# {_scene s steps sixteen}
 
 The hook
 
-Fn([Float], List(Mob)). P's candidates at stage `weightsStage`.
-$[# risMath {: {^ {t} {_scene {weightsStage} {exampleTrace _seed 8} {exampleTrace _seed 16}}} Math}]
+Fn([Float], List(Mob)). P's candidates at stage its stage (`stepOf "weights" 13`, the clips below).
+$[# risMath {: {^ {t} {_scene
+    {stepOf "weights" 13}
+    {exampleTrace _seed 8}
+    {exampleTrace _seed 16}}} Math}]
+
+Clips
+
+The scene's steps as clips (lab/src/clip.rs): its demonstration's Play plays every step in order, a second each;
+the story plays each over its sentence's words, and sets the scene back to a step where a beat starts.
+$[# weightsSteps [% {stepsInOrder "weights" 13}]]
+$[# weightsAt0 [% {stepsAt "weights" 13 0}]]
+$[# weightsStep1 [% {stepClip "weights" 1 0.0 1.0}]]
+$[# weightsStep10 [% {stepClip "weights" 10 0.0 1.0}]]
+$[# weightsStep11 [% {stepClip "weights" 11 0.0 1.0}]]
+$[# weightsStep12 [% {stepClip "weights" 12 0.0 1.0}]]
+$[# weightsStep13 [% {stepClip "weights" 13 0.0 1.0}]]
+$[# weightsStep2 [% {stepClip "weights" 2 0.0 1.0}]]
+$[# weightsStep3 [% {stepClip "weights" 3 0.0 1.0}]]
+$[# weightsStep4 [% {stepClip "weights" 4 0.0 1.0}]]
+$[# weightsStep5 [% {stepClip "weights" 5 0.0 1.0}]]
+$[# weightsStep6 [% {stepClip "weights" 6 0.0 1.0}]]
+$[# weightsStep7 [% {stepClip "weights" 7 0.0 1.0}]]
+$[# weightsStep8 [% {stepClip "weights" 8 0.0 1.0}]]
+$[# weightsStep9 [% {stepClip "weights" 9 0.0 1.0}]]
