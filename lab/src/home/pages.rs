@@ -1,5 +1,6 @@
-//! The homepage's pages: the title, the selection of an engine, a feature,
-//! and what to do with it, the settings, and the leaving page.
+//! The homepage's pages: the title, the photosensitivity warning, and the
+//! columns the selection page is made of (the fields, the selection, and the
+//! settings have files of their own).
 
 use super::*;
 
@@ -15,6 +16,10 @@ impl Home {
         let ink = ui::Ink::new(&painter);
         let choice = match self.page {
             Page::Title => self.draw_title(ctx, &ink, canvas, time),
+            Page::Fields => {
+                self.draw_fields(ctx, &ink, canvas);
+                None
+            }
             Page::Select => self.draw_select(ctx, &ink, canvas),
             Page::Config => {
                 self.draw_config(ctx, &ink, canvas, time);
@@ -87,7 +92,7 @@ impl Home {
                 let play = glass_button(ui, button, tr("home-play"), 40.0, true);
                 self.widgets.push(("play".into(), play.rect));
                 if play.clicked() {
-                    self.page = Page::Select;
+                    self.page = Page::Fields;
                 }
                 let config = glass_button(ui, button, tr("home-config"), 40.0, true);
                 self.widgets.push(("config".into(), config.rect));
@@ -111,7 +116,7 @@ impl Home {
 
         // The language, at the top right: the globe and the language's name. It opens the
         // Config page with the Language option outlined.
-        let globe = self.globe(ctx);
+        let globe = self.icon(ctx, GLOBE);
         let name = self.applied.language.name();
         let icon = 44.0;
         let size = vec2(

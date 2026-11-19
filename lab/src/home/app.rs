@@ -65,7 +65,7 @@ impl HomeApp<'_> {
                 self.started = Instant::now();
                 self.shown_fullscreen = self.home.applied.fullscreen;
                 // The new window draws with a new egui context: textures of the last one are gone.
-                self.home.globe = None;
+                self.home.icons.clear();
                 self.surface = Some(s);
             }
             Err(e) => {

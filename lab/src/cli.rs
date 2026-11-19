@@ -61,7 +61,7 @@ enum Command {
         /// Render the homepage offscreen to this PNG instead of opening a window.
         #[arg(long)]
         snapshot: Option<PathBuf>,
-        /// The page the snapshot shows: title, select, config, trial (the Config page's countdown),
+        /// The page the snapshot shows: title, fields (a folder per field of study), select, config, trial (the Config page's countdown),
         /// starting (the homepage's loading page, while the title's scene loads), loading (the
         /// viewer's loading page, while the current investigation's first scene loads), viewer (the
         /// viewer on its first demonstration, with the dock), viewer:<demo> (the viewer on that demonstration), or viewer-timeline (the viewer playing

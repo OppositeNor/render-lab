@@ -110,10 +110,103 @@ pub fn title() -> &'static dyn Investigation {
         .expect("no package provides an investigation")
 }
 
-/// The engines, in the order their first investigation is listed.
-pub fn engines() -> Vec<&'static Engine> {
+/// A field of study as the homepage lists it: one a package declares (src/packages/fields.rs), or Other, where the
+/// investigations of packages that join none go.
+#[derive(Clone, Copy)]
+pub enum Field {
+    Declared(&'static packages::Package, &'static packages::Field),
+    Other,
+}
+
+/// The icon of the Other folder.
+const OTHER_ICON: &str = "render_lab.icon/field-other";
+
+impl Field {
+    /// Its full key (`render_lab.computer-graphics`), or `other`.
+    pub fn id(self) -> String {
+        match self {
+            Field::Declared(p, f) => format!("{}.{}", p.name, f.key),
+            Field::Other => "other".into(),
+        }
+    }
+
+    /// Its name in the current language.
+    pub fn title(self) -> &'static str {
+        match self {
+            Field::Declared(p, f) => crate::i18n::package_text(&p.name, &f.title),
+            Field::Other => crate::i18n::tr("home-field_other"),
+        }
+    }
+
+    /// The line about it, if its package gives one.
+    pub fn summary(self) -> Option<&'static str> {
+        match self {
+            Field::Declared(p, f) => f
+                .summary
+                .as_ref()
+                .map(|s| crate::i18n::package_text(&p.name, s)),
+            Field::Other => None,
+        }
+    }
+
+    /// Its icon's resource key.
+    pub fn icon(self) -> &'static str {
+        match self {
+            Field::Declared(_, f) => &f.icon,
+            Field::Other => OTHER_ICON,
+        }
+    }
+
+    /// Whether `self` and `other` are the same field.
+    pub fn is(self, other: Field) -> bool {
+        self.id() == other.id()
+    }
+}
+
+/// The field `investigation` is in: the one its package joins (`field`), else Other.
+pub fn field_of(investigation: &dyn Investigation) -> Field {
+    let packages = resources::packages();
+    let joined = investigation
+        .package()
+        .and_then(|name| packages.iter().find(|p| p.name == name))
+        .and_then(|p| p.field.as_deref())
+        .and_then(|full| full.split_once('.'));
+    joined
+        .and_then(|(name, key)| {
+            let package = packages.iter().find(|p| p.name == name)?;
+            let field = package.fields.iter().find(|f| f.key == key)?;
+            Some(Field::Declared(package, field))
+        })
+        .unwrap_or(Field::Other)
+}
+
+/// The fields the homepage shows: those declared, by `order` and then the packages' order, that have an
+/// investigation that can run here, then Other if an investigation is in it.
+pub fn fields() -> Vec<Field> {
+    let mut declared: Vec<(i64, usize, Field)> = Vec::new();
+    for (n, package) in resources::packages().iter().enumerate() {
+        for field in &package.fields {
+            declared.push((field.order, n, Field::Declared(package, field)));
+        }
+    }
+    // A stable sort by order keeps the packages' order among equals.
+    declared.sort_by_key(|(order, n, _)| (*order, *n));
+    let used: Vec<Field> = all().iter().map(|i| field_of(*i)).collect();
+    let mut fields: Vec<Field> = declared
+        .into_iter()
+        .map(|(_, _, f)| f)
+        .filter(|f| used.iter().any(|u| u.is(*f)))
+        .collect();
+    if used.iter().any(|u| matches!(u, Field::Other)) {
+        fields.push(Field::Other);
+    }
+    fields
+}
+
+/// The engines of `field`'s investigations, in the order their first investigation is listed.
+pub fn engines(field: Field) -> Vec<&'static Engine> {
     let mut engines: Vec<&'static Engine> = Vec::new();
-    for i in all() {
+    for i in all().iter().filter(|i| field_of(**i).is(field)) {
         if !engines.iter().any(|e| e.id == i.engine().id) {
             engines.push(i.engine());
         }

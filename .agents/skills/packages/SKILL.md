@@ -1,6 +1,6 @@
 ---
 name: packages
-description: Create, change, build, and troubleshoot Render Lab packages, the self-contained folders the lab loads at run time (sources in packages/, built beside the binary). Covers the manifest (import, export, library, negotiate, provides, series, notices), resource collections, kinds, full keys and references, overrides, built tool outputs, demos, a package's cdylib and its negotiation (`lab::negotiate!`), local packages with a Cargo workspace of their own, packing, the cook step, and the loader's errors. Use when adding or editing a manifest.toml or a collection, adding a resource, scene, shader module, text table, or demo entry, giving a package code, when a package or its library does not load, or when asked how packages, the loader, or the negotiation work. For an investigation's code inside its library use `new-investigation`; for live scripts use `render-lab-lamlet`.
+description: Create, change, build, and troubleshoot Render Lab packages, the self-contained folders the lab loads at run time (sources in packages/, built beside the binary). Covers the manifest (import, export, library, negotiate, provides, series, fields, notices), resource collections, kinds, full keys and references, overrides, built tool outputs, demos, a package's cdylib and its negotiation (`lab::negotiate!`), local packages with a Cargo workspace of their own, packing, the cook step, and the loader's errors. Use when adding or editing a manifest.toml or a collection, adding a resource, scene, shader module, text table, or demo entry, giving a package code, when a package or its library does not load, or when asked how packages, the loader, or the negotiation work. For an investigation's code inside its library use `new-investigation`; for live scripts use `render-lab-lamlet`.
 ---
 
 # Packages
@@ -58,6 +58,7 @@ library = "my_feature"               # optional, with `negotiate`: its code (sec
 negotiate = "my_feature_negotiate"
 credit-text = "notice-credit"        # optional: a short copyright and license line, after the engine's version at the top right
 requires = ["ray-tracing"]           # optional: what its investigations need of the lab (lab/src/packages.rs `REQUIREMENTS`)
+field = "render_lab.computer-graphics"   # optional: the field of study (homepage folder) its investigations are in
 
 [[provides]]
 type = "resource"                    # a collection, relative to the manifest
@@ -77,6 +78,14 @@ title = { en = "Indirect lighting in Godot", zh-CN = "Godot 中的间接光照" 
 summary = { en = "Three parts, from the simplest to the most involved: …" }
 parts = ["godot_ssr", "godot_sdfgi", "godot_voxelgi"]   # in order; each a package `import` lists
 
+[[provides]]
+type = "field"                       # a field of study: a folder on the homepage's fields page
+key = "computer-graphics"            # letters, digits, `-`, `_`; unique in the package; exported for others to join
+title-text = "field-computer_graphics"            # its name: a key of its text tables (both languages)
+summary-text = "field-computer_graphics_summary"  # optional: a line about it, the folder's hover hint
+icon = "icon/field-computer-graphics"  # a PNG resource (a white mask, tinted where drawn; tools/icons/)
+order = 0                            # optional: place on the page, smaller first; ties keep the packages' order
+
 [[notice]]                           # optional: a legal notice of what the package holds
 notice-text = "notice-copyright"     # a key of its text tables (both languages)
 license = "LICENSE-Engine.txt"       # optional: the file of its terms, in the package; built with it
@@ -91,12 +100,18 @@ package's shaders still validate in its build (the lab validates with the ray-qu
 - Unknown keys are errors. `library` and `negotiate` come together or not at all.
 - Packages load after the packages they import (then by name); an import that is not in `packages/`, or a cycle, is
   an error. The homepage lists investigations in that order.
-- Every `export` must name a resource or shader the package declares.
+- Every `export` must name a resource, shader, or field the package declares.
+- A **field** groups investigations by field of study (lab/src/packages/fields.rs). Play opens the fields page, a
+  folder per field that has an investigation that can run (its icon, name, and number of investigations); a folder
+  opens the selection page of its field's engines. A package joins one with `field = "<package>.<key>"` (a package it
+  imports, which exports the key, or its own); one that joins none goes to the Other folder, and
+  `render-lab packages` says so. `render_lab` declares `computer-graphics`; a field of another subject is declared by
+  its utility package, so the lab holds no list of fields.
 - A **series** orders investigations as the parts of one story (`packages/godot_indirect`, a package with a manifest
   only). Each part is a package with an investigation and its own chapters (numbered from 1) and narrated timelines.
-  The homepage's Feature column lists the series (its title, "A story in n parts") in place of its parts; the detail
-  panel shows "Part n of m" with the parts one under another on darker glass, to pick; each part is watched on its
-  own (a timeline pauses on its last frame). The video builder writes `part` into each part's timeline, and its chapter tag reads `PART 1 / 3   01 / 08`.
+  The homepage's Feature column lists the series as a folder (its title and `›`, "A story in n parts") in place of its
+  parts; choosing it opens it, the column then listing its parts in order under a row that closes it (as does Esc),
+  and the detail panel shows "Part n of m"; each part is watched on its own (a timeline pauses on its last frame). The video builder writes `part` into each part's timeline, and its chapter tag reads `PART 1 / 3   01 / 08`.
   `render-lab series` lists the series and checks that a part's audience (knowledge.toml `known`) knows what the
   parts before it teach.
 - A package that holds an engine's code, or names it, gives its **notices**: the copyright and license of code ported
@@ -298,7 +313,7 @@ theirs is an error, so rename one of them.
 ## 8. Commands and errors
 
 ```sh
-cargo run --release -- packages     # each built package: author, license, imports, exports, its library and handles, demos, series
+cargo run --release -- packages     # each built package: author, license, imports, exports, its library and handles, demos, series, fields
 cargo run --release -- series       # each series' parts, their investigations and timelines, and the knowledge they carry on
 cargo run --release -- resources    # every resource by full key: kind, its file's size (or not built), license, source
 cargo run --release -- cook         # build the checkout's packages beside the binary (every launch does it), and report it

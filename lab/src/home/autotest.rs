@@ -42,6 +42,7 @@ pub fn autotest(options: &HomeOptions, report: &Path) -> Result<()> {
     test.theme();
     test.volumes();
     test.title();
+    test.fields();
     test.selection();
     let checks = test.checks;
     let passed = checks.iter().all(|c| c["passed"] == true);
@@ -74,6 +75,13 @@ impl Autotest<'_> {
     /// A click on the control `name`: None when there is no such control, else what it chose.
     fn click(&mut self, name: &str) -> Option<Option<Choice>> {
         self.offscreen.click(&mut self.home, name)
+    }
+
+    /// Esc, then a pass, so the page lists the controls of where it went: whether Esc went anywhere.
+    fn esc(&mut self) -> bool {
+        let went = self.home.back();
+        self.offscreen.frame(&mut self.home, Vec::new());
+        went
     }
 
     /// Whether the page has the control `name`.
@@ -493,36 +501,108 @@ impl Autotest<'_> {
             matches!(quit, Some(Choice::Quit)),
             describe(quit),
         );
+        // The investigation the command line names is preselected, in its field.
+        let current = investigation::current();
+        let field = investigations::field_of(current);
+        self.check(
+            "the command line's investigation is preselected in its field",
+            self.home.field().is(field) && self.home.selected().path() == current.path(),
+            format!(
+                "{} in {}",
+                self.home.selected().path(),
+                self.home.field().id()
+            ),
+        );
         let play = self.click("play");
         self.check(
-            "the title's Play opens the selection page",
-            play.is_some_and(|c| c.is_none()) && self.home.page == Page::Select,
+            "the title's Play opens the fields page",
+            play.is_some_and(|c| c.is_none()) && self.home.page == Page::Fields,
             format!("{:?}", self.home.page),
         );
     }
 
-    /// The selection page: every engine listed, each investigation selected and opened, and Back.
-    fn selection(&mut self) {
-        // The selection page.
-        let engines: Vec<&str> = investigations::engines().iter().map(|e| e.id).collect();
-        let listed = engines.iter().all(|e| {
-            self.home
-                .widgets
-                .iter()
-                .any(|w| w.0 == format!("engine:{e}"))
-        });
+    /// The fields page: every field listed, each opening the selection page of its engines; Back and Esc from the
+    /// selection page to the fields and from the fields to the title.
+    fn fields(&mut self) {
+        let fields = investigations::fields();
+        let listed = fields
+            .iter()
+            .all(|f| self.has(&format!("field:{}", f.id())));
+        let ids: Vec<String> = fields.iter().map(|f| f.id()).collect();
         self.check(
-            "every engine is listed",
-            listed && !engines.is_empty(),
-            engines.join(", "),
+            "every field with an investigation is listed",
+            listed && !fields.is_empty(),
+            ids.join(", "),
         );
+        for field in &fields {
+            let opened = self.click(&format!("field:{}", field.id())).is_some()
+                && self.home.page == Page::Select
+                && self.home.field().is(*field);
+            // Its engines, and only its, are listed.
+            let engines = investigations::engines(*field);
+            let shown = engines
+                .iter()
+                .all(|e| self.has(&format!("engine:{}", e.id)))
+                && self
+                    .home
+                    .widgets
+                    .iter()
+                    .filter(|w| w.0.starts_with("engine:"))
+                    .count()
+                    == engines.len();
+            self.check(
+                &format!(
+                    "the folder {} opens the selection page of its engines",
+                    field.id()
+                ),
+                opened && shown,
+                engines.iter().map(|e| e.id).collect::<Vec<_>>().join(", "),
+            );
+            // Back closes an open series first (the command line's investigation may be a part), then leaves.
+            let open = self.home.open;
+            let mut back = self.click("back").is_some();
+            if open {
+                back &= self.home.page == Page::Select && !self.home.open;
+                back &= self.click("back").is_some();
+            }
+            self.check(
+                &format!("{}: Back returns to the fields", field.id()),
+                back && self.home.page == Page::Fields,
+                format!("{:?}, a series open: {open}", self.home.page),
+            );
+        }
+        // Esc goes back the same way: the selection page to the fields, the fields to the title.
+        self.click(&format!("field:{}", ids[0]));
+        let to_fields = self.esc() && self.home.page == Page::Fields;
+        let to_title = self.esc() && self.home.page == Page::Title;
+        self.check(
+            "Esc returns from the selection page to the fields, then to the title",
+            to_fields && to_title,
+            format!("{:?}", self.home.page),
+        );
+        let back = self.click("play").is_some() && self.click("back").is_some();
+        self.check(
+            "the fields page's Back returns to the title",
+            back && self.home.page == Page::Title,
+            format!("{:?}", self.home.page),
+        );
+        self.click("play");
+    }
+
+    /// The selection page: each investigation selected in its field and opened, and Back.
+    fn selection(&mut self) {
         for i in investigations::all() {
+            self.open_field_of(*i);
             self.investigation(*i);
         }
-        let back = self.click("back");
+        // Back closes an open series first, then returns to the fields.
+        let mut back = self.click("back").is_some();
+        if self.home.page == Page::Select {
+            back &= self.click("back").is_some();
+        }
         self.check(
-            "Back returns to the title",
-            back.is_some() && self.home.page == Page::Title,
+            "Back returns to the fields",
+            back && self.home.page == Page::Fields,
             format!("{:?}", self.home.page),
         );
         self.check(
@@ -540,11 +620,27 @@ impl Autotest<'_> {
         );
     }
 
+    /// The selection page of `i`'s field, from wherever the homepage is.
+    fn open_field_of(&mut self, i: &'static dyn Investigation) {
+        let field = investigations::field_of(i);
+        if self.home.page == Page::Select && self.home.field().is(field) {
+            return;
+        }
+        // Back to the fields page (closing a series on the way), then into the folder.
+        for _ in 0..3 {
+            if self.home.page == Page::Fields {
+                break;
+            }
+            self.click("back");
+        }
+        self.click(&format!("field:{}", field.id()));
+    }
+
     /// The investigation `i` selected and opened: Explore, its features' buttons, Watch, its series' parts, a
     /// chapter, and its other editions.
     fn investigation(&mut self, i: &'static dyn Investigation) {
         let engine = format!("engine:{}", i.engine().id);
-        // A part of a series: the series in the Feature column, then the part in the detail panel.
+        // A part of a series: the series in the Feature column, a folder that opens on its parts, then the part.
         let series = i.package().and_then(crate::resources::part_of);
         let feature = series.map_or_else(
             || format!("feature:{}", i.path()),
@@ -666,6 +762,23 @@ impl Autotest<'_> {
                 );
                 self.click(&format!("part:{}", i.path()));
             }
+            // Closing the folder lists the engine's features again, the series among them; Esc closes it too.
+            let closed = self.click("series-close").is_some()
+                && self.has(&format!("series:{}", series.key))
+                && !self.has(&format!("part:{}", i.path()));
+            let reopened = self.click(&format!("series:{}", series.key)).is_some()
+                && self.has(&format!("part:{}", i.path()));
+            let escaped = self.esc() && self.home.page == Page::Select && !self.home.open;
+            self.check(
+                &format!(
+                    "{}: its series folder closes and opens again, and Esc closes it",
+                    i.path()
+                ),
+                closed && reopened && escaped,
+                format!("closed {closed}, reopened {reopened}, Esc {escaped}"),
+            );
+            self.click(&format!("series:{}", series.key));
+            self.click(&format!("part:{}", i.path()));
         }
     }
 

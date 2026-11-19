@@ -1,15 +1,21 @@
-//! The homepage's selection page: engines, the chosen engine's features, and the chosen feature's timelines and
-//! demonstrations, on glass panels.
+//! The homepage's selection page, in the field chosen on the fields page: its engines, the chosen engine's features
+//! (a series a folder of its parts), and the chosen feature's timelines and demonstrations, on glass panels.
 
 use super::*;
 use crate::investigation::Engine;
 
-/// What the selection page's detail column chose: a choice to open, an edition, or another part of the series.
+/// What the selection page's detail column chose: a choice to open, or an edition.
 #[derive(Default)]
 struct DetailPicks {
     choice: Option<Choice>,
     edition: Option<usize>,
-    part: Option<&'static dyn Investigation>,
+}
+
+/// What the Feature column picked: a feature (a series opens), a part of the open series, or closing it.
+enum FeaturePick {
+    Feature(usize),
+    Part(&'static dyn Investigation),
+    Close,
 }
 
 impl Home {
@@ -25,35 +31,8 @@ impl Home {
         // The chrome's strings follow the chosen feature.
         investigation::set(chosen);
         let painter = ink.painter;
-
-        ink.text(
-            pos2(40.0, 20.0),
-            Align2::LEFT_TOP,
-            "RENDER LAB",
-            24.0,
-            ui::bold(),
-            palette::accent(),
-        );
-        ink.text(
-            pos2(38.0, 52.0),
-            Align2::LEFT_TOP,
-            tr("home-choose"),
-            38.0,
-            ui::bold(),
-            palette::text(),
-        );
-        let back_size = vec2(200.0, 60.0);
-        egui::Area::new(egui::Id::unique("home-back"))
-            .fixed_pos(pos2(canvas.x - 40.0 - back_size.x, 30.0))
-            .fade_in(false)
-            .constrain(false)
-            .show(ctx, |ui| {
-                let back = glass_button(ui, back_size, tr("home-back"), 28.0, true);
-                self.widgets.push(("back".into(), back.rect));
-                if back.clicked() {
-                    self.page = Page::Title;
-                }
-            });
+        let heading = tr_with("home-select_heading", args!(field = self.field().title()));
+        self.page_header(ctx, ink, canvas, &heading);
         let top = 130.0;
         let bottom = canvas.y - 90.0;
         let column = |x0: f32, x1: f32| Rect::from_min_max(pos2(x0, top), pos2(x1, bottom));
@@ -65,7 +44,7 @@ impl Home {
         }
 
         // Engines.
-        let engines = investigations::engines();
+        let engines = self.engines();
         let mut new_engine = None;
         self.column_area(
             ctx,
@@ -112,29 +91,38 @@ impl Home {
 
         if let Some(e) = new_engine {
             self.engine = e;
-            self.feature = 0;
-            self.part = 0;
+            (self.feature, self.part, self.open) = (0, 0, false);
             self.edition = None;
         }
-        if let Some(f) = new_feature {
-            if f != self.feature {
-                self.part = 0;
+        match new_feature {
+            Some(FeaturePick::Feature(f)) => {
+                // A feature chosen: a series opens, on its first part or on the part it was left on.
+                if f != self.feature {
+                    self.part = 0;
+                }
+                self.feature = f;
+                self.open = matches!(features[f], Feature::Series(_));
+                self.edition = None;
             }
-            self.feature = f;
-            self.edition = None;
+            Some(FeaturePick::Part(part)) => self.select(part),
+            Some(FeaturePick::Close) => self.open = false,
+            None => {}
         }
         if let Some(e) = picks.edition {
             self.edition = Some(e);
         }
-        if let Some(part) = picks.part {
-            self.select(part);
-        }
         picks.choice
     }
 
-    /// Select `investigation` on the selection page (its engine and feature).
+    /// Select `investigation` on the selection page (its field, engine, and feature; its series opened).
     pub(super) fn select(&mut self, investigation: &'static dyn Investigation) {
-        self.engine = investigations::engines()
+        let field = investigations::field_of(investigation);
+        self.field = investigations::fields()
+            .iter()
+            .position(|f| f.is(field))
+            .unwrap_or(0);
+        self.engine = self
+            .engines()
             .iter()
             .position(|e| e.id == investigation.engine().id)
             .unwrap_or(0);
@@ -152,6 +140,7 @@ impl Home {
             })
             .unwrap_or((0, 0));
         (self.feature, self.part) = (feature, part);
+        self.open = matches!(features.get(feature), Some(Feature::Series(_)));
         self.edition = None;
     }
 
@@ -182,16 +171,22 @@ impl Home {
         new_engine
     }
 
-    /// The chosen engine's features (an investigation, or a series), each with the version it was read from: the
-    /// feature clicked.
-    fn features_column(&mut self, ui: &mut egui::Ui, features: &[Feature]) -> Option<usize> {
+    /// The chosen engine's features (an investigation, or a series, a folder), each with the version it was read
+    /// from; or, while a series is open, its parts: what was clicked.
+    fn features_column(&mut self, ui: &mut egui::Ui, features: &[Feature]) -> Option<FeaturePick> {
+        // An open series lists its parts in place of the engine's features.
+        if self.open
+            && let Some(Feature::Series(series)) = features.get(self.feature)
+        {
+            return self.series_folder(ui, series);
+        }
         let mut new_feature = None;
         for (i, feature) in features.iter().enumerate() {
-            // An investigation, or a series (its title, and how many parts it tells).
+            // An investigation, or a series (its title marked as a folder, and how many parts it tells).
             let (title, widget, first) = match feature {
                 Feature::One(f) => (f.title().to_string(), format!("feature:{}", f.path()), *f),
                 Feature::Series(s) => (
-                    s.title_in(self.applied.language.code()).to_string(),
+                    format!("{}  ›", s.title_in(self.applied.language.code())),
                     format!("series:{}", s.key),
                     parts_of(s)[0],
                 ),
@@ -205,7 +200,7 @@ impl Home {
             );
             self.widgets.push((widget, r.rect));
             if r.clicked() {
-                new_feature = Some(i);
+                new_feature = Some(FeaturePick::Feature(i));
             }
             if let Feature::Series(s) = feature {
                 ui.label(
@@ -219,6 +214,57 @@ impl Home {
         new_feature
     }
 
+    /// The open series: a row that closes it, how many parts it tells, then its parts in order, each with the
+    /// version it was read from: what was clicked.
+    fn series_folder(
+        &mut self,
+        ui: &mut egui::Ui,
+        series: &'static crate::packages::Series,
+    ) -> Option<FeaturePick> {
+        let language = self.applied.language.code();
+        let mut picked = None;
+        let close = ui
+            .add(
+                egui::Button::selectable(
+                    false,
+                    RichText::new(format!("‹  {}", series.title_in(language)))
+                        .font(FontId::new(30.0, ui::bold()))
+                        .color(palette::accent()),
+                )
+                .wrap()
+                .min_size(vec2(ui.available_width(), 56.0)),
+            )
+            .on_hover_text(series.summary_in(language));
+        self.widgets.push(("series-close".into(), close.rect));
+        if close.clicked() {
+            picked = Some(FeaturePick::Close);
+        }
+        ui.label(
+            RichText::new(tr_with(
+                "home-series_parts",
+                args!(count = series.parts.len()),
+            ))
+            .color(palette::text_dim()),
+        );
+        ui.add_space(12.0);
+        for (k, investigation) in parts_of(series).into_iter().enumerate() {
+            let label = RichText::new(format!("{}  {}", k + 1, investigation.title()))
+                .font(FontId::new(30.0, ui::bold()));
+            let r = ui.add(
+                egui::Button::selectable(k == self.part, label)
+                    .min_size(vec2(ui.available_width(), 56.0)),
+            );
+            self.widgets
+                .push((format!("part:{}", investigation.path()), r.rect));
+            if r.clicked() {
+                picked = Some(FeaturePick::Part(investigation));
+            }
+            ui.label(RichText::new(investigation.sources().edition()).color(palette::text_faint()));
+            ui.add_space(12.0);
+        }
+        picked
+    }
+
     /// The chosen feature's column: its series' parts and what it covers, how to open it, what it assumes, its
     /// timelines and chapters, and its demonstrations.
     fn detail_column(
@@ -228,10 +274,8 @@ impl Home {
         rows: &[TimelineRow],
         edition: usize,
     ) -> DetailPicks {
-        let mut picks = DetailPicks {
-            part: self.detail_header(ui, chosen),
-            ..DetailPicks::default()
-        };
+        let mut picks = DetailPicks::default();
+        self.detail_header(ui, chosen);
         ui.add_space(14.0);
         let error = self.error.clone();
         if let Some(e) = &error {
@@ -262,99 +306,40 @@ impl Home {
         picks
     }
 
-    /// For a part of a series, its parts first (engine, story, part, left to right); beside them, what it covers
-    /// and its notices: the part clicked.
-    fn detail_header(
-        &mut self,
-        ui: &mut egui::Ui,
-        chosen: &'static dyn Investigation,
-    ) -> Option<&'static dyn Investigation> {
-        let part = chosen.package().and_then(crate::resources::part_of);
-        let full = ui.available_width();
-        let mut picked = None;
-        ui.horizontal_top(|ui| {
-            // A part of a series (src/packages.rs, `Series`): which, its parts in order, and whether to go on.
-            if let Some((series, index)) = part {
-                picked = self.series_parts(ui, series, index, full * 0.4 - 24.0);
-                ui.add_space(12.0);
-            }
-            ui.vertical(|ui| {
-                ui.set_width(if part.is_some() {
-                    full * 0.6 - 12.0
-                } else {
-                    full
-                });
-                ui.add(
-                    egui::Label::new(RichText::new(chosen.summary()).color(palette::text())).wrap(),
-                );
-                // Its package's legal notices (`[[notice]]`): its engine's copyright, license, and trademarks.
-                for (text, _) in crate::resources::notices(chosen.package().unwrap_or("render_lab"))
-                {
-                    ui.add_space(6.0);
-                    ui.add(
-                        egui::Label::new(
-                            RichText::new(text).size(24.0).color(palette::text_faint()),
-                        )
-                        .wrap(),
-                    );
-                }
-            });
-        });
-        picked
-    }
-
-    /// The story's parts, one under another, on darker glass, `width` wide, part `index` chosen: the part clicked.
-    fn series_parts(
-        &mut self,
-        ui: &mut egui::Ui,
-        series: &'static crate::packages::Series,
-        index: usize,
-        width: f32,
-    ) -> Option<&'static dyn Investigation> {
-        let language = self.applied.language.code();
-        let mut picked = None;
-        egui::Frame::new()
-            .fill(Color32::from_black_alpha(110))
-            .corner_radius(CornerRadius::same(12))
-            .inner_margin(egui::Margin::same(12))
-            .show(ui, |ui| {
-                ui.vertical(|ui| {
-                    ui.set_width(width);
-                    ui.set_max_width(width);
-                    ui.spacing_mut().item_spacing.y = 2.0;
-                    let heading = tr_with(
-                        "home-part_of",
-                        args!(
-                            number = index + 1,
-                            count = series.parts.len(),
-                            series = series.title_in(language)
-                        ),
-                    );
-                    ui.add(
-                        egui::Label::new(
-                            RichText::new(heading)
-                                .font(FontId::new(24.0, ui::bold()))
-                                .color(palette::accent()),
-                        )
-                        .wrap(),
-                    )
-                    .on_hover_text(series.summary_in(language));
-                    ui.add_space(4.0);
-                    for (k, investigation) in parts_of(series).into_iter().enumerate() {
-                        let label = RichText::new(format!("{}  {}", k + 1, investigation.title()))
-                            .font(FontId::new(24.0, ui::bold()));
-                        let r = ui.add(
-                            egui::Button::selectable(k == index, label).min_size(vec2(width, 38.0)),
-                        );
-                        self.widgets
-                            .push((format!("part:{}", investigation.path()), r.rect));
-                        if r.clicked() {
-                            picked = Some(investigation);
-                        }
-                    }
-                })
-            });
-        picked
+    /// What the chosen investigation covers and its notices; for a part of a series, which part of which series
+    /// first.
+    fn detail_header(&mut self, ui: &mut egui::Ui, chosen: &'static dyn Investigation) {
+        // A part of a series (src/packages.rs, `Series`): its place in the story, whose parts the Feature column lists.
+        if let Some((series, index)) = chosen.package().and_then(crate::resources::part_of) {
+            let language = self.applied.language.code();
+            let heading = tr_with(
+                "home-part_of",
+                args!(
+                    number = index + 1,
+                    count = series.parts.len(),
+                    series = series.title_in(language)
+                ),
+            );
+            ui.add(
+                egui::Label::new(
+                    RichText::new(heading)
+                        .font(FontId::new(24.0, ui::bold()))
+                        .color(palette::accent()),
+                )
+                .wrap(),
+            )
+            .on_hover_text(series.summary_in(language));
+            ui.add_space(4.0);
+        }
+        ui.add(egui::Label::new(RichText::new(chosen.summary()).color(palette::text())).wrap());
+        // Its package's legal notices (`[[notice]]`): its engine's copyright, license, and trademarks.
+        for (text, _) in crate::resources::notices(chosen.package().unwrap_or("render_lab")) {
+            ui.add_space(6.0);
+            ui.add(
+                egui::Label::new(RichText::new(text).size(24.0).color(palette::text_faint()))
+                    .wrap(),
+            );
+        }
     }
 
     /// Rows of two: watch and explore, then the features' buttons (src/feature/: experiment, the quiz); `first` the

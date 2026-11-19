@@ -121,6 +121,7 @@ cargo clippy --release --locked --offline --workspace --all-targets   # clippy, 
 python3 tools/check_sizes.py                                # files of at most 1400 lines, Python functions of at most 100
 cargo run --release -- home --autotest /path/to/home.json   # the homepage's controls, offscreen (its own settings file)
 cargo run --release -- home --snapshot /path/to/home.png    # the title screen as a PNG, offscreen; look at it
+cargo run --release -- home --snapshot /path/to/fields.png --page fields   # the fields page: a folder per field of study (a package's `type = "field"`)
 cargo run --release -- home --snapshot /path/to/loading.png --page loading   # the viewer's loading page, offscreen, while a scene loads
 cargo run --release -- home --snapshot /path/to/starting.png --page starting # the homepage's loading page, while the title's scene loads
 cargo run --release -- home --snapshot /path/to/viewer.png --page viewer     # the viewer offscreen: its windows (viewer:<demo> for one demonstration; viewer-timeline: a timeline playing, its bar)

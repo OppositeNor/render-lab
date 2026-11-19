@@ -19,10 +19,13 @@
 //!   Restore, or letting the time run out, puts the previous one back.
 //!   Nothing is written before Save and Apply, except the narration's volume
 //!   as the viewer's dock leaves it.
-//! - Play opens the selection page: the engines the lab investigates, the
-//!   chosen engine's features, and the chosen feature's narrated timeline
-//!   (from the start or from a chapter) and demonstrations. Esc or Back
-//!   returns to the title.
+//! - Play opens the fields page: a folder per field of study the packages
+//!   declare (src/packages/fields.rs), each with its icon and name. A folder
+//!   opens the selection page of its field: its engines, the chosen engine's
+//!   features (a series is a folder of its parts), and the chosen feature's
+//!   narrated timeline (from the start or from a chapter) and
+//!   demonstrations. Esc or Back closes an open series, then returns to the
+//!   fields, then to the title.
 //!
 //! F11 saves a screenshot of the window, here and in the viewer
 //! (build/screenshots). Opening a timeline or the demonstrations runs the viewer on the same event
@@ -69,6 +72,7 @@ use winit::window::{Window, WindowId};
 mod app;
 mod autotest;
 mod config_page;
+mod fields_page;
 mod pages;
 mod painter;
 mod select_page;
@@ -137,6 +141,7 @@ struct Settings {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Page {
     Title,
+    Fields,
     Select,
     Config,
 }
@@ -145,9 +150,10 @@ impl Page {
     pub fn parse(name: &str) -> Result<Page> {
         match name {
             "title" => Ok(Page::Title),
+            "fields" => Ok(Page::Fields),
             "select" => Ok(Page::Select),
             "config" => Ok(Page::Config),
-            _ => anyhow::bail!("unknown homepage page `{name}` (title, select, or config)"),
+            _ => anyhow::bail!("unknown homepage page `{name}` (title, fields, select, or config)"),
         }
     }
 }
@@ -294,17 +300,22 @@ pub struct Home {
     /// The settings in use this session: the saved ones, then tried ones.
     pub applied: Config,
     settings: Settings,
+    /// The field (of `investigations::fields()`), its engine, and the engine's feature, by index.
+    field: usize,
     engine: usize,
     feature: usize,
     /// The part chosen when the feature is a series.
     part: usize,
+    /// The chosen series is open: the Feature column lists its parts.
+    open: bool,
     /// Per investigation (by `investigations::all()` index), per timeline.
     timelines: Vec<Option<Vec<Result<TimelineSummary, String>>>>,
     /// The timeline (edition) picked on the selection page, by index; until
     /// one is, the one in the language (`preferred_edition`).
     edition: Option<usize>,
-    /// The title's globe icon, once loaded (None inside if it could not be).
-    globe: Option<Option<egui::TextureHandle>>,
+    /// The icons drawn so far (the title's globe, the fields'), by resource key, once loaded (None if one could not
+    /// be).
+    icons: Vec<(&'static str, Option<egui::TextureHandle>)>,
     /// An error from the last viewer run, shown until the next choice.
     pub error: Option<String>,
     /// Canvas rectangle of every control, by name (for the autotest).
@@ -349,12 +360,14 @@ impl Home {
             page: Page::Title,
             applied: saved,
             settings,
+            field: 0,
             engine: 0,
             feature: 0,
             part: 0,
+            open: false,
             timelines: investigations::all().iter().map(|_| None).collect(),
             edition: None,
-            globe: None,
+            icons: Vec::new(),
             error: None,
             widgets: Vec::new(),
             min_text: f32::INFINITY,
@@ -374,15 +387,28 @@ impl Home {
         home
     }
 
-    /// The chosen engine's Feature column: its investigations, a series in
-    /// place of its parts (where the first of them would be).
+    /// The chosen field.
+    fn field(&self) -> investigations::Field {
+        let fields = investigations::fields();
+        fields[self.field.min(fields.len() - 1)]
+    }
+
+    /// The chosen field's engines.
+    fn engines(&self) -> Vec<&'static investigation::Engine> {
+        investigations::engines(self.field())
+    }
+
+    /// The chosen engine's Feature column, in the chosen field: its investigations, a series in place of its parts
+    /// (where the first of them would be).
     fn features(&self) -> Vec<Feature> {
-        let engine = investigations::engines()[self.engine].id;
+        let field = self.field();
+        let engines = self.engines();
+        let engine = engines[self.engine.min(engines.len() - 1)].id;
         let mut features: Vec<Feature> = Vec::new();
         for i in investigations::all()
             .iter()
             .copied()
-            .filter(|i| i.engine().id == engine)
+            .filter(|i| i.engine().id == engine && investigations::field_of(*i).is(field))
         {
             match i.package().and_then(crate::resources::part_of) {
                 Some((series, _)) => {
@@ -449,7 +475,8 @@ impl Home {
     }
 
     /// Esc: tried settings are put back; the Config page discards its edits
-    /// and, like the selection page, returns to the title. False on the title.
+    /// and, like the fields page, returns to the title; the selection page
+    /// closes an open series, else returns to the fields. False on the title.
     pub fn back(&mut self) -> bool {
         // The full-screen knowledge graph closes first.
         if self.knowledge {
@@ -466,8 +493,16 @@ impl Home {
                 self.discard_settings();
                 true
             }
-            Page::Select => {
+            Page::Fields => {
                 self.page = Page::Title;
+                true
+            }
+            Page::Select if self.open => {
+                self.open = false;
+                true
+            }
+            Page::Select => {
+                self.page = Page::Fields;
                 true
             }
         }
@@ -584,25 +619,29 @@ impl Home {
         }
     }
 
-    /// The globe icon's texture, loaded on first use; None if it cannot be read.
-    fn globe(&mut self, ctx: &egui::Context) -> Option<egui::TextureId> {
-        self.globe
-            .get_or_insert_with(|| {
-                let path = resources::get(GLOBE).path();
-                let image = std::fs::File::open(&path)
-                    .map_err(anyhow::Error::from)
-                    .and_then(|f| crate::record::decode_png(std::io::BufReader::new(f)));
-                match image {
-                    Ok(image) => {
-                        Some(ctx.load_texture("home-globe", image, egui::TextureOptions::LINEAR))
-                    }
-                    Err(e) => {
-                        eprintln!("the globe icon did not load from {}: {e:#}", path.display());
-                        None
-                    }
-                }
-            })
-            .as_ref()
-            .map(|t| t.id())
+    /// The texture of the icon resource `key` (a PNG), loaded on first use; None if it cannot be read, which is
+    /// logged once.
+    fn icon(&mut self, ctx: &egui::Context, key: &'static str) -> Option<egui::TextureId> {
+        if let Some((_, texture)) = self.icons.iter().find(|(k, _)| *k == key) {
+            return texture.as_ref().map(egui::TextureHandle::id);
+        }
+        let image = resources::find(key)
+            .ok_or_else(|| anyhow::anyhow!("no resource `{key}`"))
+            .map(|r| r.path())
+            .and_then(|path| {
+                std::fs::File::open(&path)
+                    .with_context(|| format!("open {}", path.display()))
+                    .and_then(|f| crate::record::decode_png(std::io::BufReader::new(f)))
+            });
+        let texture = match image {
+            Ok(image) => Some(ctx.load_texture(key, image, egui::TextureOptions::LINEAR)),
+            Err(e) => {
+                eprintln!("the icon `{key}` did not load: {e:#}");
+                None
+            }
+        };
+        let id = texture.as_ref().map(egui::TextureHandle::id);
+        self.icons.push((key, texture));
+        id
     }
 }

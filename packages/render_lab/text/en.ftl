@@ -27,7 +27,14 @@ home-subtitle = Illustrated investigations of game-engine features
 home-play = Play
 home-config = Config
 home-quit = Quit
-home-choose = Choose an engine and a feature to investigate
+home-choose_field = Choose a field
+home-select_heading = { $field }  ›  Choose an engine and a feature to investigate
+home-field_count = { $count ->
+    [one] 1 investigation
+   *[other] { $count } investigations
+}
+home-field_other = Other
+home-fields_esc_hint = Esc returns to the title. F11: screenshot.
 field-computer_graphics = Computer Graphics
 field-computer_graphics_summary = How a renderer turns a scene into a frame: light, shadows, reflections, and the passes that compute them.
 home-back = ‹  Back
@@ -42,7 +49,7 @@ home-no_narration = No narration track yet: it plays silently.
 home-start_from_a_chapter = Start from a chapter:
 home-not_built_yet = Not built yet:
 home-demonstrations = Demonstrations
-home-esc_hint = In the viewer, Esc returns here. Esc here returns to the title. F11: screenshot.
+home-esc_hint = In the viewer, Esc returns here. Esc here goes back one folder. F11: screenshot.
 home-display = DISPLAY
 home-full_screen = Full Screen
 home-default = Default:
