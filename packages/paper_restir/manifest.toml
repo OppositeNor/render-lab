@@ -16,6 +16,8 @@ requires = ["ray-tracing"]
 
 # The line shown after the paper's name and venue (src/packages.rs).
 credit-text = "notice-credit"
+# The homepage folder its investigation is in (lab/src/packages/fields.rs).
+field = "render_lab.computer-graphics"
 
 [[provides]]
 type = "resource"

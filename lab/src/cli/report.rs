@@ -285,7 +285,7 @@ fn images() -> Result<()> {
     Ok(())
 }
 
-/// `packages`: each package's metadata, imports, exports, library, demos, and series.
+/// `packages`: each package's metadata, imports, exports, library, demos, series, and fields.
 fn packages(json: bool) -> Result<()> {
     let packages = crate::resources::packages();
     // Its library: the file, and its handles or why it is not loaded.
@@ -323,7 +323,8 @@ fn packages(json: bool) -> Result<()> {
                     Ok((handles, imports)) => serde_json::json!({"file": file, "handles": handles, "imports": imports}),
                     Err(error) => serde_json::json!({"file": file, "error": error}),
                 });
-                serde_json::json!({"name": m.name, "author": m.author, "contact": m.contact, "license": m.license, "manifest": m.manifest, "import": m.imports, "export": m.exports, "library": library, "demos": demos})
+                let fields: Vec<serde_json::Value> = m.fields.iter().map(|f| serde_json::json!({"key": f.key, "title": f.title, "summary": f.summary, "icon": f.icon, "order": f.order})).collect();
+                serde_json::json!({"name": m.name, "author": m.author, "contact": m.contact, "license": m.license, "manifest": m.manifest, "import": m.imports, "export": m.exports, "library": library, "demos": demos, "fields": fields, "field": m.field})
             })
             .collect();
         println!("{}", serde_json::to_string_pretty(&list)?);
@@ -378,9 +379,29 @@ fn packages(json: bool) -> Result<()> {
                     s.parts.join(" -> ")
                 );
             }
+            field_lines(m);
         }
     }
     Ok(())
+}
+
+/// The fields of study a package declares, and the one it joins; a package with code that joins none is told
+/// where its investigations go.
+fn field_lines(m: &crate::packages::Package) {
+    for f in &m.fields {
+        let title = crate::i18n::package_text(&m.name, &f.title);
+        println!(
+            "    field {}: {title}, icon {}, order {}",
+            f.key, f.icon, f.order
+        );
+    }
+    match &m.field {
+        Some(field) => println!("    in field: {field}"),
+        None if m.library.is_some() => println!(
+            "    in field: none, so its investigations are in the homepage's Other folder (`field = \"<package>.<key>\"` joins one)"
+        ),
+        None => {}
+    }
 }
 
 /// `resources`: the built packages' resources and their sizes.

@@ -76,6 +76,20 @@ kind = "file"
 source = "assets/icons/globe.png"
 license = "MIT"
 
+# The homepage's field folders (lab/src/home/fields_page.rs): Computer Graphics, the field this package declares,
+# and Other, for packages that join none; drawn by tools/icons/field_computer_graphics.py and field_other.py.
+[[resource]]
+id = "icon/field-computer-graphics"
+kind = "file"
+source = "assets/icons/field-computer-graphics.png"
+license = "MIT"
+
+[[resource]]
+id = "icon/field-other"
+kind = "file"
+source = "assets/icons/field-other.png"
+license = "MIT"
+
 # A demonstration camera several investigations share (lab/src/demo.rs: a demonstration's `include`).
 [[resource]]
 id = "demo-preset/room-camera"

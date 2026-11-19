@@ -9,13 +9,22 @@ author = "OppositeNor"
 license = "MIT"
 import = []
 # The scenes demonstrations show, the shader modules investigations build on, and the
-# knowledge graph investigations name the nodes of (`render_lab.knowledge#<key>`, lab/src/knowledge.rs).
-export = ["scene/study-room", "scene/study-room-grounds", "scene/terrain", "shader/prelude", "shader/scene", "shader/rays", "knowledge", "demo-preset/room-camera"]
+# knowledge graph investigations name the nodes of (`render_lab.knowledge#<key>`, lab/src/knowledge.rs),
+# and the field of study investigation packages join (`field = "render_lab.computer-graphics"`).
+export = ["computer-graphics", "scene/study-room", "scene/study-room-grounds", "scene/terrain", "shader/prelude", "shader/scene", "shader/rays", "knowledge", "demo-preset/room-camera"]
 
 # The sky, the teapot, the scenes, and the homepage's sounds and icon.
 [[provides]]
 type = "resource"
 path = "resources.toml"
+
+# The field of study every graphics investigation is in: a folder of the homepage (lab/src/packages/fields.rs).
+[[provides]]
+type = "field"
+key = "computer-graphics"
+title-text = "field-computer_graphics"
+summary-text = "field-computer_graphics_summary"
+icon = "icon/field-computer-graphics"
 
 # Fonts, MiTeX's Typst scope, and the lab's on-screen text.
 [[provides]]

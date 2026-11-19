@@ -32,7 +32,11 @@
 //!     src/pipeline);
 //!   - `"demo"`: a narrated timeline the viewer plays: its `key`, `title`,
 //!     `edition` (its name on the homepage's picker), and the resources of its
-//!     `timeline` and `audio`.
+//!     `timeline` and `audio`;
+//!   - `"series"`: investigations told as the parts of one story (`Series`);
+//!   - `"field"`: a field of study, a folder of the homepage (src/packages/fields.rs);
+//! - `field`, if given: the field its investigations are in, `<package>.<key>` of a field a package declares
+//!   (an import's, which exports the key, or its own); without it they are in the homepage's Other folder.
 //!
 //! A package's keys are its own (`font/dejavu-sans`); everywhere else a
 //! resource is named by its full key, `<package>.<key>`
@@ -55,6 +59,9 @@ use std::collections::BTreeMap;
 use std::ffi::c_void;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+mod fields;
+pub use fields::Field;
 
 /// A legal notice of a package (`[[notice]]`): its text, a key of the
 /// package's text tables, and the file of its terms, relative to the package.
@@ -122,6 +129,9 @@ pub struct Package {
     pub collections: Vec<PathBuf>,
     pub demos: Vec<Demo>,
     pub series: Vec<Series>,
+    /// The fields of study it declares, and the one its investigations are in (`field`, a full key once scanned).
+    pub fields: Vec<Field>,
+    pub field: Option<String>,
     /// Its legal notices, in the order the manifest lists them.
     pub notices: Vec<Notice>,
     /// Its copyright and license line (`credit-text`), a text key.
@@ -159,6 +169,7 @@ const FIELDS: &[&str] = &[
     "notice",
     "credit-text",
     "requires",
+    "field",
 ];
 
 /// A package's name: lower-case words joined by `_`.
@@ -305,10 +316,12 @@ fn read(root: &Path, dir: &Path) -> Result<(Package, Vec<(String, String)>), Str
         collections,
         demos,
         series,
+        fields,
         references,
     } = read_provides(table, dir, &imports, &fail)?;
     let notices = read_notices(table, dir, &fail)?;
     let credit = string(table, "credit-text", &fail)?;
+    let field = string(table, "field", &fail)?;
     // What it requires: optional, each one the lab knows.
     let requires = if table.contains_key("requires") {
         strings(table, "requires", &fail)?
@@ -338,6 +351,8 @@ fn read(root: &Path, dir: &Path) -> Result<(Package, Vec<(String, String)>), Str
         collections,
         demos,
         series,
+        fields,
+        field,
         notices,
         credit,
         requires,
@@ -345,12 +360,13 @@ fn read(root: &Path, dir: &Path) -> Result<(Package, Vec<(String, String)>), Str
     Ok((package, references))
 }
 
-/// What a manifest provides: its resource collections, demos, and series, and each demo's timeline and audio as
-/// written.
+/// What a manifest provides: its resource collections, demos, series, and fields, and each demo's timeline and
+/// audio as written.
 struct Provided {
     collections: Vec<PathBuf>,
     demos: Vec<Demo>,
     series: Vec<Series>,
+    fields: Vec<Field>,
     references: Vec<(String, String)>,
 }
 
@@ -365,6 +381,7 @@ fn read_provides(
     let mut collections = Vec::new();
     let mut demos = Vec::new();
     let mut series = Vec::new();
+    let mut fields = Vec::new();
     let mut references = Vec::new();
     let provides = match table.get("provides") {
         None => Vec::new(),
@@ -376,22 +393,26 @@ fn read_provides(
     };
     for entry in provides {
         let kind = string(entry, "type", fail)?.ok_or_else(|| {
-            fail("a `[[provides]]` needs `type`, \"resource\", \"demo\", or \"series\"".into())
+            fail(
+                "a `[[provides]]` needs `type`, \"resource\", \"demo\", \"series\", or \"field\""
+                    .into(),
+            )
         })?;
-        let fields: &[&str] = match kind.as_str() {
+        let allowed: &[&str] = match kind.as_str() {
             "resource" => &["type", "path"],
             "demo" => &["type", "key", "title", "edition", "timeline", "audio"],
             "series" => &["type", "key", "title", "summary", "parts"],
+            "field" => fields::FIELD_KEYS,
             other => {
                 return Err(fail(format!(
-                    "unknown type `{other}` (a package provides \"resource\", \"demo\", or \"series\")"
+                    "unknown type `{other}` (a package provides \"resource\", \"demo\", \"series\", or \"field\")"
                 )));
             }
         };
-        if let Some((key, _)) = entry.iter().find(|(key, _)| !fields.contains(key)) {
+        if let Some((key, _)) = entry.iter().find(|(key, _)| !allowed.contains(key)) {
             return Err(fail(format!(
                 "a {kind} has no field `{key}` (it has {})",
-                fields.join(", ")
+                allowed.join(", ")
             )));
         }
         let field = |name: &str| {
@@ -409,6 +430,8 @@ fn read_provides(
             collections.push(target);
         } else if kind == "series" {
             series.push(read_series(entry, (imports, &series), fail)?);
+        } else if kind == "field" {
+            fields.push(fields::read_field(entry, &fields, fail)?);
         } else {
             let key = field("key")?;
             if !valid_demo_key(&key) || demos.iter().any(|d: &Demo| d.key == key) {
@@ -429,6 +452,7 @@ fn read_provides(
         collections,
         demos,
         series,
+        fields,
         references,
     })
 }
@@ -563,6 +587,7 @@ pub fn scan(root: &Path, dir: &Path) -> Result<Vec<Package>, String> {
             );
             (package.demos[n].timeline, package.demos[n].audio) = (timeline, audio);
         }
+        fields::resolve_fields(&mut package, &ordered)?;
         ordered.push(package);
     }
     Ok(ordered)
@@ -783,7 +808,7 @@ mod tests {
     use super::*;
 
     /// A packages directory of `(name, manifest)` under the system's temporary directory.
-    fn directory(test: &str, packages: &[(&str, &str)]) -> PathBuf {
+    pub(super) fn directory(test: &str, packages: &[(&str, &str)]) -> PathBuf {
         let dir =
             std::env::temp_dir().join(format!("render-lab-packages-{test}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
@@ -794,7 +819,7 @@ mod tests {
         dir
     }
 
-    fn manifest(name: &str, import: &str, export: &str) -> String {
+    pub(super) fn manifest(name: &str, import: &str, export: &str) -> String {
         format!(
             "name = \"{name}\"\nauthor = \"a\"\nlicense = \"MIT\"\nimport = [{import}]\nexport = [{export}]\n"
         )

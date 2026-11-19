@@ -128,11 +128,34 @@ fn mount() -> Result<Registry> {
     }
     let mut timelines = BTreeMap::new();
     for package in &packages {
+        // A package exports its resources and shaders, and the fields of study it declares.
         for key in &package.exports {
-            if !declared(&format!("{}.{key}", package.name)) {
+            if !declared(&format!("{}.{key}", package.name))
+                && !package.fields.iter().any(|f| &f.key == key)
+            {
                 return Err(anyhow!(
                     "packages: {}: exports `{key}`, which it does not declare",
                     package.manifest
+                ));
+            }
+        }
+        for field in &package.fields {
+            // A field's icon is a PNG the package or an import declares.
+            let png = resources
+                .binary_search_by(|r| r.decl.id.as_str().cmp(&field.icon))
+                .is_ok_and(|i| {
+                    resources[i]
+                        .decl
+                        .file
+                        .extension()
+                        .is_some_and(|e| e == "png")
+                });
+            if !png {
+                return Err(anyhow!(
+                    "packages: {}: field `{}`: its icon `{}` is not a PNG resource",
+                    package.manifest,
+                    field.key,
+                    field.icon
                 ));
             }
         }

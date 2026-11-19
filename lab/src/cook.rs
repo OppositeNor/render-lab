@@ -376,6 +376,9 @@ fn built_manifest(package: &Package, source: &str) -> String {
     if !package.requires.is_empty() {
         writeln!(manifest, "requires = {}", list(&package.requires)).unwrap();
     }
+    if let Some(field) = &package.field {
+        writeln!(manifest, "field = {}", quote(field)).unwrap();
+    }
     writeln!(
         manifest,
         "cooked-from = {}\n\n[[provides]]\ntype = \"resource\"\npath = \"resources.toml\"",
@@ -412,6 +415,20 @@ fn built_manifest(package: &Package, source: &str) -> String {
             list(&series.parts)
         )
         .unwrap();
+    }
+    for field in &package.fields {
+        writeln!(
+            manifest,
+            "\n[[provides]]\ntype = \"field\"\nkey = {}\ntitle-text = {}\nicon = {}\norder = {}",
+            quote(&field.key),
+            quote(&field.title),
+            quote(&field.icon),
+            field.order
+        )
+        .unwrap();
+        if let Some(summary) = &field.summary {
+            writeln!(manifest, "summary-text = {}", quote(summary)).unwrap();
+        }
     }
     for notice in &package.notices {
         writeln!(
