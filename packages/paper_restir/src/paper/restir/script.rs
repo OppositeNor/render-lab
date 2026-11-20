@@ -15,6 +15,7 @@
 //! | `exampleTrace seed count`, `exampleMerge seed count` | a stream of that world's candidates through the lab's reservoir, its steps and its merge |
 //! | `exampleAlias` | an alias table over that world's shares (as the paper's and the lab's lights are drawn): each column's own part and alias |
 //! | `examplePieces` | that table's pieces, each a part of a light's share in a column |
+//! | `exampleFillOrder` | that table's columns in the order their gaps are filled |
 //! | `exampleCombine seed count` | P's reservoir and its neighbours' in that world, each of `count` candidates, combined at P as the lab's spatial pass does |
 //! | `exampleReach k radius rounds seed` | for each number of rounds of spatial reuse, the paths down the paper's tree (k to the n) and the distinct pixels they end on, with the lab's neighbour pattern |
 //! | `exampleHistory current clamp frames` | a pixel's M over frames of temporal reuse (the lab's count, its clamp; 0 none), and each frame's share of the last M |
@@ -408,6 +409,15 @@ fn register_alias(natives: &mut NativeRegistry) -> Result<(), Error> {
                 .collect::<Vec<_>>())
         })
         .doc("Fn([], List({column: Int, hi: Float, length: Float, light: Int, lo: Float, start: Float})). The alias table's pieces, each light's in turn: its column and its span there (a column 1 high), and where it lies along the shares laid end to end.")
+        .register()?;
+    natives
+        .function("paper_restir/example-fill-order", |_, ()| {
+            Ok(super::alias::fill_order(&examples::shares())
+                .into_iter()
+                .map(|c| c as i64)
+                .collect::<Vec<_>>())
+        })
+        .doc("Fn([], List(Int)). The example's alias table's columns in the order their gaps are filled (alias.rs `fill_order`): the last light under the average is topped up by the last light over it, which goes on giving while it keeps at least the average.")
         .register()?;
     Ok(())
 }

@@ -599,7 +599,7 @@ That merge is what will let pixels share.
 
 The related work is in section seven, and these two ideas are in section two.
 
-## Streaming RIS {#c3 number=3 target=134 summary="RIS through one reservoir per pixel: what it stores, the paper's choices, and what it costs." sources="alg3, storage, candidates-param, alias, target-param, streaming-cost"}
+## Streaming RIS {#c3 number=3 target=196 summary="RIS through one reservoir per pixel: what it stores, the paper's choices, and what it costs." sources="alg3, storage, candidates-param, alias, target-param, streaming-cost"}
 
 ### One reservoir per pixel {#c3-alg3 kind=3d}
 
@@ -671,19 +671,51 @@ ${cue "key" {' {callout "alias"}}}${cue "key" {' {glide cameraYaw 24.0 sentence}
 
 ${cue "key" {opening demoParams panelHidden {' playParamsAt0}}}
 
-${cue "key" {' {callout "alias"}}}It picks ${overText
+${cue "key" {' {callout "alias"}}}The paper picks ${overText
     {' playOverParamsStep1}
     "each candidate's triangle by power, from an alias table, a lookup table that draws by weight"}.
 
-Then it ${overText {' playOverParamsStep2} "picks a uniform point on that triangle"}.
+The table has ${overText {' playOverParamsStep2} "one column for each light"}, and each column is as tall as the average share of the power.
+
+Each light first ${overText
+    {' playOverParamsStep3}
+    "fills its own column, or only part of it if its share is below the average"}.
+
+A light above the average has some of its share left over, and ${overText
+    {' playOverParamsStep4}
+    "it gives that part to one gap after another"}.
+
+Once what it keeps falls below the average, ${overText
+    {' playOverParamsStep5}
+    "its own column has a gap, which the next light with share to spare fills"}.
+
+${overText {' playOverParamsStep6} "This goes on until every column is full"}.
+
+The light that fills a column's gap is called ${overText
+    {' playOverParamsStep7}
+    "that column's alias"}.
+
+So each column holds at most two lights.
+
+To draw from the table, ${overText {' playOverParamsStep8} "one number picks a column"}, each column equally likely.
+
+A second number, ${overText
+    {' playOverParamsStep9}
+    "a height up that column, lands on the column's own light or on its alias"}.
+
+So ${overText {' playOverParamsStep10} "a draw takes two steps"}, however many lights there are.
+
+Then the paper ${overText {' playOverParamsStep11} "picks a uniform point on that triangle"}.
 
 ${overText
-    {' playOverParamsStep3}
+    {' playOverParamsStep12}
     "The lab's lights are spheres instead, picked by power from the same kind of table"}.
 
 ${overText
-    {' playOverParamsStep4}
-    "Each light's pieces of the table add up to its share of the power"}.
+    {' playOverParamsStep13}
+    "Each light's pieces of the table add up to its share of the power"}, so each light is drawn by its power.
+
+That is true whichever light filled which gap, so the order of the filling does not matter.
 
 ### The sky as a light {#c3-params-sky kind=3d}
 

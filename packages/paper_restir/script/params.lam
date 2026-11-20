@@ -2,11 +2,14 @@ The ReSTIR story's choice of a light by power
 =============================================
 
 What the story draws on the canvas (lab/src/math/) for chapter 3's beat `c3-params-power`, stage by stage as
-its stage (`stepOf "params" 4`, the clips below) goes from 0 to 4: the math scenes' example world's 24 lights (examples.rs, the lab's illustration),
-each one's share of the power laid end to end; the paper's alias table built from those shares (Vose's method,
-alias.rs, the table the lab's own lights are drawn from too) and one draw from it, a column and then a part; a
-uniform point on the drawn triangle; the lab's sphere for the same draw; and the alias table's pieces gathered
-again, as long as the shares they came from.
+its stage (`stepOf "params" 13`, the clips below) goes from 0 to 11: the math scenes' example world's 24 lights
+(examples.rs, the lab's illustration), each one's share of the power laid end to end (1); the alias table built from
+those shares (Vose's method, alias.rs, the table the lab's own lights are drawn from too): its columns, each as tall
+as the average share (2), each light's part in its own column (3), then the gaps filled in the order the table fills them
+(`exampleFillOrder`): the first light over the average giving to one gap after another (4), its own column's gap
+filled by the next (5), and the rest (6); one column's own light and alias (7); one draw from it, a column (8) and
+then a part (9), and the light it lands on (10); a uniform point on the drawn triangle (11); the lab's sphere for the
+same draw (12); and the alias table's pieces gathered again, as long as the shares they came from (13).
 
 $[Import* std]
 $[Import* render_lab_runtime]
@@ -104,11 +107,38 @@ $[# {_draw alias t shown}
             3.0}}]
     {flatten {' column part chosen}}]
 
+Fn([List({alias: Int, own: Float})], Int). The column the draw's first number picks.
+$[# {_column alias} {min {- {length alias} 1} {floor {* {uniform _seed 0} {float {length alias}}}}}]
+
 Fn([List({alias: Int, own: Float})], Int). The light the draw picks.
 $[# {_drawn alias}
-    [# n {length alias}]
-    [# c {min {- n 1} {floor {* {uniform _seed 0} {float n}}}}]
+    [# c {_column alias}]
     {!if {< {uniform _seed 1} {.own {nth alias c}}} c {.alias {nth alias c}}}]
+
+Fn([Int, Float], List(Mob)). The empty columns at `t`, one for each of `n` lights, each as tall as the average
+share.
+$[# {_frames n t} {fadeIn t {flatten {map
+    {range 0 n}
+    {^ {c} {outlined {++ "frame" {str c}} {_inColumn c 0.0 1.0} textDimColor 1.5}}}}}]
+
+Fn([List({alias: Int, own: Float}), Float], List(Mob)). Column `c` of the table (the one the draw picks) outlined
+at `t`, its two parts named: the column's own light, below, and its alias, above.
+$[# {_twoParts alias t}
+    [# c {_column alias}]
+    [# own {.own {nth alias c}}]
+    [# cx {+ _tableX {* _colW {+ {float c} 1.0}}}]
+    [# label {^ {id name lo hi}
+        [# y {+ _tableY {* _tableH {* 0.5 {+ lo hi}}}}]
+        {append
+            {arrowLine {++ id "Arrow"} {v2 0.0 y} {v2 {+ cx 0.08} y} accentColor 2.5}
+            {moveTo name {v2 1.6 y}}}}]
+    {fadeIn t {flatten {'
+        {outlined "twoParts" {padded {_inColumn c 0.0 1.0} 0.04} accentColor 3.0}
+        {label "ownLabel" {caption "ownLabel" {textKey "paramsmath-own"} 0.32 textColor} 0.0 own}
+        {label "aliasLabel"
+            {caption "aliasLabel" {textKey "paramsmath-its-alias"} 0.32 textColor}
+            own
+            1.0}}}}]
 
 The shapes
 
@@ -162,15 +192,42 @@ $[# {_sphere t color}
 
 The scene
 
+Fn([String, List({column: Int, hi: Float, length: Float, light: Int, lo: Float, start: Float}), List(Int), List(Color), Float], List(Mob)).
+The gaps of the columns `cols` filled in turn at `t`, each by its alias's piece, from the piece's place among the
+shares into its column.
+$[# {_fills id tops cols colors t} {flatten {map
+    {zip {range 0 {length cols}} cols}
+    {^ {e}
+        [# p {nth {filter tops {^ {q} {= {.column q} {.second e}}}} 0}]
+        [# k {smooth {lagged t {.first e} {length cols} 0.3}}]
+        {filled
+            {++ id {++ "." {str {.first e}}}}
+            {_between
+                {_onStrip {.start p} {.length p} _stripLo _stripHi}
+                {_inColumn {.column p} {.lo p} {.hi p}}
+                k}
+            {nth colors {.light p}}
+            0.9}}}}]
+
 Fn([Float], List(Mob)). The scene at stage s.
 $[# {_scene s}
     [# shares {map {exampleLights 0 0.0 1.0} .share}]
     [# colors {spectrum {length shares}}]
+    [# starts {runningSums shares}]
     [# alias {exampleAlias}]
     [# pieces {examplePieces}]
+    [# own {filter pieces {^ {p} {= {.column p} {.light p}}}}]
+    [# tops {filter pieces {^ {p} {not {= {.column p} {.light p}}}}}]
+    [# order {exampleFillOrder}]
+    [# n {length order}]
+    [# donor {.alias {nth alias {nth order 0}}}]
+    [# drops {fold {range 0 n} n {^ {m i} {!if {= {nth order i} donor} {min m i} m}}}]
+    [# first {map {range 0 drops} {^ {i} {nth order i}}}]
+    [# refill {map {range drops {min n {+ drops 1}}} {^ {i} {nth order i}}}]
+    [# rest {map {range {min n {+ drops 1}} n} {^ {i} {nth order i}}}]
     [# drawn {_drawn alias}]
     [# strip {growFrom
-        {phase s 0.0 0.25}
+        {phase s 0.0 0.8}
         {flatten {strip "shares" shares {box {v2 _x0 _stripLo} {v2 _x1 _stripHi}} colors 0.0}}
         left}]
     [# sharesNote {moveTo
@@ -179,45 +236,94 @@ $[# {_scene s}
     [# aliasNote {moveTo
         {caption "aliasNote" {textKey "paramsmath-alias"} 0.32 textDimColor}
         {v2 {+ _tableX {* _colW 12.0}} -2.65}}]
-    [# table {append
-        {_pieces "piece" pieces colors {phase s 0.25 0.75} _stripLo _stripHi 0.0}
-        {fadeIn {phase s 0.3 0.6} aliasNote}}]
-    [# dim {- 1.0 {* 0.65 {smooth {phase s 3.0 3.2}}}}]
-    [# leaving {smooth {phase s 3.0 3.15}}]
+    [# table {flatten {'
+        {_pieces "own" own colors {phase s 2.0 2.9} _stripLo _stripHi 0.0}
+        {!if {< s 3.0} {'} {_fills "first" tops first colors {phase s 3.0 3.9}}}
+        {!if {< s 4.2} {'} {_fills "refill" tops refill colors {phase s 4.2 4.9}}}
+        {!if {< s 5.0} {'} {_fills "rest" tops rest colors {phase s 5.0 5.9}}}
+        {fadeIn {phase s 1.4 1.9} aliasNote}}}]
+    [# donorMarks {append
+        {fadeIn
+            {phase s 3.0 3.3}
+            {outlined "donor"
+                {_onStrip {nth starts donor} {nth shares donor} {- _stripLo 0.1} {+ _stripHi 0.1}}
+                accentColor
+                3.0}}
+        {fadeIn
+            {phase s 4.0 4.3}
+            {outlined "donorColumn" {padded {_inColumn donor 0.0 1.0} 0.04} accentColor 3.0}}}]
+    [# dim {- 1.0 {* 0.65 {smooth {phase s 12.0 12.2}}}}]
+    [# leaving {smooth {phase s 12.0 12.15}}]
+    [# landed {outlined "landed"
+        {_onStrip {nth starts drawn} {nth shares drawn} {- _stripLo 0.1} {+ _stripHi 0.1}}
+        accentColor
+        3.0}]
     {flatten {'
         strip
-        {fadeIn {phase s 0.0 0.25} sharesNote}
-        {!if {< s 0.25} {'} {faded table dim}}
-        {!if {!or {< s 0.75} {> s 3.15}}
+        {fadeIn {phase s 0.0 0.3} sharesNote}
+        {!if {< s 1.0}
             {'}
-            {faded {_draw alias {phase s 0.75 1.0} 1.0} {- 1.0 leaving}}}
-        {!if {!or {< s 1.0} {> s 2.2}}
+            {faded
+                {_frames {length shares} {phase s 1.0 1.6}}
+                {* dim {- 1.0 {* 0.6 {smooth {phase s 6.0 6.3}}}}}}}
+        {!if {!or {< s 1.0} {> s 6.3}}
             {'}
-            {fadeOut {phase s 2.0 2.2} {_triangle {phase s 1.0 2.0} {nth colors drawn}}}}
-        {!if {!or {< s 2.1} {> s 3.15}}
+            {fadeOut
+                {phase s 6.0 6.3}
+                {fadeIn
+                    {phase s 1.4 2.0}
+                    {moveTo
+                        {caption "averageNote" {textKey "paramsmath-average"} 0.32 textDimColor}
+                        {v2 2.8 {+ _tableY _tableH}}}}}}
+        {!if {< s 2.0} {'} {faded table dim}}
+        {!if {!or {< s 3.0} {> s 5.0}} {'} {fadeOut {phase s 4.8 5.0} donorMarks}}
+        {!if {!or {< s 6.0} {> s 8.0}}
             {'}
-            {faded {_sphere {phase s 2.1 2.4} {nth colors drawn}} {- 1.0 leaving}}}
-        {!if {< s 3.1} {'} {_pieces "gather" pieces colors {phase s 3.1 3.8} 1.95 2.35 1.0}}
-        {!if {< s 3.6}
+            {fadeOut {phase s 7.7 8.0} {_twoParts alias {phase s 6.0 6.4}}}}
+        {!if {!or {< s 7.0} {> s 12.15}}
+            {'}
+            {faded
+                {_draw alias {+ {* 0.35 {phase s 7.0 8.0}} {* 0.65 {phase s 8.0 9.0}}} 1.0}
+                {- 1.0 leaving}}}
+        {!if {!or {< s 9.0} {> s 12.15}}
+            {'}
+            {faded {fadeIn {phase s 9.0 9.4} landed} {- 1.0 leaving}}}
+        {!if {!or {< s 10.0} {> s 11.2}}
+            {'}
+            {fadeOut {phase s 11.0 11.2} {_triangle {phase s 10.0 11.0} {nth colors drawn}}}}
+        {!if {!or {< s 11.1} {> s 12.15}}
+            {'}
+            {faded {_sphere {phase s 11.1 11.4} {nth colors drawn}} {- 1.0 leaving}}}
+        {!if {< s 12.1} {'} {_pieces "gather" pieces colors {phase s 12.1 12.8} 1.95 2.35 1.0}}
+        {!if {< s 12.6}
             {'}
             {fadeIn
-                {phase s 3.6 3.9}
+                {phase s 12.6 12.9}
                 {moveTo
                     {caption "sameNote" {textKey "paramsmath-same"} 0.32 textDimColor}
                     {v2 0.0 1.55}}}}}}]
 
 The hook
 
-Fn([Float], List(Mob)). The choice of a light by power at stage its stage (`stepOf "params" 4`, the clips below).
-$[# paramsMath {: {^ {t} {_scene {stepOf "params" 4}}} Math}]
+Fn([Float], List(Mob)). The choice of a light by power at stage its stage (`stepOf "params" 13`, the clips below).
+$[# paramsMath {: {^ {t} {_scene {stepOf "params" 13}}} Math}]
 
 Clips
 
 The scene's steps as clips (lab/src/clip.rs): its demonstration's Play plays every step in order, a second each;
 the story plays each over its sentence's words, and sets the scene back to a step where a beat starts.
-$[# paramsSteps [% {stepsInOrder "params" 4}]]
-$[# paramsAt0 [% {stepsAt "params" 4 0}]]
+$[# paramsSteps [% {stepsInOrder "params" 13}]]
+$[# paramsAt0 [% {stepsAt "params" 13 0}]]
 $[# paramsStep1 [% {stepClip "params" 1 0.0 1.0}]]
 $[# paramsStep2 [% {stepClip "params" 2 0.0 1.0}]]
 $[# paramsStep3 [% {stepClip "params" 3 0.0 1.0}]]
 $[# paramsStep4 [% {stepClip "params" 4 0.0 1.0}]]
+$[# paramsStep5 [% {stepClip "params" 5 0.0 1.0}]]
+$[# paramsStep6 [% {stepClip "params" 6 0.0 1.0}]]
+$[# paramsStep7 [% {stepClip "params" 7 0.0 1.0}]]
+$[# paramsStep8 [% {stepClip "params" 8 0.0 1.0}]]
+$[# paramsStep9 [% {stepClip "params" 9 0.0 1.0}]]
+$[# paramsStep10 [% {stepClip "params" 10 0.0 1.0}]]
+$[# paramsStep11 [% {stepClip "params" 11 0.0 1.0}]]
+$[# paramsStep12 [% {stepClip "params" 12 0.0 1.0}]]
+$[# paramsStep13 [% {stepClip "params" 13 0.0 1.0}]]

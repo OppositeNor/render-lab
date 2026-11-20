@@ -14,6 +14,17 @@ pub struct AliasColumn {
 /// The table for `weights` (any scale): each weight scaled so they average 1; a column under 1 is topped up by an
 /// entry over 1, which keeps what is left.
 pub fn table(weights: &[f32]) -> Vec<AliasColumn> {
+    build(weights).0
+}
+
+/// The columns of `table`'s table in the order their gaps are filled.
+pub fn fill_order(weights: &[f32]) -> Vec<usize> {
+    build(weights).1
+}
+
+/// The table, and the columns in the order their gaps are filled: the last entry under 1 is topped up by the last
+/// entry over 1, which goes on giving while what it keeps is at least 1, then has a gap of its own.
+fn build(weights: &[f32]) -> (Vec<AliasColumn>, Vec<usize>) {
     let n = weights.len();
     let total: f64 = weights.iter().map(|&w| f64::from(w)).sum();
     let mut scaled: Vec<f64> = weights
@@ -21,11 +32,13 @@ pub fn table(weights: &[f32]) -> Vec<AliasColumn> {
         .map(|&w| f64::from(w) * n as f64 / total)
         .collect();
     let mut table = vec![AliasColumn { own: 1.0, alias: 0 }; n];
+    let mut order = Vec::new();
     let (mut small, mut large): (Vec<usize>, Vec<usize>) = (0..n).partition(|&i| scaled[i] < 1.0);
     while let (Some(&l), Some(&g)) = (small.last(), large.last()) {
         // Column l keeps its scaled share and takes the rest from g, which moves to the list its remainder fits.
         small.pop();
         large.pop();
+        order.push(l);
         table[l] = AliasColumn {
             own: scaled[l] as f32,
             alias: g,
@@ -40,7 +53,7 @@ pub fn table(weights: &[f32]) -> Vec<AliasColumn> {
     for i in small.into_iter().chain(large) {
         table[i] = AliasColumn { own: 1.0, alias: i };
     }
-    table
+    (table, order)
 }
 
 /// The entry a uniform number `u` in [0, 1) draws (`restirAlias`): its column from `u` times the count, then the
