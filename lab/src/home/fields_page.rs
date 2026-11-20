@@ -140,7 +140,10 @@ impl Home {
         let count_height = ink.measure("0", 24.0, FontFamily::Proportional).y;
         let block = ICON + 20.0 + name.size().y + 10.0 + count_height;
         let icon = Rect::from_center_size(
-            pos2(rect.center().x, rect.min.y + (CARD.y - block) / 2.0 + ICON / 2.0),
+            pos2(
+                rect.center().x,
+                rect.min.y + (CARD.y - block) / 2.0 + ICON / 2.0,
+            ),
             vec2(ICON, ICON),
         );
         if let Some(texture) = self.icon(ctx, field.icon()) {
