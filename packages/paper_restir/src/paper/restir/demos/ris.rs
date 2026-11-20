@@ -76,11 +76,10 @@ pub fn stream(
     let mut r = Reservoir::empty();
     let mut out = Vec::new();
     for i in 0..scene.candidates {
-        // As restirCandidates: a light by power, a point on it, the weight; streamed while within the step.
-        let light = scene.pick(rng.rand());
-        let uv = (rng.next() >> 16) | (rng.next() & 0xffff_0000);
-        let x = Sample { light, uv };
-        let (p, p_hat) = (scene.source_pdf(light), scene.target(s, x));
+        // As restirCandidates: a light by power and a point on it (or the sky), the weight; streamed while within
+        // the step.
+        let (x, p) = scene.draw(rng);
+        let p_hat = scene.target(s, x);
         let w = p_hat / p;
         let before = r.y;
         // Each candidate draws its update's number, streamed or not, so the later ones stay the same.
@@ -90,7 +89,7 @@ pub fn stream(
         }
         out.push(Candidate {
             x,
-            point: scene.point(x),
+            point: scene.point(s.position, x),
             p,
             p_hat,
             w,
@@ -188,11 +187,15 @@ pub fn draw(
         content.readout = Some(waiting());
         return;
     };
-    let cdf = lights::cdf(lights);
+    let (shares, table) = (lights::shares(lights), lights::table(lights));
     let triangles = cpu::occluders(meshes, &content.objects);
+    let planes = cpu::planes(meshes, &content.objects);
     let scene = Scene {
         lights,
-        cdf: &cdf,
+        shares: &shares,
+        table: &table,
+        sky: super::sky(state),
+        planes: &planes,
         eye: Vec3::from(content.uniforms.camera.position),
         triangles: &triangles,
         candidates: state.p("restirCandidates").round().max(1.0) as u32,

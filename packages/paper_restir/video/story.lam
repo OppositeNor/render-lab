@@ -11,7 +11,7 @@ A beat's opening keys: its demonstration and panel, the callout and the insets c
 $[# {opening demo panel more} {append {' demo {callout ""} {inset ""} panel} more}]
 
 The method as the paper runs it: its parameters at the paper's values (148:9-10 §5), the frame's own seed, every stage
-shown, the lights all on and at the start of their loops, and P on the floor in front of the teapot.
+shown, no sky, the lights all on and at the start of their loops, and P on the floor in front of the teapot.
 
 $[# baseRoom {'
     {restirCandidates 32.0}
@@ -26,6 +26,7 @@ $[# baseRoom {'
     {restirView 0.0}
     {restirAccumulate 0.0}
     {restirStage 3.0}
+    {restirEnvironment 0.0}
     {restirSeed -1.0}
     {lightCount 64.0}
     {lightIntensity 1.0}

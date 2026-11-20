@@ -411,7 +411,7 @@
       "symbol": "Section 5",
       "quote": "accelerated using an alias table",
       "quoteHash": "c10968d26350d945",
-      "inspect": "Lights are picked with an alias table (Walker 1974).",
+      "inspect": "Both the triangles and the environment map's locations are importance sampled with an alias table (Walker 1974).",
       "details": [],
       "section": "5"
     },

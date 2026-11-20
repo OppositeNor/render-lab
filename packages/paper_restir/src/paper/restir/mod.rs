@@ -11,9 +11,11 @@
 //! `demos`, the dock `controls`, the paper's citation index source-index.json
 //! (written by source_index.py from the PDF), and the pseudo-code pseudocode/.
 
+pub mod alias;
 pub mod controls;
 pub mod cpu;
 pub mod demos;
+pub mod environment;
 pub mod examples;
 pub mod gpu;
 pub mod lights;

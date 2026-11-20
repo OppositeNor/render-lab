@@ -56,7 +56,7 @@ part.
 - Alg. 3: RIS through one reservoir per pixel; W at line 8, shading at line 11 [`alg3`]. Visual: listing `ris`, lit
   lines with the `ris` demo stepping.
 - What a reservoir stores: y, M, W [`storage`]; the reservoir images, view modes: light id, W [`storage`].
-- The paper's choices: M = 32, lights by power (alias table; the lab a CDF), p̂ unshadowed ρ·Le·G
+- The paper's choices: M = 32, lights by power (alias table, the lab's too), 25% from an environment map (the lab's sky, a toggle), p̂ unshadowed ρ·Le·G
   [`candidates-param`, `alias`, `target-param`].
 - Cost is linear in M [`streaming-cost`]; the noise left (M sweep in the image).
 

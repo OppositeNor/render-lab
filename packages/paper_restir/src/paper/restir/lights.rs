@@ -2,9 +2,11 @@
 //! paper's emissive triangles (its scenes have thousands to millions, 148:10
 //! §6; this room has at most `MAX_LIGHTS`). Where each is, how large, and its
 //! radiance follow from the shot (`place`), so a story can move them as the
-//! paper's dynamic lights move; `pack` writes them for the shaders, with the CDF
-//! of their power the candidates are drawn from (§5, "Candidate Generation").
+//! paper's dynamic lights move; `pack` writes them for the shaders, with the
+//! alias table of their power the candidates are drawn from (§5, "Candidate
+//! Generation").
 
+use super::alias::{self, AliasColumn};
 use glam::{Vec3, Vec4};
 use lab::layout::ObjectData;
 use lab::shot::ShotState;
@@ -97,38 +99,47 @@ pub fn place(state: &ShotState) -> Vec<Light> {
 }
 
 /// The shaders' light list (restir_shading.wgsl, gShadingFrame): a header (count, total power, the first light's
-/// object index), then each light's centre and radius, and its radiance and the CDF of the power up to it.
-pub fn pack(lights: &[Light]) -> Vec<[f32; 4]> {
+/// object index, and the environment map's Σ luminance × solid angle, 0 when the room has none), then each light's
+/// centre and radius, its radiance and share of the power, and its column of the alias table the candidates draw
+/// it from (§5, "Candidate Generation").
+pub fn pack(lights: &[Light], environment: bool) -> Vec<[f32; 4]> {
     let total: f32 = lights.iter().map(Light::power).sum();
-    let mut out = vec![[lights.len() as f32, total, FIRST_LIGHT as f32, 0.0]];
-    let mut running = 0.0;
-    for (i, l) in lights.iter().enumerate() {
-        // The last light's CDF is exactly 1, so a draw below 1 always finds one.
-        running += l.power();
-        let cdf = if i + 1 == lights.len() {
-            1.0
-        } else {
-            running / total
-        };
+    let norm = if environment {
+        super::environment::table().norm
+    } else {
+        0.0
+    };
+    let mut out = vec![[lights.len() as f32, total, FIRST_LIGHT as f32, norm]];
+    for (l, c) in lights.iter().zip(table(lights)) {
         out.push(l.center.extend(l.radius).to_array());
-        out.push(l.radiance.extend(cdf).to_array());
+        out.push(l.radiance.extend(l.power() / total).to_array());
+        out.push([c.own, c.alias as f32, 0.0, 0.0]);
     }
     out
 }
 
-/// The CDF entries `pack` writes, for the CPU mirror.
-pub fn cdf(lights: &[Light]) -> Vec<f32> {
-    pack(lights)
-        .iter()
-        .skip(2)
-        .step_by(2)
-        .map(|v| v[3])
-        .collect()
+/// The alias table over the lights' powers (`restirPickLight`).
+pub fn table(lights: &[Light]) -> Vec<AliasColumn> {
+    alias::table(&lights.iter().map(Light::power).collect::<Vec<_>>())
 }
 
-/// The scene's light spheres moved, sized, and lit as `lights` says; those past the count put out and away.
-pub fn apply(objects: &mut [ObjectData], lights: &[Light]) {
+/// Each light's share of the power (`restirSourcePdf`).
+pub fn shares(lights: &[Light]) -> Vec<f32> {
+    let total: f32 = lights.iter().map(Light::power).sum();
+    lights.iter().map(|l| l.power() / total).collect()
+}
+
+/// The scene's light spheres moved, sized, and lit as `lights` says; those past the count put out and away. Under
+/// the sky the dark ceiling panel is moved away too, so it does not shade the room from it.
+pub fn apply(objects: &mut [ObjectData], lights: &[Light], environment: bool) {
     objects[PANEL].emissive = [0.0; 4];
+    if environment {
+        let m = glam::Mat4::from_translation(Vec3::new(0.0, -50.0, 0.0));
+        let panel = &mut objects[PANEL];
+        panel.local_to_world = m.to_cols_array_2d();
+        panel.world_to_local = m.inverse().to_cols_array_2d();
+        panel.world_center = [0.0, -50.0, 0.0];
+    }
     for i in 0..MAX_LIGHTS {
         let o = &mut objects[FIRST_LIGHT + i];
         let (center, radius, radiance) = match lights.get(i) {

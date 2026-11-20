@@ -39,19 +39,22 @@ const STILL_KEYS: &[&str] = &[
     "restirTemporalClamp",
     "restirView",
     "restirStage",
+    "restirEnvironment",
     "lightCount",
     "lightPhase",
     "lightIntensity",
 ];
 
 /// What the plan keeps from frame to frame: the frame's number (the seed of its random numbers), last frame's
-/// camera, and what the averaged frames were drawn with and how many there are.
+/// camera, what the averaged frames were drawn with and how many there are, and whether the environment map's
+/// alias table has been sent (the program's buffers live as long as the plan).
 #[derive(Default)]
 pub struct Plan {
     frame: u32,
     last: Option<(Mat4, [f32; 3])>,
     still: Option<Vec<u32>>,
     averaged: u32,
+    environment: bool,
 }
 
 /// A dispatch over an image of `size`, in 8 x 8 groups.
@@ -100,6 +103,16 @@ impl Plan {
         let size = f.viewport;
         let current = camera(state, size);
         let mut out = Vec::new();
+        // The environment map's alias table, on the first frame and on every frame that stands alone: it does not
+        // change, but a frame's plan can be planned again before it is recorded (a warm-up), its upload lost.
+        if !self.environment || !f.history {
+            self.environment = true;
+            out.push(ProgramCommand::Upload {
+                buffer: Element::of("restirEnvironment", 0),
+                offset: 0,
+                words: super::environment::table().words(),
+            });
+        }
         // A frame that stands alone starts from nothing: no last frame, and the first seed.
         if !f.history {
             for image in ["prev", "prevP", "prevM", "prevA"] {

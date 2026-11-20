@@ -10,6 +10,7 @@
 //! Streams of candidates are drawn from it and run through the lab's reservoir (cpu.rs `Reservoir::update_with`,
 //! demos/ris.rs `trace`).
 
+use super::alias::AliasColumn;
 use super::cpu::{Reservoir, Sample};
 use super::demos::ris::{Candidate, Trace, trace};
 use glam::Vec2;
@@ -316,41 +317,9 @@ pub fn history(current: f32, clamp: f32, frames: usize) -> (Vec<f32>, Vec<f32>) 
     (ms, shares)
 }
 
-/// One column of an alias table: the part of the column its own light keeps (the rest is its alias's).
-#[derive(Clone, Copy, Debug)]
-pub struct AliasColumn {
-    pub own: f32,
-    pub alias: usize,
-}
-
-/// An alias table over the example's shares, built by Vose's method (Vose, "A linear algorithm for generating random
-/// numbers with a given distribution", IEEE TSE 1991): each share scaled by the number of lights; a column under 1
-/// is topped up by a light over 1, which keeps what is left. The lab's illustration of the paper's structure: the
-/// lab itself picks with its CDF (`cpu::bisect`).
+/// The alias table over the example's shares, as the lab draws its own lights (alias.rs, Vose's method).
 pub fn alias_table(shares: &[f32]) -> Vec<AliasColumn> {
-    let n = shares.len();
-    let mut scaled: Vec<f32> = shares.iter().map(|s| s * n as f32).collect();
-    let mut table = vec![AliasColumn { own: 1.0, alias: 0 }; n];
-    let (mut small, mut large): (Vec<usize>, Vec<usize>) = (0..n).partition(|&i| scaled[i] < 1.0);
-    while let (Some(&l), Some(&g)) = (small.last(), large.last()) {
-        // Column l keeps its scaled share and takes the rest from g, which moves to the list its remainder fits.
-        small.pop();
-        large.pop();
-        table[l] = AliasColumn {
-            own: scaled[l],
-            alias: g,
-        };
-        scaled[g] -= 1.0 - scaled[l];
-        if scaled[g] < 1.0 {
-            small.push(g);
-        } else {
-            large.push(g);
-        }
-    }
-    for i in small.into_iter().chain(large) {
-        table[i] = AliasColumn { own: 1.0, alias: i };
-    }
-    table
+    super::alias::table(shares)
 }
 
 /// A piece of the alias table: part of a light's share, in a column from `lo` to `hi` (a column's height is 1), and
@@ -401,21 +370,6 @@ pub fn shares() -> Vec<f32> {
     lights_at(0, 0.0, 1.0).iter().map(|l| l.share).collect()
 }
 
-/// The lab's pick of a light for the number `u` over the example's shares (the running sum and `cpu::bisect`):
-/// each halving's range and middle (lo, hi, mid), with the running sum at the middle, then the light found.
-pub fn search(u: f32) -> (Vec<(usize, usize, usize, f32)>, usize) {
-    let cdf: Vec<f32> = shares()
-        .iter()
-        .scan(0.0, |run, s| {
-            *run += s;
-            Some(*run)
-        })
-        .collect();
-    let mut steps = Vec::new();
-    let found = super::cpu::bisect(&cdf, u, |lo, hi, mid| steps.push((lo, hi, mid, cdf[mid])));
-    (steps, found)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -453,9 +407,5 @@ mod tests {
                 "light {light}: {sum} for {share}"
             );
         }
-        let (steps, found) = search(0.5);
-        assert!(!steps.is_empty());
-        let before: f32 = shares[..found].iter().sum();
-        assert!(before <= 0.5 && before + shares[found] > 0.5);
     }
 }

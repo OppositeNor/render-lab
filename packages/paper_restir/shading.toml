@@ -37,6 +37,7 @@ uses = [
     { binding = 6, resource = "surfM", access = "write" },
     { binding = 7, resource = "surfA", access = "write" },
     { binding = 8, resource = "initial", access = "write" },
+    { binding = 9, resource = "restirEnvironment", access = "read" },
 ]
 
 # Alg. 5 lines 7-9: visibility reuse.
@@ -298,3 +299,9 @@ viewport = 1
 [[program.buffer]]
 name = "restirScene"
 bytes = 144
+
+# The environment map's alias table (src/paper/restir/environment.rs `words`): two words per texel of the level
+# lighting reads, 1024 x 512; the plan writes it once.
+[[program.buffer]]
+name = "restirEnvironment"
+bytes = 4194304

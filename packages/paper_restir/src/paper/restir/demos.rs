@@ -21,8 +21,13 @@ pub const BLOCKED: egui::Color32 = egui::Color32::from_rgb(235, 80, 70);
 /// The scene's records with the shot's lights on them.
 pub fn objects_for(state: &ShotState, statics: &Statics) -> Vec<lab::layout::ObjectData> {
     let mut objects = statics.scene.records();
-    lights::apply(&mut objects, &lights::place(state));
+    lights::apply(&mut objects, &lights::place(state), sky(state) > 0.0);
     objects
+}
+
+/// The sky's level (`restirEnvironment`): 0 when the room has no environment map.
+pub fn sky(state: &ShotState) -> f32 {
+    state.p("restirEnvironment").max(0.0)
 }
 
 pub fn build_frame(
@@ -40,7 +45,8 @@ pub fn build_frame(
         light_axis_u: lighting.light.axis_u.extend(0.0).to_array(),
         light_axis_v: lighting.light.axis_v.extend(0.0).to_array(),
         light_color: [0.0; 4],
-        ambient_color: [0.0; 4],
+        // The sky at its level (common.wgsl's environmentRadiance and skyRadiance read it).
+        ambient_color: [sky(state), sky(state), sky(state), 0.0],
         floor_params: [1.0, lighting.f0, 0.0, 1.0],
         overlay_params: [lighting.exposure, pixel_scale, time, 0.0],
         // The ceiling panel is dark here and not drawn: the raster-hidden mask.
@@ -54,7 +60,7 @@ pub fn build_frame(
     };
     let mut content = FrameContent::new(objects, uniforms);
     let placed = lights::place(state);
-    content.shading_frame = lights::pack(&placed);
+    content.shading_frame = lights::pack(&placed, sky(state) > 0.0);
     match Demo::of(state.demo) {
         Demo::Ris => ris::draw(state, &mut content, &placed, &statics.meshes),
         Demo::Reuse => reuse::draw(state, &mut content, &placed, &statics.meshes),

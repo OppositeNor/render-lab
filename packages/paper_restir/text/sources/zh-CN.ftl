@@ -41,7 +41,7 @@ entry-alg6-inspect = 算法 6：Z 累加那些在该样本处 p̂ 不为零的�
 entry-approx-pdf-inspect = 每个来源像素的 p̂ 代替其样本未知的 PDF，在那个 PDF 为零处它也为零；启用可见性复用时，可见性也是它的一部分。
 entry-unbiased-cost-inspect = 启用可见性复用时，无偏合并要为每个邻居多发一条阴影光线。
 entry-candidates-param-inspect = M = 32 个候选：按功率选一个发光三角形，再在其上均匀取一点（p ∝ Le）；有环境贴图时 25% 取自环境贴图。
-entry-alias-inspect = 用别名表（Walker 1974）选取光源。
+entry-alias-inspect = 三角形和环境贴图上的位置，都用别名表（Walker 1974）做重要性采样。
 entry-target-param-inspect = 目标 p̂ ∝ ρ · Le · G，不含阴影；材质为 Lambert 底层上的一层 GGX 电介质。
 entry-neighbors-param-inspect = k = 5 个邻居（无偏时为 3），在 30 像素半径内由低差异序列随机取点；固定的邻居会产生瑕疵。
 entry-temporal-pick-inspect = 时间邻居：用运动向量把当前像素的位置投影到上一帧。

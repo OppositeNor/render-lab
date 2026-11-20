@@ -49,22 +49,35 @@ struct RestirShading {
     /// reuse, 3 after spatial reuse (the frame's).
     /// {@ key=restirStage default=3 range=0,3 unit=index label=view text=controls-stage help=help-restirStage}
     stage: f32,
+    /// The sky's level: 0, the room has no environment map; above it, the lab's environment map lights the room at
+    /// that scale, and a quarter of the candidates are drawn from it (§5, "Candidate Generation").
+    /// {@ key=restirEnvironment default=0 range=0,4 label=restir text=controls-environment help=help-restirEnvironment}
+    environment: f32,
 }
 /// {@ shader_data}
 @group(1) @binding(0) var<uniform> gShading: RestirShading;
 
 // gShadingFrame (src/paper/restir/lights.rs `pack`): [0] the light count, the total power, the first light's
-// object index, 0; then per light two vectors: its centre and radius, its radiance and the share of the total
-// power of the lights up to and including it (the CDF lights are picked from).
+// object index, and the environment map's sum of luminance times solid angle (0 when the room has none); then per
+// light three vectors: its centre and radius, its radiance and share of the total power, and its column of the
+// alias table lights are picked from (its own part and its alias).
 @group(1) @binding(2) var<storage, read> gShadingFrame: array<vec4<f32>>;
 
 const RESTIR_NONE: u32 = 0xffffffffu;
+// A sample of the environment map in place of a light index (environment.rs `MARKER`).
+const RESTIR_ENVIRONMENT: u32 = 0xfffffffeu;
+// The share of the candidates drawn from the environment map when the room has one (§5).
+const RESTIR_ENVIRONMENT_SHARE: f32 = 0.25;
+// How far a shadow ray toward the sky goes (cpu.rs `SKY_RAY`).
+const RESTIR_SKY_RAY: f32 = 1000.0;
 
 struct Light {
     center: vec3<f32>,
     radius: f32,
     radiance: vec3<f32>,
-    cdf: f32,
+    share: f32,
+    own: f32,
+    aliasOf: u32,
 }
 
 fn restirLightCount() -> u32 {
@@ -76,9 +89,19 @@ fn restirFirstLightObject() -> u32 {
 }
 
 fn restirLight(i: u32) -> Light {
-    let a = gShadingFrame[1u + 2u * i];
-    let b = gShadingFrame[2u + 2u * i];
-    return Light(a.xyz, a.w, b.xyz, b.w);
+    let a = gShadingFrame[1u + 3u * i];
+    let b = gShadingFrame[2u + 3u * i];
+    let c = gShadingFrame[3u + 3u * i];
+    return Light(a.xyz, a.w, b.xyz, b.w, c.x, u32(c.y));
+}
+
+fn restirEnvironmentNorm() -> f32 {
+    return gShadingFrame[0].w;
+}
+
+// The share of the candidates drawn from the environment map: none when the room has no sky.
+fn restirEnvironmentShare() -> f32 {
+    return select(0.0, RESTIR_ENVIRONMENT_SHARE, restirEnvironmentNorm() > 0.0);
 }
 
 fn restirLuminance(c: vec3<f32>) -> f32 {
@@ -117,7 +140,8 @@ fn restirRand(rng: ptr<function, Rng>) -> f32 {
 // ---------------------------------------------------------------------------
 // A light sample: a light and a point on it, the point kept as two 16-bit
 // coordinates on the sphere (z and the angle), so the point read back is the
-// point the weights were computed for.
+// point the weights were computed for; or the environment map's marker and a
+// direction, kept as two 16-bit coordinates of its image (across and down).
 
 struct Sample {
     light: u32,
@@ -138,27 +162,67 @@ fn restirSamplePoint(s: Sample) -> vec3<f32> {
     return l.center + l.radius * restirSampleDir(s.uv);
 }
 
-// The light picked by power: the first whose CDF passes u (a binary search).
+// The light picked by power from the alias table (§5; alias.rs `draw`): its column from u times the count, then
+// the column's own light if what is left of u falls under its part, else its alias.
 fn restirPickLight(u: f32) -> u32 {
-    var lo = 0u;
-    var hi = restirLightCount() - 1u;
-    while (lo < hi) {
-        let mid = (lo + hi) / 2u;
-        if (restirLight(mid).cdf > u) {
-            hi = mid;
-        } else {
-            lo = mid + 1u;
-        }
-    }
-    return lo;
+    let n = restirLightCount();
+    let x = u * f32(n);
+    let i = min(u32(x), n - 1u);
+    let l = restirLight(i);
+    return select(l.aliasOf, i, x - f32(i) < l.own);
 }
 
-// p(x) of a candidate (§5, "Candidate Generation"): the light's share of the power, then a uniform point on its
-// surface, so per unit area (Le ∝ p, as the paper's p ∝ Le).
-fn restirSourcePdf(light: u32) -> f32 {
-    let l = restirLight(light);
-    let before = select(0.0, restirLight(light - 1u).cdf, light > 0u);
-    return (l.cdf - before) / (4.0 * PI * l.radius * l.radius);
+// The texel of the environment map at the level lighting reads that a sample lies in, across and down
+// (environment.rs `texel`): the top bits of its two coordinates.
+fn restirEnvironmentTexel(uv: u32) -> vec2<u32> {
+    let size = textureDimensions(gEnvironment, ENVIRONMENT_LIGHTING_LEVEL);
+    return vec2<u32>((uv & 0xffffu) / (65536u / size.x), (uv >> 16u) / (65536u / size.y));
+}
+
+// The radiance of a sample's texel, before the sky's level.
+fn restirEnvironmentTexelRadiance(uv: u32) -> vec3<f32> {
+    return textureLoad(gEnvironment, vec2<i32>(restirEnvironmentTexel(uv)), ENVIRONMENT_LIGHTING_LEVEL).rgb;
+}
+
+fn restirEnvironmentTheta(uv: u32) -> f32 {
+    return (f32(uv >> 16u) + 0.5) / 65536.0 * PI;
+}
+
+// A sample's direction (environment.rs `direction`): the centre of its cell, as common.wgsl's `environment` maps
+// directions to the image.
+fn restirEnvironmentDir(uv: u32) -> vec3<f32> {
+    let s = (f32(uv & 0xffffu) + 0.5) / 65536.0;
+    let theta = restirEnvironmentTheta(uv);
+    let phi = (s - 0.5 - ENVIRONMENT_TURN) * 2.0 * PI;
+    return vec3<f32>(sin(theta) * sin(phi), cos(theta), -sin(theta) * cos(phi));
+}
+
+// A texel's solid angle (environment.rs `texel_solid_angle`): its azimuth's width times 2 sin θ sin(Δθ / 2).
+fn restirTexelSolidAngle(size: vec2<u32>, row: u32) -> f32 {
+    let h = f32(size.y);
+    let theta = (f32(row) + 0.5) / h * PI;
+    return 2.0 * PI / f32(size.x) * 2.0 * sin(theta) * sin(0.5 * PI / h);
+}
+
+// The density per steradian of a sample of the environment map (environment.rs `pdf`): its texel's luminance over
+// the sum, times the texel's solid angle over that of the sample's cell, times the cells a texel has.
+fn restirEnvironmentPdf(uv: u32) -> f32 {
+    let size = textureDimensions(gEnvironment, ENVIRONMENT_LIGHTING_LEVEL);
+    let row = restirEnvironmentTexel(uv).y;
+    let cells = f32((65536u / size.x) * (65536u / size.y));
+    let cell = 2.0 * PI / 65536.0 * 2.0 * sin(restirEnvironmentTheta(uv)) * sin(0.5 * PI / 65536.0);
+    return restirLuminance(restirEnvironmentTexelRadiance(uv)) / restirEnvironmentNorm() * restirTexelSolidAngle(size, row) / (cells * cell);
+}
+
+// p(x) of a candidate (§5, "Candidate Generation"): for a light, its share of the power, then a uniform point on
+// its surface, so per unit area (Le ∝ p, as the paper's p ∝ Le); for the environment map, per steradian. Each
+// times the share of the candidates drawn that way.
+fn restirSourcePdf(x: Sample) -> f32 {
+    if (x.light == RESTIR_ENVIRONMENT) {
+        return RESTIR_ENVIRONMENT_SHARE * restirEnvironmentPdf(x.uv);
+    }
+    let l = restirLight(x.light);
+    return (1.0 - restirEnvironmentShare()) * l.share / (4.0 * PI * l.radius * l.radius);
 }
 
 // ---------------------------------------------------------------------------
@@ -197,10 +261,20 @@ fn restirBrdf(s: Surface, l: vec3<f32>, v: vec3<f32>) -> vec3<f32> {
 }
 
 // The unshadowed contribution ρ · Le · G of a sample at a surface (the paper's
-// target, §5), and p̂, its luminance.
+// target, §5), and p̂, its luminance; for the environment map ρ · Le · cos θ,
+// per steradian.
 fn restirContribution(s: Surface, x: Sample) -> vec3<f32> {
     if (!s.valid || x.light == RESTIR_NONE) {
         return vec3<f32>(0.0);
+    }
+    if (x.light == RESTIR_ENVIRONMENT) {
+        let wi = restirEnvironmentDir(x.uv);
+        let cosSky = dot(s.normal, wi);
+        if (cosSky <= 0.0) {
+            return vec3<f32>(0.0);
+        }
+        let toEye = normalize(gFrame.camera.position - s.position);
+        return restirBrdf(s, wi, toEye) * (gFrame.ambientColor.rgb * restirEnvironmentTexelRadiance(x.uv)) * cosSky;
     }
     let l = restirLight(x.light);
     let dir = restirSampleDir(x.uv);
@@ -226,8 +300,13 @@ fn restirTarget(s: Surface, x: Sample) -> f32 {
 
 // V: whether the segment from the surface to the sample is clear, traced in hardware against the scene's
 // triangles (render_lab's rays.wgsl). The room's objects block it, the surface's own object aside; the lights
-// do not block one another (the lab's choice: they are small), nor do the planes of the walls and floor.
+// do not block one another (the lab's choice: they are small), nor do the planes of the walls and floor. A ray
+// toward the sky is blocked by the walls and floor too, but not by the lights.
 fn restirVisible(s: Surface, x: Sample) -> bool {
+    if (x.light == RESTIR_ENVIRONMENT) {
+        let origin = s.position + s.normal * 1e-3;
+        return sceneRayClear(gRestirTlas, origin, restirEnvironmentDir(x.uv), RESTIR_SKY_RAY, RAY_MASK_OCCLUDER | RAY_MASK_OTHER, s.object);
+    }
     let p = restirSamplePoint(x);
     let toLight = p - s.position;
     let dist = length(toLight);

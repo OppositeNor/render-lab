@@ -46,8 +46,8 @@ $[# {_total lights} {fold lights 0.0 {^ {t l} {+ t {.brings l}}}}]
 Fn([List({brings: Float, share: Float})], Float). The largest share.
 $[# {_maxShare lights} {fold lights 0.000001 {^ {m l} {max m {.share l}}}}]
 
-Fn([List(Float), Float], Int). The light a uniform number `u` picks by the shares' running sum (as the lab's CDF and
-binary search do, cpu.rs `Scene::pick`).
+Fn([List(Float), Float], Int). The light a uniform number `u` picks by the shares' running sum: the share whose span
+holds `u`, the same distribution as the alias table the lab draws its own lights from (alias.rs).
 $[# {_pick shares u}
     [# starts {runningSums shares}]
     [# n {length shares}]

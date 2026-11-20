@@ -11,7 +11,8 @@ and mirrored on the CPU (`cpu.rs`). Its shadow rays use hardware ray tracing, wh
 ## The passes
 
 In the order of Alg. 5 (gpu.rs): the pre-pass writes each pixel's normal, object, albedo, and roughness; streaming
-RIS draws M candidates per pixel (a light by power, a uniform point on its sphere) through one reservoir (Alg. 3);
+RIS draws M candidates per pixel (a light by power from an alias table, a uniform point on its sphere; under the sky,
+`restirEnvironment`, a quarter of them a direction from the environment map's alias table) through one reservoir (Alg. 3);
 visibility reuse traces a shadow ray to each pixel's sample and zeroes W where it is blocked; temporal reuse combines
 each reservoir with last frame's at the reprojected pixel, M clamped; n rounds of spatial reuse combine k
 neighbours' reservoirs from a disc (Alg. 4, or Alg. 6 unbiased); the frame's reservoirs are kept; and each pixel is
@@ -31,16 +32,16 @@ reference on the machine that runs it.
 Where the lab differs from the paper:
 
 - The paper's scenes (thousands to millions of emissive triangles) are replaced by the lab's room with 64 small spherical lights that move along loops.
-- Lights are picked by power with a CDF and a binary search, where the paper uses an alias table: the same distribution, a different lookup.
+- Lights are picked by power from an alias table, as the paper's are; the environment map's texels are drawn from one too, weighted by luminance times solid angle (the paper does not give its weights).
 - A candidate is a uniform point on a light's sphere; points on the far side have a target of zero, as a triangle facing away does.
 - The lights do not block one another's shadow rays; the room's objects do.
-- There is no environment map, so the paper's 25% of environment candidates does not apply.
+- The environment map is the lab's sky (the dock's Environment map, off unless a beat turns it on); while it is on, a quarter of the candidates come from it, as in the paper. A direction drawn from it is uniform within its texel, and its radiance is the texel's. Its shadow rays are blocked by the walls and floor, not by the lights; the dark ceiling panel is moved away under it.
 - Both variants keep one reservoir per pixel (N = 1); the paper's biased results keep four.
 - Spatial neighbours come from the R2 sequence turned per pixel; the paper says only "a low-discrepancy sequence".
 - The geometry test (10% of the depth, 25 degrees) is applied to the temporal neighbour too.
 - The temporal neighbour is found by reprojecting the pixel's point with last frame's camera; the room's objects do not move.
 - The material is the lab's albedo and roughness through a GGX dielectric over Lambert, as the paper's unified material.
-- Shadow rays are traced in hardware (ray queries) against the scene's triangles, so the spheres are their raster tessellation; the lights and the room's planes do not block them.
+- Shadow rays are traced in hardware (ray queries) against the scene's triangles, so the spheres are their raster tessellation; the lights and the room's planes do not block them, except that the planes block a shadow ray toward the sky.
 - A frame drawn alone first draws the same shot eight times, so its temporal reuse has frames before it.
 
 ## Verify

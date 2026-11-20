@@ -110,7 +110,7 @@ ENTRIES: list[tuple[str, str, int, str, str, str]] = [
     ('candidates-param', '5', 9, 'Section 5', 'We sample M = 32 initial candidates',
      'M = 32 candidates, an emissive triangle by power, then a uniform point on it (p ∝ Le); 25% from the environment map when there is one.'),
     ('alias', '5', 9, 'Section 5', 'accelerated using an alias table',
-     'Lights are picked with an alias table (Walker 1974).'),
+     'Both the triangles and the environment map\'s locations are importance sampled with an alias table (Walker 1974).'),
     ('target-param', '5', 9, 'Section 5', 'We use the unshadowed path contribution',
      'The target p̂ ∝ ρ · Le · G, unshadowed; the material a GGX dielectric layer over a Lambertian base.'),
     ('neighbors-param', '5', 9, 'Section 5', 'we instead sample k = 5',

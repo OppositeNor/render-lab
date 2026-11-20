@@ -13,14 +13,13 @@
 //! | `toyKept i` | the chance RIS keeps sample i, and W's mean when it does |
 //! | `exampleLights which phase intensity` | the math scenes' example world (examples.rs): what each light brings to P (0) or Q (1), and its share of the power |
 //! | `exampleTrace seed count`, `exampleMerge seed count` | a stream of that world's candidates through the lab's reservoir, its steps and its merge |
-//! | `exampleAlias` | an alias table over that world's shares (the lab's illustration of the paper's): each column's own part and alias |
+//! | `exampleAlias` | an alias table over that world's shares (as the paper's and the lab's lights are drawn): each column's own part and alias |
 //! | `examplePieces` | that table's pieces, each a part of a light's share in a column |
 //! | `exampleCombine seed count` | P's reservoir and its neighbours' in that world, each of `count` candidates, combined at P as the lab's spatial pass does |
 //! | `exampleReach k radius rounds seed` | for each number of rounds of spatial reuse, the paths down the paper's tree (k to the n) and the distinct pixels they end on, with the lab's neighbour pattern |
 //! | `exampleHistory current clamp frames` | a pixel's M over frames of temporal reuse (the lab's count, its clamp; 0 none), and each frame's share of the last M |
 //! | `biasCurves m weight nearZero` | the 1D example's curves (demos/bias.rs, Fig. 7): per bin, the true inverse PDF of RIS's output and the mean of W, and the runs behind them |
 //! | `biasPdf i x nearZero`, `biasTarget x` | that example's PDFs (0 the flat one, 1 the step) and its target at x |
-//! | `exampleSearch u` | the lab's binary search over the running sum of the shares for `u`: each halving, then the light found |
 
 use super::demos::ris::Trace;
 use super::demos::toy::{self, Drop};
@@ -92,24 +91,6 @@ lab::lamlet_record! {
         pub hi: f64 = "hi",
         pub start: f64 = "start",
         pub length: f64 = "length",
-    }
-}
-
-lab::lamlet_record! {
-    /// One halving of the lab's binary search: the range, its middle, and the running sum there.
-    pub struct SearchStep {
-        pub lo: i64 = "lo",
-        pub hi: i64 = "hi",
-        pub mid: i64 = "mid",
-        pub sum: f64 = "sum",
-    }
-}
-
-lab::lamlet_record! {
-    /// The lab's binary search for a number: its halvings and the light it finds.
-    pub struct SearchRecord {
-        pub steps: Vec<SearchStep> = "steps",
-        pub found: i64 = "found",
     }
 }
 
@@ -368,7 +349,7 @@ fn register_reuse(natives: &mut NativeRegistry) -> Result<(), Error> {
     Ok(())
 }
 
-/// The natives of the example's alias table and binary search, and of its reservoirs combined.
+/// The natives of the example's alias table, and of its reservoirs combined.
 fn register_alias(natives: &mut NativeRegistry) -> Result<(), Error> {
     natives
         .function("paper_restir/example-combine", |_, (seed, count): (i64, i64)| {
@@ -409,7 +390,7 @@ fn register_alias(natives: &mut NativeRegistry) -> Result<(), Error> {
                 })
                 .collect::<Vec<_>>())
         })
-        .doc("Fn([], List({alias: Int, own: Float})). An alias table over the example's shares (Vose's method; the lab's illustration of the paper's): each column's own part (of 1) and the light that has the rest.")
+        .doc("Fn([], List({alias: Int, own: Float})). An alias table over the example's shares (Vose's method, as the lab draws its lights): each column's own part (of 1) and the light that has the rest.")
         .register()?;
     natives
         .function("paper_restir/example-pieces", |_, ()| {
@@ -427,24 +408,6 @@ fn register_alias(natives: &mut NativeRegistry) -> Result<(), Error> {
                 .collect::<Vec<_>>())
         })
         .doc("Fn([], List({column: Int, hi: Float, length: Float, light: Int, lo: Float, start: Float})). The alias table's pieces, each light's in turn: its column and its span there (a column 1 high), and where it lies along the shares laid end to end.")
-        .register()?;
-    natives
-        .function("paper_restir/example-search", |_, (u,): (f64,)| {
-            let (steps, found) = examples::search(u as f32);
-            Ok(SearchRecord {
-                steps: steps
-                    .iter()
-                    .map(|&(lo, hi, mid, sum)| SearchStep {
-                        lo: lo as i64,
-                        hi: hi as i64,
-                        mid: mid as i64,
-                        sum: f64::from(sum),
-                    })
-                    .collect(),
-                found: found as i64,
-            })
-        })
-        .doc("Fn([Float], {found: Int, steps: List({hi: Int, lo: Int, mid: Int, sum: Float})}). The lab's pick for the number `u` over the example's shares: each halving of the binary search over their running sum (its range, middle, and the sum there), and the light found.")
         .register()?;
     Ok(())
 }

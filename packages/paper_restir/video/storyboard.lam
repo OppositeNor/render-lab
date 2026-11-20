@@ -599,7 +599,7 @@ That merge is what will let pixels share.
 
 The related work is in section seven, and these two ideas are in section two.
 
-## Streaming RIS {#c3 number=3 target=116 summary="RIS through one reservoir per pixel: what it stores, the paper's choices, and what it costs." sources="alg3, storage, candidates-param, alias, target-param, streaming-cost"}
+## Streaming RIS {#c3 number=3 target=134 summary="RIS through one reservoir per pixel: what it stores, the paper's choices, and what it costs." sources="alg3, storage, candidates-param, alias, target-param, streaming-cost"}
 
 ### One reservoir per pixel {#c3-alg3 kind=3d}
 
@@ -679,9 +679,33 @@ Then it ${overText {' playOverParamsStep2} "picks a uniform point on that triang
 
 ${overText
     {' playOverParamsStep3}
-    "The lab's lights are spheres instead, picked by power with a table of summed powers and a binary search"}.
+    "The lab's lights are spheres instead, picked by power from the same kind of table"}.
 
-This gives ${overText {' playOverParamsStep4} "the same distribution"}.
+${overText
+    {' playOverParamsStep4}
+    "Each light's pieces of the table add up to its share of the power"}.
+
+### The sky as a light {#c3-params-sky kind=3d}
+
+${cue "key" {opening demoRoom panelHidden {append baseRoom {append roomCamera {'
+    {restirEnvironment 0.0}}}}}}
+${cue "key" floatRoom}
+
+${cue "key" {' {callout "candidates-param"}}}When a scene has an environment map, ${overText
+    {' {restirEnvironmentRange 0.0 0.4}}
+    "a quarter of the candidates come from it instead"}.
+
+${cue "key" {' {callout "alias"}}}Those candidates are directions, ${overText
+    {' {lightPhaseRange 0.0 0.03}}
+    "drawn from an alias table like the triangles"}.
+
+The lab's room has no ceiling, so ${overText
+    {' {lightPhaseRange 0.03 0.06}}
+    "its sky lights the room from above"}.
+
+${cue "key" {' {restirView 1.0}}}In this view, ${overText
+    {' {lightPhaseRange 0.06 0.09}}
+    "pixels whose sample is on the sky are blue"}.
 
 ### The target and the cost {#c3-params-target kind=3d}
 

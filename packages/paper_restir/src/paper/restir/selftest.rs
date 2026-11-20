@@ -22,6 +22,7 @@ pub fn run(options: &lab::investigation::SelftestOptions) -> Result<bool> {
     std::fs::create_dir_all(&options.work_dir)?;
     let mut report = Report::new();
     check_estimator(&mut report);
+    check_alias(&mut report);
     check_reservoir(&mut report);
     check_bias(&mut report);
     check_toy(&mut report);
@@ -92,22 +93,28 @@ fn floor_surface() -> Surface {
 fn check_estimator(report: &mut Report) {
     let state = shot::for_demo(Demo::Room);
     let lights = lights::place(&state);
-    let cdf = lights::cdf(&lights);
+    let (shares, table) = (lights::shares(&lights), lights::table(&lights));
     let s = floor_surface();
     let mut scene = Scene {
         lights: &lights,
-        cdf: &cdf,
+        shares: &shares,
+        table: &table,
+        sky: 0.0,
         eye: Vec3::new(0.0, 1.6, 3.0),
         triangles: &[],
+        planes: &[],
         candidates: 4,
         unbiased: false,
         visibility_reuse: false,
     };
-    let exact = quadrature(&scene, &s);
+    let lit = quadrature(&scene, &s);
+    let sky = sky_quadrature(&s, scene.eye);
     let mut results = Vec::new();
-    for m in [1u32, 4, 32] {
-        // For each M, many runs from different seeds, averaged.
+    for (m, level) in [(1u32, 0.0f32), (4, 0.0), (32, 0.0), (1, 1.0), (32, 1.0)] {
+        // For each M, with and without the sky, many runs from different seeds, averaged.
         scene.candidates = m;
+        scene.sky = level;
+        let exact = lit + f64::from(level) * sky;
         let runs = 40_000;
         let mean: f64 = (0..runs)
             .map(|k| {
@@ -117,15 +124,89 @@ fn check_estimator(report: &mut Report) {
             })
             .sum::<f64>()
             / runs as f64;
-        results.push(json!({"M": m, "mean": mean, "relativeError": (mean - exact) / exact}));
+        results.push(json!({"M": m, "sky": level, "integral": exact, "mean": mean, "relativeError": (mean - exact) / exact}));
     }
     let ok = results
         .iter()
         .all(|r| r["relativeError"].as_f64().is_some_and(|e| e.abs() < 0.03));
     report.check(
-        "streaming RIS is unbiased (Eq. 6): f(y)·W averages to the integral for M = 1, 4, 32",
+        "streaming RIS is unbiased (Eq. 6): f(y)·W averages to the integral for M = 1, 4, 32, and with a quarter of the candidates from the sky for M = 1, 32",
         ok,
-        json!({"integral": exact, "runs": results}),
+        json!({"lights": lit, "skyAtLevelOne": sky, "runs": results}),
+    );
+}
+
+/// ∫ ρ · Le · cos θ dω over the sky's directions at level 1: in each texel, the integrand at 16 of its cells, each
+/// standing for a sixteenth of the texel's cells (the cells of one band of the sphere share a solid angle).
+fn sky_quadrature(s: &Surface, eye: Vec3) -> f64 {
+    use super::environment::{cell_solid_angle, direction, table};
+    let t = table();
+    let [w, h] = t.size;
+    let (across, down) = (65536 / w, 65536 / h);
+    let cells = (across * down) as f64 / 16.0;
+    let v = (eye - s.position).normalize();
+    let mut total = 0.0f64;
+    for (i, le) in t.radiance.iter().enumerate() {
+        let (x, y) = (i % w, i / w);
+        for (a, b) in (0..16).map(|k| (k % 4, k / 4)) {
+            // The cell at this point of the texel's 4 x 4 grid.
+            let uv = ((x * across + (2 * a + 1) * across / 8)
+                | ((y * down + (2 * b + 1) * down / 8) << 16)) as u32;
+            let wi = direction(uv);
+            let cos = s.normal.dot(wi);
+            if cos > 0.0 {
+                let f = lights::luminance(cpu::brdf(s, wi, v) * *le * cos);
+                total += f64::from(f) * f64::from(cell_solid_angle(uv)) * cells;
+            }
+        }
+    }
+    total
+}
+
+/// The alias tables the candidates are drawn from (§5): each gives every light its share of the power, and every
+/// texel of the environment map its share of luminance times solid angle.
+fn check_alias(report: &mut Report) {
+    use super::alias::{probabilities, table};
+    let worst = |weights: &[f32]| {
+        // The largest difference between an entry's probability and its weight's share, relative to the share.
+        let total: f64 = weights.iter().map(|&w| f64::from(w)).sum();
+        let p = probabilities(&table(weights));
+        weights
+            .iter()
+            .zip(&p)
+            .map(|(&w, p)| (p - f64::from(w) / total).abs() * weights.len() as f64)
+            .fold(0.0f64, f64::max)
+    };
+    let lights = lights::place(&shot::for_demo(Demo::Room));
+    let powers: Vec<f32> = lights.iter().map(Light::power).collect();
+    let sky = super::environment::table();
+    let texels: Vec<f32> = sky
+        .radiance
+        .iter()
+        .enumerate()
+        .map(|(i, c)| {
+            lights::luminance(*c) * super::environment::texel_solid_angle(sky.size, i / sky.size[0])
+        })
+        .collect();
+    let (l, e) = (worst(&powers), worst(&texels));
+    // A sample's direction, mapped back to the image as lab/src/environment.rs maps directions, lands in its texel.
+    let [w, h] = sky.size;
+    let strays = (0..4096u32)
+        .filter(|&k| {
+            let mut rng = Rng::new(UVec2::new(k, 3), 1, 5);
+            let uv = sky.draw([rng.rand(), rng.rand(), rng.rand(), rng.rand()]);
+            let d = super::environment::direction(uv);
+            let across = 0.5 + d.x.atan2(-d.z) / std::f32::consts::TAU + lab::environment::TURN;
+            let x = (across.rem_euclid(1.0) * w as f32) as usize % w;
+            let y = ((d.y.clamp(-1.0, 1.0).acos() / std::f32::consts::PI * h as f32) as usize)
+                .min(h - 1);
+            sky.texel(uv) != [x, y]
+        })
+        .count();
+    report.check(
+        "the alias tables (§5) give each light its share of the power and each texel of the sky its share of luminance times solid angle; a sky sample's direction lies in its texel",
+        l < 1e-5 && e < 1e-3 && strays == 0,
+        json!({"lights": powers.len(), "worstLight": l, "texels": texels.len(), "worstTexel": e, "directionsOutsideTheirTexel": strays}),
     );
 }
 
@@ -254,8 +335,10 @@ fn check_toy(report: &mut Report) {
 struct Frame {
     surf: [Image; 3],
     lights: Vec<Light>,
-    cdf: Vec<f32>,
+    shares: Vec<f32>,
+    table: Vec<super::alias::AliasColumn>,
     triangles: Vec<cpu::Triangle>,
+    planes: Vec<cpu::Triangle>,
     eye: Vec3,
 }
 
@@ -271,9 +354,12 @@ impl Frame {
     fn scene(&self, state: &ShotState) -> Scene<'_> {
         Scene {
             lights: &self.lights,
-            cdf: &self.cdf,
+            shares: &self.shares,
+            table: &self.table,
+            sky: super::demos::sky(state),
             eye: self.eye,
             triangles: &self.triangles,
+            planes: &self.planes,
             candidates: state.p("restirCandidates") as u32,
             unbiased: state.p("restirUnbiased") > 0.5,
             visibility_reuse: state.p("restirVisibilityReuse") > 0.5,
@@ -290,6 +376,7 @@ fn render(state: &ShotState) -> Result<(lab::renderer::Renderer, Frame)> {
     )?;
     let objects = super::demos::objects_for(state, &statics);
     let triangles = cpu::occluders(&statics.meshes, &objects);
+    let planes = cpu::planes(&statics.meshes, &objects);
     let mut renderer = lab::renderer::Renderer::new(gpu, statics, SIZE[0], SIZE[1])?;
     let still = still_timeline(SIZE[0], SIZE[1]);
     renderer.render_frame(request(state, &still), None);
@@ -300,9 +387,11 @@ fn render(state: &ShotState) -> Result<(lab::renderer::Renderer, Frame)> {
             read(&renderer, "surfM")?,
             read(&renderer, "surfA")?,
         ],
-        cdf: lights::cdf(&lights),
+        shares: lights::shares(&lights),
+        table: lights::table(&lights),
         lights,
         triangles,
+        planes,
         eye: Vec3::from(
             state
                 .camera
@@ -333,11 +422,24 @@ fn same(a: &Reservoir, b: &Reservoir) -> bool {
 }
 
 /// The passes against cpu.rs: candidates (Alg. 3) for the frame's seed, visibility, and one spatial round,
-/// biased (Alg. 4) and unbiased (Alg. 6), each from the GPU's own inputs.
+/// biased (Alg. 4) and unbiased (Alg. 6), each from the GPU's own inputs; without the sky and with it.
 fn check_passes(report: &mut Report) -> Result<()> {
+    for sky in [0.0, 1.0] {
+        check_passes_under(report, sky)?;
+    }
+    Ok(())
+}
+
+fn check_passes_under(report: &mut Report, sky: f32) -> Result<()> {
     let mut state = shot::for_demo(Demo::Room);
     state.set("restirTemporal", 0.0);
     state.set("restirSpatialPasses", 1.0);
+    state.set("restirEnvironment", sky);
+    let under = if sky > 0.0 {
+        ", under the sky"
+    } else {
+        ""
+    };
     for unbiased in [0.0, 1.0] {
         // One frame for each combination weight; the candidate and visibility checks need only the first.
         state.set("restirUnbiased", unbiased);
@@ -349,7 +451,7 @@ fn check_passes(report: &mut Report) -> Result<()> {
         let temporal = read(&renderer, "temporal")?;
         let spatial = read(&renderer, "resA")?;
         if unbiased == 0.0 {
-            check_candidates(report, &scene, &frame, &initial, &qs);
+            check_candidates(report, &scene, &frame, &initial, &qs, under);
             let agree = qs
                 .iter()
                 .filter(|q| {
@@ -365,7 +467,7 @@ fn check_passes(report: &mut Report) -> Result<()> {
                     v.w == expect && v.m == r.m
                 })
                 .count();
-            report.check("visibility reuse: an occluded sample's W becomes 0 and its M stays (Alg. 5 lines 7-9), as the CPU's shadow ray says", agree * 100 >= qs.len() * 99, json!({"pixels": qs.len(), "agree": agree}));
+            report.check(&format!("visibility reuse: an occluded sample's W becomes 0 and its M stays (Alg. 5 lines 7-9), as the CPU's shadow ray says{under}"), agree * 100 >= qs.len() * 99, json!({"pixels": qs.len(), "agree": agree}));
         }
         let seed = find_seed(&scene, &frame, &initial, &qs);
         let agree = qs
@@ -382,7 +484,7 @@ fn check_passes(report: &mut Report) -> Result<()> {
         };
         report.check(
             &format!(
-                "a spatial round, {name}: the GPU's reservoir is the CPU's from the same neighbours"
+                "a spatial round, {name}: the GPU's reservoir is the CPU's from the same neighbours{under}"
             ),
             agree * 100 >= qs.len() * 98,
             json!({"pixels": qs.len(), "agree": agree, "seed": seed}),
@@ -465,22 +567,31 @@ fn check_candidates(
     frame: &Frame,
     initial: &Image,
     qs: &[[i32; 2]],
+    under: &str,
 ) {
     let seed = find_seed(scene, frame, initial, qs);
-    let agree = qs
+    let pairs: Vec<(Reservoir, Reservoir)> = qs
         .iter()
-        .filter(|q| {
+        .map(|q| {
             let mut rng = Rng::new(UVec2::new(q[0] as u32, q[1] as u32), seed, 0);
-            same(
-                &scene.candidates(&frame.surface(**q), &mut rng),
-                &Reservoir::unpack(initial.texel(**q)),
-            )
+            let cpu = scene.candidates(&frame.surface(*q), &mut rng);
+            (cpu, Reservoir::unpack(initial.texel(*q)))
         })
-        .count();
+        .collect();
+    let agree = pairs.iter().filter(|(c, g)| same(c, g)).count();
+    // The first few pixels where they differ, for the report.
+    let differ: Vec<String> = pairs
+        .iter()
+        .filter(|(c, g)| !same(c, g))
+        .take(4)
+        .map(|(c, g)| format!("cpu {c:?} gpu {g:?}"))
+        .collect();
     report.check(
-        "streaming RIS (Alg. 3): each pixel's reservoir is the CPU's from the same candidates",
+        &format!(
+            "streaming RIS (Alg. 3): each pixel's reservoir is the CPU's from the same candidates{under}"
+        ),
         agree * 100 >= qs.len() * 98,
-        json!({"pixels": qs.len(), "agree": agree, "seed": seed}),
+        json!({"pixels": qs.len(), "agree": agree, "seed": seed, "fromTheSky": qs.iter().filter(|q| Reservoir::unpack(initial.texel(**q)).y.light == super::environment::MARKER).count(), "differ": differ}),
     );
 }
 

@@ -43,11 +43,15 @@ pub fn draw(
     let after = words(&temporal, q)
         .map(Reservoir::unpack)
         .unwrap_or(Reservoir::empty());
-    let cdf = lights::cdf(placed);
+    let (shares, table) = (lights::shares(placed), lights::table(placed));
     let triangles = cpu::occluders(meshes, &content.objects);
+    let planes = cpu::planes(meshes, &content.objects);
     let scene = Scene {
         lights: placed,
-        cdf: &cdf,
+        shares: &shares,
+        table: &table,
+        sky: super::sky(state),
+        planes: &planes,
         eye: Vec3::from(content.uniforms.camera.position),
         triangles: &triangles,
         candidates: 1,
@@ -62,10 +66,17 @@ pub fn draw(
         } else {
             super::BLOCKED
         };
+        content.draw.segment(
+            s.position,
+            scene.point(s.position, after.y),
+            color,
+            1.0,
+            3.0,
+            0,
+        );
         content
             .draw
-            .segment(s.position, scene.point(after.y), color, 1.0, 3.0, 0);
-        content.draw.point(scene.point(after.y), 8.0, color, 1.0);
+            .point(scene.point(s.position, after.y), 8.0, color, 1.0);
     }
     content.draw.point(s.position, 10.0, palette::SELECTED, 1.0);
     content

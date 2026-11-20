@@ -71,16 +71,16 @@
       },
       "simplifications": [
         "The paper's scenes (thousands to millions of emissive triangles) are replaced by the lab's room with 64 small spherical lights that move along loops.",
-        "Lights are picked by power with a CDF and a binary search, where the paper uses an alias table: the same distribution, a different lookup.",
+        "Lights are picked by power from an alias table, as the paper's are; the environment map's texels are drawn from one too, weighted by luminance times solid angle (the paper does not give its weights).",
         "A candidate is a uniform point on a light's sphere; points on the far side have a target of zero, as a triangle facing away does.",
         "The lights do not block one another's shadow rays; the room's objects do.",
-        "There is no environment map, so the paper's 25% of environment candidates does not apply.",
+        "The environment map is the lab's sky (the dock's Environment map, off unless a beat turns it on); while it is on, a quarter of the candidates come from it, as in the paper. A direction drawn from it is uniform within its texel, and its radiance is the texel's. Its shadow rays are blocked by the walls and floor, not by the lights; the dark ceiling panel is moved away under it.",
         "Both variants keep one reservoir per pixel (N = 1); the paper's biased results keep four.",
         "Spatial neighbours come from the R2 sequence turned per pixel; the paper says only \"a low-discrepancy sequence\".",
         "The geometry test (10% of the depth, 25 degrees) is applied to the temporal neighbour too.",
         "The temporal neighbour is found by reprojecting the pixel's point with last frame's camera; the room's objects do not move.",
         "The material is the lab's albedo and roughness through a GGX dielectric over Lambert, as the paper's unified material.",
-        "Shadow rays are traced in hardware (ray queries) against the scene's triangles, so the spheres are their raster tessellation; the lights and the room's planes do not block them.",
+        "Shadow rays are traced in hardware (ray queries) against the scene's triangles, so the spheres are their raster tessellation; the lights and the room's planes do not block them, except that the planes block a shadow ray toward the sky.",
         "A frame drawn alone first draws the same shot eight times, so its temporal reuse has frames before it."
       ]
     },
@@ -99,16 +99,16 @@
       },
       "simplifications": [
         "论文的场景（数千到数百万个发光三角形）换成了实验室的房间，其中 64 盏小球形灯沿环路移动。",
-        "按功率选取光源用的是 CDF 加二分查找，论文用的是别名表：分布相同，查找方式不同。",
+        "按功率选取光源用的是别名表，与论文相同；环境贴图的纹素也从别名表抽取，权重为亮度乘立体角（论文没有给出它的权重）。",
         "候选是灯球上均匀分布的一点；背面的点目标值为零，正如背向的三角形一样。",
         "灯与灯之间不互相遮挡阴影光线；房间里的物体会遮挡。",
-        "没有环境贴图，所以论文中 25% 的环境候选不适用。",
+        "环境贴图是实验室的天空（控制面板的“环境贴图”，除非某一段打开它，否则关闭）；开启时，四分之一的候选从它抽取，与论文相同。从它抽到的方向在所在纹素内均匀分布，辐亮度取该纹素的值。它的阴影光线会被墙和地面挡住，但不会被灯挡住；天空下，暗着的天花板灯板被移开。",
         "两种方法每个像素都只保存一个 reservoir（N = 1）；论文的有偏结果保存四个。",
         "空间邻居取自按像素旋转的 R2 序列；论文只说“一个低差异序列”。",
         "几何测试（深度的 10%，25 度）也用于时间邻居。",
         "时间邻居通过用上一帧的相机重投影该像素的点来找到；房间里的物体不动。",
         "材质是实验室的反照率和粗糙度，通过 Lambert 底层上的 GGX 电介质，与论文的统一材质相同。",
-        "阴影光线用硬件光线追踪（光线查询）对场景的三角形追踪，所以球体是其光栅化用的细分网格；灯和房间的平面不遮挡它们。",
+        "阴影光线用硬件光线追踪（光线查询）对场景的三角形追踪，所以球体是其光栅化用的细分网格；灯和房间的平面不遮挡它们，只有射向天空的阴影光线会被平面挡住。",
         "单独绘制的一帧会先把同一镜头绘制八次，使时间复用有之前的帧可用。"
       ]
     }

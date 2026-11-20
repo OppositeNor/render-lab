@@ -4,12 +4,18 @@
 //! so the selftest can recompute a pixel's reservoir from the GPU's inputs and
 //! compare.
 
+use super::alias::{self, AliasColumn};
+use super::environment::{self, MARKER as ENVIRONMENT};
 use super::lights::Light;
 use glam::{UVec2, Vec3};
 use lab::layout::ObjectData;
 use std::f32::consts::PI;
 
 pub const NONE: u32 = u32::MAX;
+/// How far a shadow ray toward the sky goes (`RESTIR_SKY_RAY`): past everything in the room.
+pub const SKY_RAY: f32 = 1000.0;
+/// How far along its direction a demonstration draws a sample of the sky.
+pub const SKY_DRAWN: f32 = 1.2;
 
 /// The PCG hash (Jarzynski and Olano 2020), as `restirHash`.
 pub fn hash(x: u32) -> u32 {
@@ -38,7 +44,7 @@ impl Rng {
     }
 }
 
-/// A light sample: a light and a point on it (`Sample`).
+/// A light sample: a light and a point on it, or the environment map's marker and a direction (`Sample`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Sample {
     pub light: u32,
@@ -137,13 +143,19 @@ impl Surface {
     }
 }
 
-/// What the passes read besides the images: the lights, their CDF, the eye, the objects, and the parameters.
+/// What the passes read besides the images: the lights, their shares and alias table, the sky, the eye, the
+/// objects, and the parameters.
 pub struct Scene<'a> {
     pub lights: &'a [Light],
-    pub cdf: &'a [f32],
+    pub shares: &'a [f32],
+    pub table: &'a [AliasColumn],
+    /// The sky's level (`ambientColor`); 0 when the room has no environment map.
+    pub sky: f32,
     pub eye: Vec3,
-    /// The triangles the shadow rays trace (`occluders`).
+    /// The triangles the shadow rays to the lights trace (`occluders`).
     pub triangles: &'a [Triangle],
+    /// The walls and floor, which the shadow rays to the sky trace too (`planes`).
+    pub planes: &'a [Triangle],
     pub candidates: u32,
     pub unbiased: bool,
     pub visibility_reuse: bool,
@@ -158,50 +170,72 @@ pub fn sample_dir(uv: u32) -> Vec3 {
     Vec3::new(r * phi.cos(), z, r * phi.sin())
 }
 
-/// The first entry of `cdf` past `u`, by a binary search (`restirPickLight`); `step` sees each halving's range
-/// and its middle (lo, hi, mid) before it is halved.
-pub fn bisect(cdf: &[f32], u: f32, mut step: impl FnMut(usize, usize, usize)) -> usize {
-    let (mut lo, mut hi) = (0usize, cdf.len() - 1);
-    while lo < hi {
-        // Halve the range around the first CDF entry past u.
-        let mid = (lo + hi) / 2;
-        step(lo, hi, mid);
-        if cdf[mid] > u {
-            hi = mid;
-        } else {
-            lo = mid + 1;
-        }
-    }
-    lo
-}
-
 impl Scene<'_> {
-    pub fn point(&self, x: Sample) -> Vec3 {
+    /// Where a sample is seen from `from`: its point on a light, or a point `SKY_DRAWN` along its direction.
+    pub fn point(&self, from: Vec3, x: Sample) -> Vec3 {
+        if x.light == ENVIRONMENT {
+            return from + SKY_DRAWN * environment::direction(x.uv);
+        }
         let l = &self.lights[x.light as usize];
         l.center + l.radius * sample_dir(x.uv)
     }
 
-    /// The light picked by power (`restirPickLight`).
-    pub fn pick(&self, u: f32) -> u32 {
-        bisect(self.cdf, u, |_, _, _| {}) as u32
-    }
-
-    /// p(x) per unit area (`restirSourcePdf`).
-    pub fn source_pdf(&self, light: u32) -> f32 {
-        let i = light as usize;
-        let before = if i > 0 {
-            self.cdf[i - 1]
+    /// The share of the candidates drawn from the environment map (`restirEnvironmentShare`).
+    pub fn sky_share(&self) -> f32 {
+        if self.sky > 0.0 {
+            environment::SHARE
         } else {
             0.0
-        };
-        let r = self.lights[i].radius;
-        (self.cdf[i] - before) / (4.0 * PI * r * r)
+        }
     }
 
-    /// ρ · Le · G (`restirContribution`).
+    /// The light picked by power (`restirPickLight`).
+    pub fn pick(&self, u: f32) -> u32 {
+        alias::draw(self.table, u) as u32
+    }
+
+    /// One candidate and its p (`restirDrawCandidate`): from the environment map for a share of them when the room
+    /// has one, else a light by power and a uniform point on it.
+    pub fn draw(&self, rng: &mut Rng) -> (Sample, f32) {
+        let x = if self.sky > 0.0 && rng.rand() < environment::SHARE {
+            let u = [rng.rand(), rng.rand(), rng.rand(), rng.rand()];
+            Sample {
+                light: ENVIRONMENT,
+                uv: environment::table().draw(u),
+            }
+        } else {
+            let light = self.pick(rng.rand());
+            let uv = (rng.next() >> 16) | (rng.next() & 0xffff_0000);
+            Sample { light, uv }
+        };
+        (x, self.source_pdf(x))
+    }
+
+    /// p(x) (`restirSourcePdf`): per unit area on a light, per steradian for the environment map, each times the
+    /// share of the candidates drawn that way.
+    pub fn source_pdf(&self, x: Sample) -> f32 {
+        if x.light == ENVIRONMENT {
+            return environment::SHARE * environment::table().pdf(x.uv);
+        }
+        let i = x.light as usize;
+        let r = self.lights[i].radius;
+        (1.0 - self.sky_share()) * self.shares[i] / (4.0 * PI * r * r)
+    }
+
+    /// ρ · Le · G (`restirContribution`); for the environment map, ρ · Le · cos θ per steradian.
     pub fn contribution(&self, s: &Surface, x: Sample) -> Vec3 {
         if !s.valid || x.light == NONE {
             return Vec3::ZERO;
+        }
+        if x.light == ENVIRONMENT {
+            let wi = environment::direction(x.uv);
+            let cos_surface = s.normal.dot(wi);
+            if cos_surface <= 0.0 {
+                return Vec3::ZERO;
+            }
+            let v = (self.eye - s.position).normalize();
+            let le = self.sky * environment::table().radiance(x.uv);
+            return brdf(s, wi, v) * le * cos_surface;
         }
         let l = &self.lights[x.light as usize];
         let dir = sample_dir(x.uv);
@@ -223,16 +257,24 @@ impl Scene<'_> {
         super::lights::luminance(self.contribution(s, x))
     }
 
-    /// V (`restirVisible`): the room's objects before the lights, the surface itself skipped.
+    /// V (`restirVisible`): the room's objects before the lights, the surface itself skipped; toward the sky, its
+    /// walls and floor too.
     pub fn visible(&self, s: &Surface, x: Sample) -> bool {
-        let to_light = self.point(x) - s.position;
+        let origin = s.position + s.normal * 1e-3;
+        let blocks =
+            |t: &Triangle, dir: Vec3, dist: f32| t.object != s.object && t.hit(origin, dir, dist);
+        if x.light == ENVIRONMENT {
+            let dir = environment::direction(x.uv);
+            return !self
+                .triangles
+                .iter()
+                .chain(self.planes)
+                .any(|t| blocks(t, dir, SKY_RAY));
+        }
+        let to_light = self.point(s.position, x) - s.position;
         let dist = to_light.length();
         let dir = to_light / dist.max(1e-6);
-        let origin = s.position + s.normal * 1e-3;
-        !self
-            .triangles
-            .iter()
-            .any(|t| t.object != s.object && t.hit(origin, dir, dist * 0.999))
+        !self.triangles.iter().any(|t| blocks(t, dir, dist * 0.999))
     }
 
     /// Alg. 3: the candidates of one pixel (`restirCandidates`).
@@ -240,10 +282,8 @@ impl Scene<'_> {
         let mut r = Reservoir::empty();
         for _ in 0..self.candidates {
             // Generate x_i ~ p, weighted p̂ / p.
-            let light = self.pick(rng.rand());
-            let uv = (rng.next() >> 16) | (rng.next() & 0xffff_0000);
-            let x = Sample { light, uv };
-            r.update(x, self.target(s, x) / self.source_pdf(light), rng);
+            let (x, p) = self.draw(rng);
+            r.update(x, self.target(s, x) / p, rng);
         }
         r.finish(self.target(s, r.y), r.m);
         r
@@ -355,10 +395,19 @@ impl Triangle {
 
 /// Every occluder's raster mesh (`meshes`, each object's range, in its local space) at its record's transform.
 pub fn occluders(meshes: &lab::scene::Meshes, objects: &[ObjectData]) -> Vec<Triangle> {
+    triangles(meshes, objects, lab::ray_tracing::MASK_OCCLUDER)
+}
+
+/// The walls, floor, and panels (the TLAS's `MASK_OTHER`), which only the shadow rays toward the sky trace.
+pub fn planes(meshes: &lab::scene::Meshes, objects: &[ObjectData]) -> Vec<Triangle> {
+    triangles(meshes, objects, lab::ray_tracing::MASK_OTHER)
+}
+
+fn triangles(meshes: &lab::scene::Meshes, objects: &[ObjectData], mask: u8) -> Vec<Triangle> {
     let mut out = Vec::new();
     for (i, (o, range)) in objects.iter().zip(&meshes.ranges).enumerate() {
-        // Only what the GPU's rays stop at: the TLAS's occluders.
-        if lab::ray_tracing::mask(o) != lab::ray_tracing::MASK_OCCLUDER {
+        // Only the TLAS's instances of this kind.
+        if lab::ray_tracing::mask(o) != mask {
             continue;
         }
         let m = glam::Mat4::from_cols_array_2d(&o.local_to_world);

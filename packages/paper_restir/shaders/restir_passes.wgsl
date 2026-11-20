@@ -72,8 +72,9 @@ fn restirReachable(s: Surface, x: Sample) -> bool {
 
 // ---------------------------------------------------------------------------
 // Streaming RIS (Alg. 3): each pixel's surface from the pre-pass, then M
-// candidates, each a light picked by power and a uniform point on it, streamed
-// through one reservoir with weight p̂ / p.
+// candidates, each a light picked by power and a uniform point on it (or, for
+// a quarter of them when the room has a sky, a direction drawn from the
+// environment map), streamed through one reservoir with weight p̂ / p.
 
 @group(3) @binding(1) var cDepth: texture_depth_multisampled_2d;
 @group(3) @binding(2) var cNormal: texture_multisampled_2d<f32>;
@@ -83,17 +84,44 @@ fn restirReachable(s: Surface, x: Sample) -> bool {
 @group(3) @binding(6) var oSurfM: texture_storage_2d<rgba32float, write>;
 @group(3) @binding(7) var oSurfA: texture_storage_2d<rgba32float, write>;
 @group(3) @binding(8) var oInitial: texture_storage_2d<rgba32uint, write>;
+// The environment map's alias table (environment.rs `words`): per texel of the level lighting reads, its own
+// part's bits and its alias.
+@group(3) @binding(9) var<storage, read> cEnvironment: array<vec2<u32>>;
+
+// A direction drawn from the environment map (environment.rs `draw`): a texel from the alias table, a column by
+// one number and its part by another, then a cell of the 16-bit grid across and down within it by two more.
+fn restirDrawEnvironment(rng: ptr<function, Rng>) -> u32 {
+    let size = textureDimensions(gEnvironment, ENVIRONMENT_LIGHTING_LEVEL);
+    let n = size.x * size.y;
+    let column = min(u32(restirRand(rng) * f32(n)), n - 1u);
+    let entry = cEnvironment[column];
+    let i = select(entry.y, column, restirRand(rng) < bitcast<f32>(entry.x));
+    let across = 65536u / size.x;
+    let down = 65536u / size.y;
+    let s = (i % size.x) * across + min(u32(restirRand(rng) * f32(across)), across - 1u);
+    let t = (i / size.x) * down + min(u32(restirRand(rng) * f32(down)), down - 1u);
+    return s | (t << 16u);
+}
+
+// One candidate (cpu.rs `draw`): from the environment map for a share of them when the room has one, else a light
+// by power and a uniform point on it.
+fn restirDrawCandidate(rng: ptr<function, Rng>) -> Sample {
+    if (restirEnvironmentNorm() > 0.0 && restirRand(rng) < RESTIR_ENVIRONMENT_SHARE) {
+        return Sample(RESTIR_ENVIRONMENT, restirDrawEnvironment(rng));
+    }
+    let light = restirPickLight(restirRand(rng));
+    let uv = (restirNext(rng) >> 16u) | (restirNext(rng) & 0xffff0000u);
+    return Sample(light, uv);
+}
 
 // The candidates of one pixel at its surface, streamed through a reservoir (cpu.rs `candidates` mirrors it).
 fn restirCandidates(s: Surface, rng: ptr<function, Rng>) -> Reservoir {
     var r = restirEmpty();
     let m = u32(gShading.candidates);
     for (var i = 0u; i < m; i++) {
-        // Generate x_i ~ p: a light by power, then a point on it; its weight p̂ / p.
-        let light = restirPickLight(restirRand(rng));
-        let uv = (restirNext(rng) >> 16u) | (restirNext(rng) & 0xffff0000u);
-        let x = Sample(light, uv);
-        restirUpdate(&r, x, restirTarget(s, x) / restirSourcePdf(light), rng);
+        // Generate x_i ~ p; its weight p̂ / p.
+        let x = restirDrawCandidate(rng);
+        restirUpdate(&r, x, restirTarget(s, x) / restirSourcePdf(x), rng);
     }
     restirFinish(&r, restirTarget(s, r.y), r.M);
     return r;
@@ -359,8 +387,11 @@ fn restirKeepCS(@builtin(global_invocation_id) id: vec3<u32>) {
 @group(3) @binding(10) var hAccumG: texture_storage_2d<r32float, read_write>;
 @group(3) @binding(11) var hAccumB: texture_storage_2d<r32float, read_write>;
 
-// A colour for a light's index, for the view of which light each pixel samples.
+// A colour for a light's index, for the view of which light each pixel samples; the sky's blue.
 fn restirLightColor(light: u32) -> vec3<f32> {
+    if (light == RESTIR_ENVIRONMENT) {
+        return vec3<f32>(0.1, 0.4, 1.0);
+    }
     let h = restirHash(light * 2654435761u + 1u);
     return vec3<f32>(f32(h & 255u), f32((h >> 8u) & 255u), f32((h >> 16u) & 255u)) / 255.0;
 }

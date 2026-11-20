@@ -4,7 +4,7 @@
 //! reservoir holds (red where an object blocks it, cpu.rs `visible`); the readout lists each combined reservoir's weight,
 //! p̂ at P times its W times its M, and the combined reservoir's weight sum, M, and W. The neighbours are the GPU's (cpu.rs `neighbour`, the frozen seed).
 
-use super::super::cpu::{self, Reservoir, Rng, Sample, Scene, Surface};
+use super::super::cpu::{self, Reservoir, Rng, Scene, Surface};
 use super::super::lights::{self, Light};
 use super::ris;
 use crate::paper::restir::text::{tr, tr_with};
@@ -85,11 +85,15 @@ pub fn draw(
         content.readout = Some(ris::waiting());
         return;
     };
-    let cdf = lights::cdf(lights);
+    let (shares, table) = (lights::shares(lights), lights::table(lights));
     let triangles = cpu::occluders(meshes, &content.objects);
+    let planes = cpu::planes(meshes, &content.objects);
     let scene = Scene {
         lights,
-        cdf: &cdf,
+        shares: &shares,
+        table: &table,
+        sky: super::sky(state),
+        planes: &planes,
         eye: Vec3::from(content.uniforms.camera.position),
         triangles: &triangles,
         candidates: 1,
@@ -123,7 +127,7 @@ pub fn draw(
         } else {
             super::BLOCKED
         };
-        let at = sample_point(lights, combined.y);
+        let at = scene.point(s.position, combined.y);
         content.draw.segment(s.position, at, color, 1.0, 3.5, 0);
         content.draw.point(at, 8.0, color, 1.0);
     }
@@ -255,16 +259,11 @@ fn neighbours(
             } else {
                 super::BLOCKED
             };
-            let at = sample_point(scene.lights, r.y);
+            let at = scene.point(sn.position, r.y);
             content
                 .draw
                 .segment(sn.position, at, color, 0.6 * alpha, 1.5, 0);
         }
     }
     kept
-}
-
-fn sample_point(lights: &[Light], y: Sample) -> Vec3 {
-    let l = &lights[y.light as usize];
-    l.center + l.radius * cpu::sample_dir(y.uv)
 }
