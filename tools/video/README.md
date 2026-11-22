@@ -5,9 +5,9 @@ that `render-lab render` records frame by frame, the muxed video with chapters, 
 guide, review stills, and a verification report.
 
 ```sh
-bash tools/video/setup.sh [--gpu]                                    # once: the local environment under .cache/
+bash tools/video/setup.sh [--gpu] [--zh]                             # once: the local environment under .cache/ (--zh: the Chinese voice)
 python3 tools/video/build.py --investigation o3de/lighting           # the English edition
-python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN   # Chinese text and subtitles, English narration
+python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN   # the Chinese edition: Chinese narration (Qwen3-TTS), text, and subtitles
 python3 tools/video/build.py --all                                  # every package's video, each in all its languages, in turn
 ```
 
@@ -315,8 +315,10 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
   imports the vocabulary and `render_lab` as the storyboard does.
 - **`storyboard.zh-CN.lam`**: the translation, a presentation with the same headings by id (its own title, chapter
   titles, summaries, and headlines; the video's `subtitle`, `locale`, `glossary`, comma-separated, and `captionWidth`;
-  a chapter's number is the English's) and one paragraph per English sentence, with its formulas (`${math "…"}`) and
-  code names (`${code "…"}`) and no cues. It imports only `std` and `content`.
+  a chapter's number is the English's) and one paragraph per English sentence, with its formulas (`${math "…"}`, or
+  `${say {math "…"} "how it is said"}`) and code names (`${code "…"}`) and no cues of its own. It imports `std` and
+  `content`, and `present` and `render_lab` when it places cues (below). The zh-CN edition speaks it: see
+  [The Chinese narration](#the-chinese-narration).
 - **Pacing**: the video heading's `lead` (0.4 s of silence before a beat's first sentence), `gap` (0.32 s between
   sentences), `tail` (0.7 s after the last), `maxExtraPause` (2.2 s, the most a chapter's budget lengthens one pause),
   `taggedWeight` (2.0, how much more of it a sentence with cues takes), `termFade` (0.4 s), `captionBridge` (0.6 s,
@@ -397,12 +399,45 @@ Captions are cut into one-line cues (the video shows each as a subtitle over the
 tag naming the chapter and the beat, beside the engine's credit as a watermark in the lower left), at word boundaries,
 never inside a formula, and each one shows from its first word; the `.srt` and
 `.vtt` files and the script write formulas as `$LaTeX$`. A translation's sentence carries the same formulas (the same
-LaTeX, as many times) and no cues. The build typesets every formula of the timeline with `render-lab formulas
+LaTeX, as many times) and no cues of its own. The build typesets every formula of the timeline with `render-lab formulas
 --check` (glyphs of at least 24 px, display formulas at most 546 px wide).
 
 The lab draws formulas itself (lab/src/formula.rs: MiTeX translates the LaTeX into Typst math, and Typst typesets it),
 in the captions and the formula card, and in its text tables, as the Fluent function call `{ FORMULA("…", display:
 "yes", colors: "…") }`, as O3DE's readout formulas do; a code name is `{ CODE("…") }`.
+
+## The Chinese narration
+
+The zh-CN edition speaks its translation (`speech_zh.py`), over the English edition's shots: each sentence is spoken
+by Qwen3-TTS (the 1.7B Base model) in one narrator's voice, cloned for every sentence from the same reference clip
+(`voices/zh-CN-narrator.wav` and its transcript; its `.json` records how it was designed with Qwen3-TTS VoiceDesign,
+a serious, mature woman's voice: the built-in voices drifted in pitch from sentence to sentence), heard back by Qwen3-ASR (a sentence heard with
+more than a quarter of its characters wrong is spoken again from another seed, three times at most, and the attempt
+heard best kept), and timed by Qwen3-ForcedAligner, unit by unit: a Chinese character, or a run of letters and
+digits (`zh.units`, cut as the aligner cuts). The models run in a process of their own (`zh_voice.py`), in the
+environment `setup.sh --zh` makes, a chunk of sentences at a time, written to the shared narration cache
+(`<digest>.wav` and `<digest>.json`: the units' times, the transcript, its error rate). A sentence still heard with
+more than a tenth of its characters wrong is listed in the build's `narration-review.md`, to be listened to; fix it
+with the text, or with video.json's `pronunciationsZh` (a word and how the Chinese voice should say it).
+
+Each cue of the English sentence fires on the Chinese unit it stands before (`zh.cue_marks`):
+
+- where the translation **anchors** it: render_lab's `${cueAt n}` before a word, `${overTextAt n "…"}` (or
+  `${overAt n CONTENT}`) over the words a range runs over, `n` counting the English sentence's point cues, ranges,
+  and `formulaOff`s in order (`translation: the English cue 2 is a range` and its kin refuse a wrong one);
+- a formula's card where the translation says the formula (`${say {math "…"} "…"}`); a formula it only shows is not
+  said (the words around it say it) and falls as any other cue does, below;
+- any other cue as far into the Chinese units as it stands into the English words (a cue at the start stays there, a
+  range over the whole sentence stays over it).
+
+Two cues that set the same thing must keep their English order (`story.translation.order`), so a shot ends as the
+English one does; an anchor inside a run of letters is refused (`a cue cuts the word`).
+
+Chinese takes its own time to say the same (SSR's translation, 1.22 times the English speech): the edition's **pace**
+is the seconds of all its speech over the English edition's (read from the English clips in the cache, so the English
+edition is built first), and its chapter budgets and expected length (`durationMinutes`) are the English ones scaled by
+it (`speech_zh.fit_budgets`, written to the build's `budgets.json`). A chapter whose translation runs long against
+the rest still fails the 10% check: shorten its sentences.
 
 ## Outputs
 
@@ -414,6 +449,7 @@ in the captions and the formula card, and in its text tables, as the Fluent func
   text), `contact-sheet.png`, `poster.png`, `snapshots/`, logs, and `verification-report.{json,md}` (git-ignored).
   A package with notices gets a closing notices card (a silent 2D beat, `timeline.py` `NOTICES` seconds) at the end of
   its last chapter, left out of that chapter's budget. The narration cache is shared by the editions in `audio/`.
+  The zh-CN edition's `narration-review.md` lists the sentences to listen to (see above).
 
 ## Environment
 
@@ -422,10 +458,19 @@ phoneme durations), and downloads the `en_US-lessac-medium` voice into `.cache/v
 ONNX Runtime and cuDNN in `.cache/video-tts-gpu` (the CUDA 13 runtime comes from the system). To reuse an existing
 install, point `RENDER_LAB_VIDEO_ENV`, `RENDER_LAB_VOICES`, and `RENDER_LAB_TTS_GPU` at it. `build.py` re-runs itself under the environment's Python.
 
+`--zh` adds the Chinese voice: a Conda prefix of its own in `.cache/video-tts-zh` (Python 3.12; PyTorch 2.11 with
+CUDA, `qwen-tts`, and `qwen-asr`, from `requirements-zh.txt` and `requirements-zh-asr.txt`), and the three models at
+the revisions `speech_zh.py` names (about 10 GB, in `.cache/huggingface`, read from there only). A new reference clip
+re-speaks every Chinese sentence (its hash is part of each clip's name). They run on a 6 GB
+GPU one at a time (the voice takes about 4 GB), at about 0.7 s per second of speech; `--tts-device cpu` runs them
+on the CPU, far slower. `RENDER_LAB_TTS_ZH` and `RENDER_LAB_TTS_MODELS` point at an existing install. A build whose
+Chinese sentences are all in the cache (`--cached-audio-only`) needs no Chinese voice.
+
 ## Verification
 
 The build checks the file (30 fps H.264, from either encoder, at the build's `--resolution`, 1080p by default; BT.709, AAC), its duration against the timeline and the expected range, the
 frame count, each chapter within 10% of its budget, a full decode, audio levels, caption line lengths, the render
 report (text at least 24 px, labels inside the viewport and apart), diagram labels, the engine checkout's commit, every relative link in the documents, `render-lab selftest --timeline` (every scene beat
-readable), and the Rust and WGSL layouts. A zh-CN build also checks that it shares the English narration and frames and
-leaves the English edition unchanged.
+readable), and the Rust and WGSL layouts. A zh-CN build also checks that its narration is its own, that it has the
+English edition's chapters, beats, and shots (every key, but when it falls), and that it leaves the English edition
+unchanged.

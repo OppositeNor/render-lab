@@ -1,0 +1,7 @@
+# The Chinese voice (zh_voice.py), installed by `setup.sh --zh` into .cache/video-tts-zh, apart from the
+# Piper environment. torchaudio's last release is 2.11, so torch is held at the same version.
+torch==2.11.0
+torchaudio==2.11.0
+qwen-tts==0.1.1
+transformers==4.57.3
+accelerate==1.12.0

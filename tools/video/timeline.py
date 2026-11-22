@@ -245,13 +245,13 @@ def tag_keys(s: Json, beat: Json, narration: Narration, fps: int, start: int, wh
 def caption_cues(s: Json, narration: Narration, start: int, end: int, fps: int, cfg: Config, width: int) -> list[Json]:
     """A sentence's captions: chunks of at most two lines, formulas kept
     whole, each shown from the frame its first word starts (English; the
-    Chinese text follows the English audio by its display width)."""
+    Chinese chunks share the sentence's speech by their display width)."""
     caption = markup.shown(s, cfg.zh()).caption
     held, tags = markup.protect(caption)
     chunks = zh.caption_chunks(held, width) if cfg.zh() else caption_chunks(held, width)
     starts: list[int] = []
     if cfg.zh() or not narration.words:
-        # Without word timings (or for the translation), chunks share the sentence's time by their width.
+        # Without word timings (or for the translation, timed by units), chunks share the sentence's time by their width.
         weights = [zh.display_width(c) if cfg.zh() else len(c) for c in chunks]
         t = start
         for w in weights:

@@ -1,0 +1,8 @@
+# Qwen3-ASR and Qwen3-ForcedAligner (zh_voice.py), installed with --no-deps: qwen-asr pins transformers 4.57.6,
+# qwen-tts 4.57.3, and both run on 4.57.3. These are qwen-asr's other requirements.
+qwen-asr==0.0.6
+nagisa==0.2.11
+soynlp==0.0.493
+qwen-omni-utils==0.0.9
+flask==3.1.3
+pytz==2026.6

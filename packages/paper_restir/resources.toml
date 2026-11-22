@@ -193,7 +193,7 @@ source = "experiments/methods.toml"
 license = "MIT"
 
 # The narrated story's timelines and narration, built by tools/video from video/ into build/ (`built`: missing until
-# they are built). Both editions play the English narration.
+# they are built). Each edition plays its own narration.
 [[resource]]
 id = "timeline/en"
 kind = "file"
@@ -212,6 +212,13 @@ built = true
 id = "narration/en"
 kind = "file"
 source = "build/video/en/narration.wav"
+license = "MIT"
+built = true
+
+[[resource]]
+id = "narration/zh-cn"
+kind = "file"
+source = "build/video/zh-CN/narration.wav"
 license = "MIT"
 built = true
 

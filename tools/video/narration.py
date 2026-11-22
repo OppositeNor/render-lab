@@ -45,8 +45,9 @@ HOP = 256
 
 class Narration(NamedTuple):
     """A sentence's wav, its length, its sample rate, when each spoken word
-    starts (seconds), and the word each of its tags stands before
-    (`len(words)` for a tag after the last word)."""
+    starts (seconds; for the Chinese narration, each unit the aligner times,
+    speech_zh.py), and the word each of its tags stands before (`len(words)`
+    for a tag after the last word)."""
     path: Path
     seconds: float
     rate: int
@@ -163,11 +164,16 @@ def pronounce(cfg: Config, text: str) -> str:
 
 
 def spoken(cfg: Config, sentence: dict[str, Any]) -> str:
-    """What is said: the English text (the zh-CN edition keeps it in `en`),
+    """What is said in English: the English text,
     its tags removed and its formulas said as their `say`, with the words of
     video.json's `pronunciations` replaced by how they are said. Captions keep
     the written form."""
     return pronounce(cfg, markup.sentence(sentence).spoken)
+
+
+def clip_digest(text: str) -> str:
+    """The name of a spoken sentence's clip in the narration cache: the hash of the text, the speed, and the voice."""
+    return hashlib.sha256((text + str(VOICE_SPEED) + VOICE_ID).encode()).hexdigest()[:24]
 
 
 def create_phonemizer(env: Environment, workdir: Path) -> Any:
@@ -295,8 +301,7 @@ def synthesize(cfg: Config, env: Environment, device: str, sentences: list[dict[
         for i, sentence in enumerate(sentences):
             # For each sentence, its wav and word starts from the cache, made first on a miss.
             text = spoken(cfg, sentence)
-            # The cache key is the spoken text, the speed, and the voice.
-            digest = hashlib.sha256((text + str(VOICE_SPEED) + VOICE_ID).encode()).hexdigest()[:24]
+            digest = clip_digest(text)
             target = audio / f'{digest}.wav'
             sidecar = audio / f'{digest}.json'
             # A wav made before word timings has no sidecar: make both again.

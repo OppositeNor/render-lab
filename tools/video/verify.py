@@ -3,7 +3,8 @@ the file's format and length against the timeline, chapters against their
 budgets, a full decode, audio levels, captions, the render report's text and
 labels, the diagrams' label size, the engine checkout's commit, every
 relative link, the lab's selftest and layouts, and, for zh-CN, that the
-edition shares the English narration and frames.
+edition speaks its own narration over the English edition's shots and leaves
+the English edition's files as they were.
 """
 from __future__ import annotations
 
@@ -82,8 +83,9 @@ def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Js
           (v['width'], v['height']) == resolution and v['r_frame_rate'] == '30/1' and v['codec_name'] == 'h264' and v.get('pix_fmt') == 'yuv420p'
           and colour == {'color_space': 'bt709', 'color_primaries': 'bt709', 'color_transfer': 'bt709', 'color_range': 'tv'} and a is not None and a['codec_name'] == 'aac',
           {'width': v['width'], 'height': v['height'], 'fps': v['r_frame_rate'], 'video': v['codec_name'], 'audio': a and a['codec_name'], 'pixFmt': v.get('pix_fmt'), **colour})
-    low, high = cfg.spec['durationMinutes']
-    check(f'duration within {low}–{high} minutes and equal to the timeline', low * 60 <= duration <= high * 60 and abs(duration - timeline['totalFrames'] / fps) < 0.25,
+    # The expected length, scaled by a translation's pace (its budgets were, speech_zh.fit_budgets).
+    low, high = (minutes * board.get('pace', 1.0) for minutes in cfg.spec['durationMinutes'])
+    check(f'duration within {low:g}–{high:g} minutes and equal to the timeline', low * 60 <= duration <= high * 60 and abs(duration - timeline['totalFrames'] / fps) < 0.25,
           {'seconds': duration, 'minutes': round(duration / 60, 2), 'timelineSeconds': timeline['totalFrames'] / fps})
     frames = int(v.get('nb_frames') or 0)
     check('frame count equals the timeline', frames == timeline['totalFrames'], {'videoFrames': frames, 'timelineFrames': timeline['totalFrames']})
@@ -150,17 +152,27 @@ def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Js
     return passed
 
 
+# A key's fields that its edition's speech times; the rest say what it does, the same in both editions.
+TIMED = ('frame', 'blend', 'source', '_provenance', 'animate')
+
+
+def shots(t: Json) -> list[str]:
+    """What a timeline's keys do, without when: each key's untimed fields, sorted (two editions may order keys of one
+    sentence differently when they set different things)."""
+    return sorted(json.dumps({k: v for k, v in key.items() if k not in TIMED}, sort_keys=True, ensure_ascii=False) for key in t['keys'])
+
+
 def verify_zh(cfg: Config, check: Callable[[str, bool, Any], None]) -> None:
     english = json.loads(cfg.timeline('en').read_text())
     timeline = json.loads(cfg.timeline().read_text())
-    # The zh-CN edition shares the English edition's sound and timing, and must leave its files untouched.
-    same = sha256(cfg.build() / 'narration.wav') == sha256(cfg.build('en') / 'narration.wav')
-    check('the narration is the English edition\'s track', same, {})
-
-    def starts(t: Json) -> list[Any]:
-        return [(b['id'], b['startFrame'], b['frames']) for b in t['beats']] + [(c['number'], c['startFrame'], c['endFrame']) for c in t['chapters']]
-    check('every beat and chapter starts on the same frame as in the English edition', starts(timeline) == starts(english) and timeline['totalFrames'] == english['totalFrames'],
-          {'frames': timeline['totalFrames'], 'englishFrames': english['totalFrames']})
+    # The zh-CN edition speaks its own narration over the English edition's shots, and must leave its files untouched.
+    own = sha256(cfg.build() / 'narration.wav') != sha256(cfg.build('en') / 'narration.wav')
+    check('the narration is the edition\'s own (Chinese) track', own, {})
+    check('the same chapters and beats as the English edition, in its order',
+          [(b['id'], b['chapter'], b['kind']) for b in timeline['beats']] == [(b['id'], b['chapter'], b['kind']) for b in english['beats']],
+          {'beats': len(timeline['beats']), 'englishBeats': len(english['beats'])})
+    check('the same shots as the English edition (every key, but when it falls)', shots(timeline) == shots(english),
+          {'keys': len(timeline['keys']), 'englishKeys': len(english['keys'])})
     before = json.loads((cfg.build() / 'english-checksums.json').read_text())
     after = english_checksums(cfg)
     check('the English edition unchanged by the zh-CN build', before == after, {'files': {name: before.get(name) == digest for name, digest in after.items()}})

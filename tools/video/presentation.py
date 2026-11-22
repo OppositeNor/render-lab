@@ -35,8 +35,12 @@ loader turns the document into the storyboard the builder reads.
 
 The translation has the same headings, by id (its own title, chapter titles and summaries, and headlines; the
 video's `subtitle`, `locale`, `glossary`, comma-separated, and `captionWidth`; a chapter's number is the
-English's), and one paragraph per English sentence, with no cues: its formulas are `${math "..."}`, its code
-names `${code "..."}`.
+English's), and one paragraph per English sentence, with no cues of its own: its formulas are `${math "..."}` (or
+`${say {math "..."} "how it is said"}`), its code names `${code "..."}`. It is spoken in its own language, so it
+may say where the English sentence's cues fall in it (zh.py `cue_marks`): render_lab's `${cueAt 2}` (the
+sentence's second cue fires on the next word) and `${overTextAt 1 "words"}` or `${overAt 1 CONTENT}` (its first
+cue, a range, runs over these words), the cues counted in the English sentence's order (point cues, ranges, and
+formula cards closed with `formulaOff`; a formula's own cue falls where the translation shows it).
 """
 from __future__ import annotations
 
@@ -162,7 +166,12 @@ class Reader:
 
     def no_cues(self, what: str, source: Json | None = None) -> None:
         if self.translation:
-            self.fail(f'a translation carries no cues ({what})', source)
+            self.fail(f'a translation carries no cues ({what}); it says where the English cues fall with ${{cueAt n}} and ${{overTextAt n "..."}}', source)
+
+    def anchor(self, x: Json) -> bool:
+        """A translation's cue anchor (render_lab's `cueAt`, `overAt`, `overTextAt`): a point or a range named by the
+        number of the English sentence's cue, with no attributes. Whether `x` is one."""
+        return self.translation and str(x.get('name') or '').isdigit() and not x['attrs']
 
     def inlines(self, xs: list[Json]) -> None:
         for x in xs:
@@ -185,11 +194,27 @@ class Reader:
             elif kind == 'math':
                 if not self.translation:
                     self.fail(f'the formula {x["tex"]!r} has no say: the voice cannot read LaTeX', source)
-                # A translation's formula is shown, never spoken.
+                # A translation's formula without a say is shown; its piece stays empty, for the English say (zh.py).
+                tag = markup.Tag('formula', None, [('formula', x['tex'])], len(self.pieces), source=source)
                 self.formulas.append(x['tex'])
-                self.caption.append(markup.formula_tag(markup.Tag(FORMULA, None, [('formula', x['tex'])], 0)))
+                self.caption.append(markup.formula_tag(tag))
+                self.tags.append(tag)
+                self.pieces.extend(['', ''])
             elif kind == 'say':
                 self.say(x)
+            elif kind == 'anchor' and self.anchor(x):
+                # A translation's point anchor: the English cue of its number fires before the next word.
+                self.tags.append(markup.Tag('cue', x['name'], [], len(self.pieces), source=source))
+                self.pieces.append('')
+            elif kind == 'span' and self.anchor(x):
+                # A translation's range anchor: the English range of its number runs over these words.
+                if any(t.kind == 'open' and t.name == x['name'] for t in self.tags):
+                    self.fail(f'two ranges anchor the cue {x["name"]} in one sentence', source)
+                self.tags.append(markup.Tag('open', x['name'], [], len(self.pieces), source=source))
+                self.pieces.append('')
+                self.inlines(x['inlines'])
+                self.tags.append(markup.Tag('close', x['name'], [], len(self.pieces), source={**source, 'fallback': 'range close has no independent IR location; using its range'}))
+                self.pieces.append('')
             elif kind == 'anchor':
                 self.no_cues(f'the cue {x["name"]!r}', source)
                 attrs = pairs(x['attrs'])
@@ -243,9 +268,14 @@ class Reader:
             # A code name said another way, in the words around it.
             self.caption.append(markup.codespan_tag(shown[0]['text']))
             self.pieces[-1] += spoken
+        elif len(shown) == 1 and shown[0]['type'] == 'math' and self.translation:
+            # A translation's formula said in its own words: shown, and its words fill its piece.
+            tag = markup.Tag('formula', None, [('formula', shown[0]['tex']), ('say', spoken)], len(self.pieces), source=location(x, self.source))
+            self.formulas.append(shown[0]['tex'])
+            self.caption.append(markup.formula_tag(tag))
+            self.tags.append(tag)
+            self.pieces.extend([spoken, ''])
         elif len(shown) == 1 and shown[0]['type'] == 'math':
-            if self.translation:
-                raise PresentationError(f'{self.at}: a translation\'s formula is shown, never said: write it ${{math "..."}}')
             # A formula's `say` takes the waiting cue's attributes; the cue must show the same LaTeX.
             attrs, self.formula = self.formula, None
             tex = shown[0]['tex']

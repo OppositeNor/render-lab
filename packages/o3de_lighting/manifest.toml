@@ -34,7 +34,7 @@ type = "demo"
 key = "video-zh-CN"
 title = "O3DE 如何照亮一帧"
 timeline = "timeline/zh-cn"
-audio = "narration/en"
+audio = "narration/zh-cn"
 
 # Legal notices (src/packages.rs `[[notice]]`): shown on the homepage, at the end of its videos, and beside them.
 
