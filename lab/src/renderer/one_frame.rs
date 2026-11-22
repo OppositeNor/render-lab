@@ -129,7 +129,7 @@ impl Renderer {
         self.targets_at(viewport_size);
         let size = [viewport_size[0] as f32, viewport_size[1] as f32];
         let mut drawn = Drawn {
-            panes: self.draw_beside(&plan, viewport_size, frame),
+            panes: self.draw_beside(&plan, viewport_size, frame, paused),
             free: None,
             overs: Vec::new(),
             main_view: None,
@@ -169,8 +169,8 @@ impl Renderer {
             // (but the clock), shading values, and viewport as the last frame.
             self.hold_still(content, viewport_size, request.history);
         }
-        drawn.free = self.draw_free(&request, content.as_ref(), &plan, &drawn, frame);
-        drawn.overs = self.draw_overs(&request, given, &plan, &drawn, frame);
+        drawn.free = self.draw_free(&request, content.as_ref(), &plan, &drawn, frame, paused);
+        drawn.overs = self.draw_overs(&request, given, &plan, &drawn, frame, paused);
         // The shading's data is the main view's again (an over view selected its own).
         if gpu && !drawn.overs.is_empty() {
             self.select_data(scene_state, request.wait || !request.history);
@@ -453,14 +453,18 @@ impl Renderer {
     }
 
     /// The experiment's reference, then each other view of a split area, from their own slots: the panes drawn, in
-    /// their rectangles.
+    /// their rectangles; none while a math scene pauses the scene (`paused`).
     fn draw_beside(
         &mut self,
         plan: &FramePlan,
         viewport_size: [u32; 2],
         frame: ViewFrame,
+        paused: bool,
     ) -> Vec<(egui::Rect, FrameContent)> {
         self.reference_drawn = false;
+        if paused {
+            return Vec::new();
+        }
         if let Some(c) = &plan.compare {
             // The reference first, from its own slot (src/view.rs), so its history builds up as the live view's does.
             self.draw_view(
@@ -502,7 +506,7 @@ impl Renderer {
     /// builds up as the main view's does), before the main frame's uniforms
     /// are written. The main frame is still drawn after it: the pictures of
     /// its buffers and what follows its camera are read from it, and it is
-    /// shown in a corner.
+    /// shown in a corner. None while a math scene pauses the scene (`paused`).
     fn draw_free(
         &mut self,
         request: &FrameRequest,
@@ -510,11 +514,14 @@ impl Renderer {
         plan: &FramePlan,
         drawn: &Drawn,
         frame: ViewFrame,
+        paused: bool,
     ) -> Option<FrameContent> {
         let scene_beat = request.scene_type == SceneType::ThreeD;
         let free = request.state.free_camera;
         let free_content = content
-            .filter(|_| scene_beat && free.on && drawn.panes.is_empty() && plan.compare.is_none())
+            .filter(|_| {
+                scene_beat && !paused && free.on && drawn.panes.is_empty() && plan.compare.is_none()
+            })
             .map(|main| {
                 let content = crate::free_view::content(main, request.state, &free);
                 // The program plans for the camera this view is drawn from.
@@ -538,7 +545,8 @@ impl Renderer {
     }
 
     /// The views the investigation stacks over the main one (src/view.rs):
-    /// each from its own slot, in its own scene, laid over the main view below.
+    /// each from its own slot, in its own scene, laid over the main view below; none while a math scene pauses the
+    /// scene (`paused`).
     fn draw_overs(
         &mut self,
         request: &FrameRequest,
@@ -546,13 +554,15 @@ impl Renderer {
         plan: &FramePlan,
         drawn: &Drawn,
         frame: ViewFrame,
+        paused: bool,
     ) -> Vec<(ViewId, f32, FrameContent)> {
         let scene_beat = request.scene_type == SceneType::ThreeD;
-        let overs = if scene_beat && !given && plan.main.is_none() && drawn.free.is_none() {
-            investigation::current().views(request.state)
-        } else {
-            Vec::new()
-        };
+        let overs =
+            if scene_beat && !paused && !given && plan.main.is_none() && drawn.free.is_none() {
+                investigation::current().views(request.state)
+            } else {
+                Vec::new()
+            };
         let mut over_drawn: Vec<(ViewId, f32, FrameContent)> = Vec::new();
         for (n, over) in overs.iter().enumerate() {
             if over.alpha <= 0.0 {
