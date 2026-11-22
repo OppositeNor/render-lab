@@ -22,7 +22,9 @@ import wave
 from pathlib import Path
 from typing import Any
 
-CHUNK = 24             # sentences spoken, checked, and timed before they are written
+CHUNK = 48             # sentences spoken, checked, and timed before they are written
+TOKENS_PER_SECOND = 12 # the voice's codec frames per second of audio (Qwen3-TTS-12Hz)
+TTS_BATCH = 6          # sentences spoken at once: 2.8 times as fast as one by one (0.6B, 4.7 GB at most); a batch that does not fit is split
 ASR_BATCH = 4          # transcriptions at once (more runs out of a 6 GB GPU's memory)
 DIGITS = dict(zip('零〇一二两三四五六七八九', '001223456789'))
 
@@ -76,18 +78,46 @@ class Models:
             self.torch.cuda.empty_cache()
 
 
+def most_tokens(group: list[Json]) -> int:
+    """The longest a batch may speak: half a second per character of its longest sentence, and four more, about two
+    and a half times as long as it takes to say, so a take that does not stop (it repeats, or trails on) is cut short,
+    heard as wrong, and spoken again, rather than running to minutes."""
+    return int(TOKENS_PER_SECOND * (max(len(i['text']) for i in group) / 2 + 4))
+
+
 def speak(models: Models, job: Json, items: list[Json], attempt: int) -> dict[str, tuple[Any, int]]:
-    """Each item's audio (float samples and rate) in the reference's voice, from the seed of this attempt."""
+    """Each item's audio (float samples and rate) in the reference's voice, from the seed of this attempt: spoken
+    `TTS_BATCH` at a time, sentences of like length together (a batch is as long as its longest)."""
     from qwen_tts import Qwen3TTSModel
     tts = Qwen3TTSModel.from_pretrained(models.paths['tts'], device_map=models.device, dtype=models.dtype)
     # The narrator's voice: the reference clip's speech codes and transcript, which every sentence continues from.
     voice = tts.create_voice_clone_prompt(ref_audio=job['reference']['audio'], ref_text=job['reference']['text'], x_vector_only_mode=False)
     out: dict[str, tuple[Any, int]] = {}
-    for item in items:
-        # One sentence at a time, its sampling seeded so the attempt can be made again.
-        models.torch.manual_seed(item['seed'] + attempt)
-        wavs, rate = tts.generate_voice_clone(text=item['text'], language=job['language'], voice_clone_prompt=voice)
-        out[item['digest']] = (wavs[0], rate)
+
+    def batch(group: list[Json]) -> None:
+        # A batch's sampling is seeded by its first sentence, so the attempt can be made again; one that does not fit
+        # in the GPU's memory is spoken in halves.
+        models.torch.manual_seed(group[0]['seed'] + attempt)
+        spoken = None
+        try:
+            spoken = tts.generate_voice_clone(text=[i['text'] for i in group], language=[job['language']] * len(group),
+                                              voice_clone_prompt=voice * len(group), max_new_tokens=most_tokens(group))
+        except models.torch.OutOfMemoryError:
+            if len(group) == 1:
+                raise
+        if spoken is None:
+            # Out of the handler, the failed batch's memory is released; then each half is spoken.
+            log(f'{len(group)} sentences at once did not fit in memory; speaking them in halves')
+            models.free()
+            batch(group[:len(group) // 2])
+            batch(group[len(group) // 2:])
+            return
+        wavs, rate = spoken
+        for item, wav in zip(group, wavs):
+            out[item['digest']] = (wav, rate)
+    ordered = sorted(items, key=lambda i: len(i['text']))
+    for first in range(0, len(ordered), TTS_BATCH):
+        batch(ordered[first:first + TTS_BATCH])
     del tts
     models.free()
     return out

@@ -28,9 +28,10 @@ from locations import DiagnosticError
 from config import LAB, TOOLS, Config, Environment, log
 from narration import Durations, Narration
 
-# The models, each at the revision the voice was chosen with (2026-11-21), from the local Hugging Face cache.
+# The models, each at the revision the voice was chosen with (2026-11-21; the voice's 0.6B since 2026-11-22: steadier
+# in pitch, heard as well, and faster than 1.7B), from the local Hugging Face cache.
 MODELS = {
-    'tts': {'repository': 'Qwen/Qwen3-TTS-12Hz-1.7B-Base', 'revision': 'fd4b254389122332181a7c3db7f27e918eec64e3'},
+    'tts': {'repository': 'Qwen/Qwen3-TTS-12Hz-0.6B-Base', 'revision': '5d83992436eae1d760afd27aff78a71d676296fc'},
     'asr': {'repository': 'Qwen/Qwen3-ASR-1.7B', 'revision': '7278e1e70fe206f11671096ffdd38061171dd6e5'},
     'aligner': {'repository': 'Qwen/Qwen3-ForcedAligner-0.6B', 'revision': 'c7cbfc2048c462b0d63a45797104fc9db3ad62b7'},
 }
@@ -92,7 +93,8 @@ def run_voice(cfg: Config, env: Environment, device: str, items: list[Json]) -> 
     reference = {'audio': str(REFERENCE), 'text': REFERENCE_TEXT, 'id': REFERENCE_ID}
     job.write_text(json.dumps({'out': str(cfg.audio_cache), 'models': MODELS, 'reference': reference, 'language': LANGUAGE, 'device': device,
                                'retryCer': RETRY_CER, 'attempts': ATTEMPTS, 'items': items}, ensure_ascii=False, indent=1) + '\n')
-    environment = {**os.environ, 'HF_HOME': str(env.models), 'HF_HUB_OFFLINE': '1', 'TRANSFORMERS_VERBOSITY': 'error', 'TOKENIZERS_PARALLELISM': 'false'}
+    environment = {**os.environ, 'HF_HOME': str(env.models), 'HF_HUB_OFFLINE': '1', 'TRANSFORMERS_VERBOSITY': 'error', 'TOKENIZERS_PARALLELISM': 'false',
+                   'PYTORCH_CUDA_ALLOC_CONF': 'expandable_segments:True'}
     log(f'Chinese voice: {len(items)} sentences to speak ({REFERENCE.name}, {MODELS["tts"]["repository"]}).')
     with (logs / 'zh-voice.log').open('w') as out:
         proc = subprocess.Popen([str(env.zh_python), '-I', str(TOOLS / 'zh_voice.py'), str(job)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
