@@ -409,7 +409,7 @@ in the captions and the formula card, and in its text tables, as the Fluent func
 ## The Chinese narration
 
 The zh-CN edition speaks its translation (`speech_zh.py`), over the English edition's shots: each sentence is spoken
-by Qwen3-TTS (the 1.7B Base model) in one narrator's voice, cloned for every sentence from the same reference clip
+by Qwen3-TTS (the 0.6B Base model, six sentences at a time) in one narrator's voice, cloned for every sentence from the same reference clip
 (`voices/zh-CN-narrator.wav` and its transcript; its `.json` records how it was designed with Qwen3-TTS VoiceDesign,
 a serious, mature woman's voice: the built-in voices drifted in pitch from sentence to sentence), heard back by Qwen3-ASR (a sentence heard with
 more than a quarter of its characters wrong is spoken again from another seed, three times at most, and the attempt
@@ -463,9 +463,10 @@ install, point `RENDER_LAB_VIDEO_ENV`, `RENDER_LAB_VOICES`, and `RENDER_LAB_TTS_
 
 `--zh` adds the Chinese voice: a Conda prefix of its own in `.cache/video-tts-zh` (Python 3.12; PyTorch 2.11 with
 CUDA, `qwen-tts`, and `qwen-asr`, from `requirements-zh.txt` and `requirements-zh-asr.txt`), and the three models at
-the revisions `speech_zh.py` names (about 10 GB, in `.cache/huggingface`, read from there only). A new reference clip
+the revisions `speech_zh.py` names (about 9 GB, in `.cache/huggingface`, read from there only). A new reference clip
 re-speaks every Chinese sentence (its hash is part of each clip's name). They run on a 6 GB
-GPU one at a time (the voice takes about 4 GB), at about 0.7 s per second of speech; `--tts-device cpu` runs them
+GPU one at a time (the voice takes up to about 4.7 GB, speaking six sentences at once, about 4.8 times as fast as they
+are spoken: 0.6B steadied the voice's pitch and erred less than 1.7B, and runs faster); `--tts-device cpu` runs them
 on the CPU, far slower. `RENDER_LAB_TTS_ZH` and `RENDER_LAB_TTS_MODELS` point at an existing install. A build whose
 Chinese sentences are all in the cache (`--cached-audio-only`) needs no Chinese voice.
 
