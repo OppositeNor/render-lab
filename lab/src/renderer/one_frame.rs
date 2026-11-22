@@ -81,6 +81,16 @@ fn math_scene(
     crate::script::runtime::math_scene(name, request.state, content, statics, request.time)
 }
 
+/// Whether the frame shows a math scene that does not read the frame it covers (`Investigation::math_reads_frame`):
+/// a 2D beat's, or on a 3D frame the demonstration's. The frame is then built but not rendered.
+fn scene_paused(request: &FrameRequest) -> bool {
+    let name = match request.scene_type {
+        SceneType::TwoD => request.math,
+        SceneType::ThreeD => crate::math::demo_scene(request.state),
+    };
+    name.is_some_and(|n| !investigation::current().math_reads_frame(n))
+}
+
 /// The main camera's own view, in the viewport's lower right corner, at its shape.
 fn main_corner(layout: &Layout) -> egui::Rect {
     let v = layout.viewport;
@@ -93,10 +103,11 @@ impl Renderer {
     /// selftest to draw known markers).
     pub fn render_frame_with(
         &mut self,
-        request: FrameRequest,
+        mut request: FrameRequest,
         readback: Option<&wgpu::Buffer>,
         prepared: Option<FrameContent>,
     ) -> FrameResult {
+        let paused = self.pause_scene(&mut request);
         self.begin_frame(&request);
         let mut plan = self.plan_frame(&request, prepared.is_some());
         let layout = plan.layout;
@@ -123,8 +134,10 @@ impl Renderer {
         let boxes = lit_boxes(&request);
         let math_beat = request.scene_type == SceneType::TwoD && request.math.is_some();
         let renders = scene_beat || !boxes.is_empty() || math_beat;
+        // What renders on the GPU: all of it, unless a math scene paused it (its content is built all the same).
+        let gpu = renders && !paused;
         // A recording waits for the data, so every frame is the same each time.
-        if renders {
+        if gpu {
             self.select_data(scene_state, request.wait || !request.history);
             self.plan_program(scene_state, request.history, viewport_size);
         }
@@ -155,20 +168,20 @@ impl Renderer {
         drawn.free = self.draw_free(&request, content.as_ref(), &plan, &drawn, frame);
         drawn.overs = self.draw_overs(&request, given, &plan, &drawn, frame);
         // The shading's data is the main view's again (an over view selected its own).
-        if renders && !drawn.overs.is_empty() {
+        if gpu && !drawn.overs.is_empty() {
             self.select_data(scene_state, request.wait || !request.history);
         }
         // The main camera's own view, in the viewport's lower right corner, at its shape.
         drawn.main_view = drawn.free.as_ref().map(|_| main_corner(&layout));
         self.last_main_view = drawn.main_view;
         self.place_views(&plan, &drawn);
-        if let Some(content) = &content {
+        if let Some(content) = content.as_ref().filter(|_| gpu) {
             self.upload(content);
             self.upload_draws(content);
             self.prepare_views(request.state);
             self.prepare_inspections(request.state, &boxes);
         }
-        if let (false, Some(c)) = (request.history, content.as_ref()) {
+        if let (false, true, Some(c)) = (request.history, gpu, content.as_ref()) {
             // A frame that stands alone: its program warmed up, and the frame built again from its own reads.
             self.warm_up_program(scene_state, c, viewport_size);
             let time = request.time;
@@ -186,9 +199,10 @@ impl Renderer {
                 content = Some(rebuilt);
             }
         }
-        if let (true, false, Some(c)) = (
+        if let (true, false, true, Some(c)) = (
             request.state.panel.shows_passes(),
             request.history,
+            gpu,
             &content,
         ) {
             self.warm_up_performance(c);
@@ -196,13 +210,24 @@ impl Renderer {
         let (output, report) = self.ui_pass(request, &plan, &drawn, content.as_ref(), &boxes);
         self.encode_frame(
             output,
-            content.as_ref(),
+            content.as_ref().filter(|_| gpu),
             &plan,
             &drawn,
             scene_beat,
             readback,
         );
         FrameResult::of(report, content, drawn.free)
+    }
+
+    /// Whether a math scene that does not read the frame pauses it (`scene_paused`); the first frame rendered after
+    /// a pause has no history, as nothing kept its history up to date.
+    fn pause_scene(&mut self, request: &mut FrameRequest) -> bool {
+        let paused = scene_paused(request);
+        if self.scene_paused && !paused {
+            request.history = false;
+        }
+        self.scene_paused = paused;
+        paused
     }
 
     /// The frame drawn again from the start (its panel's showing changed once its reads were in hand).

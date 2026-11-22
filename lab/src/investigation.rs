@@ -866,6 +866,13 @@ pub trait Investigation: Sync {
     ) -> Result<(), crate::script::lamlet::embed::Error> {
         Ok(())
     }
+    /// Whether its math scene `scene` (src/math/; a story's `kind=2d math=` beat, a demonstration's `math`) reads
+    /// the rendered frame, through its natives. When it does not, the 3D frame it covers is built (for the panel
+    /// and the natives) but not rendered, and the first frame rendered after it starts without history. The
+    /// default: it does.
+    fn math_reads_frame(&self, _scene: &str) -> bool {
+        true
+    }
     /// The images it publishes for a story to show (`{inset "key"}`,
     /// packages/render_lab/src/inset.rs), in `FrameContent::images` of the frames
     /// that show them.

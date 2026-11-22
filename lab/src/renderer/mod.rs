@@ -130,6 +130,9 @@ pub struct Renderer {
     fetches: crate::fetch::Queue,
     /// How deep the redraws of a frame drawn alone, waiting for its reads, are.
     settling: u8,
+    /// Whether the last frame paused the scene under a math scene that does not read it
+    /// (`Investigation::math_reads_frame`): the next frame that renders it has no history.
+    scene_paused: bool,
     /// GPU timestamps around the frame's passes (src/timing.rs), while a panel
     /// or a feature asks for them (`set_timing`) and the device has them.
     pub timing: Option<crate::timing::Timing>,
@@ -293,6 +296,7 @@ impl Renderer {
             frame_starts: std::collections::VecDeque::new(),
             fetches: crate::fetch::Queue::default(),
             settling: 0,
+            scene_paused: false,
             timing: None,
             statics,
             other_scenes: HashMap::new(),
