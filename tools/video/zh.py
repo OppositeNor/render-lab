@@ -326,22 +326,46 @@ def cue_marks(english: markup.Sentence, chinese: markup.Sentence, pieces: list[s
     return marks
 
 
+# What a demonstration's switch (a `demo` key) resets, by field (tools/video/README.md, "What a key resets and
+# carries"): its values, motions, camera, panel, listing, record, highlights, actions, and clips; callouts, insets,
+# arrows, labels, and the formula card are carried.
+DEMO_RESETS = ('params.', 'camera', 'animate', 'panel', 'code', 'record', 'highlight', 'run', 'stop', 'play')
+
+
+def _channel(name: str) -> str:
+    """A motion's channel by the field a key sets it with: `camera` for any of the camera's, else the value's."""
+    return 'camera' if name.split('.')[0] == 'camera' else f'params.{name}'
+
+
 def _fields(tag: markup.Tag, english: markup.Sentence) -> set[str]:
-    """What a tag's key sets (a range's close, its open's), each value of `params` by name."""
+    """What a tag's key sets (a range's close, its open's): each value of `params` by name, the camera as one, and
+    each channel a motion moves (`animate`) as a key setting it would name it."""
     if tag.kind == 'close':
         tag = next(t for t in english.tags if t.kind == 'open' and t.name == tag.name)
     key = tag.key or {}
     names = {k for k in key if k not in ('delay', 'blend', 'ease', 'params', '_provenance')}
-    return names | {f'params.{p}' for p in key.get('params', {})}
+    names |= {f'params.{p}' for p in key.get('params', {})}
+    for motion in key.get('animate', []):
+        # A path or an orbit moves its `params`, a wave its `param`.
+        body = next(iter(motion.values()), {})
+        names |= {_channel(c) for c in [*body.get('params', []), *([body['param']] if 'param' in body else [])]}
+    return names
+
+
+def _shared(a: set[str], b: set[str]) -> set[str]:
+    """What two tags' keys both set; a demonstration's switch sets everything it resets."""
+    resets = lambda own, other: {f for f in other if f.startswith(DEMO_RESETS)} if 'demo' in own else set()
+    return (a & b) | resets(a, b) | resets(b, a)
 
 
 def _check_order(english: markup.Sentence, marks: list[int], where: Json | None, beat: str | None) -> None:
     """Two tags that set the same thing keep their English order in the Chinese sentence, so the shot ends as the
-    English one does."""
+    English one does: the same value, the camera, a channel a motion moves, or what a demonstration's switch
+    resets."""
     for i, a in enumerate(english.tags):
         for j in range(i + 1, len(english.tags)):
             # A later English tag placed before an earlier one: refused when they set the same thing.
-            shared = _fields(a, english) & _fields(english.tags[j], english) if marks[j] < marks[i] else set()
+            shared = _shared(_fields(a, english), _fields(english.tags[j], english)) if marks[j] < marks[i] else set()
             if shared:
                 raise DiagnosticError('story.translation.order', f'the translation places the English sentence\'s tag {j + 1} before its tag {i + 1}, '
                                       f'and both set {", ".join(sorted(shared))}; anchor them in the English order', where, beat=beat)

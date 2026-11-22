@@ -416,7 +416,8 @@ more than a quarter of its characters wrong is spoken again from another seed, t
 heard best kept), and timed by Qwen3-ForcedAligner, unit by unit: a Chinese character, or a run of letters and
 digits (`zh.units`, cut as the aligner cuts). The models run in a process of their own (`zh_voice.py`), in the
 environment `setup.sh --zh` makes, a chunk of sentences at a time, written to the shared narration cache
-(`<digest>.wav` and `<digest>.json`: the units' times, the transcript, its error rate). A sentence still heard with
+(`<digest>.wav` and `<digest>.json`: the units' times, the transcript, its error rate, and the reference it was spoken
+from, `voice`: a clip spoken from another clip or transcript is spoken again). A sentence still heard with
 more than a tenth of its characters wrong is listed in the build's `narration-review.md`, to be listened to; fix it
 with the text, or with video.json's `pronunciationsZh` (a word and how the Chinese voice should say it).
 
@@ -431,7 +432,9 @@ Each cue of the English sentence fires on the Chinese unit it stands before (`zh
   range over the whole sentence stays over it).
 
 Two cues that set the same thing must keep their English order (`story.translation.order`), so a shot ends as the
-English one does; an anchor inside a run of letters is refused (`a cue cuts the word`).
+English one does: the same value, the camera, a channel a motion moves (a camera motion and a camera cue, a wave
+and its value's cue), or what a demonstration's switch resets (its values, camera, motions, panel, listing, record,
+highlights, actions, and clips; a callout, an inset, an arrow, or a label may move across it); an anchor inside a run of letters is refused (`a cue cuts the word`).
 
 Chinese takes its own time to say the same (SSR's translation, 1.22 times the English speech): the edition's **pace**
 is the seconds of all its speech over the English edition's (read from the English clips in the cache, so the English

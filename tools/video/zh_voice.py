@@ -6,7 +6,7 @@ Python under .cache/video-tts-zh), apart from the build's; speech_zh.py writes i
 
 The job (JSON): `out` (the directory the wavs go to), `models` (the three models: `tts`, `asr`, `aligner`, each a
 Hugging Face repository and the revision to use, from the local cache only), `reference` (the narrator's clip,
-`audio`, and its transcript, `text`), `language`, `device` (`auto`, `cuda`, or `cpu`), `retryCer`, `attempts`, and `items`, each a `digest`, the `text` to say, and its `seed`.
+`audio`, its transcript, `text`, and `id`, which each sidecar records as `voice`), `language`, `device` (`auto`, `cuda`, or `cpu`), `retryCer`, `attempts`, and `items`, each a `digest`, the `text` to say, and its `seed`.
 Each item leaves `<digest>.wav` (16-bit mono) and `<digest>.json`: the text, the units the aligner timed with their
 start and end in seconds, the transcript, its character error rate against the text, and the seed of the attempt
 kept. The items go in chunks, each written before the next starts, so a run stopped part way keeps what it made.
@@ -156,7 +156,8 @@ def chunk(models: Models, job: Json, items: list[Json], out: Path) -> None:
     for item in items:
         # Write each item: its audio, and what was heard and timed in it.
         b = best[item['digest']]
-        record = {'text': item['text'], 'units': spans[item['digest']], 'transcript': b['transcript'], 'cer': round(b['cer'], 4), 'seed': b['seed']}
+        record = {'text': item['text'], 'units': spans[item['digest']], 'transcript': b['transcript'], 'cer': round(b['cer'], 4), 'seed': b['seed'],
+                  'voice': job['reference']['id']}
         write(out, item, b['audio'][0], b['audio'][1], record)
 
 

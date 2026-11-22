@@ -152,14 +152,31 @@ def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Js
     return passed
 
 
-# A key's fields that its edition's speech times; the rest say what it does, the same in both editions.
-TIMED = ('frame', 'blend', 'source', '_provenance', 'animate')
+# A key's fields that its edition's speech times; the rest say what it does, the same in both editions (its
+# `source` is its beat).
+TIMED = ('frame', 'blend', '_provenance')
+
+
+def shot(key: Json) -> str:
+    """What a key does, without when: its untimed fields, and each motion's but its length in seconds."""
+    untimed = {k: v for k, v in key.items() if k not in TIMED}
+    if 'animate' in untimed:
+        # A motion's seconds may run to its sentence's or beat's end, which the speech times.
+        untimed['animate'] = [{kind: {f: v for f, v in body.items() if f != 'seconds'} for kind, body in m.items()} for m in untimed['animate']]
+    return json.dumps(untimed, sort_keys=True, ensure_ascii=False)
 
 
 def shots(t: Json) -> list[str]:
-    """What a timeline's keys do, without when: each key's untimed fields, sorted (two editions may order keys of one
-    sentence differently when they set different things)."""
-    return sorted(json.dumps({k: v for k, v in key.items() if k not in TIMED}, sort_keys=True, ensure_ascii=False) for key in t['keys'])
+    """What a timeline's keys do, without when, each in its beat: sorted, as two editions may order the keys of one
+    sentence differently when they set different things."""
+    return sorted(shot(key) for key in t['keys'])
+
+
+def scenes(t: Json) -> list[Any]:
+    """Each beat's chapter, kind, and what it shows that no translation changes: its math scene, focus, and whether it
+    shows a diagram, the frame graph, the references, or the notices."""
+    return [(b['id'], b['chapter'], b['kind'], b.get('math'), b.get('focus', []), 'diagram' in b, 'graph' in b, b.get('references', False),
+             b.get('notices', False)) for b in t['beats']]
 
 
 def verify_zh(cfg: Config, check: Callable[[str, bool, Any], None]) -> None:
@@ -168,8 +185,8 @@ def verify_zh(cfg: Config, check: Callable[[str, bool, Any], None]) -> None:
     # The zh-CN edition speaks its own narration over the English edition's shots, and must leave its files untouched.
     own = sha256(cfg.build() / 'narration.wav') != sha256(cfg.build('en') / 'narration.wav')
     check('the narration is the edition\'s own (Chinese) track', own, {})
-    check('the same chapters and beats as the English edition, in its order',
-          [(b['id'], b['chapter'], b['kind']) for b in timeline['beats']] == [(b['id'], b['chapter'], b['kind']) for b in english['beats']],
+    check('the same chapters and beats as the English edition, in its order, each showing the same scene',
+          scenes(timeline) == scenes(english),
           {'beats': len(timeline['beats']), 'englishBeats': len(english['beats'])})
     check('the same shots as the English edition (every key, but when it falls)', shots(timeline) == shots(english),
           {'keys': len(timeline['keys']), 'englishKeys': len(english['keys'])})

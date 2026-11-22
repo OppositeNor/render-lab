@@ -37,6 +37,10 @@ MODELS = {
 # The narrator: a serious, mature woman's voice (chosen 2026-11-21 over the built-in voices, whose pitch drifted
 # three times as far from sentence to sentence), cloned from this clip and its transcript for every sentence.
 REFERENCE = TOOLS / 'voices' / 'zh-CN-narrator.wav'
+REFERENCE_TEXT = json.loads(REFERENCE.with_suffix('.json').read_text())['text']
+# The reference a clip was spoken from, its audio and its transcript, which each sidecar records (`voice`): a clip
+# spoken from another is not in the cache.
+REFERENCE_ID = hashlib.sha256(REFERENCE.read_bytes() + b'\0' + REFERENCE_TEXT.encode()).hexdigest()[:16]
 LANGUAGE = 'Chinese'
 SEED = 20261120
 RETRY_CER = 0.25        # a sentence heard with more character errors than this is spoken again
@@ -68,6 +72,12 @@ def speech(cfg: Config, sentence: Json) -> tuple[str, list[int]]:
     return text, zh.cue_marks(english, chinese, pieces, sentence.get('shownSource'), None)
 
 
+def cached(cfg: Config, digest: str) -> bool:
+    """Whether a sentence's clip is in the cache, spoken from the reference as it is now (`REFERENCE_ID`)."""
+    wav, sidecar = cfg.audio_cache / f'{digest}.wav', cfg.audio_cache / f'{digest}.json'
+    return wav.exists() and sidecar.exists() and json.loads(sidecar.read_text()).get('voice') == REFERENCE_ID
+
+
 def digest_of(text: str) -> str:
     return hashlib.sha256((text + '\0' + VOICE_ID).encode()).hexdigest()[:24]
 
@@ -79,7 +89,7 @@ def run_voice(cfg: Config, env: Environment, device: str, items: list[Json]) -> 
     logs = cfg.build() / 'logs'
     logs.mkdir(parents=True, exist_ok=True)
     job = logs / 'zh-voice-job.json'
-    reference = {'audio': str(REFERENCE), 'text': json.loads(REFERENCE.with_suffix('.json').read_text())['text']}
+    reference = {'audio': str(REFERENCE), 'text': REFERENCE_TEXT, 'id': REFERENCE_ID}
     job.write_text(json.dumps({'out': str(cfg.audio_cache), 'models': MODELS, 'reference': reference, 'language': LANGUAGE, 'device': device,
                                'retryCer': RETRY_CER, 'attempts': ATTEMPTS, 'items': items}, ensure_ascii=False, indent=1) + '\n')
     environment = {**os.environ, 'HF_HOME': str(env.models), 'HF_HUB_OFFLINE': '1', 'TRANSFORMERS_VERBOSITY': 'error', 'TOKENIZERS_PARALLELISM': 'false'}
@@ -120,9 +130,9 @@ def synthesize(cfg: Config, env: Environment, device: str, sentences: list[Json]
     spoken = [(s, *speech(cfg, s)) for s in sentences]
     missing: dict[str, Json] = {}
     for s, text, _ in spoken:
-        # A sentence not in the cache (wav and sidecar) is spoken; the same text twice is spoken once.
+        # A sentence not in the cache (wav and sidecar, spoken from this reference) is spoken; the same text twice once.
         digest = digest_of(text)
-        if not ((cfg.audio_cache / f'{digest}.wav').exists() and (cfg.audio_cache / f'{digest}.json').exists()):
+        if not cached(cfg, digest):
             missing[digest] = {'digest': digest, 'text': text, 'seed': SEED}
     if missing and cached_only:
         first = next(iter(missing.values()))
