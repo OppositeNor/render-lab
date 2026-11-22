@@ -100,6 +100,11 @@ impl Investigation for Restir {
         script::register(natives)
     }
 
+    fn math_reads_frame(&self, _scene: &str) -> bool {
+        // Its math scenes compute on the example world (examples.rs); their natives never read the frame.
+        false
+    }
+
     fn backdrop(&self, t: f32) -> Option<ShotState> {
         // The title screen's backdrop: the room, its lights moving, the camera turning slowly.
         let mut state = shot::for_demo(Demo::Room);

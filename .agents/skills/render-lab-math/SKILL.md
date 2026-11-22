@@ -68,7 +68,9 @@ those values is a **clip** (runtime.lam's `Clip`, `lab/src/clip.rs`; the `render
   frame (`frame_data`) depend on the viewport's shape, differ between the viewer and a recording, and are often
   zero where the scene is dark. The scene may also read the dock's values (`{restirNeighbours}`), so it follows
   them. Write numbers as LaTeX with `fractionLatex`, `numberLatex`, or a scene's own helper (ReSTIR's `rational`,
-  `short`).
+  `short`). An investigation whose math scenes never read the frame says so (`Investigation::math_reads_frame`
+  returns false; ReSTIR's): the 3D frame under its math beats and math demonstrations is then built on the CPU but
+  not rendered, which makes them far cheaper, and the first frame rendered after one starts without history.
 - **Text** on the canvas is a formula (`tex`, `texParts`: LaTeX in `f"{…}"` templates) or a text key
   (`caption` with `{textKey "…"}`, in both languages' tables); `words` only for a symbol or a number.
 
