@@ -136,7 +136,7 @@ python3 tools/video/lint.py --investigation godot/ssr --lang zh-CN           # t
 python3 tools/video/build.py --investigation godot/ssr --preview c1-adds --cached-audio-only   # one beat's stills: each cue, the frame before it, motion and blend ends
 python3 tools/video/build.py --investigation o3de/lighting                    # the full video (~15 min, GPU; run it in the background)
 python3 tools/video/build.py --all                                            # every package's video, in all its languages, one after another (GPU; background)
-python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py tools/video/test_compare.py tools/video/test_lint.py   # cue attributes, the storyboard format (a Lamlet presentation; the lab built first), the comparison, the narration lint
+python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py tools/video/test_compare.py tools/video/test_lint.py tools/video/test_speech_zh.py   # cue attributes, the storyboard format (a Lamlet presentation; the lab built first), the comparison, the narration lint, the Chinese narration's timing
 python3 tools/video/compare.py save /tmp/before; python3 tools/video/compare.py /tmp/before /tmp/after   # every edition's prepared outputs unchanged by a change (after build.py --all --prepare-only each time)
 cargo run --release -- lamlet toml packages/render_lab/scenes/study-room.lam studyRoom   # a Lamlet content file's binding as the TOML the lab reads
 python3 tools/lamlet_fmt.py --check                                           # every tracked .lam file laid out (without --check: lays them out)

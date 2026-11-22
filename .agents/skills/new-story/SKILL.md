@@ -156,9 +156,11 @@ parameter.
 ### Phase 8: Translate and build
 
 - Write `storyboard.zh-CN.lam`: the same headings, one paragraph per English sentence, the same formulas, no cues
-  (`render-lab-lamlet`, "The translation"), each paragraph written as Chinese rather than mirrored from the English
-  (`references/storyboard.md`, "Written for the ear"). Technical terms stay English; keep its `glossary` of the terms'
-  translations consistent. The Chinese edition keeps the English narration, timed by the English sentences.
+  of its own (`render-lab-lamlet`, "The translation"), each paragraph written as Chinese rather than mirrored from the
+  English (`references/storyboard.md`, "Written for the ear"). Technical terms stay English; keep its `glossary` of
+  the terms' translations consistent. The Chinese edition speaks it (Qwen3-TTS, `setup.sh --zh`) over the English
+  shots: give each formula a Chinese `say`, and anchor a cue (`cueAt`, `overTextAt`) where Chinese word order moves
+  the word it fires on. Listen to the sentences the build lists in `narration-review.md`.
 - Check (one build or GPU job at a time):
   - `cargo build --release --locked --offline`, and each local package's workspace, with no warnings;
   - `--prepare-only` for both languages;

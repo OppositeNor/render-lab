@@ -64,6 +64,26 @@ TRANSLATION = r'''$[Import* std]$[Import* content]
 '''
 
 
+# STORY's translation, saying where its cues fall: the second sentence's range (cue 1) over its words, with the
+# point cue inside it (cue 2) anchored on a word of its own, and its formula said in Chinese.
+SPOKEN = r"""$[Import* std]$[Import* content]$[Import* present]$[Import* render_lab]
+# 测试 {#video subtitle="一个短的" locale=zh-CN}
+
+## 第一章 {#c1 summary="内容。"}
+
+### 一个 {#c1-one}
+
+第一句，带一个 cue，还有 5 块钱。
+
+一条光线${overAt 1 {cat {' {text "一步"} {cueAt 2} {text "一步地前进"}}}}，带着 ${say {math "\\frac{1}{1+\\lit{1}{n}}"} "一比一加 n"}、${code "LightCullingTilePrepare"} 和 ${say {code "r.Example.Max"} "最大强度"}。
+
+有很多叶子。
+
+### 图 {#c1-two}
+
+图的句子。
+"""
+
 @unittest.skipUnless(lamlet.BINARY.exists(), 'the lab is not built (cargo build --release --locked --offline)')
 class Presentation(unittest.TestCase):
     fields: markup.Fields
@@ -127,6 +147,21 @@ class Presentation(unittest.TestCase):
         # A translation carries no cues.
         with self.assertRaisesRegex(presentation.PresentationError, 'carries no cues'):
             self.load(TRANSLATION.replace('第一句。', '$[Import* present]${cue "key" {\' {attr "a" "1"}}}第一句。'), translation=True)
+
+    def test_translation_anchors(self) -> None:
+        # A translation says where the English cues fall in its words; the Chinese voice times them there.
+        import zh
+        board = zh.localize(self.load(STORY), self.load(SPOKEN, translation=True))
+        second = board['chapters'][0]['beats'][0]['narration'][1]
+        english, chinese = markup.sentence(second), second['shown']
+        self.assertEqual([(t.kind, t.name) for t in chinese.tags], [('open', '1'), ('cue', '2'), ('close', '1'), ('formula', None)])
+        pieces = zh.spoken_pieces(chinese, lambda text: text)
+        self.assertEqual(zh.spoken_text(pieces), '一条光线一步一步地前进，带着 一比一加 n 、LightCullingTilePrepare 和 最大强度。')
+        # The range opens after 一条光线, its cue after 一步, it closes after 前进; the formula after 带着.
+        self.assertEqual(zh.cue_marks(english, chinese, pieces, None, 'c1-one'), [4, 6, 11, 13])
+        # An anchor names a cue the English sentence has, of its kind: a range anchored on the point cue 2 is refused.
+        with self.assertRaisesRegex(Exception, 'the English cue 2 is a point'):
+            zh.localize(self.load(STORY), self.load(SPOKEN.replace('${overAt 1 {cat', '${overAt 2 {cat').replace('{cueAt 2}', '{cueAt 1}'), translation=True))
 
     def test_names_the_lab_checks(self) -> None:
         # A callout, a text key, a published point, and a formula are checked against the investigation at the

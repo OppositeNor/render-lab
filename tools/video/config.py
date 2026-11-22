@@ -51,15 +51,23 @@ def env_path(name: str, default: Path) -> Path:
 @dataclass(frozen=True)
 class Environment:
     """The Conda prefix (python, ffmpeg), the voice, and the CUDA packages for
-    GPU narration. Each can point at an existing install through its
-    environment variable."""
+    GPU narration; and the Chinese voice's own prefix (PyTorch, Qwen3-TTS) and
+    the Hugging Face cache its models are in (tools/video/setup.sh --zh). Each
+    can point at an existing install through its environment variable."""
     prefix: Path = field(default_factory=lambda: env_path('RENDER_LAB_VIDEO_ENV', LAB / '.cache' / 'video-env'))
     voices: Path = field(default_factory=lambda: env_path('RENDER_LAB_VOICES', LAB / '.cache' / 'video-voices'))
     tts_gpu: Path = field(default_factory=lambda: env_path('RENDER_LAB_TTS_GPU', LAB / '.cache' / 'video-tts-gpu'))
+    tts_zh: Path = field(default_factory=lambda: env_path('RENDER_LAB_TTS_ZH', LAB / '.cache' / 'video-tts-zh'))
+    models: Path = field(default_factory=lambda: env_path('RENDER_LAB_TTS_MODELS', LAB / '.cache' / 'huggingface'))
 
     @property
     def python(self) -> Path:
         return self.prefix / 'bin' / 'python'
+
+    @property
+    def zh_python(self) -> Path:
+        """The Chinese voice's Python (zh_voice.py runs under it)."""
+        return self.tts_zh / 'bin' / 'python'
 
     @property
     def ffmpeg(self) -> Path:
@@ -157,7 +165,8 @@ class Config:
 
     @property
     def audio_cache(self) -> Path:
-        """Shared by the editions: every edition speaks the English sentences (video.json's `audioCache` if given)."""
+        """Shared by the editions (video.json's `audioCache` if given): each sentence's speech, named by the hash of
+        what is said and the voice, English (Piper) and Chinese (Qwen3-TTS) side by side."""
         if 'audioCache' in self.spec:
             return self.path(self.spec['audioCache'])
         return self.package / 'build' / 'video' / 'audio'

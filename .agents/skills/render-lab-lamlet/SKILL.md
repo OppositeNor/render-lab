@@ -62,10 +62,14 @@ ${overText {' {voxelgiMixRange 0.0 1.0}} "a range over words"}.
 - **Formulas:** `${formulaSaid "TeX" "what the voice says" {' {colors "#ffd166"}}}` (backslashes doubled in
   Strings; it is the formula cue and its `say`); `${cue "formula" {' {formulaOff}}}` closes the card. **Code names:**
   `${code "Name"}`, or `${say {code "Name"} "how it is said"}`.
-- **The translation** (`storyboard.zh-CN.lam`) imports `std` and `content` only: the same headings by id (its own
+- **The translation** (`storyboard.zh-CN.lam`) imports `std` and `content`: the same headings by id (its own
   titles, summaries, headlines, with no chapter `number`; the video's `subtitle`, `locale`, `glossary`
-  comma-separated, `captionWidth`), one paragraph per English sentence, formulas as `${math "TeX"}`, code names as
-  `${code "Name"}`, no cues.
+  comma-separated, `captionWidth`), one paragraph per English sentence, formulas as `${math "TeX"}` (or `${say {math
+  "TeX"} "how it is said"}`, in Chinese), code names as `${code "Name"}`, no cues of its own. It is spoken in
+  Chinese, so it may say where the English sentence's cues fall in its words (importing `present` and
+  `render_lab` too): `${cueAt n}` before a word, `${overTextAt n "words"}` or `${overAt n CONTENT}` over a range's
+  words, `n` counting the English sentence's point cues, ranges, and `formulaOff`s in order. An unanchored cue falls
+  as far into the Chinese as it stands into the English (tools/video/README.md, "The Chinese narration").
 - **Pacing** is the video heading's (`lead`, `gap`, `tail`, `maxExtraPause`, `taggedWeight`, `termFade`,
   `captionBridge`, `captionWidth`; tools/video/README.md), each with its default when left out (the heading
   keys give it).

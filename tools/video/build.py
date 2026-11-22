@@ -1,9 +1,10 @@
 """Build an investigation's narrated video.
 
-Narration is synthesised per sentence with a Piper voice and measured; the
-storyboard's shot keys are placed at sentence starts, turned into frame
-indices, and written as a timeline that `render-lab render` records frame by
-frame. The muxed video, captions, chapters, script, source-reading guide, and
+Narration is synthesised per sentence and measured (English with a Piper
+voice, Chinese with Qwen3-TTS, speech_zh.py); the storyboard's shot keys are
+placed at the words their cues stand before, turned into frame indices, and
+written as a timeline that `render-lab render` records frame by frame. The
+muxed video, captions, chapters, script, source-reading guide, and
 verification report come from the same data.
 
     python3 tools/video/build.py --investigation o3de/lighting [--lang zh-CN] [--resolution 1080p] [--prepare-only | --snapshots-only | --verify-only]
@@ -18,11 +19,13 @@ The video is 1920 x 1080 unless `--resolution` names another size (720p,
 1080p, 1440p, 2160p or 4k, or WIDTHxHEIGHT); the stills and the verification
 use the same size, so give `--verify-only` the size the video was built at.
 
-The zh-CN edition speaks the English sentences, so it shares the English
-edition's narration and timing; its on-screen text, headlines, chapter titles,
-subtitles, and documents are Chinese (technical terms stay English). Build the
-English edition first. The tools come from tools/video/setup.sh (or the paths
-in RENDER_LAB_VIDEO_ENV and its siblings, see config.py).
+The zh-CN edition speaks its translation in Chinese, with the English
+edition's shots, each cue timed to the Chinese words it stands before (zh.py);
+its on-screen text, headlines, chapter titles, subtitles, and documents are
+Chinese (technical terms stay English). Build the English edition first: the
+zh-CN build checks its shots against it and leaves its files as they were. The
+tools come from tools/video/setup.sh (`--zh` for the Chinese voice; or the
+paths in RENDER_LAB_VIDEO_ENV and its siblings, see config.py).
 """
 from __future__ import annotations
 
@@ -44,7 +47,7 @@ Json = dict[str, Any]
 
 
 def reexec_in_environment(env: Environment) -> None:
-    """Run under the environment's Python, which has Piper."""
+    """Run under the environment's Python, which has Piper (the Chinese voice runs in a process of its own)."""
     if Path(sys.executable).resolve() == env.python.resolve() or os.environ.get('RENDER_LAB_VIDEO_REEXEC'):
         # Already under the environment's Python (or re-run once): nothing to do.
         return
@@ -156,6 +159,25 @@ def render_preview(cfg: Config, env: Environment, binary: Path, timeline: tuple[
     log(f'Preview of {args.preview}: {len(frames)} stills in {directory} (index.json says why each)')
 
 
+def speak(cfg: Config, env: Environment, board: Json, args: argparse.Namespace) -> Any:
+    """Every sentence spoken in the edition's language and measured: English by Piper, Chinese by its own voice
+    (speech_zh.py), whose pace then scales the chapters' budgets."""
+    import narration
+    import timeline as timing
+    sentences = timing.all_sentences(board)
+    if not cfg.zh():
+        device, reason = narration.select_device(env, args.tts_device)
+        log(f'Narration device: {device} ({reason}).')
+        return narration.synthesize(cfg, env, device, sentences, cached_only=args.cached_audio_only)
+    import speech_zh
+    durations = speech_zh.synthesize(cfg, env, args.tts_device, sentences, cached_only=args.cached_audio_only)
+    # Chinese takes its own time to say the same: the chapters' budgets follow its pace.
+    speed = speech_zh.pace(cfg, sentences, durations)
+    speech_zh.fit_budgets(cfg, board, speed)
+    log(f'Chinese narration: {speed:.3f} times the English speech; chapter budgets scaled to it.')
+    return durations
+
+
 def main() -> None:
     parser = arg_parser()
     args = parser.parse_args()
@@ -166,7 +188,6 @@ def main() -> None:
     env = Environment()
     reexec_in_environment(env)
 
-    import narration
     import outputs
     import timeline as timing
     import verify as checks
@@ -177,9 +198,9 @@ def main() -> None:
     for d in (build, build / 'logs'):
         d.mkdir(parents=True, exist_ok=True)
     if cfg.zh() and not args.verify_only:
-        # The zh-CN edition speaks the English narration, so it needs the English timeline built first.
+        # The zh-CN edition's shots are checked against the English edition's, so it is built first.
         if not cfg.timeline('en').exists():
-            raise SystemExit('build the English edition first: the zh-CN edition uses its narration and timing')
+            raise SystemExit('build the English edition first: the zh-CN edition is checked against its shots')
         (build / 'english-checksums.json').write_text(json.dumps(checks.english_checksums(cfg), indent=1) + '\n')
     # The storyboard's Lamlet regions are expanded by the lab's own interpreter (lamlet.py), so build it first.
     import lamlet
@@ -197,15 +218,16 @@ def main() -> None:
     index = json.loads(cfg.source_index.read_text())
     validate(cfg, board, index)
     if args.verify_only:
-        # `--verify-only` checks the outputs a previous build left, and stops there.
+        # `--verify-only` checks the outputs a previous build left (with the budgets it fitted), and stops there.
+        if cfg.zh():
+            import speech_zh
+            speech_zh.load_budgets(cfg, board)
         tl = json.loads(cfg.timeline().read_text())
         plans = {int(k): v for k, v in json.loads((build / 'chapter-plans.json').read_text()).items()}
         sys.exit(0 if checks.verify(cfg, env, board, index, tl, plans, args.resolution) else 1)
 
-    # Speak and measure every sentence, then place them on the timeline.
-    device, reason = narration.select_device(env, args.tts_device)
-    log(f'Narration device: {device} ({reason}).')
-    durations = narration.synthesize(cfg, env, device, timing.all_sentences(board), cached_only=args.cached_audio_only)
+    # Speak and measure every sentence (in the edition's language), then place them on the timeline.
+    durations = speak(cfg, env, board, args)
     tl, placements, cues, plans = timing.build_timeline(board, durations, cfg)
     # The budgets, now that speech is measured and before anything is written or rendered: a chapter more than
     # BUDGET_TOLERANCE from its budget would fail the video's verification after the render.

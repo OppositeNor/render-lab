@@ -1,0 +1,8 @@
+# The Chinese voice's environment (tools/video/setup.sh --zh): Qwen3-TTS and the
+# forced aligner run on PyTorch, apart from the Piper environment.
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - sox
+  - pip
