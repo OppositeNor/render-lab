@@ -86,6 +86,23 @@ class CueMarks(unittest.TestCase):
         other = english(['a', 'b', 'c'], [cue(1, {'params': {'x': 1.0}}), cue(2, {'params': {'y': 2.0}})])
         self.assertEqual(marks(other, swapped), [2, 1])
 
+    def test_order_demo_and_motions(self) -> None:
+        # A demonstration's switch resets values, the camera, and motions: a cue setting one keeps its English order
+        # around the switch. A callout is carried across a switch, so it may move.
+        swapped = chinese(['一', '二', '三'], [cue(1, {}, '2'), cue(2, {}, '1')])
+        demo = cue(2, {'demo': 'room', 'camera': {'yaw': 10.0}})
+        with self.assertRaisesRegex(DiagnosticError, 'both set params.x'):
+            marks(english(['a', 'b', 'c'], [cue(1, {'params': {'x': 1.0}}), demo]), swapped)
+        self.assertEqual(marks(english(['a', 'b', 'c'], [cue(1, {'callout': 'k'}), demo]), swapped), [2, 1])
+        # A motion moves its channels: a camera cue and a motion of the camera's yaw set the same thing, and so do a
+        # value's cue and a wave of that value.
+        path = cue(1, {'animate': [{'path': {'params': ['camera.yaw'], 'through': [[30.0]], 'seconds': 'sentence'}}]})
+        with self.assertRaisesRegex(DiagnosticError, 'both set .*camera'):
+            marks(english(['a', 'b', 'c'], [path, cue(2, {'camera': {'distance': 4.0}})]), swapped)
+        wave = cue(1, {'animate': [{'wave': {'param': 'x', 'amplitude': 1.0, 'period': 2.0}}]})
+        with self.assertRaisesRegex(DiagnosticError, 'both set .*params.x'):
+            marks(english(['a', 'b', 'c'], [wave, cue(2, {'params': {'x': 2.0}})]), swapped)
+
     def test_word_cut(self) -> None:
         # An anchor inside a run of letters would cut a unit the aligner times whole.
         en = english(['One', 'two'], [cue(1, {'callout': 'a'})])
@@ -98,6 +115,42 @@ class CueMarks(unittest.TestCase):
                               ([cue(1, {}, '2')], 'is a range'), ([Tag('open', '1', [], 1), Tag('close', '1', [], 2)], 'is a point')):
             with self.subTest(message=message), self.assertRaisesRegex(DiagnosticError, message):
                 zh.check_anchors(en, chinese(['一', '二', '三'], tags), 'beat')
+
+
+class Verification(unittest.TestCase):
+    def test_shots(self) -> None:
+        # A key's shot is what it does in its beat: its frame, blend, and a motion's seconds are the speech's; a motion's
+        # other fields, and its beat (`source`), are not.
+        import verify
+        key = {'frame': 10, 'blend': 3, 'source': 'c1-a', 'animate': [{'orbit': {'params': ['camera.yaw'], 'degrees': 90.0, 'seconds': 4.2}}]}
+        retimed = {**key, 'frame': 40, 'blend': 9, 'animate': [{'orbit': {'params': ['camera.yaw'], 'degrees': 90.0, 'seconds': 6.1}}]}
+        self.assertEqual(verify.shot(key), verify.shot(retimed))
+        self.assertNotEqual(verify.shot(key), verify.shot({**key, 'animate': [{'orbit': {'params': ['camera.yaw'], 'degrees': 180.0, 'seconds': 4.2}}]}))
+        self.assertNotEqual(verify.shot(key), verify.shot({**key, 'source': 'c1-b'}))
+
+    def test_scenes(self) -> None:
+        # A beat shows the same scene in both editions: its math scene is compared, its translated headline is not.
+        import verify
+        beat = {'id': 'c2-toy', 'chapter': 2, 'kind': '2d', 'math': 'toyMath', 'headline': 'By hand'}
+        self.assertEqual(verify.scenes({'beats': [beat]}), verify.scenes({'beats': [{**beat, 'headline': '手算一遍'}]}))
+        self.assertNotEqual(verify.scenes({'beats': [beat]}), verify.scenes({'beats': [{**beat, 'math': 'wrsMath'}]}))
+
+
+class Cache(unittest.TestCase):
+    def test_reference(self) -> None:
+        # A clip counts as cached only when its sidecar says it was spoken from the reference as it is now.
+        import json
+        import tempfile
+        import types
+        import speech_zh
+        with tempfile.TemporaryDirectory() as d:
+            cfg = types.SimpleNamespace(audio_cache=Path(d))
+            (Path(d) / 'a.wav').write_bytes(b'')
+            self.assertFalse(speech_zh.cached(cfg, 'a'))
+            (Path(d) / 'a.json').write_text(json.dumps({'voice': 'another reference'}))
+            self.assertFalse(speech_zh.cached(cfg, 'a'))
+            (Path(d) / 'a.json').write_text(json.dumps({'voice': speech_zh.REFERENCE_ID}))
+            self.assertTrue(speech_zh.cached(cfg, 'a'))
 
 
 class ErrorRate(unittest.TestCase):

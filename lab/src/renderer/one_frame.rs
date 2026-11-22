@@ -81,6 +81,13 @@ fn math_scene(
     crate::script::runtime::math_scene(name, request.state, content, statics, request.time)
 }
 
+/// Whether the frame builds the scene: a 3D frame; and, unseen, the frame graph scene (a 2D beat's `graph`) for its lit
+/// boxes' pictures, and a math beat for what its scene reads of the frame (src/math/).
+fn renders_scene(request: &FrameRequest, boxes: &[(String, String)]) -> bool {
+    let math_beat = request.scene_type == SceneType::TwoD && request.math.is_some();
+    request.scene_type == SceneType::ThreeD || !boxes.is_empty() || math_beat
+}
+
 /// Whether the frame shows a math scene that does not read the frame it covers (`Investigation::math_reads_frame`):
 /// a 2D beat's, or on a 3D frame the demonstration's. The frame is then built but not rendered.
 fn scene_paused(request: &FrameRequest) -> bool {
@@ -129,11 +136,8 @@ impl Renderer {
         };
         let scene_beat = request.scene_type == SceneType::ThreeD;
         let scene_state = plan.main.as_ref().map_or(request.state, |m| &m.state);
-        // The frame graph scene (a 2D beat's `graph`) renders the frame too, unseen, for its lit boxes' pictures,
-        // and a math beat for what its scene reads of the frame (src/math/).
         let boxes = lit_boxes(&request);
-        let math_beat = request.scene_type == SceneType::TwoD && request.math.is_some();
-        let renders = scene_beat || !boxes.is_empty() || math_beat;
+        let renders = renders_scene(&request, &boxes);
         // What renders on the GPU: all of it, unless a math scene paused it (its content is built all the same).
         let gpu = renders && !paused;
         // A recording waits for the data, so every frame is the same each time.
@@ -219,14 +223,17 @@ impl Renderer {
         FrameResult::of(report, content, drawn.free)
     }
 
-    /// Whether a math scene that does not read the frame pauses it (`scene_paused`); the first frame rendered after
-    /// a pause has no history, as nothing kept its history up to date.
+    /// Whether a math scene that does not read the frame pauses it (`scene_paused`); the first frame that renders the
+    /// scene after a pause has no history, as nothing kept its history up to date (a frame between them that renders
+    /// no scene, a sources card, leaves that to the next).
     fn pause_scene(&mut self, request: &mut FrameRequest) -> bool {
         let paused = scene_paused(request);
-        if self.scene_paused && !paused {
+        if paused {
+            self.scene_paused = true;
+        } else if self.scene_paused && renders_scene(request, &lit_boxes(request)) {
             request.history = false;
+            self.scene_paused = false;
         }
-        self.scene_paused = paused;
         paused
     }
 
