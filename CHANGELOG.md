@@ -4,6 +4,16 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+### Added
+
+- The homepage downloads a missing narrated video: an investigation whose package names where its narration package
+  is published (`narration-url`, `{version}` the lab's version) gets a Download button where Watch was, then Restart
+  to watch once it is installed. Every download goes through one module (`lab/src/download.rs`, with `curl`): a
+  window shows what it is for, the host, and the whole address, and nothing is fetched until the user confirms;
+  only plain `https` addresses are taken, kept to HTTPS through redirects. The archive is unpacked safely
+  (`lab/src/archive.rs`: no paths out of its folder, no links, CRC-checked, size limits) and installed only if it is
+  that investigation's narration package and nothing more: no code, shaders, or overrides.
+
 ## [0.0.8] - 2026-11-23
 
 ### Added

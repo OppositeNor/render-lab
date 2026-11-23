@@ -1,6 +1,7 @@
 //! The homepage's selection page, in the field chosen on the fields page: its engines, the chosen engine's features
 //! (a series a folder of its parts), and the chosen feature's timelines and demonstrations, on glass panels.
 
+use super::narration::WatchButton;
 use super::*;
 use crate::investigation::Engine;
 
@@ -299,8 +300,9 @@ impl Home {
                 {
                     picks.choice = Some(choice);
                 }
-                // No narration package narrates it: name the one its release would offer.
+                // No narration package narrates it (nor one just installed): name the one its release would offer.
                 if rows.is_empty()
+                    && !matches!(self.watch_button(chosen, false), WatchButton::Restart)
                     && let Some(package) = chosen.package()
                 {
                     let archive = format!("{package}_narration-v{}.zip", env!("CARGO_PKG_VERSION"));
@@ -310,7 +312,7 @@ impl Home {
                                 "home-narration_not_installed",
                                 args!(archive = archive),
                             ))
-                            .color(palette::text_faint()),
+                            .color(palette::WARNING),
                         )
                         .wrap(),
                     );
@@ -373,20 +375,34 @@ impl Home {
         let button = vec2((ui.available_width() - 24.0) / 2.0, 46.0);
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 16.0;
-            let watch = glass_button(
-                ui,
-                button,
-                tr("home-watch_the_narrated_video"),
-                26.0,
-                first.is_some(),
-            );
+            // Without a narrated video, the button may download one instead (narration.rs).
+            let offer = self.watch_button(chosen, first.is_some());
+            let (label, enabled) = match &offer {
+                WatchButton::Watch => (
+                    tr("home-watch_the_narrated_video").to_string(),
+                    first.is_some(),
+                ),
+                WatchButton::Download(_) => (tr("home-download_narration").to_string(), true),
+                WatchButton::Busy(label) => (label.clone(), false),
+                WatchButton::Restart => (tr("home-restart_to_watch").to_string(), true),
+            };
+            let watch = glass_button(ui, button, &label, 26.0, enabled);
             self.widgets.push(("watch".into(), watch.rect));
-            if let (true, Some(row)) = (watch.clicked(), first) {
-                choice = Some(Choice::Watch {
-                    investigation: chosen,
-                    timeline: row.info,
-                    start_frame: 0,
-                });
+            match (watch.clicked(), offer, first) {
+                (true, WatchButton::Watch, Some(row)) => {
+                    choice = Some(Choice::Watch {
+                        investigation: chosen,
+                        timeline: row.info,
+                        start_frame: 0,
+                    });
+                }
+                (true, WatchButton::Download(url), _) => {
+                    if let Some(package) = chosen.package() {
+                        self.start_install(package, url);
+                    }
+                }
+                (true, WatchButton::Restart, _) => choice = Some(Choice::Restart),
+                _ => {}
             }
             let explore = glass_button(
                 ui,

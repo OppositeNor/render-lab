@@ -46,6 +46,11 @@ home-no_narration = 暂无旁白音轨，将无声播放。
 home-start_from_a_chapter = 选择起始章节：
 home-not_built_yet = 尚未构建：
 home-narration_not_installed = 尚未安装讲解视频。其发布页面提供 { $archive }：请将它解压到可执行文件所在目录的 packages 文件夹中。
+home-download_narration = 下载讲解视频
+home-downloading = 正在下载… { $megabytes } MB
+home-unpacking = 正在解压…
+home-restart_to_watch = 重新启动以观看
+home-download_failed = 讲解视频未能安装
 home-demonstrations = 演示
 home-esc_hint = 在查看器中按 Esc 返回此页；在此页按 Esc 返回上一级文件夹。按 F11 截图。
 home-display = 显示
@@ -741,3 +746,13 @@ help-wipe_drag = 移动它
 help-wipe_nudge = 微调它
 help-window_move = 移动它，或停靠到边缘
 help-window_resize = 调整大小
+
+# Downloads from the internet (lab/src/download.rs): the confirmation window.
+download-title = 要从互联网下载吗？
+download-narration_purpose = Render Lab 将下载旁白包 { $package }：讲解视频的时间线与旁白，不含任何代码。它会安装到可执行文件所在目录的 packages 文件夹中。
+download-from = 来源主机
+download-address = 完整地址
+download-check = 请确认这是你预期的地址。地址由包提供，来源不可信的包可能给出任何地址。在你点击“下载”之前，不会下载任何内容。
+download-confirm = 下载
+download-cancel = 取消
+download-no_curl = 无法启动 curl（Render Lab 使用 curl 下载；请安装它，或用 RENDER_LAB_CURL 指定）：

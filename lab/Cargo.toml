@@ -21,6 +21,9 @@ render-lab-derive = { path = "derive" }
 clap = { version = "4.6", features = ["derive"] }
 # Opening the packages' libraries (src/packages.rs, src/plugin.rs). Already vendored.
 libloading = "0.8"
+# Unpacking the zip archives the homepage downloads (src/archive.rs): the build typst already makes, no features
+# of its own. Already vendored.
+flate2 = { version = "1.1", default-features = false }
 wgpu = { version = "=30.0.1", default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
 winit = "=0.30.13"
 egui = "=0.37.0"

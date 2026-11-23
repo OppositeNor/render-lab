@@ -298,7 +298,7 @@ pub(super) fn viewer_options(
     size: PhysicalSize<u32>,
 ) -> Option<ViewerOptions> {
     let (investigation, timeline, audio, start_frame, locale) = match choice {
-        Choice::Quit => return None,
+        Choice::Quit | Choice::Restart => return None,
         Choice::Watch {
             investigation,
             timeline,
@@ -348,6 +348,10 @@ pub(super) fn open(
     options: &HomeOptions,
     size: PhysicalSize<u32>,
 ) -> bool {
+    if let Choice::Restart = choice {
+        narration::restart();
+        return false;
+    }
     let Some(viewer_options) = viewer_options(choice, home, options, size) else {
         return false;
     };

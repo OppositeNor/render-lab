@@ -49,6 +49,11 @@ home-no_narration = No narration track yet: it plays silently.
 home-start_from_a_chapter = Start from a chapter:
 home-not_built_yet = Not built yet:
 home-narration_not_installed = No narrated video is installed. Its release offers it as { $archive }: unpack that inside the packages folder in the executable's directory.
+home-download_narration = Download the narrated video
+home-downloading = Downloading… { $megabytes } MB
+home-unpacking = Unpacking…
+home-restart_to_watch = Restart to watch
+home-download_failed = The narrated video was not installed
 home-demonstrations = Demonstrations
 home-esc_hint = In the viewer, Esc returns here. Esc here goes back one folder. F11: screenshot.
 home-display = DISPLAY
@@ -744,3 +749,13 @@ help-wipe_drag = Move it
 help-wipe_nudge = Nudge it
 help-window_move = Move it, or dock it at an edge
 help-window_resize = Resize it
+
+# Downloads from the internet (lab/src/download.rs): the confirmation window.
+download-title = Download from the internet?
+download-narration_purpose = Render Lab will download the narration package { $package }: the narrated video's timelines and narration, with no code. It installs it inside the packages folder in the executable's directory.
+download-from = From the host
+download-address = The whole address
+download-check = Check that this is the address you expect. A package names it, and a package from a source you do not trust could name any address. Nothing is downloaded until you click Download.
+download-confirm = Download
+download-cancel = Cancel
+download-no_curl = curl could not be started (Render Lab downloads with curl; install it, or name it with RENDER_LAB_CURL):

@@ -18,6 +18,7 @@ pub use render_lab_derive::{Choice, Values, actions};
 
 pub mod actions;
 pub mod animation;
+pub mod archive;
 pub mod audio;
 pub mod bindings;
 pub mod camera;
@@ -29,6 +30,7 @@ pub mod controls;
 pub mod cook;
 pub mod demo;
 pub mod diagram;
+pub mod download;
 /// A page drawn with egui into a texture: the loading page, the homepage.
 pub mod egui_pass;
 pub mod entity;
@@ -47,6 +49,7 @@ pub mod graph;
 pub mod graph_view;
 pub mod home;
 pub mod i18n;
+pub mod install;
 pub mod investigation;
 pub mod investigations;
 /// The knowledge graph and an investigation's audience (the Prerequisites tab, the knowledge panel).

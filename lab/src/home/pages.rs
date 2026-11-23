@@ -41,6 +41,7 @@ impl Home {
         } else {
             choice
         };
+        self.draw_install(ctx, canvas);
         self.popups.draw(ctx, canvas);
         self.min_text = self.min_text.min(ink.min_size.get());
         if choice.is_some() {

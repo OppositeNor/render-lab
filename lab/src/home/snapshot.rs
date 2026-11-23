@@ -174,6 +174,55 @@ pub fn snapshot_knowledge(options: &HomeOptions, png: &Path) -> Result<()> {
     Ok(())
 }
 
+/// The selection page offscreen with the confirmation of its narration package's download over it
+/// (`home --snapshot … --page select-download`; nothing is downloaded), or, `install`ing, the page once the download
+/// is confirmed and installed (`select-download-install`: a real download into the packages folder).
+pub fn snapshot_download(options: &HomeOptions, install: bool, png: &Path) -> Result<()> {
+    let mut home = Home::new(options.manifest_dir.clone(), options.config_path.clone());
+    home.page = Page::Select;
+    home.pse = false;
+    let package = home
+        .selected()
+        .package()
+        .ok_or_else(|| anyhow::anyhow!("the investigation has no package"))?;
+    let url = resources::packages()
+        .iter()
+        .find(|p| p.name == package)
+        .and_then(|p| p.narration_url.clone())
+        .ok_or_else(|| anyhow::anyhow!("`{package}` names no `narration-url`"))?;
+    home.start_install(package, &url);
+    let mut offscreen = Offscreen::new(options, true)?;
+    offscreen.frame(&mut home, Vec::new());
+    if install && let Some(i) = home.install.as_mut() {
+        i.download.start();
+    }
+    // Installing: frames until it is installed or fails (whose popup the page shows), at most ten minutes.
+    let started = std::time::Instant::now();
+    while install
+        && home
+            .install
+            .as_ref()
+            .is_some_and(|i| i.status() != crate::install::Status::Installed)
+    {
+        if started.elapsed().as_secs() > 600 {
+            anyhow::bail!("the download took more than ten minutes");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        offscreen.frame(&mut home, Vec::new());
+    }
+    offscreen.frame(&mut home, Vec::new());
+    let rgba = offscreen.capture(&mut home);
+    crate::readback::write_png(png, offscreen.size[0], offscreen.size[1], &rgba)?;
+    eprintln!(
+        "homepage download confirmation: {} ({}x{}, smallest text {:.1} pt)",
+        png.display(),
+        offscreen.size[0],
+        offscreen.size[1],
+        home.min_text
+    );
+    Ok(())
+}
+
 /// Render the homepage's first frame offscreen to a PNG: the loading page,
 /// while the title's scene loads.
 pub fn snapshot_starting(options: &HomeOptions, png: &Path) -> Result<()> {

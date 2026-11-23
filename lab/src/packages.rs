@@ -36,6 +36,9 @@
 //!     investigations it narrates (a narration package's; without it, its own);
 //!   - `"series"`: investigations told as the parts of one story (`Series`);
 //!   - `"field"`: a field of study, a folder of the homepage (src/packages/fields.rs);
+//! - `narration-url`, if given: where its narration package (`<name>_narration`, its demos `for` it) is
+//!   published, an `https` address in which `{version}` stands for the lab's version; the homepage offers to
+//!   download it when it is missing (src/install.rs, through src/download.rs);
 //! - `field`, if given: the field its investigations are in, `<package>.<key>` of a field a package declares
 //!   (an import's, which exports the key, or its own); without it they are in the homepage's Other folder.
 //!
@@ -141,6 +144,8 @@ pub struct Package {
     pub credit: Option<String>,
     /// What its investigations need of the lab (`requires`, of `REQUIREMENTS`).
     pub requires: Vec<String>,
+    /// Where its narration package is published (`narration-url`; `{version}` the lab's version).
+    pub narration_url: Option<String>,
 }
 
 /// What a package may require: hardware ray tracing (src/gpu.rs `ray_tracing`).
@@ -173,6 +178,7 @@ const FIELDS: &[&str] = &[
     "credit-text",
     "requires",
     "field",
+    "narration-url",
 ];
 
 /// A package's name: lower-case words joined by `_`.
@@ -325,6 +331,15 @@ fn read(root: &Path, dir: &Path) -> Result<(Package, Vec<(String, String)>), Str
     let notices = read_notices(table, dir, &fail)?;
     let credit = string(table, "credit-text", &fail)?;
     let field = string(table, "field", &fail)?;
+    let narration_url = string(table, "narration-url", &fail)?;
+    if let Some(url) = narration_url
+        .as_ref()
+        .filter(|u| !u.starts_with("https://"))
+    {
+        return Err(fail(format!(
+            "`narration-url` `{url}` is not an https address"
+        )));
+    }
     // What it requires: optional, each one the lab knows.
     let requires = if table.contains_key("requires") {
         strings(table, "requires", &fail)?
@@ -359,8 +374,77 @@ fn read(root: &Path, dir: &Path) -> Result<(Package, Vec<(String, String)>), Str
         notices,
         credit,
         requires,
+        narration_url,
     };
     Ok((package, references))
+}
+
+/// Checks that the package in `dir` is a narration package of `narrated` and no more, before it is installed
+/// (src/install.rs): named `<narrated>_narration`, with no code, importing only `narrated`, providing demos `for`
+/// it and their files, each inside the package: no shaders, no overrides, nothing exported.
+pub fn check_narration(dir: &Path, narrated: &str) -> Result<(), String> {
+    let (package, _) = read(dir.parent().unwrap_or(dir), dir)?;
+    let fail = |m: String| Err(format!("packages: {}: {m}", package.manifest));
+    if package.name != format!("{narrated}_narration") {
+        return fail(format!(
+            "`{}` is not `{narrated}`'s narration package",
+            package.name
+        ));
+    }
+    if package.library.is_some() {
+        return fail("a narration package has no code (`library`)".into());
+    }
+    if package.imports != [narrated] || !package.exports.is_empty() {
+        return fail(format!(
+            "a narration package imports only `{narrated}` and exports nothing"
+        ));
+    }
+    let narrates = |d: &Demo| d.narrates.as_deref() == Some(narrated);
+    if package.demos.is_empty() || !package.demos.iter().all(narrates) {
+        return fail(format!(
+            "a narration package's demos are each `for = \"{narrated}\"`"
+        ));
+    }
+    if !(package.series.is_empty() && package.fields.is_empty() && package.requires.is_empty()) {
+        return fail("a narration package provides only demos and their files".into());
+    }
+    for collection in &package.collections {
+        check_narration_collection(dir, collection).or_else(fail)?;
+    }
+    Ok(())
+}
+
+/// A narration package's collection: inside it, of `file` resources inside it, overriding nothing, and no shaders.
+fn check_narration_collection(dir: &Path, collection: &Path) -> Result<(), String> {
+    let inside = |p: &Path| {
+        p.strip_prefix(dir)
+            .ok()
+            .and_then(|r| r.to_str())
+            .is_some_and(|r| crate::archive::safe_path(&r.replace('\\', "/")).is_ok())
+    };
+    if !inside(collection) {
+        return Err(format!("{} is outside the package", collection.display()));
+    }
+    let text = fs::read_to_string(collection).map_err(|e| e.to_string())?;
+    let document = toml_edit::Document::parse(text).map_err(|e| e.to_string())?;
+    if document.contains_key("shader") {
+        return Err("a narration package has no shaders".into());
+    }
+    let resources = document
+        .get("resource")
+        .and_then(|r| r.as_array_of_tables());
+    for resource in resources.into_iter().flatten() {
+        let file = resource.get("file").and_then(|f| f.as_str()).unwrap_or("");
+        let plain = resource.get("kind").and_then(|k| k.as_str()) == Some("file")
+            && !resource.contains_key("override")
+            && crate::archive::safe_path(file).is_ok();
+        if !plain {
+            return Err(format!(
+                "`{file}`: a narration package's resources are files inside it, overriding nothing"
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// What a manifest provides: its resource collections, demos, series, and fields, and each demo's timeline and
@@ -997,6 +1081,48 @@ mod tests {
             &[("b_narration", &unimported), ("b", &manifest("b", "", ""))],
         );
         assert!(scan(&dir, &dir).err().unwrap().contains("`for` names `b`"));
+    }
+
+    #[test]
+    fn only_a_plain_narration_package_is_installed() {
+        let demo = "[[provides]]\ntype = \"resource\"\npath = \"resources.toml\"\n\n[[provides]]\ntype = \"demo\"\nkey = \"video\"\ntitle = \"V\"\ntimeline = \"timeline/en\"\naudio = \"narration/en\"\nfor = \"b\"\n";
+        let file = "[[resource]]\nid = \"timeline/en\"\nkind = \"file\"\nfile = \"build/t.json\"\nlicense = \"MIT\"\n";
+        let check = |test: &str, manifest: String, resources: &str| {
+            let dir = directory(test, &[("b_narration", &manifest)]);
+            fs::write(dir.join("b_narration/resources.toml"), resources).unwrap();
+            check_narration(&dir.join("b_narration"), "b")
+        };
+        let plain = manifest("b_narration", "\"b\"", "") + demo;
+        assert_eq!(check("plain", plain.clone(), file), Ok(()));
+        let code = plain.replace(
+            "export = []",
+            "export = []\nlibrary = \"x\"\nnegotiate = \"x_negotiate\"",
+        );
+        assert!(check("code", code, file).unwrap_err().contains("no code"));
+        let shader = format!("{file}\n[[shader]]\nid = \"s\"\n");
+        assert!(
+            check("shader", plain.clone(), &shader)
+                .unwrap_err()
+                .contains("no shaders")
+        );
+        let overrides = format!("{file}override = \"b.timeline/en\"\n");
+        assert!(
+            check("override", plain.clone(), &overrides)
+                .unwrap_err()
+                .contains("overriding nothing")
+        );
+        let outside = file.replace("build/t.json", "../../etc/passwd");
+        assert!(
+            check("outside", plain, &outside)
+                .unwrap_err()
+                .contains("inside it")
+        );
+        let other = manifest("b_narration", "\"b\"", "") + &demo.replace("for = \"b\"", "");
+        assert!(
+            check("other", other, file)
+                .unwrap_err()
+                .contains("each `for")
+        );
     }
 
     #[test]

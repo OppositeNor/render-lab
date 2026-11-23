@@ -3439,6 +3439,7 @@ dependencies = [
  "clap",
  "egui",
  "egui-wgpu",
+ "flate2",
  "fluent-bundle",
  "fluent-syntax",
  "glam",

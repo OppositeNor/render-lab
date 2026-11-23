@@ -210,6 +210,8 @@ pub const MISMATCH: Color32 = rgb(0xff6b6b);
 /// A quiz's right and wrong answers (src/ui/quiz_panel.rs).
 pub const RIGHT: Color32 = rgb(0x6be37a);
 pub const WRONG: Color32 = rgb(0xff6b6b);
+/// Something missing the user can install (the homepage's narration hint, src/home/select_page.rs).
+pub const WARNING: Color32 = rgb(0xffd166);
 
 /// Swatch colours for a highlighted struct field (several for matrices).
 pub fn field_colors(record: &str, field: &str) -> Vec<Color32> {

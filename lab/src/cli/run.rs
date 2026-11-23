@@ -235,6 +235,8 @@ fn home_snapshot(options: &home::HomeOptions, page: &str, png: &Path) -> Result<
             home::snapshot_feature(options, feature, name, args, png)
         }
         "select-knowledge" => home::snapshot_knowledge(options, png),
+        "select-download" => home::snapshot_download(options, false, png),
+        "select-download-install" => home::snapshot_download(options, true, png),
         _ if page.starts_with("viewer:") => {
             home::snapshot_viewer(options, false, page.strip_prefix("viewer:"), png)
         }

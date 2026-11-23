@@ -378,6 +378,9 @@ fn built_manifest(package: &Package, source: &str) -> String {
         list(&package.exports)
     )
     .unwrap();
+    if let Some(url) = &package.narration_url {
+        writeln!(manifest, "narration-url = {}", quote(url)).unwrap();
+    }
     if let Some((library, negotiate)) = &package.library {
         writeln!(
             manifest,

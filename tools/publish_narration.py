@@ -193,6 +193,7 @@ def notes(archives: list[Path]) -> str:
         '',
         'The narrated videos come in packages of their own, the same on every platform. To watch one, download its',
         '`*_narration` archive below and unpack it inside the `packages` folder in the executable\'s directory.',
+        'The homepage\'s Download button does this for you, once you confirm the address.',
         'The narration plays through FFplay (FFmpeg), which must be on your PATH.',
         '',
     ]

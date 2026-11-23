@@ -73,6 +73,7 @@ mod app;
 mod autotest;
 mod config_page;
 mod fields_page;
+mod narration;
 mod pages;
 mod painter;
 mod select_page;
@@ -176,6 +177,8 @@ pub enum Choice {
         investigation: &'static dyn Investigation,
         feature: &'static dyn crate::feature::Feature,
     },
+    /// Start the lab again, for a package installed since it started (narration.rs).
+    Restart,
     Quit,
 }
 
@@ -197,6 +200,7 @@ impl Choice {
                 investigation,
                 feature,
             } => format!("{} {}", feature.id(), investigation.path()),
+            Choice::Restart => "restart".into(),
             Choice::Quit => "quit".into(),
         }
     }
@@ -331,6 +335,8 @@ pub struct Home {
     pub pse: bool,
     /// The chosen feature's knowledge graph is up, full screen (src/knowledge.rs).
     pub knowledge: bool,
+    /// A narration package being downloaded and installed (narration.rs).
+    pub install: Option<crate::install::Install>,
 }
 
 impl Home {
@@ -375,6 +381,7 @@ impl Home {
             popups: Popups::default(),
             pse: true,
             knowledge: false,
+            install: None,
         };
         if message.is_some() {
             home.settings.message = message;

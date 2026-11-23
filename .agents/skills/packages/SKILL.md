@@ -33,7 +33,11 @@ packages/<name>/
 Its narrated videos are a package of their own, `packages/<name>_narration/`: no code, its demos (`for =
 "<name>"`, section 2) and the `built` timelines and narration tools/video writes into its `build/timelines/<lang>/`
 and `build/video/<lang>/` from `packages/<name>/video/`. The CI's release leaves it out of its platform archives;
-`tools/publish_narration.py` builds, checks, and uploads it beside them, the same on every platform.
+`tools/publish_narration.py` builds, checks, and uploads it beside them, the same on every platform. A manifest's
+`narration-url` (`{version}`: the lab's) lets the homepage download a missing one: the user confirms the address
+(`lab/src/download.rs`, the lab's only network access, through `curl`), and the archive is unpacked safely
+(`lab/src/archive.rs`) and installed only if it is that package's narration package and nothing more: no code, no
+shaders, no overrides (`packages::check_narration`, `lab/src/install.rs`).
 
 Its built package, which the build writes and the loader reads (never edit it; it is rebuilt from the source):
 
@@ -64,6 +68,7 @@ negotiate = "my_feature_negotiate"
 credit-text = "notice-credit"        # optional: a short copyright and license line, after the engine's version at the top right
 requires = ["ray-tracing"]           # optional: what its investigations need of the lab (lab/src/packages.rs `REQUIREMENTS`)
 field = "render_lab.computer-graphics"   # optional: the field of study (homepage folder) its investigations are in
+narration-url = "https://…/v{version}/my_feature_narration-v{version}.zip"   # optional: where its narration package is published
 
 [[provides]]
 type = "resource"                    # a collection, relative to the manifest

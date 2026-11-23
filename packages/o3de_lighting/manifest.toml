@@ -16,6 +16,8 @@ export = []
 credit-text = "notice-credit"
 # The homepage folder its investigation is in (lab/src/packages/fields.rs).
 field = "render_lab.computer-graphics"
+# Where its narration package (o3de_lighting_narration) is published: the homepage offers to download it when it is missing.
+narration-url = "https://github.com/OppositeNor/render-lab/releases/download/v{version}/o3de_lighting_narration-v{version}.zip"
 
 [[provides]]
 type = "resource"
