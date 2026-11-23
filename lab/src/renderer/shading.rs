@@ -755,8 +755,15 @@ impl Renderer {
             pass.set_bind_group(0, &self.frame_bind_group, &[]);
             pass.set_bind_group(1, &shading.group, &[]);
             pass.set_bind_group(2, &bind, &[]);
+            // Group 3: the volumes, else what the program left for the scene pass.
             if let Some(v) = shading.volume_sets.get(shading.volume_set) {
                 pass.set_bind_group(3, &v.group, &[]);
+            } else if let Some(g) = shading
+                .program
+                .as_ref()
+                .and_then(|p| p.borrow().scene_group.clone())
+            {
+                pass.set_bind_group(3, &g, &[]);
             }
             pass.dispatch_workgroups(count, 1, 1);
         }

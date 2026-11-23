@@ -567,7 +567,7 @@ impl FrameGraph {
                         name: p.name,
                         step: Step::Program(i),
                         reads: program_reads(p.uses),
-                        writes: program_writes(p.uses),
+                        writes: program_pass_writes(p),
                         timing: p.name,
                         cached: false,
                     }),

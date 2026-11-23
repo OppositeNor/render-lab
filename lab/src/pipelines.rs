@@ -494,7 +494,12 @@ impl Pipelines {
             shading,
             volumes.as_ref().or(program_scene.as_ref()),
         );
-        let verify = self.verify_pipelines(device, &module, shading, volumes.as_ref());
+        let verify = self.verify_pipelines(
+            device,
+            &module,
+            shading,
+            volumes.as_ref().or(program_scene.as_ref()),
+        );
         let updates = self.update_pipelines(device, &module, shading, volumes.as_ref());
         let program = shading.program.map(|p| {
             crate::program::pipelines(
@@ -566,7 +571,8 @@ impl Pipelines {
             .collect()
     }
 
-    /// The selftest's verification entry points' pipelines, by entry point.
+    /// The selftest's verification entry points' pipelines, by entry point (`volumes`: group 3, the volumes'
+    /// layout, else the program's scene group).
     fn verify_pipelines(
         &self,
         device: &wgpu::Device,

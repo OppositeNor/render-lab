@@ -206,6 +206,20 @@ pub fn program_writes(uses: &[crate::investigation::ProgramUse]) -> Vec<&'static
     program_resources(uses, crate::investigation::Access::writes)
 }
 
+/// What a program pass writes: its uses that write, then a raster pass's colour and depth images.
+pub fn program_pass_writes(pass: &crate::investigation::ProgramPass) -> Vec<&'static str> {
+    let mut out = program_writes(pass.uses);
+    if let crate::investigation::PassKind::Raster { targets, depth, .. } = pass.kind {
+        // The images it draws into are written too, each once.
+        for name in targets.iter().copied().chain(depth) {
+            if !out.contains(&name) {
+                out.push(name);
+            }
+        }
+    }
+    out
+}
+
 /// The resources of the uses whose access `keep`s, each once, in order.
 pub(super) fn program_resources(
     uses: &[crate::investigation::ProgramUse],

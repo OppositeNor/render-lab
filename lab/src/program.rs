@@ -321,8 +321,22 @@ pub fn pipelines(
                         cache: None,
                     }),
                 ),
-                PassKind::Raster { vertex, fragment } => {
+                PassKind::Raster {
+                    vertex,
+                    fragment,
+                    targets,
+                    depth,
+                } => {
                     let [mesh, objects] = crate::pipelines::mesh_layouts();
+                    let colour = raster_targets(program, targets);
+                    // The depth test is the scene pass's: reversed, nearer is greater.
+                    let depth_stencil = depth.map(|d| wgpu::DepthStencilState {
+                        format: format_of(program, d),
+                        depth_write_enabled: Some(true),
+                        depth_compare: Some(wgpu::CompareFunction::Greater),
+                        stencil: Default::default(),
+                        bias: Default::default(),
+                    });
                     PassPipeline::Raster(device.create_render_pipeline(
                         &wgpu::RenderPipelineDescriptor {
                             label: Some(pass.name),
@@ -338,17 +352,13 @@ pub fn pipelines(
                                 cull_mode: None,
                                 ..Default::default()
                             },
-                            depth_stencil: None,
+                            depth_stencil,
                             multisample: wgpu::MultisampleState::default(),
                             fragment: Some(wgpu::FragmentState {
                                 module,
                                 entry_point: Some(fragment),
                                 compilation_options: Default::default(),
-                                targets: &[Some(wgpu::ColorTargetState {
-                                    format: TARGET_FORMAT,
-                                    blend: None,
-                                    write_mask: wgpu::ColorWrites::empty(),
-                                })],
+                                targets: &colour,
                             }),
                             multiview_mask: None,
                             cache: None,
@@ -488,7 +498,49 @@ fn usage_of(program: &ShadingProgram, name: &str) -> wgpu::TextureUsages {
             _ => {}
         }
     }
+    let drawn = program.passes.iter().any(|p| match p.kind {
+        PassKind::Raster { targets, depth, .. } => targets.contains(&name) || depth == Some(name),
+        PassKind::Compute { .. } => false,
+    });
+    if drawn {
+        // A raster pass draws into it.
+        usage |= wgpu::TextureUsages::RENDER_ATTACHMENT;
+    }
     usage
+}
+
+/// The format of a program's image `name` (the lint checked that it is one).
+fn format_of(program: &ShadingProgram, name: &str) -> wgpu::TextureFormat {
+    program
+        .images
+        .iter()
+        .find(|i| i.name == name)
+        .unwrap_or_else(|| panic!("no program image `{name}`"))
+        .format
+}
+
+/// A raster pass's colour targets: its images', written whole; with none, the one it never writes.
+fn raster_targets(
+    program: &ShadingProgram,
+    targets: &[&'static str],
+) -> Vec<Option<wgpu::ColorTargetState>> {
+    if targets.is_empty() {
+        return vec![Some(wgpu::ColorTargetState {
+            format: TARGET_FORMAT,
+            blend: None,
+            write_mask: wgpu::ColorWrites::empty(),
+        })];
+    }
+    targets
+        .iter()
+        .map(|t| {
+            Some(wgpu::ColorTargetState {
+                format: format_of(program, t),
+                blend: None,
+                write_mask: wgpu::ColorWrites::ALL,
+            })
+        })
+        .collect()
 }
 
 /// Image `i`'s textures for a view of `viewport` pixels, and their views.
@@ -1039,9 +1091,9 @@ impl ProgramRuntime {
         end
     }
 
-    /// The consecutive draws of raster pass `pass` from command `i` of the schedule, each a render pass into a
-    /// target of its size (its attachment is never written); `after` called once they are recorded. Where the
-    /// commands after them start.
+    /// The consecutive draws of raster pass `pass` from command `i` of the schedule, each a render pass into its
+    /// images over the draw's size (or into a target of that size it never writes, when it has none); `after`
+    /// called once they are recorded. Where the commands after them start.
     fn record_draws(
         &mut self,
         device: &wgpu::Device,
@@ -1052,7 +1104,7 @@ impl ProgramRuntime {
         after: &mut dyn FnMut(&mut wgpu::CommandEncoder, &'static str),
     ) -> usize {
         let p = s.pass_index(pass);
-        let PassPipeline::Raster(pipeline) = &bindings.pipelines.passes[p].0 else {
+        let PassPipeline::Raster(_) = &bindings.pipelines.passes[p].0 else {
             panic!("`{pass}` is a compute pass: dispatch it")
         };
         let mut end = i;
@@ -1064,12 +1116,27 @@ impl ProgramRuntime {
             end += 1;
         }
         let span = timing.as_mut().and_then(|t| t.render_writes(pass));
+        let PassKind::Raster { targets, depth, .. } = self.source.passes[p].kind else {
+            unreachable!()
+        };
         for k in i..end {
             let ProgramCommand::Draw { size, instance, .. } = &s.commands[k] else {
                 unreachable!()
             };
             let size = [size[0].max(1), size[1].max(1)];
-            let target = self.targets.entry(size).or_insert_with(|| {
+            let writes = span
+                .as_ref()
+                .filter(|_| k == i || k + 1 == end)
+                .map(|t| t.span(k == i, k + 1 == end));
+            if !targets.is_empty() {
+                // A pass with images of its own draws into them, cleared, over the draw's corner of them.
+                let mut rp = self.begin_drawn(encoder, (pass, targets, depth), writes);
+                rp.set_viewport(0.0, 0.0, size[0] as f32, size[1] as f32, 0.0, 1.0);
+                rp.set_scissor_rect(0, 0, size[0], size[1]);
+                self.draw_meshes(&mut rp, (s, k, p, *instance), bindings);
+                continue;
+            }
+            self.targets.entry(size).or_insert_with(|| {
                 device
                     .create_texture(&wgpu::TextureDescriptor {
                         label: Some("program raster target"),
@@ -1087,10 +1154,7 @@ impl ProgramRuntime {
                     })
                     .create_view(&Default::default())
             });
-            let writes = span
-                .as_ref()
-                .filter(|_| k == i || k + 1 == end)
-                .map(|t| t.span(k == i, k + 1 == end));
+            let target = &self.targets[&size];
             let mut rp = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some(pass),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -1107,24 +1171,80 @@ impl ProgramRuntime {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            rp.set_pipeline(pipeline);
-            rp.set_bind_group(0, bindings.frame, &[]);
-            rp.set_bind_group(1, bindings.shading, &[]);
-            rp.set_bind_group(
-                2,
-                &self.params_group,
-                &[(s.slots[k] * PARAMS_STRIDE) as u32],
-            );
-            rp.set_bind_group(3, &self.groups[p][*instance as usize], &[]);
-            rp.set_vertex_buffer(0, bindings.meshes.vertices.slice(..));
-            rp.set_vertex_buffer(1, bindings.meshes.objects.slice(..));
-            rp.set_index_buffer(bindings.meshes.indices.slice(..), wgpu::IndexFormat::Uint32);
-            for (o, range) in bindings.meshes.ranges.iter().enumerate() {
-                rp.draw_indexed(range.clone(), 0, o as u32..o as u32 + 1);
-            }
+            self.draw_meshes(&mut rp, (s, k, p, *instance), bindings);
         }
         after(encoder, pass);
         end
+    }
+
+    /// A render pass into raster pass `pass`'s own images (their first mip): its colour images and its depth
+    /// image, each cleared to zero and kept.
+    fn begin_drawn<'e>(
+        &self,
+        encoder: &'e mut wgpu::CommandEncoder,
+        (pass, targets, depth): (&'static str, &[&'static str], Option<&'static str>),
+        writes: Option<wgpu::RenderPassTimestampWrites<'_>>,
+    ) -> wgpu::RenderPass<'e> {
+        let view = |name: &str| {
+            let (whole, levels) = &self.views[self.image(name).expect("a program image")];
+            levels.first().unwrap_or(&whole[0])
+        };
+        let colour: Vec<Option<wgpu::RenderPassColorAttachment>> = targets
+            .iter()
+            .map(|t| {
+                Some(wgpu::RenderPassColorAttachment {
+                    view: view(t),
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })
+            })
+            .collect();
+        encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some(pass),
+            color_attachments: &colour,
+            depth_stencil_attachment: depth.map(|d| wgpu::RenderPassDepthStencilAttachment {
+                view: view(d),
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(0.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: writes,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        })
+    }
+
+    /// Command `k`'s draw of every mesh with pass `p`'s pipeline and its bind groups (instance = object index).
+    fn draw_meshes(
+        &self,
+        rp: &mut wgpu::RenderPass<'_>,
+        (s, k, p, instance): (&Schedule, usize, usize, u32),
+        bindings: &ProgramBindings,
+    ) {
+        let PassPipeline::Raster(pipeline) = &bindings.pipelines.passes[p].0 else {
+            unreachable!()
+        };
+        rp.set_pipeline(pipeline);
+        rp.set_bind_group(0, bindings.frame, &[]);
+        rp.set_bind_group(1, bindings.shading, &[]);
+        rp.set_bind_group(
+            2,
+            &self.params_group,
+            &[(s.slots[k] * PARAMS_STRIDE) as u32],
+        );
+        rp.set_bind_group(3, &self.groups[p][instance as usize], &[]);
+        rp.set_vertex_buffer(0, bindings.meshes.vertices.slice(..));
+        rp.set_vertex_buffer(1, bindings.meshes.objects.slice(..));
+        rp.set_index_buffer(bindings.meshes.indices.slice(..), wgpu::IndexFormat::Uint32);
+        for (o, range) in bindings.meshes.ranges.iter().enumerate() {
+            rp.draw_indexed(range.clone(), 0, o as u32..o as u32 + 1);
+        }
     }
 
     /// Ends the frame's recording: its commands and uploads are spent.

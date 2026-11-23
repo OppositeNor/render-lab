@@ -420,16 +420,69 @@ pub(super) fn lint_program(
     for pass in program.passes {
         match pass.kind {
             PassKind::Compute { entry, .. } => check(pass.name, &[entry], pass.uses, false),
-            PassKind::Raster { vertex, fragment } => {
-                check(pass.name, &[vertex, fragment], pass.uses, false)
-            }
+            PassKind::Raster {
+                vertex, fragment, ..
+            } => check(pass.name, &[vertex, fragment], pass.uses, false),
         }
     }
-    // The scene group: read by the scene pass and the chain's compute passes (`chain`).
+    // The scene group: read by the scene pass, the chain's compute passes (`chain`), and, with no volumes, the
+    // selftest's verification kernels.
     if !program.scene_uses.is_empty() {
         let mut entries = vec![fragment];
         entries.extend(chain_entries.iter().copied());
+        if shading.volumes.is_empty() {
+            entries.extend(shading.verify.iter().copied());
+        }
         check(fragment, &entries, program.scene_uses, true);
+    }
+    for pass in program.passes {
+        if let PassKind::Raster { targets, depth, .. } = pass.kind {
+            lint_attachments(program, pass.name, (targets, depth), problems);
+        }
+    }
+}
+
+/// A raster pass's colour and depth images: the program's own, 2D, one element each (it draws into the first
+/// mip), the depth image of a depth format and the colour images of none.
+fn lint_attachments(
+    program: &crate::investigation::ShadingProgram,
+    label: &str,
+    (targets, depth): (&[&'static str], Option<&'static str>),
+    problems: &mut Vec<String>,
+) {
+    use crate::investigation::ImageKind;
+    for (name, is_depth) in targets
+        .iter()
+        .map(|t| (*t, false))
+        .chain(depth.map(|d| (d, true)))
+    {
+        // Each attachment is a single 2D texture of the program, of the right kind of format.
+        let Some(image) = program.images.iter().find(|i| i.name == name) else {
+            problems.push(format!(
+                "{label}: draws into `{name}`, which is none of the program's images"
+            ));
+            continue;
+        };
+        if image.kind != ImageKind::D2 || image.count > 1 {
+            problems.push(format!(
+                "{label}: draws into `{name}`, which is not one 2D image"
+            ));
+        }
+        if image.format.is_depth_stencil_format() != is_depth {
+            problems.push(format!(
+                "{label}: `{name}` as its {} needs {} format",
+                if is_depth {
+                    "depth"
+                } else {
+                    "colour target"
+                },
+                if is_depth {
+                    "a depth"
+                } else {
+                    "a colour"
+                }
+            ));
+        }
     }
 }
 

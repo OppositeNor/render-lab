@@ -23,7 +23,8 @@
 //! - `compute`: a compute pass of the chain, `entry`, `reads`, `writes`,
 //!   `workgroup` (`[x, y]`);
 //! - `program`: a pass of the program, `name`, `compute` and `workgroup`
-//!   (`[x, y, z]`) or `vertex` and `fragment`, `instances` (1), `uses`; a run
+//!   (`[x, y, z]`) or `vertex` and `fragment` (with `targets`, the images it
+//!   draws into, and `depth`, its depth image), `instances` (1), `uses`; a run
 //!   of consecutive program nodes is where the plan's commands for them are
 //!   recorded;
 //! - `scene`, shorthand for the scene pass's raster pass (exactly one):
@@ -240,6 +241,7 @@ const FORMATS: &[(&str, wgpu::TextureFormat)] = &[
     ("rgba32float", wgpu::TextureFormat::Rgba32Float),
     ("rgba32uint", wgpu::TextureFormat::Rgba32Uint),
     ("rgba32sint", wgpu::TextureFormat::Rgba32Sint),
+    ("depth16unorm", wgpu::TextureFormat::Depth16Unorm),
     ("depth32float", wgpu::TextureFormat::Depth32Float),
 ];
 
@@ -366,6 +368,8 @@ fn program_pass(t: &dyn TableLike, what: &str) -> Result<ProgramPass, String> {
             "workgroup",
             "vertex",
             "fragment",
+            "targets",
+            "depth",
             "instances",
             "uses",
         ],
@@ -381,15 +385,23 @@ fn program_pass(t: &dyn TableLike, what: &str) -> Result<ProgramPass, String> {
             entry,
             workgroup: u32s(t, "workgroup", what)?,
         },
-        (None, Some(vertex), Some(fragment)) if !t.contains_key("workgroup") => {
-            PassKind::Raster { vertex, fragment }
-        }
+        (None, Some(vertex), Some(fragment)) if !t.contains_key("workgroup") => PassKind::Raster {
+            vertex,
+            fragment,
+            targets: strings(t, "targets", what)?,
+            depth: string(t, "depth", what)?,
+        },
         _ => {
             return Err(format!(
                 "{what}: `compute` and `workgroup`, or `vertex` and `fragment`"
             ));
         }
     };
+    if matches!(kind, PassKind::Compute { .. })
+        && (t.contains_key("targets") || t.contains_key("depth"))
+    {
+        return Err(format!("{what}: `targets` and `depth` are a raster pass's"));
+    }
     Ok(ProgramPass {
         name,
         kind,

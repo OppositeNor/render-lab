@@ -460,11 +460,18 @@ pub enum PassKind {
         workgroup: [u32; 3],
     },
     /// The scene's meshes drawn by `vertex` (the lab's mesh layout, instance =
-    /// object index) and `fragment` into a target the pass does not write,
-    /// with no depth and no culling: for fragments that write storage images.
+    /// object index) and `fragment`, with no culling. With no `targets`, into a
+    /// target the pass does not write, for fragments that write storage
+    /// images; otherwise into those images (2D, one element each, their first
+    /// mip at least the draw's size), its colour attachments in location order,
+    /// each cleared to zero before every draw and kept. `depth`, an image of a
+    /// depth format: tested and written as the scene pass's (reversed: cleared
+    /// to 0 before every draw, nearer is greater); `None`, no depth test.
     Raster {
         vertex: &'static str,
         fragment: &'static str,
+        targets: &'static [&'static str],
+        depth: Option<&'static str>,
     },
 }
 
