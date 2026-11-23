@@ -7,7 +7,7 @@ $[Import* godot_voxelgi_story]
 $[Import* godot_voxelgi_natives]
 # How Godot's VoxelGI Lights a Room {#video subtitle="Baked voxel global illumination in Godot 4.7, followed through the source at the engine's sizes" engineVersion=4.7.2-stable commit=ed1daf0bf001b61586d9930840f2f1394092c079 date=2026-10-31 fps=30 width=1920 height=1080}
 
-## Where VoxelGI runs {#c1 number=1 target=290 summary="What VoxelGI adds, the problem it solves, the parts it is made of, and what decides whether it runs." sources="frame-order, voxelgi-gate, voxelgi-doc, mobile-stub, gles3-stub, node-defaults, quality-setting"}
+## Where VoxelGI runs {#c1 number=1 target=305 summary="What VoxelGI adds, the problem it solves, the parts it is made of, and what decides whether it runs." sources="frame-order, voxelgi-gate, voxelgi-doc, mobile-stub, gles3-stub, node-defaults, quality-setting"}
 
 ### VoxelGI adds the light that bounced off the room {#c1-room kind=3d}
 
@@ -47,7 +47,7 @@ ${cue "key" {' {cellView 4.0}}}${overText
     {' {voxelgiMixRange 0.3 1.0}}
     "It then lights those cells"}.
 
-Every pixel reads their light back through a few wide cones, shapes that widen as they go.
+Every pixel then reads that light back through a few cones, shapes that widen as they go.
 
 ${overText
     {' {octreeLevelRange 5.0 2.0}}
@@ -56,35 +56,53 @@ ${overText
 ### Baked once {#c1-map-bake kind=2d graph=frame focus="BAKE, SDF"}
 
 ${cue "key" {' {callout "bake-entry"}}}
-That ahead-of-time step is called the bake, and it usually runs once, in Godot's editor.
+That ahead-of-time step is called the bake.
 
-It turns the meshes inside the VoxelGI's box into an octree, a tree of cells in which each cell splits into eight smaller ones.
+It usually runs once, in Godot's editor.
+
+VoxelGI covers only the part of the room inside its box.
+
+The bake turns the meshes inside that box into a tree of cells, in which each cell splits into eight smaller ones.
+
+This tree is called an octree.
 
 ### And a distance field {#c1-map-sdf kind=2d graph=frame focus="SDF"}
 
-It also makes a distance field, which records how far each place is from the nearest surface.
+The bake also makes a distance field, which records how far each place is from the nearest cell that holds a surface.
 
-Later, that field helps find which cells are in shadow.
+Later, that field helps find which cells a shadow-casting light cannot reach, so those cells get none of its light.
 
 ### Lit when something changes {#c1-map-light kind=2d graph=frame focus="LIGHT, TEX, DYN"}
 
 ${cue "key" {' {callout "relight-gate"}}}
-At run time, compute passes called the light passes light every cell and store the result in a three-dimensional texture.
+At run time, compute passes light the smallest cells, those at the bottom of the octree.
 
-The light passes run again only when a light changes, or the VoxelGI's data or settings change, so a still room costs them nothing.
+They store the result in a three-dimensional texture.
+
+These compute passes are called the light passes.
+
+The light passes run again only when a light, the VoxelGI's data, or one of a few of its settings changes.
+
+So in a still room, they cost nothing.
 
 ### Moving objects, every frame {#c1-map-dynamic kind=2d graph=frame focus="DYN"}
 
-Moving objects are left out of the bake, so they are drawn into that texture every frame instead.
+An object meant to move is marked Dynamic, and the bake leaves it out.
+
+Instead, it is drawn into the light passes' texture every frame.
 
 ### Read every frame {#c1-map-read kind=2d graph=frame focus="PRE, CONE"}
 
 ${cue "key" {' {callout "process-gi"}}}
-Every frame, a compute pass called the screen pass traces cones through that texture for each pixel inside the box.
+Every frame, a compute pass called the screen pass traces cones through the light passes' texture.
+
+It traces them for each pixel whose surface lies inside the VoxelGI's box.
 
 ### Into the image {#c1-map-opaque kind=2d graph=frame focus="OPAQUE"}
 
-Then the opaque pass, which shades the scene's solid surfaces, mixes the cones' light into the image as their indirect light.
+Then comes the opaque pass, which shades the scene's solid surfaces.
+
+It mixes the cones' light into the image as those surfaces' indirect light.
 
 By the end, you will be able to follow one pixel's light back through each of these parts.
 
@@ -123,30 +141,22 @@ ${cue "key" {'
     {specCone 0.0}
     panelHidden}}${overText
         {' {conesShownRange 0.0 4.0}}
-        "A pixel reads that light through a few cones, which grow wider as they go"}.
+        "Here, one pixel reads that light through its few cones"}.
 
 ${overText
     {' {coneStepsRange 1.0 16.0}}
-    "The wider a cone grows, the bigger the cells it reads, like a texture read at a coarser mip"}.
+    "As a cone widens, it reads bigger cells, like a texture read at a coarser mip"}.
 
 ### Forward+ only, on whenever a VoxelGI is in view {#c1-gate kind=3d}
 
 ${cue "key" {opening demoRoom panelValues 1.0 {' {focusRow 0.0}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 16.0 18.0} {aim 8.0 22.0} {aim 14.0 19.0}}}}}}}
 
+Godot draws each frame with one of its three renderers.
+
 ${cue "key" {' {callout "voxelgi-doc"}}}${overText
     {' {focusRowRange 0.0 1.0}}
-    "Godot has three renderers, and VoxelGI works only in the one called Forward+"}.
-
-${cue "key" {' {callout "gles3-stub"}}}The Compatibility renderer leaves its VoxelGI functions empty.
-
-${cue "key" {' {callout "mobile-stub"}}}The Mobile renderer never links an object to a VoxelGI, so no surface there reads its light.
-
-No project setting turns VoxelGI on or off.
-
-${cue "key" {' {callout "voxelgi-gate"}}}${overText
-    {' {showBoxRange 0.0 1.0}}
-    "Instead, its work runs in any frame where culling, the test of what is in view, finds a VoxelGI"}.
+    "VoxelGI works only in the one called Forward+"}.
 
 ${cue "key" {' {callout "node-defaults"}}}${overText
     {' {focusRowRange 1.0 4.0}}
@@ -154,17 +164,33 @@ ${cue "key" {' {callout "node-defaults"}}}${overText
 
 By default it is a box twenty metres on each side.
 
+${cue "key" {' {callout "gles3-stub"}}}${overText
+    {' {voxelgiMixRange 1.0 0.0}}
+    "Of the other two renderers, Compatibility leaves every VoxelGI function empty, so it does nothing for VoxelGI"}.
+
+${cue "key" {' {callout "mobile-stub"}}}The Mobile renderer never records which VoxelGI box each object lies in, so no surface there reads VoxelGI's light.
+
+${overText {' {voxelgiMixRange 0.0 1.0}} "No project setting turns VoxelGI on or off"}.
+
+${cue "key" {' {callout "voxelgi-gate"}}}${overText
+    {' {showBoxRange 0.0 1.0}}
+    "Instead, its work runs in any frame where culling, the test of what is in view, finds a VoxelGI"}.
+
 ${cue "key" {' {cutHeight 1.6} {cellView 0.0}}}${overText
     {' {octreeLevelRange 4.0 7.0}}
-    "That box is cut into one hundred twenty-eight cells along its longest axis"}.
+    "By default, the node's box is cut into one hundred twenty-eight cells along its longest axis"}.
+
+So the default twenty-metre box gets cells about sixteen centimetres wide.
+
+No project setting turns VoxelGI on, but one does change its result.
 
 ${cue "key" {' {callout "quality-setting"}}}${over
     {' {focusRowRange 4.0 12.0}}
     {overText
         {' {qualityRange 0.0 1.0}}
-        "Besides the cells, one project setting picks how many cones each pixel traces, four by default, or six for a finer result"}}.
+        "It picks how many cones each pixel traces for diffuse light, four by default, or six for a finer result"}}.
 
-${overText {' {qualityRange 1.0 0.0}} "The other settings arrive in the chapters that use them"}.
+${overText {' {qualityRange 1.0 0.0}} "The other settings come up in the chapters that use them"}.
 
 ### The lab's box: six point four metres, five-centimetre cells {#c1-box kind=3d}
 
@@ -191,11 +217,13 @@ ${over
 
 ${overText
     {' {octreeLevelRange 7.0 -1.0}}
-    "The lab bakes, lights, and reads this box with code ported from Godot's own"}.
+    "Like Godot's editor, the lab bakes this box on the processor, with code ported from Godot's own"}.
+
+The lab lights the cells and reads them back on the graphics card, as Godot does at run time.
 
 ${overText
     {' {boundsStepRange 0.0 2.0}}
-    "It runs that code on the graphics card and again on the processor, and checks that the two agree"}.
+    "A copy of that run-time code on the processor checks that the two results agree"}.
 
 ### Next: the bake {#c1-recap kind=3d}
 
@@ -210,17 +238,17 @@ ${overText
 
 ${overText
     {' {viewModeRange 0.0 1.0}}
-    "Everything VoxelGI can light starts in that bake, and the next chapter follows it"}.
+    "Everything VoxelGI can light starts in the bake, so the next chapter follows the bake"}.
 
 ### Where to read {#c1-sources kind=2d sources="frame-order, voxelgi-gate, voxelgi-doc, mobile-stub, gles3-stub, node-defaults, quality-setting"}
 
 These are the lines this chapter followed, from the frame's VoxelGI steps to the node's defaults.
 
-Every claim in this video cites a file, a symbol, and a line in the Godot checkout.
+The claims about Godot in this video cite a file, a symbol, and a line in its source.
 
-When the video is built, a check confirms that each of those lines is still there.
+When the video is built, a check confirms that the Godot source is still at the commit those lines were read from.
 
-## Baking the octree {#c2 number=2 target=320 summary="The bake makes the box a cube of cells, sends every triangle down an octree, and samples it in each leaf it reaches." sources="bake-entry, find-meshes, begin-bake, plot-mesh, plot-face-recurse, tri-box, leaf-scan, material-cache"}
+## Baking the octree {#c2 number=2 target=355 summary="The bake makes the box a cube of cells, sends every triangle down an octree, and samples it in each leaf it reaches." sources="bake-entry, find-meshes, begin-bake, plot-mesh, plot-face-recurse, tri-box, leaf-scan, material-cache"}
 
 ### The bake comes first {#c2-map kind=2d graph=frame focus=BAKE}
 
@@ -250,9 +278,11 @@ ${overText
     {' {octreeLevelRange 3.0 5.0}}
     "A mesh is collected when it is visible and its bounds touch the box"}.
 
+Each object also has a GI mode.
+
 ${overText
     {' {octreeLevelRange 5.0 6.0}}
-    "Each object also has a GI mode, and a mesh is baked only when that mode is Static, the default"}.
+    "A collected mesh is baked only when that mode is Static, the default"}.
 
 ${overText
     {' {octreeLevelRange 6.0 7.0}}
@@ -260,50 +290,64 @@ ${overText
 
 ${cue "key" {' {callout "plot-mesh"}}}${overText
     {' {cutHeightRange 3.2 2.2}}
-    "Of those meshes, only the triangle surfaces are baked"}.
+    "Of those meshes, only the surfaces made of triangles are baked, not lines or points"}.
 
-${overText
-    {' {cutHeightRange 2.2 1.2}}
-    "A triangle that misses the box is skipped, and one that crosses its edge is kept whole, not clipped"}.
+${overText {' {cutHeightRange 2.2 1.2}} "A triangle that misses the box is skipped"}.
+
+One that crosses the box's edge is kept whole, not clipped.
+
+But the bake makes cells for it only inside the box.
 
 ${overText
     {' {cutHeightRange 1.2 2.2}}
-    "The lab leaves the ceiling panel's mesh out of the bake, so the panel has no cells"}.
+    "In the lab, the ceiling panel's light comes from an area light"}.
 
 ${overText
     {' {cutHeightRange 2.2 3.2}}
-    "The panel's light comes from an area light instead, which chapter four follows"}.
+    "The lab leaves the panel's mesh out of the bake, so the panel has no cells"}.
+
+So the panel's light reaches the cells only through that area light, which chapter four follows.
 
 ### The box becomes a cube of cells {#c2-cube kind=3d}
 
 ${cue "key" {opening demoBounds panelValues 1.0 {' {showBox 1.0} {boundsStep 0.0} {focusRow 0.0}}}}
 ${cue "key" {' {motion {' {cameraPath {' {pose 28.0 30.0 14.0} {pose 40.0 36.0 16.0}}}}}}}
 
+A setting called the subdivision picks how many cells the box gets.
+
 ${cue "key" {' {callout "begin-bake"}}}${over
     {' {focusRowRange 0.0 1.0}}
     {overText
         {' {octreeLevelRange -1.0 1.0}}
-        "At the default subdivision, the box's longest axis gets one hundred twenty-eight cells, two to the seventh"}}.
+        "At its default, the box's longest axis gets one hundred twenty-eight cells, two to the seventh"}}.
 
 ${cue "key" {' panelCode listingBeginBake {highlightCode "begin-bake" {' "shrink"}}}}${overText
     {' {boundsStepRange 0.0 1.0}}
-    "A shorter axis gets fewer cells"}.
+    "A shorter axis can get fewer cells"}.
 
-Its count is halved, and halved again, while half the longest side still covers the axis.
+For a shorter axis, the voxelizer starts from the longest side and its one hundred twenty-eight cells, and halves both as long as the halved side still covers that axis.
 
 ${overText
     {' {octreeLevelRange 1.0 2.0}}
-    "The box is three point two metres tall, half its six point four metre width, so its height gets sixty-four cells"}.
+    "The box is three point two metres tall, half its six point four metre width"}.
+
+${overText
+    {' {focusRowRange 1.0 2.0}}
+    "Half of six point four metres is three point two, which still covers the height, so the height's count halves once, to sixty-four"}.
+
+Half again is one point six metres, which no longer covers the height, so the halving stops.
 
 ${cue "key" {' {highlightCode "begin-bake" {' "cube"}}}}${overText
     {' {boundsStepRange 1.0 2.0}}
-    "Then every side is stretched to the longest one, so the octree covers a cube"}.
+    "The counts stay, but every side of the octree's box is then stretched to the longest one, so the octree covers a cube"}.
 
-${overText {' {octreeLevelRange 2.0 4.0}} "So the octree's cells are cubes of one size"}.
+${overText
+    {' {octreeLevelRange 2.0 4.0}}
+    "So at each level, the octree's cells are cubes of one size"}.
 
 The smallest are five centimetres wide, seven levels below the whole cube.
 
-${cue "key" {' {highlightCode "begin-bake" {' "cell"}}}}The height's sixty-four cells stop at three point two metres.
+${cue "key" {' {highlightCode "begin-bake" {' "cell"}}}}The height's sixty-four cells reach only up to three point two metres, the middle of the cube.
 
 ${overText {' {octreeLevelRange 4.0 3.0}} "So the top half of that cube holds no cells at all"}.
 
@@ -322,7 +366,7 @@ ${cue "key" {'
     {motion {'
         {path {' cameraDistance cameraYaw} {' {' 5.0 50.0} {' 2.2 58.0} {' 0.9 60.0}} beat}}}}}
 
-${overText {' {descentLevelRange 0.0 0.5}} "Take one triangle of the teapot's spout"}.
+${overText {' {descentLevelRange 0.0 0.5}} "Take one triangle on the spout of this teapot"}.
 
 ${cue "key" {' {callout "plot-face-recurse"}}}${overText
     {' {descentLevelRange 0.5 0.75}}
@@ -330,7 +374,7 @@ ${cue "key" {' {callout "plot-face-recurse"}}}${overText
 
 ${overText
     {' {descentLevelRange 0.75 1.0}}
-    "The root is cut into eight children, one for each octant"}.
+    "The root is cut into eight children, each one eighth of the cube"}.
 
 ${cue "key" {' {highlightCode "plot-face" {' "sat"}}}}${overText
     {' {descentLevelRange 1.0 2.0}}
@@ -338,11 +382,13 @@ ${cue "key" {' {highlightCode "plot-face" {' "sat"}}}}${overText
 
 ${cue "key" {' {highlightCode "plot-face" {' "create"}}}}${overText
     {' {descentLevelRange 2.0 3.0}}
-    "Only the children the triangle overlaps become cells, so the triangle carves a path one level deeper at a time"}.
+    "Only the children the triangle overlaps become cells, so the triangle carves a path that goes one level deeper each time"}.
 
 ${cue "key" {' {highlightCode "plot-face" {' "down"}}}}${overText
     {' {descentLevelRange 3.0 7.0}}
-    "Seven levels down, the children are five centimetres wide, and these smallest cells are called leaves"}.
+    "Seven levels down, the children are five centimetres wide"}.
+
+These smallest cells are called leaves.
 
 ${over
     {' {octreeLevelRange -1.0 7.0}}
@@ -364,21 +410,31 @@ ${cue "key" {' {motion {' {cameraTurn {' {aim 52.0 22.0} {aim 64.0 28.0}}}}}}}
 
 ${cue "key" {' {callout "tri-box"}}}${overText
     {' {satStepRange 0.0 1.0}}
-    "The overlap test looks for a separating axis between the box and the triangle"}.
+    "The overlap test projects the child cell and the triangle onto an axis"}.
 
-${cue "key" {' {glide cameraDistance 1.2 sentence}}}On such an axis, the two shapes' projections do not overlap, so the shapes cannot touch.
+${cue "key" {' {glide cameraDistance 1.2 sentence}}}If the two projections do not overlap on that axis, the shapes cannot touch.
+
+Such an axis is called a separating axis, and the test looks for one.
+
+${overText {' {descentLevelRange 5.0 6.0}} "The test tries three groups of axes"}.
+
+First come nine axes, one for each pairing of a triangle edge with a cell axis.
+
+Each of the nine is at right angles to both the edge and the cell axis of its pair.
+
+${overText {' {satStepRange 1.0 2.0}} "Then come the cell's own three axes"}.
 
 ${overText
-    {' {descentLevelRange 5.0 6.0}}
-    "The test tries nine axes made from the triangle's edges, then the box's own three, then the triangle's plane"}.
+    {' {satStepRange 2.0 3.0}}
+    "Last comes the triangle's normal, the direction its plane faces"}.
 
 ${overText
     {' {descentLevelRange 6.0 5.0}}
     "The first axis that separates them rules the child out, so no cell is made there"}.
 
-${overText
-    {' {satStepRange 1.0 3.0}}
-    "The readout panel names the axis that rejected the child drawn in red"}.
+One child is drawn in red.
+
+${overText {' {satStepRange 1.0 3.0}} "The readout panel names the axis that rejected it"}.
 
 ### Every triangle, sharing the cells {#c2-all kind=3d}
 
@@ -404,13 +460,13 @@ ${overText {' {octreeLevelRange 3.0 7.0}} "Level by level, the cells shrink and 
 
 ${overText
     {' {focusRowRange 3.0 7.0}}
-    "The room ends with forty-two thousand two hundred eighty-nine leaves, out of fifty-six thousand cells in all"}.
+    "The room ends with forty-two thousand two hundred eighty-nine leaves, out of about fifty-six thousand cells in all"}.
 
-${overText {' {cutHeightRange 3.2 0.7}} "The cells follow only the surfaces"}.
+${overText {' {cutHeightRange 3.2 0.7}} "The cells lie only along the surfaces"}.
 
 ${overText
     {' {cutHeightRange 0.7 1.4}}
-    "So only about four in a hundred of the grid's million places hold a leaf"}.
+    "So only about four in a hundred of a full grid's million cells become leaves"}.
 
 ${overText
     {' {cutHeightRange 1.4 2.0}}
@@ -439,21 +495,25 @@ ${cue "key" {' {highlightCode "leaf-scan" {' "columns"}}}}${overText
 
 ${overText {' {leafColumnsRange 8.0 16.0}} "Each column the triangle crosses gives one sample"}.
 
+The leaf keeps three sums, one each for albedo, emission, and normal.
+
 ${cue "key" {' panelValues}}${overText
     {' {leafColumnsRange 16.0 12.0}}
-    "A sample adds the material's albedo, its emission, and the triangle's normal at that point to the leaf's sums"}.
+    "Each sample adds what the material and the triangle hold at its point to those three sums"}.
 
 ${overText
     {' {leafColumnsRange 12.0 8.0}}
-    "Each sample is scaled by a sixteenth, one share for each of the sixteen columns"}.
+    "Each sample counts for one sixteenth, since the cell has sixteen columns"}.
 
 ${overText
     {' {leafColumnsRange 8.0 12.0}}
-    "So a triangle that covers half the leaf adds only half the weight of one that covers all of it"}.
+    "So a triangle that crosses half the columns adds only half the weight of one that crosses all of them"}.
 
-${overText
-    {' {leafColumnsRange 12.0 14.0}}
-    "The leaf's alpha adds up those shares, so it is the leaf's coverage, the fraction of columns hit"}.
+${overText {' {leafColumnsRange 12.0 14.0}} "The leaf also adds up those shares"}.
+
+That total is the fraction of columns hit, called the leaf's coverage.
+
+The leaf stores that coverage as its alpha.
 
 ${overText
     {' {leafColumnsRange 14.0 16.0}}
@@ -476,19 +536,23 @@ The colours the leaves receive come from the materials.
 
 ${cue "key" {' {callout "material-cache"}}}${overText
     {' {cellViewRange 1.0 0.0}}
-    "Each material is read once into two tables, each one hundred twenty-eight texels a side"}.
+    "The voxelizer reads each material once, into two tables that every sample then looks up"}.
+
+Each table is an image one hundred twenty-eight texels a side.
 
 ${overText {' {cellViewRange 0.0 1.0}} "One table holds the albedo, in linear colour"}.
 
 ${overText
     {' {cellViewRange 1.0 0.0}}
-    "The other holds the emission, multiplied by its energy and the bake's exposure"}.
+    "The other holds the emission, scaled by the material's emission energy, its brightness multiplier"}.
+
+The emission is also scaled by the exposure from the VoxelGI's own camera settings, which is one when it has none.
 
 ${overText {' {cutHeightRange 3.2 1.0}} "Here each leaf shows the albedo it received"}.
 
 ${overText
     {' {cutHeightRange 1.0 2.2}}
-    "The room's materials are flat colours, so every sample of one mesh is the same"}.
+    "The room's materials have no textures, only flat colours, so every sample of one mesh is the same"}.
 
 ### Next: finishing and packing the cells {#c2-recap kind=3d}
 
@@ -509,7 +573,7 @@ ${overText
 
 ${overText
     {' {cutHeightRange 2.0 3.2}}
-    "Each leaf sums what its triangles left in it, shown here as their coverage"}.
+    "Each leaf sums what its triangles left in it, shown here by the leaf's coverage"}.
 
 ${overText {' {octreeLevelRange 7.0 6.0}} "Those sums are not yet what the graphics card reads"}.
 
@@ -521,7 +585,7 @@ ${overText
 
 These are the voxelizer's functions, in the order the bake calls them.
 
-## What the bake stores {#c3 number=3 target=300 summary="Leaves are averaged, parents emptied, the cells sorted and packed into 48 bytes, and a distance field made; then everything is uploaded." sources="fixup-leaf, fixup-parent, sort-cells, export-octree, export-data, rgbe9995, sdf-edt, sdf-encode, allocate-data, instance-texture"}
+## What the bake stores {#c3 number=3 target=350 summary="Leaves are averaged, parents emptied, the cells sorted and packed into 48 bytes, and a distance field made; then everything is uploaded." sources="fixup-leaf, fixup-parent, sort-cells, export-octree, export-data, rgbe9995, sdf-edt, sdf-encode, allocate-data, instance-texture"}
 
 ### From cells to bytes {#c3-map kind=2d graph=frame focus="BAKE, SDF"}
 
@@ -550,7 +614,7 @@ ${overText {' {fixupStepRange 0.0 1.0}} "Finishing the leaf divides every sum by
 
 ${overText
     {' {focusRowRange 3.0 6.0}}
-    "So the leaf now holds the average albedo and normal of its samples"}.
+    "So the leaf now holds its samples' average albedo and average normal direction"}.
 
 ${overText
     {' {focusRowRange 6.0 9.0}}
@@ -564,7 +628,9 @@ ${overText
     {' {cutHeightRange 0.3 0.4}}
     "When their average is shorter than one hundredth, the leaf keeps no normal at all"}.
 
-${overText {' {cutHeightRange 0.4 0.5}} "The light passes then treat that leaf as facing every way"}.
+${overText
+    {' {cutHeightRange 0.4 0.5}}
+    "Chapter four's direct lighting then treats that leaf as facing every way, so a light from any side lights it"}.
 
 ### Parents keep only their coverage {#c3-parents kind=3d}
 
@@ -580,27 +646,31 @@ ${cue "key" {opening demoCells panelCode 1.0 {'
     {cameraDistance 5.2}}}}
 ${cue "key" {' {motion {' {cameraPath {' {pose 22.0 28.0 5.0} {pose 36.0 34.0 5.6}}}}}}}
 
+A cell that has children is called a parent.
+
 ${cue "key" {' {callout "fixup-parent"}}}${overText
     {' {octreeLevelRange 7.0 6.0}}
-    "A parent cell, one that has children, gets no colour at all"}.
+    "A parent gets no colour at all"}.
 
-${overText
-    {' {cutHeightRange 1.2 1.0}}
-    "Its albedo, emission, and normal are all set to zero, because the bake never stores light in a parent"}.
+${overText {' {cutHeightRange 1.2 1.0}} "Its albedo, emission, and normal are all set to zero"}.
 
 ${cue "key" {' {highlightCode "fixup" {' "alpha"}}}}${overText
     {' {cutHeightRange 1.0 0.8}}
-    "A parent keeps only its alpha, its coverage, which is the sum of its children's alpha divided by eight"}.
+    "A parent keeps only its alpha, its coverage"}.
+
+That coverage is the sum of its children's alpha, divided by eight.
 
 ${overText {' {cutHeightRange 0.8 0.5}} "So a parent with four leaves inside it holds one half"}.
 
 ${overText
     {' {octreeLevelRange 6.0 4.0}}
-    "The coarser the level, the more of a cell is open air, so fewer of its children exist and its coverage drops"}.
+    "On a coarser level, a parent spans more open air, so fewer of its eight children exist"}.
 
-${overText
-    {' {cutHeightRange 0.5 1.6}}
-    "The coarse levels get their light later, rebuilt from the leaves on the graphics card every time the lights change"}.
+So on a surface, a parent's coverage usually drops with each coarser level.
+
+${overText {' {cutHeightRange 0.5 1.6}} "The parents get their light later"}.
+
+Every time the lights change, the graphics card rebuilds that light from the leaves.
 
 ### Sorted by level, each level in one run {#c3-sort kind=3d}
 
@@ -615,9 +685,11 @@ ${cue "key" {opening demoCells panelCode 0.0 {'
     {cameraDistance 7.0}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 22.0 30.0} {aim 30.0 32.0}}}}}}}
 
+This chapter showed finishing first, but the bake actually sorts the cells before it finishes them.
+
 ${cue "key" {' {callout "sort-cells"}}}${overText
     {' {octreeLevelRange 0.0 2.0}}
-    "The cells are then sorted by level first, and then by position"}.
+    "It sorts them by level first, and then by position"}.
 
 ${cue "key" {' {highlightCode "sort-cells" {' "root"}}}}${overText
     {' {octreeLevelRange 2.0 3.0}}
@@ -625,11 +697,11 @@ ${cue "key" {' {highlightCode "sort-cells" {' "root"}}}}${overText
 
 ${cue "key" {' {highlightCode "sort-cells" {' "remap"}}}}${overText
     {' {octreeLevelRange 3.0 5.0}}
-    "Because the cells moved, each parent's list of child indices is rewritten to point at their new places"}.
+    "Sorting moves the cells, so each parent's list of child indices is rewritten to point at the children's new places"}.
 
 ${cue "key" {' {highlightCode "sort-cells" {' "runs"}}}}${overText
     {' {octreeLevelRange 5.0 7.0}}
-    "Each level now fills one unbroken run of the array, shown here in its own colour"}.
+    "Each level now fills one unbroken run of the sorted array of cells, shown here in its own colour"}.
 
 ${cue "key" {' {callout "level-counts"}}}${overText
     {' {octreeLevelRange 7.0 5.0}}
@@ -637,7 +709,7 @@ ${cue "key" {' {callout "level-counts"}}}${overText
 
 ${overText
     {' {octreeLevelRange 5.0 4.0}}
-    "The renderer, the part of Godot that draws each frame, uses those counts to find where each level's run starts and ends"}.
+    "When Godot draws a frame, its renderer uses those counts to find where each level's run starts and ends, so it can work on one level at a time"}.
 
 ### Forty-eight bytes a cell, in two records {#c3-bytes kind=3d}
 
@@ -657,9 +729,9 @@ ${cue "key" {' {callout "export-octree"}}}Each cell is stored as two records.
 
 ${overText
     {' {focusRowRange 0.0 1.0}}
-    "The first record holds its eight children's indices, thirty-two bytes"}.
+    "The first record holds its eight children's indices, in thirty-two bytes"}.
 
-An index of all ones means that child is empty.
+An index with every bit set to one means that child is empty.
 
 ${cue "key" {' {callout "export-data"}}}${overText
     {' {focusRowRange 1.0 2.0}}
@@ -667,31 +739,43 @@ ${cue "key" {' {callout "export-data"}}}${overText
 
 ${overText
     {' {focusRowRange 2.0 3.0}}
-    "It starts with the cell's position, counted in that level's own cells"}.
+    "It starts with the cell's position, measured in cells of the cell's own size"}.
 
-The three coordinates are packed into eleven, ten, and eleven bits.
+The three coordinates are packed into eleven, ten, and eleven bits, so the position fits in four bytes.
 
-${overText
-    {' {focusRowRange 4.0 5.0}}
-    "Then come its albedo and coverage, one byte for each of the four channels"}.
+${overText {' {focusRowRange 4.0 5.0}} "Next, three bytes store the albedo"}.
+
+A fourth byte stores the coverage, the alpha from chapter two.
 
 ${cue "key" {' {callout "rgbe9995"}}}${over
     {' {focusRowRange 6.0 7.0}}
     {overText
         {' {cellViewRange 0.0 3.0}}
-        "Its emission is three nine-bit numbers that share one exponent, so emission brighter than white still fits in four bytes"}}.
+        "The emission takes the next four bytes, with one nine-bit number for each colour channel"}}.
+
+The last five bits hold an exponent, which scales all three numbers by one power of two.
+
+So emission brighter than white still fits in four bytes.
 
 ${overText {' {cellViewRange 3.0 2.0}} "This room has no emission, so those bytes are zero here"}.
 
 ${overText {' {focusRowRange 8.0 9.0}} "Last comes its normal, as three signed bytes, one per axis"}.
 
+The normal's fourth byte is left unused.
+
+So the two records take forty-eight bytes a cell.
+
 ### The distance field, exact, in three passes {#c3-field kind=3d}
 
 ${cue "key" {opening demoField panelValues 0.0 {' {slice 1.0} {edtPass 0.0} {sliceHeight 0.3}}}}
 
+The bake makes one more thing, the distance field from chapter one.
+
 ${cue "key" {' {callout "sdf-edt"}}}${overText
     {' {sliceHeightRange 0.6 0.45}}
-    "The bake also measures, on a grid of leaf-sized places, how far each place is from the nearest leaf"}.
+    "It covers the box with a grid of places, each the size of a leaf"}.
+
+For each place, it measures how far the nearest leaf is.
 
 ${overText
     {' {sliceHeightRange 0.45 0.3}}
@@ -699,11 +783,15 @@ ${overText
 
 ${cue "key" {' panelCode listingDistanceField {highlightCode "distance-field" {' "seed"}}}}${overText
     {' {focusRowRange 1.0 2.0}}
-    "Leaves start at a distance of zero, and every other place starts far away, shown white"}.
+    "Leaves start at a distance of zero"}.
+
+Every other place starts far away, shown white.
 
 ${cue "key" {' {highlightCode "distance-field" {' "z"}}}}${overText
     {' {edtPassRange 0.0 1.0}}
-    "Then a pass runs along every column of cells in the z direction, and finds each place's distance within its column"}.
+    "Then a first pass walks along each column of places that runs in z"}.
+
+It finds each place's distance to the nearest leaf in that column.
 
 ${over
     {' {edtPassRange 1.0 3.0}}
@@ -713,23 +801,37 @@ ${over
         {cue "key" {' {highlightCode "distance-field" {' "x"}}}}
         {text "and then along x"}}}}.
 
-Together, these three passes are called an exact distance transform, because they give each place its exact distance.
+${overText
+    {' {edtPassRange 1.0 2.0}}
+    "In each later pass, a place looks at every other place on its line along that pass's axis"}.
+
+For each of them, it adds the squared distance between the two to what the earlier passes found there.
+
+The place keeps the smallest of these sums.
+
+${overText
+    {' {edtPassRange 2.0 3.0}}
+    "So after the third pass, each place holds the exact squared distance to its nearest leaf"}.
+
+Together, these three passes are called an exact distance transform.
 
 ${cue "key" {' {callout "sdf-encode"} panelValues}}${overText
     {' {focusRowRange 2.0 3.0}}
     "Each place keeps its distance in a single byte"}.
 
-${overText
-    {' {focusRowRange 3.0 4.0}}
-    "A leaf stores zero, and any other place stores its distance in whole cells plus one, so zero always marks a leaf"}.
+${overText {' {focusRowRange 3.0 4.0}} "A leaf stores zero"}.
+
+Any other place takes its distance in whole cells, rounded down, and adds one.
+
+So only a leaf ever stores zero.
 
 ${overText
     {' {sliceHeightRange 0.3 1.0}}
-    "At the height of the sphere's centre, the field forms a ring around each object"}.
+    "Here, at the height of the sphere's centre, the field forms a ring around each object"}.
 
 ${overText
     {' {sliceHeightRange 1.0 0.6}}
-    "In the next chapter, shadow rays use those distances to jump through empty space"}.
+    "In the next chapter, shadow rays use those distances to skip through empty space"}.
 
 ### What the GPU keeps {#c3-upload kind=3d}
 
@@ -745,35 +847,45 @@ ${cue "key" {opening demoCells panelValues 0.5 {'
     {cameraDistance 8.0}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 0.0 70.0} {aim 16.0 58.0}}}}}}}
 
+Now the bake's data goes to the graphics card.
+
 ${cue "key" {' {callout "allocate-data"}}}${overText
     {' {sliceRange 2.0 1.0}}
     "The upload turns the two records into two storage buffers"}.
 
-It turns the field into a three-dimensional texture, with one byte per texel.
+It turns the distance field into a three-dimensional texture, with one byte per texel.
 
 ${cue "key" {' {callout "sdf-gpu-disabled"}}}${overText
     {' {sliceRange 1.0 2.0}}
-    "Godot's source also holds a graphics-card version of the field, but it is compiled out"}.
+    "Godot's source also holds a version that builds the field on the graphics card, but that version is compiled out"}.
 
-${cue "key" {' {glide cameraDistance 7.0 sentence}}}So the field the bake made on the processor is the one used.
+${cue "key" {' {glide cameraDistance 7.0 sentence}}}So the shadow rays always read the field the bake made on the processor.
 
 ${cue "key" {' {callout "instance-texture"}}}${overText
     {' {mipLevelRange 0.0 1.0}}
-    "Each VoxelGI in the renderer then gets a colour texture the size of the octree, for the light passes to fill"}.
+    "Each VoxelGI in the renderer then gets a colour texture for its light, which the light passes fill"}.
+
+At its finest, this light texture has one texel for every leaf-sized place in the box.
 
 ${overText
     {' {mipLevelRange 1.0 2.0}}
-    "That texture has one mip for each octree level, each mip a half-size copy of the one before"}.
+    "The light texture has one mip for each octree level, each mip half the size of the one before"}.
 
 ${overText
     {' {mipLevelRange 2.0 3.0}}
-    "Beside it is a buffer of four floats per cell, which will hold each cell's light at full precision"}.
+    "Beside the light texture, a buffer keeps each cell's light at full precision, in four floats"}.
 
-${overText {' {mipLevelRange 3.0 1.0}} "In the lab, the texture's finest mip takes four megabytes"}.
+Chapter six rewrites the texture from that buffer, without lighting the cells again.
+
+${overText
+    {' {mipLevelRange 3.0 1.0}}
+    "In the lab, the light texture's finest mip takes four megabytes"}.
 
 ${overText
     {' {mipLevelRange 1.0 0.0}}
-    "The cells take under four megabytes, and the distance field one megabyte"}.
+    "All the cells take under three megabytes, less than that one mip"}.
+
+The distance field takes one megabyte.
 
 ### Next: light {#c3-recap kind=3d}
 
@@ -790,13 +902,13 @@ ${cue "key" {' {motion {' {path {' cameraYaw cameraDistance} {' {' 32.0 5.0} {' 
 
 ${overText
     {' {cellViewRange 2.0 0.0}}
-    "So every leaf now stores what its surface is, its albedo and normal"}.
+    "So every leaf now describes its surface, with its albedo and normal"}.
 
 ${overText
     {' {cutHeightRange 1.0 2.0}}
     "The distance field stores how far each place is from the nearest leaf"}.
 
-${overText {' {cutHeightRange 2.0 2.6}} "None of it is light yet"}.
+${overText {' {cutHeightRange 2.0 2.6}} "None of it has been lit yet"}.
 
 ${overText {' {cutHeightRange 2.6 3.2}} "The next chapter lights the leaves"}.
 
@@ -804,13 +916,13 @@ ${overText {' {cutHeightRange 2.6 3.2}} "The next chapter lights the leaves"}.
 
 These are the lines that finish, pack, measure, and upload the cells.
 
-## Lighting the cells {#c4 number=4 target=275 summary="When the lights change, each leaf gets its direct light, shadowed through the field, and the texture stores it over the dynamic range." sources="relight-gate, light-cache, max-lights, light-upload, compute-light, light-at-pos, raymarch, area-light, write-texture"}
+## Lighting the cells {#c4 number=4 target=300 summary="When the lights change, each leaf gets its direct light, shadowed through the field, and the texture stores it over the dynamic range." sources="relight-gate, light-cache, max-lights, light-upload, compute-light, light-at-pos, raymarch, area-light, write-texture"}
 
 ### Light passes, on change {#c4-map kind=2d graph=frame focus="LIGHT, TEX"}
 
 The cells now hold what each surface is.
 
-The light passes, the compute passes from chapter one, give each cell the light it receives.
+The light passes from chapter one now give each cell the light it sends back out.
 
 ### Only when the data or a light changes {#c4-when kind=3d}
 
@@ -828,11 +940,15 @@ ${cue "key" {' {callout "relight-gate"}}}The light passes do not run every frame
 
 ${overText
     {' {focusRowRange -1.0 0.0}}
-    "They run only when a light changes, when the bake is redone, or when one of the VoxelGI's settings changes"}.
+    "They run only when a light changes, when the bake is redone, or when one of three VoxelGI settings changes"}.
+
+Those three settings are the dynamic range, the propagation, and whether the second bounce is on.
 
 ${cue "key" {' {callout "light-cache"}}}${overText
     {' {lightXRange 0.9 0.4}}
-    "The culler, the code that decides what is in view, compares every light each frame with a copy of that light's settings, saved earlier"}.
+    "Every frame, the culling from chapter one also checks each visible light"}.
+
+For each VoxelGI in view, it compares that light's settings with a copy saved earlier.
 
 ${overText
     {' {lightXRange 0.4 -0.6}}
@@ -840,11 +956,11 @@ ${overText
 
 ${cue "key" {' {callout "max-lights"}}}${overText
     {' {lightXRange -0.6 0.9}}
-    "At most thirty-two lights take part, the engine's limit"}.
+    "At most thirty-two lights take part, which is the engine's limit"}.
 
 ${cue "key" {' {callout "light-upload"}}}${overText
     {' {focusRowRange 0.0 1.0}}
-    "Each light's position and range are first converted into the box's cells, so the passes can work in cell units"}.
+    "Each light's position and reach are first converted into the box's cells, the unit in which the cells' positions and the distance field are stored"}.
 
 ### A cell's direct light, step by step {#c4-direct kind=3d}
 
@@ -864,25 +980,25 @@ ${overText
 
 ${cue "key" {' panelCode listingComputeLight {highlightCode "compute-light" {' "vector"}}}}${overText
     {' {lightStepRange 0.0 1.0}}
-    "The pass first finds the direction from the cell to the light"}.
+    "The first of the light passes is called the direct light pass, and it finds the direction between the cell and the light"}.
 
 ${cue "key" {' {callout "omni-atten"} panelValues}}${over
     {' {lightStepRange 1.0 2.0}}
     {overText
         {' {lightXRange 0.9 0.5}}
-        "Then it finds how much the light falls off over the distance between them"}}.
+        "It also works out how much the light falls off over the distance between them"}}.
 
 ${cue "key" {' {callout "light-at-pos"}}}${overText
     {' {lightStepRange 2.0 3.0}}
-    "A cell that faces away from the light gets nothing from it"}.
+    "If the cell's normal faces away from the light, the cell gets nothing from it"}.
 
 ${overText
     {' {lightXRange 0.5 0.9}}
-    "Otherwise, the light is weighted by the cosine between the cell's normal and the direction to the light"}.
+    "Otherwise, the direct light pass weights the light by the cosine between the cell's normal and the direction to the light"}.
 
 ${cue "key" {' panelCode listingComputeLight {highlightCode "compute-light" {' "result"}}}}${overText
     {' {lightStepRange 3.0 4.0}}
-    "That light times the cell's albedo, plus the cell's emission, is the light the cell sends back out"}.
+    "That weighted light times the cell's albedo, plus the cell's emission, gives the light the cell sends back out"}.
 
 ### The shadow ray steps through the distance field {#c4-shadow kind=3d}
 
@@ -906,11 +1022,13 @@ ${cue "key" {' {highlightCode "raymarch" {' "step"}}}}${overText
     {' {marchStepsRange 2.0 4.0}}
     "Then it jumps that far"}.
 
-The jump is rounded down to whole cells, along the axis the ray mostly follows.
+The jump is rounded down to whole cells, but it is never shorter than one cell.
+
+Those cells are counted along the axis the ray moves along most.
 
 ${cue "key" {' {highlightCode "raymarch" {' "solid"}}}}${overText
     {' {marchStepsRange 4.0 20.0}}
-    "Here the ray reaches the sphere's cells and reads a solid cell, where the field is zero"}.
+    "Here the ray reaches the sphere's cells and reads a leaf, where the field is zero"}.
 
 ${overText
     {' {marchStepsRange 20.0 40.0}}
@@ -918,7 +1036,11 @@ ${overText
 
 ${cue "key" {' {highlightCode "raymarch" {' "partial"}}}}${overText
     {' {lightZRange -0.4 -0.25}}
-    "But close to a surface, the field reads less than one cell, and then the cell's light is only dimmed"}.
+    "A ray that passes close to a surface without reaching it can read less than one cell"}.
+
+The field gives such readings because it is blended between neighbouring texels.
+
+The floor cell's light is then multiplied by the smallest reading the ray met, so it is dimmed instead of blocked.
 
 ${overText {' {lightZRange -0.25 -0.1}} "That gives the shadow a slightly soft edge"}.
 
@@ -942,7 +1064,13 @@ ${overText
 
 ${overText {' {lightStepRange 3.0 4.0}} "VoxelGI does not sum the rectangle point by point"}.
 
-It evaluates the integral in closed form, with a standard fit called linearly transformed cosines.
+${overText
+    {' {focusRowRange 1.0 2.0}}
+    "Instead, it computes the integral in closed form, as a sum over the rectangle's edges"}.
+
+This method is called linearly transformed cosines.
+
+For diffuse light, it integrates the plain cosine over the rectangle.
 
 ${overText
     {' {cutHeightRange 0.2 0.7}}
@@ -954,9 +1082,13 @@ ${overText
 
 ${cue "key" {' {callout "ltc"}}}${overText
     {' {cutHeightRange 1.2 0.2}}
-    "Godot's direct lighting divides this integral by two pi"}.
+    "Godot's own direct lighting, which shades surfaces straight from the lights, divides this integral by two pi"}.
 
-The code shows that VoxelGI leaves that division out, so the panel lights the cells two pi times as brightly as direct lighting would.
+The code shows that VoxelGI leaves that division out, so its integral is two pi times larger than the one direct lighting uses.
+
+${overText
+    {' {cutHeightRange 0.2 1.2}}
+    "So the cells take the panel's light at a different scale from the surfaces that direct lighting shades"}.
 
 ### Every leaf, lit {#c4-all kind=3d}
 
@@ -974,9 +1106,9 @@ ${cue "key" {' {motion {' {cameraPath {' {pose 12.0 32.0 6.6} {pose 28.0 38.0 7.
 
 ${overText
     {' {cutHeightRange 0.2 1.6}}
-    "Every leaf runs the same pass, sixty-four leaves to a workgroup on the graphics card"}.
+    "The direct light pass runs these steps for every leaf, sixty-four leaves to a workgroup by the engine's choice"}.
 
-${overText {' {cutHeightRange 1.6 3.2}} "The room's cells take on the panel's light"}.
+${overText {' {cutHeightRange 1.6 3.2}} "The room's cells pick up the panel's light"}.
 
 ${overText {' {cellViewRange 5.0 1.0}} "Cells the panel sees are bright"}.
 
@@ -1001,7 +1133,7 @@ ${cue "key" {' {motion {' {cameraTurn {' {aim 8.0 50.0} {aim 20.0 44.0}}}}}}}
 
 ${cue "key" {' {callout "write-texture"} {focusRow 2.0}}}${overText
     {' {cellViewRange 5.0 4.0}}
-    "A last pass, the write pass, stores each cell's light in that cell's texel of the three-dimensional texture"}.
+    "The last pass, the write pass, stores each cell's light in that cell's texel of the three-dimensional texture"}.
 
 ${cue "key" {' {glide cameraDistance 3.0 sentence}}}Each channel of a texel has only eight bits, for values from zero to one.
 
@@ -1015,7 +1147,7 @@ ${overText
 
 ${overText
     {' {dynamicRangeRange 2.0 1.0}}
-    "At a range of one, the bright cells under the panel clip to white, and the readout's count of clipped leaves climbs"}.
+    "At a range of one, the bright cells under the panel clip to white, and the readout panel's count of clipped leaves goes up"}.
 
 ${overText
     {' {dynamicRangeRange 1.0 2.0}}
@@ -1027,11 +1159,13 @@ ${overText
 
 ${cue "key" {' {callout "unused-push"}}}${overText
     {' {cutHeightRange 0.6 0.8}}
-    "Godot's VoxelGI stores no direction with its light"}.
+    "Godot's VoxelGI stores no direction with its light, so each texel holds one light for all directions"}.
 
 ${overText
     {' {cutHeightRange 0.8 1.0}}
-    "The code shows that the pass still receives an anisotropy value, but no line reads it, so that value changes nothing"}.
+    "The code shows that the light passes still receive an anisotropy value, a strength for light that changes with direction"}.
+
+But no line of the shader reads it, so the stored light stays the same in every direction.
 
 ### Next: the bounce {#c4-recap kind=3d}
 
@@ -1051,25 +1185,29 @@ ${overText {' {cutHeightRange 3.2 1.8}} "So every leaf now holds the direct ligh
 
 ${overText
     {' {cutHeightRange 1.8 0.4}}
-    "Every shadow in that light comes from marching the distance field, and the area light casts none"}.
+    "Every shadow in the cells' direct light comes from marching the distance field"}.
+
+The area light casts none.
 
 ${overText
     {' {cutHeightRange 0.4 1.8}}
-    "So far, each cell has only light that came straight from a light"}.
+    "So far, each cell holds only direct light, which comes straight from the lights"}.
 
 ${overText {' {cutHeightRange 1.8 3.2}} "The next chapter lets the cells light each other"}.
 
 ### Where to read {#c4-sources kind=2d sources="relight-gate, light-cache, max-lights, light-upload, compute-light, light-at-pos, raymarch, area-light, write-texture"}
 
-These are the light pass's lines, from the check that decides when it runs to the texture.
+These are the light passes' lines, from the check that decides when they run to the texture.
 
 ## The second bounce and the mips {#c5 number=5 target=205 summary="The coarse levels are filled from their children, then six cones from every leaf gather the light around it." sources="update-mipmaps, pass-order, second-bounce, bounce-cones, bounce-march, bounce-restore"}
 
 ### The texture reads itself back {#c5-map kind=2d graph=frame focus="LIGHT, TEX"}
 
-One pass of light reaches only what the lights see.
+So far, only the cells the lights reach send light back out.
 
-A second pass reads back the texture the first pass wrote, so the cells light each other.
+That light has bounced off one surface, so it counts as the first bounce.
+
+Another of the light passes, the bounce pass, reads back the texture the write pass filled, so the cells light each other.
 
 ### A parent's light from its children {#c5-mips kind=3d}
 
@@ -1083,25 +1221,27 @@ ${cue "key" {' {motion {' {path {' cameraYaw} {' {' 6.0} {' -6.0} {' 4.0}} beat}
 
 ${cue "key" {' {callout "update-mipmaps"}}}${overText
     {' {sliceHeightRange 0.4 0.2}}
-    "A cone widens as it travels, so it must read coarser copies of the light"}.
+    "A cone widens as it travels, so it must read the texture's coarser mips, one for each octree level"}.
 
 ${overText
     {' {sliceHeightRange 0.2 0.0}}
-    "The bake left the coarse levels without light, so a pass called the mip pass fills them first"}.
+    "The direct light pass lit only the leaves, so a pass called the mip pass fills in the parents' light first"}.
 
 ${overText {' {mipLevelRange 0.0 1.0}} "Each parent sums the light of its children"}.
 
 ${cue "key" {' panelValues}}${overText
     {' {mipLevelRange 1.0 2.0}}
-    "Then it divides that sum by a divisor, somewhere between eight and the number of children it really has"}.
+    "Then it divides that sum by a divisor"}.
+
+The divisor lies between eight and the number of children the parent really has.
 
 ${overText
     {' {mipLevelRange 2.0 3.0}}
-    "A setting called propagation picks where that divisor falls"}.
+    "A setting called propagation decides where the divisor falls, as the next beat shows"}.
 
 ${overText {' {mipLevelRange 3.0 4.0}} "Level by level, each mip holds a coarser copy of the light"}.
 
-${overText {' {mipLevelRange 4.0 7.0}} "The last mip is a single texel for the whole box"}.
+${overText {' {mipLevelRange 4.0 7.0}} "The coarsest mip is a single texel for the whole box"}.
 
 ### Propagation sets the divisor {#c5-prop kind=3d}
 
@@ -1129,7 +1269,7 @@ ${overText
 
 ${overText
     {' {focusRowRange 3.0 5.0}}
-    "Propagation is a choice between light that fades with distance and light that spreads too far"}.
+    "So a higher propagation keeps the coarse levels brighter, and the wide cones that read them pick up more light"}.
 
 ### Six cones from every leaf {#c5-cones kind=3d}
 
@@ -1147,7 +1287,9 @@ ${cue "key" {' {callout "second-bounce"}}}${overText
 
 ${cue "key" {' {highlightCode "second-bounce" {' "cones"}}}}${overText
     {' {coneStepsRange 6.0 4.0}}
-    "The bounce pass, the second light pass, builds a set of three axes around the cell's normal"}.
+    "The bounce pass builds three axes around the cell's normal"}.
+
+It aims every cone relative to those three axes.
 
 ${overText
     {' {conesShownRange 0.0 1.0}}
@@ -1155,9 +1297,11 @@ ${overText
 
 ${cue "key" {' {callout "bounce-cones"}}}${overText
     {' {conesShownRange 1.0 6.0}}
-    "Five more cones lean sixty degrees out at a weight of point one five each, so the six weights add up to one"}.
+    "Five more cones lean sixty degrees away from the normal, each with a weight of point one five, so the six weights add up to one"}.
 
-${overText {' {coneStepsRange 6.0 3.0}} "Each cone opens thirty degrees from its axis"}.
+${overText
+    {' {coneStepsRange 6.0 3.0}}
+    "Each cone's edge lies thirty degrees from the cone's centre line"}.
 
 ### Each cone widens and reads coarser mips {#c5-march kind=3d}
 
@@ -1177,17 +1321,19 @@ ${cue "key" {' runMarchCone {runSeconds 2.5} {runFrom 1.0} {runTo 6.0}}}The cone
 
 ${cue "key" {' {highlightCode "second-bounce" {' "lod"}}}}At each step, it reads the mip whose texels match that width.
 
-${cue "key" {' panelValues}}Each sample is blended in behind what the cone has already seen, front to back, like layers of glass.
+${cue "key" {' panelValues}}The cone blends its samples front to back, so each new sample lies behind those before it.
+
+A sample's alpha, its coverage, makes the cone more opaque, so samples farther along add less, like layers of glass.
 
 The cone stops once it is ninety-five percent opaque, or when it runs out of distance.
 
 ${cue "key" {' {stop {' "marchCone"}}}}${overText
     {' {conesShownRange 1.0 6.0}}
-    "The last cone here takes eleven steps and still ends only two thirds opaque"}.
+    "The last of the six cones never gets that opaque, and ends after eleven steps only about two thirds opaque"}.
 
 ${overText
     {' {coneStepsRange 6.0 11.0}}
-    "That is because the room's cells are thin shells around open air"}.
+    "The room's cells are thin shells around open air, so this cone runs out of distance first"}.
 
 ### The bounce is added, and everything rebuilt {#c5-restore kind=3d}
 
@@ -1208,21 +1354,25 @@ ${cue "key" {' {motion {' {cameraPath {' {pose 34.0 32.0 4.0} {pose 48.0 36.0 4.
 
 ${cue "key" {' {callout "bounce-restore"}}}${overText
     {' {cutHeightRange 0.2 0.5}}
-    "Each cone's light is multiplied by its weight, and by the cell's albedo for the bounce off that cell"}.
+    "Each cone's light is multiplied by its weight, and by the albedo of the cell that sent the cones, because the light bounces off that cell"}.
 
 ${overText
     {' {cutHeightRange 0.5 0.65}}
-    "It is also multiplied by the dynamic range, which undoes the division the texture applied"}.
+    "The cone's light is also multiplied by the dynamic range, which undoes the write pass's division"}.
 
-${overText {' {cutHeightRange 0.65 0.8}} "The result is added to the cell's direct light"}.
+${overText
+    {' {cutHeightRange 0.65 0.8}}
+    "The six results are summed and added to the cell's direct light"}.
 
-${cue "key" {' {callout "pass-order"}}}Then the mips are filled again, and the texture is written again.
+${cue "key" {' {callout "pass-order"}}}Then the mip pass and the write pass run again.
 
 ${overText {' {bouncesRange 1.0 2.0}} "The floor cells beside the red wall brighten"}.
 
 ${overText {' {bouncesRange 2.0 1.0}} "Only the leaves trace bounce cones"}.
 
-${overText {' {bouncesRange 1.0 2.0}} "They trace them only once, so there is no third bounce"}.
+${overText
+    {' {bouncesRange 1.0 2.0}}
+    "They trace them only once, so light bounces off at most two surfaces, and there is no third bounce"}.
 
 ### Next: what moves {#c5-recap kind=3d}
 
@@ -1243,9 +1393,9 @@ ${over
     {' {octreeLevelRange 7.0 5.0}}
     {overText
         {' {cutHeightRange 3.2 1.0}}
-        "So the texture now holds two bounces of light, at every level from five-centimetre cells to the whole box"}}.
+        "So the texture now holds both bounces of light, at every level from five-centimetre cells to the whole box"}}.
 
-${overText {' {octreeLevelRange 5.0 7.0}} "All of it was baked from objects that stand still"}.
+${overText {' {octreeLevelRange 5.0 7.0}} "All of it comes from objects that stand still"}.
 
 ${overText {' {cutHeightRange 1.0 3.2}} "The next chapter adds one that moves"}.
 
@@ -1253,13 +1403,13 @@ ${overText {' {cutHeightRange 1.0 3.2}} "The next chapter adds one that moves"}.
 
 These are the mip and bounce passes, and the order they run in.
 
-## Moving objects {#c6 number=6 target=225 summary="An object marked Dynamic is drawn from six sides every frame, lit, shrunk, and plotted into the same texture." sources="gi-mode-flags, dynamic-list, dynamic-oversample, dynamic-views, material-outputs, dynamic-lighting, shrink, plot-blend, dynamic-clear"}
+## Moving objects {#c6 number=6 target=260 summary="An object marked Dynamic is drawn from six sides every frame, lit, shrunk, and plotted into the same texture." sources="gi-mode-flags, dynamic-list, dynamic-oversample, dynamic-views, material-outputs, dynamic-lighting, shrink, plot-blend, dynamic-clear"}
 
 ### Dynamic objects write into the texture {#c6-map kind=2d graph=frame focus="DYN, TEX"}
 
 The bake knows only what stood still.
 
-Baking again every frame would be far too slow.
+The bake runs on the processor over every mesh in the room, and it does not run each frame.
 
 So an object marked Dynamic is drawn into the texture every frame instead.
 
@@ -1279,19 +1429,29 @@ ${overText
 
 ${cue "key" {' {callout "dynamic-list"}}}${overText
     {' {dynamicVoxelsRange 0.0 1.0}}
-    "In every frame where the room's VoxelGI is in view, each of its dynamic objects is drawn into the texture"}.
+    "Each dynamic object is drawn into the texture in every frame where the room's VoxelGI is in view"}.
 
 ${overText
     {' {dynamicXRange 0.0 0.3}}
-    "That happens whether the object moved or not, so it costs work even when the object stands still"}.
-
-${overText {' {dynamicXRange 0.3 0.6}} "The points on screen are the texels the teapot wrote"}.
-
-Each is shown in the light it received, drawn brighter than the light stored.
+    "That happens whether the object moved or not, so it costs time even when the object stands still"}.
 
 ${overText
+    {' {dynamicXRange 0.3 0.6}}
+    "The points on screen are the texels the teapot wrote into the texture"}.
+
+This write is called plotting, and it blends each texel over the light already stored there.
+
+${overText
+    {' {dynamicVoxelsRange 1.0 0.0}}
+    "The lab draws each point four times brighter than its texel's light, so the points look brighter than the light the teapot really adds"}.
+
+${over
     {' {dynamicXRange 0.6 0.0}}
-    "These points are only a display, because the lab's own shading still uses the bake without the teapot"}.
+    {overText
+        {' {dynamicVoxelsRange 0.0 1.0}}
+        "These points come from a copy of the plot that the lab runs on the processor"}}.
+
+The plot that fills the texture runs on the graphics card each frame, so the texture the room is shaded from holds the teapot too.
 
 ### Six views, sixteen texels a cell {#c6-views kind=3d}
 
@@ -1304,11 +1464,13 @@ ${cue "key" {' {motion {' {cameraTurn {' {aim 48.0 18.0} {aim 62.0 24.0}}}}}}}
 
 ${cue "key" {' {callout "dynamic-oversample"}}}${overText
     {' {dynamicXRange 0.3 0.15}}
-    "The object's bounding box is drawn at sixteen texels per cell"}.
+    "The object is drawn into flat images that cover its bounding box"}.
 
-${overText
-    {' {dynamicXRange 0.15 0.0}}
-    "That is fine enough to measure, later, how much of each cell the object covers"}.
+In these images, each cell is sixteen texels across.
+
+${overText {' {dynamicXRange 0.15 0.0}} "Later these texels are averaged down to one per cell"}.
+
+The average alpha then says how much of each cell the object covers.
 
 ${cue "key" {' {callout "dynamic-views"}}}${overText
     {' {dynamicViewRange 0.0 5.0}}
@@ -1316,11 +1478,11 @@ ${cue "key" {' {callout "dynamic-views"}}}${overText
 
 ${cue "key" {' {callout "material-outputs"}}}${overText
     {' {dynamicViewRange 5.0 0.0}}
-    "Each view records the material's albedo, normal, and emission at every texel, along with its depth"}.
+    "Each view records the material's albedo, normal, emission, and depth at every texel"}.
 
 ${cue "key" {' {callout "dynamic-lighting"}}}${overText
     {' {dynamicViewRange 0.0 2.0}}
-    "A texel's depth gives its place in the grid"}.
+    "A texel's depth gives its position along the view, and so its cell in the box"}.
 
 ${overText
     {' {shrinkLevelRange 0.0 1.0}}
@@ -1338,7 +1500,7 @@ ${cue "key" {' {motion {' {path {' cameraYaw} {' {' 54.0} {' 64.0} {' 56.0}} bea
 
 ${cue "key" {' {callout "shrink"}}}${overText
     {' {shrinkLevelRange 0.0 1.0}}
-    "The lit view is then halved again and again, with each two-by-two block of texels becoming one"}.
+    "Next, the shrink pass halves the lit view again and again, and averages each two-by-two block of texels into one"}.
 
 ${overText
     {' {shrinkLevelRange 1.0 3.0}}
@@ -1346,23 +1508,25 @@ ${overText
 
 ${cue "key" {' {highlightCode "dynamic-object" {' "plot"}}}}${overText
     {' {shrinkLevelRange 3.0 4.0}}
-    "At one texel a cell, a compute pass plots each texel, writing it into the texture's finest mip"}.
+    "At one texel a cell, the shrink pass plots each texel into the texture's finest mip"}.
 
 ${cue "key" {' {callout "plot-blend"}}}${overText
     {' {dynamicVoxelsRange 0.0 0.5}}
-    "A texel's depth usually falls between two cells along the view"}.
+    "Along the direction the view looks, a texel's depth usually lands between two cells"}.
 
 ${overText
     {' {dynamicVoxelsRange 0.5 1.0}}
-    "So the texel is split between those two cells, by distance"}.
+    "So the texel is split between those two cells, and the nearer cell gets the larger share"}.
 
-Each share is blended over what is already there.
+Several texels can land in one cell, and each share is blended over what is already there.
 
-${overText {' {shrinkLevelRange 4.0 11.0}} "Each further halving plots into the next, coarser mip"}.
+${overText {' {shrinkLevelRange 4.0 11.0}} "The halving goes on past one texel a cell"}.
+
+Each further halving plots its texels into the next, coarser mip.
 
 ${overText
     {' {dynamicMipRange 0.0 3.0}}
-    "Each halving divides the light the way the mip pass does, by the divisor that propagation sets"}.
+    "Unlike the four halvings down to one texel a cell, these divide the light by the divisor that propagation sets, as the mip pass does"}.
 
 ### The plotted voxels, mip by mip {#c6-mips kind=3d}
 
@@ -1375,7 +1539,7 @@ ${cue "key" {' {motion {' {cameraPath {' {pose 46.0 18.0 1.8} {pose 58.0 24.0 2.
 
 ${overText
     {' {dynamicXRange 0.0 0.3}}
-    "At the finest mip, the teapot is drawn in five-centimetre cells"}.
+    "At the finest mip, the teapot is plotted in five-centimetre cells"}.
 
 ${overText {' {dynamicMipRange 0.0 1.0}} "One mip up, the cells are ten centimetres wide"}.
 
@@ -1383,7 +1547,7 @@ ${over
     {' {dynamicMipRange 1.0 3.0}}
     {overText {' {dynamicXRange 0.3 0.0}} "Each mip halves the detail again"}}.
 
-${overText {' {dynamicMipRange 3.0 0.0}} "These coarser copies are what the wider cones will read"}.
+${overText {' {dynamicMipRange 3.0 0.0}} "These coarser mips are what the wider cones will read"}.
 
 ### Rewritten every frame, never bounced {#c6-cost kind=3d}
 
@@ -1396,11 +1560,11 @@ ${cue "key" {' {motion {' {cameraPath {' {pose 50.0 20.0 1.6} {pose 64.0 26.0 2.
 
 ${cue "key" {' {callout "dynamic-clear"}}}${overText
     {' {dynamicXRange 0.0 0.15}}
-    "Before the teapot is plotted, the whole texture is cleared"}.
+    "Each frame, the whole texture is cleared before the teapot is plotted"}.
 
-${overText
-    {' {dynamicXRange 0.15 0.3}}
-    "Then the static light is written back from the float buffer, which keeps every cell's light at full precision"}.
+${overText {' {dynamicXRange 0.15 0.3}} "Then only the write pass runs"}.
+
+It writes each cell's light back from the float buffer of chapter three, where the light passes left it at full precision.
 
 ${overText
     {' {dynamicMipRange 0.0 3.0}}
@@ -1414,17 +1578,23 @@ ${overText {' {dynamicXRange 0.4 0.45}} "So no light bounces off the teapot"}.
 
 ${overText
     {' {dynamicXRange 0.45 0.5}}
-    "It casts no shadow either, because the baked distance field does not contain it"}.
+    "It casts no shadow in VoxelGI's light either, because the baked distance field does not contain it"}.
 
 ${overText
     {' {dynamicMipRange 3.0 0.0}}
-    "Here the cost is six draws and seventy-two compute dispatches per object, every frame"}.
+    "Every frame, each object costs six draws, one per view, and seventy-two compute dispatches"}.
+
+That makes twelve dispatches for each of the six views.
+
+One lights the view, four halve it down to one texel a cell, and seven more halve it through the lab's seven coarser mips.
 
 ${cue "key" {' {callout "dynamic-light-count"}}}${overText
     {' {dynamicXRange 0.5 0.0}}
-    "In chapter four, at most thirty-two lights took part"}.
+    "Chapter four's limit of thirty-two lights does not hold here"}.
 
-The code shows that this pass has no such limit, so past thirty-two lights it reads beyond the end of the light buffer.
+The code shows that the pass that lights the views has no such limit.
+
+So past thirty-two lights, it reads beyond the end of the array that holds them, and what it reads there is undefined.
 
 ### Next: reading the texture {#c6-recap kind=3d}
 
@@ -1448,13 +1618,15 @@ ${overText {' {dynamicMipRange 1.0 0.0}} "The next chapter reads it back, one pi
 
 These are the lines of the dynamic objects' path.
 
-## Reading it per pixel {#c7 number=7 target=255 summary="The pre-pass tags each pixel with its VoxelGIs; the screen pass moves it into the box and traces four cones and a reflection cone." sources="pairing-two, instance-ubo, tag-write, process-gi, voxel-gi-compute, edge-blend, cones-low, cone-trace-45, cones-high, cone-trace, spec-cone, range-restore"}
+## Reading it per pixel {#c7 number=7 target=310 summary="The pre-pass tags each pixel with its VoxelGIs; the screen pass moves it into the box and traces four cones and a reflection cone." sources="pairing-two, instance-ubo, tag-write, process-gi, voxel-gi-compute, edge-blend, cones-low, cone-trace-45, cones-high, cone-trace, spec-cone, range-restore"}
 
 ### The screen pass reads the texture {#c7-map kind=2d graph=frame focus="PRE, CONE, TEX"}
 
 The texture is now full of light.
 
-The question is how a pixel reads that light cheaply, and the screen pass answers it every frame.
+The question is how a pixel reads that light cheaply.
+
+The screen pass answers it, every frame.
 
 ### Each pixel knows its VoxelGIs {#c7-tag kind=3d}
 
@@ -1473,13 +1645,17 @@ ${cue "key" {' {callout "pairing-two"}}}${overText
 
 ${cue "key" {' {callout "tag-write"}}}${overText
     {' {focusRowRange -1.0 0.0}}
-    "A pass called the depth pre-pass draws depth before the main shading"}.
+    "A pass that draws depth before the main shading carries those two VoxelGIs to the object's pixels"}.
+
+That pass is called the depth pre-pass.
 
 It writes those two VoxelGIs' indices into every pixel it draws.
 
-${overText {' {pixelAzimuthRange 60.0 90.0}} "That takes two bytes per pixel"}.
+${overText
+    {' {pixelAzimuthRange 60.0 90.0}}
+    "Each index takes one byte, so the pair takes two bytes per pixel"}.
 
-An index of two hundred fifty-five means none.
+An object with no VoxelGI writes two hundred fifty-five, the largest value a byte holds, to mean none.
 
 ${overText
     {' {pixelElevationRange 30.0 20.0}}
@@ -1487,9 +1663,13 @@ ${overText
 
 ${cue "key" {' {callout "instance-ubo"}}}${overText
     {' {pixelAzimuthRange 90.0 60.0}}
-    "Their settings are kept in one buffer, shared by up to eight VoxelGIs in view"}.
+    "Besides the indices, the screen pass needs each VoxelGI's settings, which it reads from one buffer"}.
 
-${overText {' {pixelElevationRange 20.0 10.0}} "This sphere's pixels name the room's only VoxelGI"}.
+That buffer holds up to eight VoxelGIs in view, and each pixel names at most two of them.
+
+${overText
+    {' {pixelElevationRange 20.0 10.0}}
+    "In Godot, this sphere's pixels would all name the room's one VoxelGI"}.
 
 ### Into the box's cells {#c7-space kind=3d}
 
@@ -1506,7 +1686,7 @@ ${cue "key" {' {callout "voxel-gi-compute"}}}${overText
 
 ${overText
     {' {pixelAzimuthRange 60.0 100.0}}
-    "The pass moves the pixel's position and normal into the box's cells"}.
+    "The screen pass converts the pixel's position and normal into the box's own coordinates, counted in cells"}.
 
 ${overText
     {' {pixelAzimuthRange 100.0 85.0}}
@@ -1514,17 +1694,23 @@ ${overText
 
 ${cue "key" {' {callout "edge-blend"}}}${overText
     {' {focusRowRange 1.0 2.0}}
-    "An edge fade then weights the light this VoxelGI gives the pixel"}.
+    "The pass then multiplies the light this VoxelGI gives the pixel by a weight called the edge fade"}.
 
 ${overText
     {' {pixelAzimuthRange 85.0 60.0}}
     "The fade is one at the box's centre and falls to zero at its faces"}.
 
-${overText {' {pixelElevationRange 10.0 20.0}} "The fade exists to blend two boxes that overlap"}.
+${overText
+    {' {pixelElevationRange 10.0 20.0}}
+    "Afterwards, the pass adds up the fades of all the pixel's boxes, and divides the weighted light by that sum"}.
 
 ${overText
     {' {pixelElevationRange 20.0 30.0}}
-    "But with one box, the weighted light is then divided by that same fade, so the fade cancels out"}.
+    "So where two boxes overlap, each box's share of the light follows its fade"}.
+
+But with one box, that sum is just that box's fade.
+
+So multiplying by the fade and dividing by it cancel out.
 
 ${overText
     {' {pixelElevationRange 30.0 40.0}}
@@ -1541,19 +1727,25 @@ ${cue "key" {' {motion {' {cameraTurn {' {aim 40.0 16.0} {aim 30.0 22.0}}}}}}}
 
 ${cue "key" {' {callout "cones-low"}}}${overText
     {' {conesShownRange 0.0 4.0}}
-    "At the default quality, four cones leave the pixel at forty-five degrees from its normal, each with a weight of one quarter"}.
+    "At the default quality, four cones leave the pixel, each tilted forty-five degrees from its normal"}.
+
+Each cone has a weight of one quarter.
+
+Each cone is also wide, forty-five degrees from its axis to its edge.
 
 ${cue "key" {' {callout "cone-trace-45"}}}${overText
     {' {coneStepsRange 0.0 1.0}}
-    "For a cone this wide, the radius at any point equals the distance travelled"}.
+    "At that angle, the cone's radius always equals the distance it has travelled"}.
 
-${overText
-    {' {coneStepsRange 1.0 2.0}}
-    "Each step advances by that radius, so it doubles the distance and reads one mip coarser, where a texel is twice as wide"}.
+${overText {' {coneStepsRange 1.0 2.0}} "Each step moves the cone forward by that radius"}.
+
+Since the radius equals the distance travelled, each step doubles that distance.
+
+The cone then reads one mip coarser, where a texel is twice as wide.
 
 ${overText
     {' {coneStepsRange 2.0 6.0}}
-    "That texel already averages everything in the cone's footprint, so one sample stands in for many"}.
+    "That texel already combines the light of everything in the cone's footprint, so one sample stands in for many"}.
 
 ${overText
     {' {pixelAzimuthRange 60.0 72.0}}
@@ -1561,7 +1753,7 @@ ${overText
 
 ${overText
     {' {pixelAzimuthRange 72.0 85.0}}
-    "The cone stops when its alpha reaches one, or when it leaves the box"}.
+    "The cone stops when its alpha, its coverage, reaches one, or when it leaves the box or runs out of distance"}.
 
 ### Six cones at High {#c7-high kind=3d}
 
@@ -1578,11 +1770,11 @@ ${cue "key" {' {callout "cones-high"}}}${overText
 
 ${overText
     {' {coneStepsRange 16.0 10.0}}
-    "Each of those cones is narrower, thirty degrees from its axis to its edge"}.
+    "Each of those cones is narrower, thirty degrees from its axis to its edge instead of forty-five"}.
 
 ${cue "key" {' {callout "cone-trace"}}}${overText
     {' {coneStepsRange 10.0 4.0}}
-    "Each takes smaller steps, half its width at a time"}.
+    "Each still steps by its radius, and a narrower cone has a smaller radius, so its steps are smaller"}.
 
 ${overText
     {' {coneStepsRange 4.0 16.0}}
@@ -1606,7 +1798,7 @@ ${cue "key" {' {callout "spec-cone"}}}${overText
 
 ${overText {' {sphereRoughnessRange 0.5 0.3}} "That cone's width follows the surface's roughness"}.
 
-The pass squares the roughness first.
+The screen pass squares the roughness first, so a middling roughness of one half narrows the cone as if it were a quarter.
 
 ${overText
     {' {sphereRoughnessRange 0.3 0.15}}
@@ -1614,7 +1806,7 @@ ${overText
 
 ${overText
     {' {sphereRoughnessRange 0.15 0.9}}
-    "On a rough one, it opens seventy degrees from its axis"}.
+    "On a rough one, it opens out to about seventy degrees from its axis"}.
 
 ${over
     {' {sphereRoughnessRange 0.9 0.5}}
@@ -1633,21 +1825,29 @@ ${cue "key" {' {motion {' {path {' cameraYaw} {' {' 36.0} {' 44.0}} beat}}}}}
 
 ${cue "key" {' {callout "range-restore"}}}${overText
     {' {pixelAzimuthRange 60.0 68.0}}
-    "The cones' light is multiplied back by the dynamic range, which undoes the texture's division"}.
+    "The cones' light is multiplied back by the dynamic range, the scale the texture divided it by"}.
 
 ${overText
     {' {pixelAzimuthRange 68.0 75.0}}
-    "It is also multiplied by the VoxelGI's energy, a brightness setting"}.
+    "The light is also multiplied by the VoxelGI's energy, a brightness setting"}.
 
-${cue "key" {' panelCode listingVoxelGiCompute {highlightCode "voxel-gi-compute" {' "interior"}}}}The cones' alpha says how much of their view they found filled.
+${cue "key" {'
+    panelCode
+    listingVoxelGiCompute
+    {highlightCode "voxel-gi-compute" {' "interior"}}
+    {viewMode 3.0}}}The cones' alpha, their coverage, says how much of their view they found filled.
+
+${cue "key" {' {viewMode 0.0}}}Later, where that alpha is low, the opaque pass mixes in the environment's light, here the sky's.
+
+The baked data also has a setting called interior, which is off by default.
 
 ${overText {' {interiorRange 0.0 1.0}} "With the interior setting on, that alpha is forced to one"}.
 
-So the environment's light never mixes in.
+So with interior on, the sky's light never mixes in.
 
 ${cue "key" {' panelValues}}${overText
     {' {interiorRange 1.0 0.0}}
-    "That alpha is stored with the light in the screen pass's buffers"}.
+    "That alpha is stored with the light in the screen pass's two buffers, one for ambient light and one for reflection"}.
 
 ### A check that is always true {#c7-quirk kind=3d}
 
@@ -1661,15 +1861,19 @@ ${cue "key" {' {motion {' {path {' cameraYaw} {' {' 40.0} {' 32.0}} beat}}}}}
 
 ${cue "key" {' {callout "normal-length-quirk"}}}${overText
     {' {pixelElevationRange 10.0 15.0}}
-    "Before any of this, the pass checks that the pixel's normal is valid"}.
+    "Before it traces any cone, the screen pass checks that the pixel's normal is valid"}.
+
+It tests whether the normal's length is above one half.
 
 ${overText {' {pixelElevationRange 15.0 20.0}} "But that test is always true"}.
 
 ${overText
     {' {pixelElevationRange 20.0 25.0}}
-    "In GLSL, Godot's shading language, a vector's length method returns its component count, three"}.
+    "In GLSL, the language of Godot's renderer shaders, a vector's length method returns its component count, three"}.
 
-${overText {' {pixelElevationRange 25.0 28.0}} "So every pixel is traced, whatever its normal"}.
+${overText
+    {' {pixelElevationRange 25.0 28.0}}
+    "So the check never rejects a pixel, whatever its normal"}.
 
 ### Next: into the image {#c7-recap kind=3d}
 
@@ -1681,11 +1885,11 @@ ${cue "key" {' {motion {' {path {' cameraYaw cameraDistance} {' {' 30.0 3.4} {' 
 
 ${overText
     {' {pixelAzimuthRange 60.0 90.0}}
-    "So every pixel traces four cones and a reflection cone through the texture"}.
+    "So every pixel of this room traces four cones and a reflection cone through the texture"}.
 
 ${overText
     {' {pixelAzimuthRange 90.0 75.0}}
-    "It also keeps how much of its view those cones found filled"}.
+    "Each pixel also keeps the cones' alpha, how much of their view they found filled"}.
 
 ${overText
     {' {pixelAzimuthRange 75.0 60.0}}
@@ -1693,13 +1897,13 @@ ${overText
 
 ### Where to read {#c7-sources kind=2d sources="pairing-two, tag-write, process-gi, voxel-gi-compute, edge-blend, cones-low, cone-trace-45, cones-high, cone-trace, spec-cone, range-restore"}
 
-These are the screen pass's lines, from the per-pixel tag to the scaled cones.
+These are the screen pass's lines, from the indices written per pixel to the cones' light multiplied back by the dynamic range.
 
-## Keeping it fast {#c8 number=8 target=420 summary="The bill, and how Godot keeps it small: light passes only on change, over occupied cells only, a level at a time; a few cone samples per pixel; half resolution." sources="relight-gate, update-gate, light-cache, sort-cells, level-dispatch, local-size, pass-order, raymarch, cones-low, cones-high, quality-doc, spec-cone, half-res-setting, half-res-buffers, half-res-shift, half-res-dispatch, gi-buffer-fetch, half-res-doc"}
+## Keeping it fast {#c8 number=8 target=440 summary="The bill, and how Godot keeps it small: light passes only on change, over occupied cells only, a level at a time; a few cone samples per pixel; half resolution." sources="relight-gate, update-gate, light-cache, sort-cells, level-dispatch, local-size, pass-order, raymarch, cones-low, cones-high, quality-doc, spec-cone, half-res-setting, half-res-buffers, half-res-shift, half-res-dispatch, gi-buffer-fetch, half-res-doc"}
 
 ### Three rates {#c8-map kind=2d graph=frame focus="BAKE, LIGHT, CONE"}
 
-Before the opaque pass turns those buffers into colour, this chapter looks at the bill.
+Before the opaque pass turns those buffers into colour, this chapter turns to cost.
 
 It asks what all of this costs, and how Godot keeps that cost small.
 
@@ -1707,7 +1911,7 @@ The work comes at three rates.
 
 ### Once {#c8-map-bake kind=2d graph=frame focus="BAKE"}
 
-The bake runs once, in the editor.
+The bake runs once, usually in the editor.
 
 ### On change {#c8-map-light kind=2d graph=frame focus="LIGHT"}
 
@@ -1728,27 +1932,29 @@ ${cue "key" {opening demoCost panelPerformance 1.0 {'
     {viewMode 0.0}}}}
 ${cue "key" {' {motion {' {cameraPath {' {pose 12.0 16.0 6.8} {pose 24.0 20.0 6.2}}}}}}}
 
-${cue "key" {' {highlightPasses {' "scene pass"}}}}The panel on the right times the graphics card's work.
+${cue "key" {' {highlightPasses {' "scene pass"}}}}The performance panel on the right times the graphics card's work.
 
 ${overText
     {' {giPropagationRange 0.5 0.52}}
-    "Its line is each frame's total time, so a spike is a frame that did more work"}.
+    "Its line is each frame's time on the graphics card, so a spike is a frame that did more work"}.
 
 ${cue "key" {' {highlightPasses {' "voxelgiGiCS"}}}}Below the line, each row is one pass, averaged over the last frames.
 
 A row shows the pass's name, a bar for its share of the frame, and its average time in milliseconds.
 
-${cue "key" {' {highlightPasses {' "scene pass" "voxelgiGiCS"}}}}The row called scene pass is the room's own shading, and it takes most of the frame.
+${cue "key" {' {highlightPasses {' "scene pass" "voxelgiGiCS"}}}}The row called scene pass is the lab's pass that shades the room itself.
+
+It takes most of the frame.
 
 The screen pass is the row named ${code "voxelgiGiCS"}, after its compute shader.
 
 This chapter shows how Godot keeps that row small.
 
-${cue "key" {' unhighlight}}These times are this machine's.
+${cue "key" {' unhighlight}}These times are this machine's, so on another machine they will differ.
 
 ${overText
     {' {giPropagationRange 0.52 0.5}}
-    "Watch for the rows that appear only when their work actually runs"}.
+    "A row appears only when its pass actually runs, so a missing row means skipped work"}.
 
 ### Light passes only on change {#c8-cache kind=3d}
 
@@ -1757,28 +1963,30 @@ ${cue "key" {' {motion {' {cameraPath {' {pose 20.0 16.0 6.6} {pose 30.0 20.0 5.
 
 ${cue "key" {' {callout "update-gate"}}}Right now, no light pass is listed.
 
-Nothing changed, so Godot does no light-pass work at all.
+Nothing changed, and this room has no moving object, so Godot does no light-pass work at all.
 
 ${cue "key" {' {callout "light-cache"} {extraLight 1.0}}}${overText
     {' {lightXRange 0.9 0.2}}
-    "Each frame, on the processor, the culler compares every visible light near the box with the copy it saved"}.
+    "Every frame, the culler from chapter four compares each visible light near the box with its saved copy, on the processor"}.
 
 ${cue "key" {' {callout "relight-gate"}}}${overText
     {' {giDynamicRangeRange 2.0 3.0}}
-    "The light passes run only when a light, the data, or one of three settings has changed"}.
+    "The light passes run only when a light, the baked data, or one of three settings has changed"}.
 
 ${overText
     {' {giPropagationRange 0.5 0.8}}
-    "Those settings are the dynamic range, propagation, and the second bounce"}.
+    "Those settings are the dynamic range, the propagation from chapter five, and whether the second bounce is on"}.
 
-${cue "key" {' {giRelightEachFrame 1.0}}}To measure the light passes, the lab now relights the room every frame, which Godot does only when something changed.
+${cue "key" {' {giRelightEachFrame 1.0}}}To measure the light passes, the lab now relights the room every frame.
+
+Godot would do that only when something changes.
 
 ${cue "key" {'
-    {highlightPasses {' "voxelgiLightCS" "voxelgiBounceCS" "voxelgiMipmapsCS" "voxelgiWriteCS"}}}}Four rows appear, for the direct light, the bounce, the mips, and the writes.
+    {highlightPasses {' "voxelgiLightCS" "voxelgiBounceCS" "voxelgiMipmapsCS" "voxelgiWriteCS"}}}}Four rows appear, for the direct light pass, the bounce pass, the mip pass, and the write pass.
 
 ${cue "key" {' {highlightPasses {' "voxelgiBounceCS"}}}}On this machine, the bounce takes the longest, because it traces six cones from every leaf that has a normal.
 
-${cue "key" {' unhighlight}}}${overText
+${cue "key" {' unhighlight}}${overText
     {' {giRelightEachFrameRange 1.0 0.0}}
     "When the lab returns to Godot's behaviour, those rows are gone, so a still room's light costs nothing per frame"}.
 
@@ -1791,6 +1999,8 @@ ${cue "key" {opening demoCost panelValues 0.5 {'
     {giRelightEachFrame 0.0}}}}
 ${cue "key" {' {motion {' {cameraPath {' {pose 18.0 24.0 6.6} {pose 28.0 30.0 6.0}}}}}}}
 
+Times depend on the machine, so this part counts the work instead.
+
 ${cue "key" {' {focusRow 1.0}}}The readout on the right counts what one update of the light passes costs, and what one frame costs.
 
 This chapter's numbers come from it.
@@ -1801,15 +2011,15 @@ ${cue "key" {' {callout "sort-cells"}}}${overText
 
 ${overText
     {' {focusRowRange 1.0 3.0}}
-    "These are the cells shown here, not the empty grid around them"}.
+    "Those are the cells on screen, not the empty grid around them"}.
 
 ${over
     {' {cutHeightRange 3.2 1.2}}
     {overText
         {' {focusRowRange 3.0 4.0}}
-        {++
-            {++ "That is " {rounded {leaves} 2}}
-            " leaves, against more than a million texels in the texture's finest mip"}}}.
+        {++ {++ "That is " {rounded {leaves} 2}} " leaves, the cells of the finest level"}}}.
+
+The texture's finest mip has more than a million texels, so the light passes skip almost all of the texture.
 
 ### A level at a time {#c8-levels kind=3d}
 
@@ -1826,35 +2036,41 @@ ${cue "key" {' insetCellArray imageCornerBottomLeft {callout "sort-cells"}}}${ov
 
 ${overText
     {' {cutHeightRange 2.0 2.4}}
-    "So each level is one run of the array, one colour in this bar"}.
+    "So each level is one run of the array, drawn as one colour in this bar"}.
 
 ${cue "key" {' {callout "local-size"}}}${overText
     {' {focusRowRange 1.0 2.0}}
-    "Each run is one dispatch, one call to the graphics card, with sixty-four cells to a workgroup"}.
+    "Each run is one dispatch, one call to the graphics card"}.
+
+As in chapter four, each workgroup of a dispatch takes sixty-four cells.
 
 ${cue "key" {' {callout "level-dispatch"}}}${overText
     {' {octreeLevelRange 7.0 5.0}}
-    "The first light pass begins with the leaves"}.
+    "The direct light pass comes first, and lights the leaves"}.
 
 ${overText
     {' {octreeLevelRange 5.0 3.0}}
-    "Then the mip pass climbs one level per dispatch, with a barrier between dispatches"}.
+    "Then the mip pass climbs one level per dispatch, and each dispatch waits for the one before it to finish"}.
 
 ${overText
     {' {octreeLevelRange 3.0 1.0}}
-    "The barrier is there because a parent sums its children's light, so the children must be finished first"}.
+    "That wait is called a barrier, and it makes sure the children are finished before a parent sums their light"}.
 
 ${cue "key" {' {callout "pass-order"}}}${overText
     {' {octreeLevelRange 1.0 7.0}}
     "Then eight writes, one for each level of the octree, copy the cells into the texture's mips"}.
 
+So one round of light takes sixteen dispatches.
+
+One lights the leaves, seven build the mips, and eight write the texture.
+
 ${overText
     {' {focusRowRange 2.0 1.0}}
-    f"{With the second bounce on, one update of this room takes ${spoken {dispatches}} dispatches}"}.
+    f"{With the second bounce on, a second round repeats them, so one update of this room takes ${spoken {dispatches}} dispatches}"}.
 
 ${cue "key" {' {imageHide {' "cellArray"}} {focusRow -1.0}}}${overText
     {' {octreeLevelRange 7.0 -1.0}}
-    "The lab's light passes follow the same order on the graphics card"}.
+    "The lab's own light passes run in that same order"}.
 
 ### Shadows step by the field {#c8-march kind=3d}
 
@@ -1867,11 +2083,11 @@ ${cue "key" {' {motion {' {cameraPath {' {pose 0.0 16.0 4.4} {pose 8.0 20.0 4.0}
 
 ${cue "key" {' {callout "raymarch"}}}${overText
     {' {marchStepsRange 0.0 1.0}}
-    "Inside the light pass, a shadow ray reads the distance field"}.
+    "Inside the direct light pass, each shadow ray from chapter four reads the distance field"}.
 
 ${overText
     {' {marchStepsRange 1.0 3.0}}
-    "The field says how far the nearest surface is, so the ray can safely jump that far"}.
+    "The field says how far the nearest surface is, so the ray can safely jump to one cell short of it"}.
 
 ${overText
     {' {marchStepsRange 3.0 12.0}}
@@ -1885,7 +2101,9 @@ ${overText
     {' {marchStepsRange 26.0 40.0}}
     "So the march is never slower than a walk from cell to cell"}.
 
-${cue "key" {' {callout "light-at-pos"}}}A light that is out of range, too dim, or behind the cell is skipped before any march starts.
+Some lights never need a march at all.
+
+${cue "key" {' {callout "light-at-pos"}}}A light that is out of range, behind the cell, or dimmed to under one percent is skipped before any march starts.
 
 ### A few samples per pixel {#c8-cones kind=3d}
 
@@ -1897,7 +2115,9 @@ ${cue "key" {opening demoPixel panelValues 0.3 {'
     {quality 0.0}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 34.0 18.0} {aim 44.0 20.0}}}}}}}
 
-${cue "key" {' {callout "cones-low"}}}Everything so far runs only on change, but the screen pass runs every frame, so its price is paid per pixel.
+${cue "key" {' {callout "cones-low"}}}Everything so far runs only on change.
+
+But the screen pass runs every frame, so its price is paid per pixel.
 
 ${overText
     {' {conesShownRange 0.0 {float lowCones}}}
@@ -1909,13 +2129,13 @@ ${overText
 
 ${overText
     {' {coneStepsRange 3.0 5.0}}
-    "Each sample reads a prefiltered mip as wide as the cone at that point"}.
+    "Each sample reads one texel, from the mip whose texels are as wide as the cone at that point"}.
 
 ${overText
     {' {coneStepsRange 5.0 6.0}}
-    "That texel is already the average of the cells it covers, a cheap stand-in for many rays"}.
+    "That texel already combines the light of the cells it covers, so it stands in cheaply for many rays"}.
 
-${overText {' {coneStepsRange 6.0 7.0}} "The price is that thin walls blur"}.
+${overText {' {coneStepsRange 6.0 7.0}} "The price is that detail thinner than that texel is lost"}.
 
 ${cue "key" {' {callout "cones-high"}}}${over
     {' {qualityRange 0.0 1.0}}
@@ -1925,15 +2145,19 @@ ${cue "key" {' {callout "cones-high"}}}${over
             {' {coneStepsRange {float {lowSteps}} {float {highSteps}}}}
             f"{At High, ${spoken highCones} narrower cones widen more slowly}"}}}.
 
-${cue "key" {' panelPerformance {highlightPasses {' "voxelgiGiCS"}}}}So their steps are shorter and more numerous, and the screen pass's row grows.
+${cue "key" {' panelPerformance {highlightPasses {' "voxelgiGiCS"}}}}So their steps are shorter, and there are more of them.
+
+The screen pass's row grows.
 
 ${cue "key" {' {callout "quality-doc"} {specCone 1.0}}}${overText
     {' {qualityRange 1.0 0.0}}
-    "The documentation says High also gives better reflections"}.
+    "Godot's documentation says High also gives better reflections"}.
 
 ${overText
     {' {conesShownRange {float highCones} {float lowCones}}}
-    "But only the diffuse cones for ambient light change, and the reflection cone stays the same"}.
+    "But in the code, High changes only the cones for ambient light"}.
+
+The reflection cone stays the same.
 
 ### The reflection cone {#c8-spec kind=3d}
 
@@ -1955,15 +2179,19 @@ ${overText
 
 ${overText
     {' {sphereRoughnessRange 0.5 0.0}}
-    f"{A fully rough surface takes at most ${spoken {roughSteps}} steps, and a mirror at most ${spoken {mirrorSteps}}}"}.
+    f"{In this box, a fully rough surface takes at most ${spoken {roughSteps}} steps, but a mirror takes up to ${spoken {mirrorSteps}}}"}.
 
 ${overText
     {' {sphereRoughnessRange 0.0 0.04}}
-    "A mirror's cone is nearly a ray, so it steps only half a cell at a time"}.
+    "A mirror's cone is nearly a ray, so it steps by half a cell, the smallest step the code allows"}.
 
-${overText {' {sphereRoughnessRange 0.04 0.07}} "Steps that short never jump over a wall"}.
+${overText
+    {' {sphereRoughnessRange 0.04 0.07}}
+    "Steps that short never skip a cell, so the mirror's cone visits every cell along its path"}.
 
-${overText {' {sphereRoughnessRange 0.07 0.1}} "So smooth surfaces are the most expensive pixels"}.
+${overText
+    {' {sphereRoughnessRange 0.07 0.1}}
+    "So mirror-like surfaces are the most expensive pixels"}.
 
 ### Half resolution {#c8-half kind=3d}
 
@@ -1986,21 +2214,35 @@ ${cue "key" {'
             {pose 36.0 16.0 1.6}
             {pose 40.0 16.0 3.2}}}}}}}
 
-${cue "key" {' {callout "half-res-setting"}}}One project setting, half resolution, trades quality for speed directly, and it is off by default.
+${cue "key" {' {callout "half-res-setting"}}}${overText
+    {' {giHalfResolutionRange 0.0 1.0}}
+    "One project setting, half resolution, trades quality for speed"}.
+
+It is off by default.
 
 On the left is the frame at full resolution, and on the right the frame with the setting on.
 
 ${cue "key" {' {callout "half-res-buffers"}}}${overText
     {' {giHalfResolutionRange 0.0 1.0}}
-    "The ambient and reflection buffers become half as wide and half as tall"}.
+    "The screen pass's two buffers, for ambient light and reflection, become half as wide and half as tall"}.
 
 ${cue "key" {' {callout "half-res-shift"}}}Each of their texels traces only the top-left pixel of its two by two block.
 
-${cue "key" {' {callout "half-res-dispatch"}}}So only a quarter of the pixels are traced, and the screen pass's row shrinks with them.
+${cue "key" {' {callout "half-res-dispatch"}}}So only a quarter of the pixels are traced.
+
+The screen pass's row shrinks with them.
 
 ${overText {' {viewModeRange 0.0 1.0}} "Here are the ambient buffers at full and half size"}.
 
-${cue "key" {' {callout "gi-buffer-fetch"}}}Without multisampling, the opaque pass reads the half-size one with a plain bilinear blend.
+Each pixel shows the cones' light it reads from its buffer, before any albedo multiplies it.
+
+${overText
+    {' {viewModeRange 1.0 0.0}}
+    "The opaque pass then reads that half-size buffer at full size, in a way that depends on multisampling, an anti-aliasing mode"}.
+
+${cue "key" {' {callout "gi-buffer-fetch"}}}${overText
+    {' {viewModeRange 0.0 1.0}}
+    "Without multisampling, Godot reads it with a plain bilinear blend, and the lab always reads it that way"}.
 
 ${cue "key" {' {giHalfResolution 0.0}}}That blend does not weight by depth.
 
@@ -2010,9 +2252,9 @@ ${overText
 
 The edge turns ragged, in steps two pixels wide.
 
-${cue "key" {' {callout "half-res-doc"}}}These are the artifacts on polygon edges that the documentation warns of.
+${cue "key" {' {callout "half-res-doc"}}}The documentation warns of these artifacts on polygon edges.
 
-${cue "key" {' {viewMode 0.0}}}Each artifact is one half-size texel wide, so at a higher resolution they shrink.
+${cue "key" {' {viewMode 0.0}}}Those two pixels are one half-size texel, so at a higher screen resolution the artifacts shrink.
 
 ### Next: into the image {#c8-recap kind=3d}
 
@@ -2022,29 +2264,29 @@ ${cue "key" {opening demoCost panelHidden 1.0 {'
     {viewMode 0.0}}}}
 ${cue "key" {' {motion {' {cameraPath {' {pose 16.0 16.0 6.8} {pose 26.0 20.0 6.2}}}}}}}
 
-${overText {' {voxelgiMixRange 1.0 0.75}} "So VoxelGI pays for little each frame"}.
+${overText {' {voxelgiMixRange 1.0 0.75}} "So VoxelGI costs little each frame"}.
 
 ${overText
     {' {voxelgiMixRange 0.75 0.5}}
     "Its light passes run only on change, and only over occupied cells"}.
 
-${overText
-    {' {voxelgiMixRange 0.5 1.0}}
-    "Each pixel takes a few cone samples, and half resolution traces only a quarter of the pixels when it is on"}.
+${overText {' {voxelgiMixRange 0.5 1.0}} "Each pixel takes a few cone samples"}.
+
+And with half resolution on, only a quarter of the pixels are traced.
 
 Each saving has its price.
 
 ${overText
     {' {giHalfResolutionRange 0.0 1.0}}
-    "A moving light must relight the room, coarse cones blur thin walls, and half resolution frays the edges"}.
+    "A moving light must relight the room, coarse cones lose thin detail, and half resolution frays the edges"}.
 
 ${overText {' {giHalfResolutionRange 1.0 0.0}} "What is left is to turn the buffers into colour"}.
 
 ### Where to read {#c8-sources kind=2d sources="update-gate, light-cache, relight-gate, sort-cells, level-dispatch, local-size, pass-order, raymarch, light-at-pos, cones-low, cones-high, quality-doc, spec-cone, half-res-setting, half-res-buffers, half-res-shift, half-res-dispatch, gi-buffer-fetch, half-res-doc"}
 
-These are the lines that keep it fast, from the gate to the half-size buffers.
+These are the lines that keep the cost small, from the check that skips unchanged light to the half-size buffers.
 
-## Into the final image {#c9 number=9 target=180 summary="The opaque pass mixes the environment toward VoxelGI's light by its alpha; one pixel followed back; three takeaways." sources="gi-buffer-mix, forward-gi-transparent, forward-cones, fog-inject, debug-noop, bias-mismatch"}
+## Into the final image {#c9 number=9 target=195 summary="The opaque pass mixes the environment toward VoxelGI's light by its alpha; one pixel followed back; three takeaways." sources="gi-buffer-mix, forward-gi-transparent, forward-cones, fog-inject, debug-noop, bias-mismatch"}
 
 ### The opaque pass {#c9-map kind=2d graph=frame focus="CONE, OPAQUE"}
 
@@ -2063,7 +2305,7 @@ ${cue "key" {' {callout "gi-buffer-mix"}}}${over
 
 ${overText
     {' {viewModeRange 1.0 3.0}}
-    "Its alpha holds how much of the view the cones found filled"}.
+    "Its alpha, the coverage, holds how much of the view the cones found filled"}.
 
 ${overText
     {' {viewModeRange 3.0 0.0}}
@@ -2071,7 +2313,7 @@ ${overText
 
 ${overText
     {' {focusRowRange 1.0 2.0}}
-    "Where the alpha is low, the opaque pass mixes toward the environment's own ambient light, which here comes from the sky"}.
+    "Where the alpha is low, the opaque pass mixes toward the environment's ambient light, here the sky's"}.
 
 ${overText
     {' {pixelAzimuthRange 90.0 75.0}}
@@ -2087,13 +2329,15 @@ ${overText
 
 ${overText
     {' {interiorRange 1.0 0.0}}
-    "After that, the mixed light is treated like any other ambient light"}.
+    "After that, the mixed light becomes the pixel's ambient light, and the rest of the pass treats it like any other"}.
 
 ${over
     {' {focusRowRange 3.0 7.0}}
     {overText
         {' {pixelAzimuthRange 75.0 60.0}}
-        "In turn, the opaque pass applies ambient occlusion, the albedo, screen-space effects, and the environment's reflectance to it"}}.
+        "From there, the opaque pass applies ambient occlusion and the albedo to it"}}.
+
+Then it applies screen-space effects and the environment's reflectance.
 
 ### Transparent surfaces and fog read it too {#c9-others kind=3d}
 
@@ -2102,25 +2346,33 @@ ${cue "key" {' {motion {' {cameraPath {' {pose 14.0 16.0 6.6} {pose 28.0 20.0 6.
 
 ${cue "key" {' {callout "forward-gi-transparent"}}}${overText
     {' {viewModeRange 0.0 1.0}}
-    "Transparent surfaces cannot use the buffers, and there are none in this room"}.
+    "Only opaque surfaces read the screen pass's buffers"}.
+
+This room has no transparent surface, but Godot lights such surfaces another way.
 
 ${overText
     {' {qualityRange 0.0 1.0}}
-    "Instead, each transparent surface traces its own four cones in the forward pass that draws it, at every quality setting"}.
+    "Each transparent surface traces its own four cones, at every quality setting"}.
+
+It traces them in the forward pass that draws it.
 
 ${cue "key" {' {callout "fog-inject"}}}${over
     {' {viewModeRange 1.0 0.0}}
     {overText
         {' {qualityRange 1.0 0.0}}
-        "Volumetric fog reads every mip of the texture at each point of its grid, with no cone at all"}}.
+        "Volumetric fog reads the texture too, with no cone at all"}}.
+
+At each point of the fog's grid inside the box, it reads every mip of the texture, so the fog takes in VoxelGI's light at every level of detail.
 
 ${cue "key" {' {callout "debug-noop"}}}${overText
     {' {voxelgiMixRange 1.0 0.75}}
-    "The editor's lighting view also reads the texture, but it never applies the dynamic range"}.
+    "Godot's lighting debug view, which draws the cells' light as small cubes, also reads the texture"}.
+
+But that view never multiplies the light back by the dynamic range.
 
 ${overText
     {' {voxelgiMixRange 0.75 0.5}}
-    "So at the default range of two, that view shows the light at half its strength"}.
+    "So at the default range of two, that view shows VoxelGI's light at half the strength the screen pass really adds"}.
 
 ### One pixel, followed back {#c9-follow kind=3d}
 
@@ -2134,9 +2386,9 @@ ${cue "key" {'
 
 ${overText
     {' {pixelElevationRange 10.0 20.0}}
-    "Follow this pixel on the sphere back through it all"}.
+    "Follow this pixel on the sphere back through the whole chain"}.
 
-${overText {' {coneStepsRange 16.0 2.0}} "Its cones read the texture's mips around it"}.
+${overText {' {coneStepsRange 16.0 2.0}} "Its cones read the texture's mips around the pixel"}.
 
 ${cue "key" {' demoMips {slice 2.0} {mipLevel 0.0} {workedParent 1.0} panelHidden}}${overText
     {' {mipLevelRange 0.0 3.0}}
@@ -2144,7 +2396,7 @@ ${cue "key" {' demoMips {slice 2.0} {mipLevel 0.0} {workedParent 1.0} panelHidde
 
 ${cue "key" {' demoBounce {workedBounce 1.0} {conesShown 0.0} {coneSteps 6.0} panelHidden}}${overText
     {' {conesShownRange 0.0 6.0}}
-    "Those leaves hold the panel's direct light, plus one bounce"}.
+    "Those leaves hold the ceiling panel's direct light, plus one bounce"}.
 
 ${overText {' {coneStepsRange 1.0 6.0}} "Each leaf gathered that bounce with six cones of its own"}.
 
@@ -2160,7 +2412,7 @@ ${cue "key" {'
         {' {leafColumnsRange 0.0 16.0}}
         {overText
             {' {descentLevelRange 5.0 7.0}}
-            "And each leaf is the average of the samples the bake took from the room's triangles"}}.
+            "And at the very start, the bake averaged samples of the room's triangles into each leaf's albedo, emission, and normal"}}.
 
 ### Three takeaways {#c9-recap kind=3d}
 
@@ -2176,21 +2428,25 @@ ${overText
 
 ${overText {' {voxelgiMixRange 1.0 0.4}} "The second is the light"}.
 
-${overText
-    {' {viewModeRange 3.0 1.0}}
-    "Light passes run when the lights change, and then every pixel traces cones that read wider mips as they go"}.
+${overText {' {viewModeRange 3.0 1.0}} "Light passes run when the lights or the settings change"}.
+
+Every frame, every pixel then traces cones that read wider mips as they go.
 
 ${overText {' {voxelgiMixRange 0.4 0.6}} "The third is the trade"}.
 
-${overText
-    {' {voxelgiMixRange 0.6 0.8}}
-    "The static scene must be baked, and moving objects are only drawn in, frame by frame"}.
+${overText {' {voxelgiMixRange 0.6 0.8}} "The static scene must be baked"}.
+
+Moving objects are only drawn in, frame by frame.
 
 ${overText
     {' {voxelgiMixRange 0.8 1.0}}
-    "The cells are five centimetres wide, and the cones see the room only as coarse averages"}.
+    "The light keeps no detail finer than a cell, five centimetres in this room"}.
 
-${overText {' {viewModeRange 1.0 0.5}} "Area lights cast no shadows"}.
+And the cones read coarse averages of those cells, so they lose thin detail.
+
+${overText
+    {' {viewModeRange 1.0 0.5}}
+    "In the light passes, area lights like the ceiling panel cast no shadows"}.
 
 ${overText {' {viewModeRange 0.5 0.0}} "In return, a pixel needs only a few cone samples"}.
 
@@ -2198,4 +2454,4 @@ ${overText {' {viewModeRange 0.5 0.0}} "In return, a pixel needs only a few cone
 
 These are the lines of the opaque pass's mix, and those of the other passes that read the texture.
 
-Every source this video cites is in its source-reading guide, in the order the frame runs it.
+Every source this video cites is in its source-reading guide, chapter by chapter.
