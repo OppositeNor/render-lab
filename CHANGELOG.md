@@ -4,6 +4,8 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+## [0.0.8] - 2026-11-23
+
 ### Added
 
 - Narration packages: each investigation's narrated videos are a package of their own,
@@ -242,7 +244,8 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
 
 First release: Linux (x86_64), Windows (x86_64), and macOS (Apple Silicon) packages.
 
-[Unreleased]: https://github.com/OppositeNor/render-lab/compare/v0.0.7...HEAD
+[Unreleased]: https://github.com/OppositeNor/render-lab/compare/v0.0.8...HEAD
+[0.0.8]: https://github.com/OppositeNor/render-lab/compare/v0.0.7...v0.0.8
 [0.0.7]: https://github.com/OppositeNor/render-lab/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/OppositeNor/render-lab/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/OppositeNor/render-lab/compare/v0.0.4...v0.0.5
