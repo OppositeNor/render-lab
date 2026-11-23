@@ -128,10 +128,10 @@ $[# {number id x digits size color} {tex id {numberLatex x digits} size color}]
 Fn([Int, Int], String). A fraction `n/d` as LaTeX, in lowest terms (a whole number when `d` divides `n`).
 $[# {fractionLatex n d}
     [# {_gcd a b} {!if {= b 0} a {_gcd b {% a b}}}]
-    [# g {_gcd {abs n} {abs d}}]
+    [# g {max 1 {_gcd {abs n} {abs d}}}]
     [# p {div n g}]
     [# q {div d g}]
-    {!if {= q 1} {str p} f"{\frac{${str p}}{${str q}}}"}]
+    {!if {= d 0} f"{\frac{${str n}}{0}}" {!if {= q 1} {str p} f"{\frac{${str p}}{${str q}}}"}}]
 
 Fn([String, Box, Color, Float, Color, Float, Float, Float], Mob). A rectangle: filled (`fillAlpha` 0 leaves the
 fill out), outlined `width` pixels (0 leaves it out), its corners rounded by `radius` canvas units.
@@ -392,7 +392,13 @@ function); these give the others, and split one value into the stages of a seque
 
 Fn([Float, Float, Float], Float). How far `x` is from `a` to `b`, 0 before and 1 after: one stage of a value
 that steps a sequence (`{phase step 3.0 4.0}` runs while `step` goes from 3 to 4; manim's `Succession`).
-$[# {phase x a b} {clamp {/ {- x a} {- b a}} 0.0 1.0}]
+$[# {phase x a b} {!if {<= b a} {!if {>= x b} 1.0 0.0} {clamp {/ {- x a} {- b a}} 0.0 1.0}}]
+Fn([Float, Float, Float, Float, Float], Float). A mark held for a while (a strike that stays, then lifts), at the
+progress `t` of a score's emphasis from `from` over `length` steps: rising over 0.4 of a step from the step `on`,
+falling over 0.4 from `off`.
+$[# {heldMark t from length on off}
+    [# s {+ from {* t length}}]
+    {- {smooth {phase s on {+ on 0.4}}} {smooth {phase s off {+ off 0.4}}}}]
 Fn([Float], Float). There and back: 0 at both ends, 1 in the middle, smoothly (manim's `there_and_back`).
 $[# {thereAndBack t} {smooth {- 1.0 {abs {- {* 2.0 {clamp t 0.0 1.0}} 1.0}}}}]
 Fn([Float], Float). Starting from rest, ending at speed (manim's `rush_into`).
@@ -404,6 +410,42 @@ each `lag` of one's length after the one before, at the whole group's progress `
 $[# {lagged t i n lag}
     [# total {+ 1.0 {* lag {float {- n 1}}}}]
     {clamp {- {* t total} {* lag {float i}}} 0.0 1.0}]
+
+Steps
+
+A scene goes through steps, one per sentence of its beat (or a part of one). Where it is is one progress of its
+own, named as the scene (`toy`), from 0 to its count of steps: 5.4 is step 6 four tenths done. A clip moves it
+(lab/src/clip.rs): the story plays a step's clip over its sentence's words (`playOver…`) and sets the scene where a
+beat starts (`play…`); a demonstration's Play plays every step in order. One value says where the scene is, so
+replaying, seeking, or scrubbing a step shows exactly that step.
+
+Fn([String, Int], Float). Where the scene `name` of `count` steps is: its progress, or `count` (the finished
+picture) while no clip has set it (a demonstration opened on it).
+$[# {stepOf name count} {!if {hasProgress name}
+    {clamp {progress name} 0.0 {float count}}
+    {float count}}]
+Fn([String, Int, Float, Float], Clip). Step `k` of the scene `name` from `a` to `b` of it (0 to 1, the whole
+step), over a second, at an even pace: each animation in the step eases itself, so a second easing here would rush
+the stages in a step's middle and drag those at its ends.
+$[# {stepClip name k a b}
+    [# base {float {- k 1}}]
+    {clip {'
+        {progressKeys name {'
+            {keyframe 0.0 {+ base a} "linear"}
+            {keyframe defaultSeconds {+ base b} "linear"}}}}}]
+Fn([String, Int, Int], Clip). The scene `name` of `count` steps set at once to the end of step `n`.
+$[# {stepsAt name count n} {clip {'
+    {progressKeys name {' {keyframe 0.0 {float {min n count}} "linear"}}}}}]
+Fn([String, Int], Clip). Every step of the scene `name` of `count` steps in order from none, a second each: its
+demonstration's Play.
+$[# {stepsInOrder name count} {clip {'
+    {progressKeys name {map
+        {range 0 {+ count 1}}
+        {^ {k} {keyframe {* defaultSeconds {float k}} {float k} "linear"}}}}}}]
+Fn([String, Float, Float], Clip). The scene `name` from `a` to `b` across several steps over a second, at an even
+pace.
+$[# {stepsRun name a b} {clip {'
+    {progressKeys name {' {keyframe 0.0 a "linear"} {keyframe defaultSeconds b "linear"}}}}}]
 
 Animations
 
@@ -428,14 +470,17 @@ $[# {_writtenTo m s} {: {!case m
     {dot r {#dot {.alpha= r {* {.alpha r} s}}}}
     {frame r {#frame r}}} Mob}]
 Fn([Float, List(Mob)], List(Mob)). Written in, mob by mob from the first, each starting before the last ends
-(manim's `Write`; a formula's parts are its mobs, so it writes left to right as its parts are ordered).
+(manim's `Write`; a formula's parts are its mobs, so it writes left to right as its parts are ordered). Each mob
+takes at least a quarter of the write: many mobs overlap more rather than each flashing in.
 $[# {write t mobs}
     [# n {length mobs}]
     [# s {clamp t 0.0 1.0}]
+    [# share {max 0.25 {/ 1.0 {+ 1.0 {* 0.4 {float {- n 1}}}}}}]
+    [# lag {!if {<= n 1} 0.0 {/ {- {/ 1.0 share} 1.0} {float {- n 1}}}}]
     {filter
         {map
             {zip {range 0 n} mobs}
-            {^ {e} {_writtenTo {.second e} {smooth {lagged s {.first e} n 0.4}}}}}
+            {^ {e} {_writtenTo {.second e} {smooth {lagged s {.first e} n lag}}}}}
         {^ {m} {!case m
             {tex r {> {.wipe r} 0.0}}
             {path r {> {.drawn r} 0.0}}
@@ -463,12 +508,18 @@ $[# {growFrom t mobs side}
                 {left u {v2 {+ {.x {.lo b}} {* s {- {.x p} {.x {.lo b}}}}} {.y p}}}
                 {right u {v2 {+ {.x {.hi b}} {* s {- {.x p} {.x {.hi b}}}}} {.y p}}}}}
             1.0}}]
+Fn([Float, List(Mob)], List(Mob)). Grown up from its bottom edge: a bar rising from its axis (`growFrom` with
+`down`, as an entering animation a score's part can name).
+$[# {growUp t mobs} {growFrom t mobs down}]
 Fn([Float, List(Mob), Color], List(Mob)). Pointed at: scaled up and lit in `color`, then back (manim's
 `Indicate`).
 $[# {indicate t mobs color}
     [# s {thereAndBack t}]
     [# grown {scaled mobs {+ 1.0 {* 0.2 s}}}]
-    {!if {<= s 0.0} mobs {append {faded grown {- 1.0 s}} {faded {tinted grown color} s}}}]
+    {!if {<= s 0.0} mobs {append grown {faded {tinted grown color} s}}}]
+Fn([Float, List(Mob), Color], List(Mob)). Each mob pointed at about its own centre (`indicate` on each): a row of
+dots or bars lit together, none pushed outward as scaling the whole row would.
+$[# {indicateEach t mobs color} {flatten {map mobs {^ {m} {indicate t {' m} color}}}}]
 Fn([Float, List(Mob), Color], List(Mob)). An outline drawn around the figure, then faded (manim's
 `Circumscribe`): the figure with it.
 $[# {circumscribe t mobs color}
@@ -481,7 +532,7 @@ $[# {circumscribe t mobs color}
         {v2 {.x {.lo b}} {.y {.hi b}}}}]
     [# drawn {smooth {phase t 0.0 0.6}}]
     [# alpha {- 1.0 {smooth {phase t 0.6 1.0}}}]
-    {!if {!or {<= t 0.0} {>= t 1.0}}
+    {!if {!or {<= t 0.0} {>= t 1.0} {isEmpty mobs}}
         mobs
         {append mobs {faded
             {' {_writtenTo {pathMob "circumscribe" corners color 3.0 false false} drawn}}
@@ -491,19 +542,86 @@ a counterfactual leaves out).
 $[# {crossOut t mobs color}
     [# s {smooth {clamp t 0.0 1.0}}]
     [# b {padded {boxOf mobs} 0.08}]
-    {!if {<= s 0.0}
+    {!if {!or {<= s 0.0} {isEmpty mobs}}
         mobs
         {append
             {faded mobs {- 1.0 {* 0.5 s}}}
             {' {_writtenTo {pathMob "cross" {' {.lo b} {.hi b}} color 3.0 false false} s}}}}]
 
 Fn([List(Mob), Box, Box], List(Mob)). A figure carried from the box `a` to the box `b`: moved, and scaled by their
-heights.
+heights (a text's em: two texts of one size keep it, whatever their widths), by their widths when a height has no
+length, never more than four times either way.
 $[# {_carried mobs a b}
-    [# s {/ {max {boxHeight b} 0.0001} {max {boxHeight a} 0.0001}}]
+    [# {_ratio to from} {!if {!and {> from 0.02} {> to 0.02}} {/ to from} 0.0}]
+    [# rh {_ratio {boxHeight b} {boxHeight a}}]
+    [# rw {_ratio {boxWidth b} {boxWidth a}}]
+    [# s {clamp {!if {> rh 0.0} rh {!if {> rw 0.0} rw 1.0}} 0.25 4.0}]
     [# ca {boxCenter a}]
     [# cb {boxCenter b}]
     {mapped mobs {^ {p} {add2 cb {scale2 {sub2 p ca} s}}} s}]
+Fn([Mob], String). What a mob draws, where aside: a formula's named part by its em and the size of its ink (the
+same glyphs whatever formula holds them), the rest of a formula by its LaTeX, a text's words, or its kind.
+$[# {_shapeOf m} {!case m
+    {tex r {!if {> {.part r} 0}
+        {++
+            {str {round {* 1000.0 {.size r}}}}
+            {++ " " {++
+                {str {round {* 1000.0 {- {.x {.hi r}} {.x {.lo r}}}}}}
+                {++ " " {str {round {* 1000.0 {- {.y {.hi r}} {.y {.lo r}}}}}}}}}}
+        {++ {.latex r} {str {.part r}}}}}
+    {text r {.text r}}
+    {rect r "rect"}
+    {path r "path"}
+    {band r "band"}
+    {dot r "dot"}
+    {frame r "frame"}}]
+Fn([Mob], String). A mob's colour and opacity, written out to compare.
+$[# {_colorOf m} {!case m
+    {tex r {++ {debug {.color r}} {str {.alpha r}}}}
+    {text r {++ {debug {.color r}} {str {.alpha r}}}}
+    {rect r {++ {debug {.fill r}} {str {.fillAlpha r}}}}
+    {path r {++ {debug {.color r}} {str {.alpha r}}}}
+    {band r {++ {debug {.color r}} {str {.alpha r}}}}
+    {dot r {++ {debug {.color r}} {str {.alpha r}}}}
+    {frame r ""}}]
+Fn([List(Mob), List(Mob)], Bool). Whether two forms of a piece draw the same, one mob for one, in one colour: a
+transform then only moves the piece, never fading it into a copy of itself.
+$[# {_sameShape a b} {!and
+    {= {length a} {length b}}
+    {all
+        {zip a b}
+        {^ {e} {!and
+            {= {_shapeOf {.first e}} {_shapeOf {.second e}}}
+            {= {_colorOf {.first e}} {_colorOf {.second e}}}}}}}]
+Fn([Float], Float). The opacity of a piece's first form as it turns into its second (`transform`, `fromCopy`): whole
+until 0.4 of the way, gone at 0.8.
+$[# {_outgoing s} {- 1.0 {phase s 0.4 0.8}}]
+Fn([Float], Float). The opacity of a piece's second form: in from 0.2 of the way, whole at 0.6, so the two forms
+overlap in part and never show whole together.
+$[# {_incoming s} {phase s 0.2 0.6}]
+Fn([List(Mob)], Float). The em of a figure's first text or formula part, or 0 when it has none.
+$[# {_emOf mobs} {fold mobs 0.0 {^ {e m} {!if {> e 0.0}
+    e
+    {!case m
+        {tex r {.size r}}
+        {text r {.size r}}
+        {rect r 0.0}
+        {path r 0.0}
+        {band r 0.0}
+        {dot r 0.0}
+        {frame r 0.0}}}}}]
+Fn([List(Mob), List(Mob)], Float). The ratio of two forms' ems, when both are text (0 when either is not: they scale
+by their boxes).
+$[# {_emRatio a b}
+    [# ea {_emOf a}]
+    [# eb {_emOf b}]
+    {!if {!and {> ea 0.0} {> eb 0.0}} {/ eb ea} 0.0}]
+Fn([List(Mob), Box, Box, Float, Float], List(Mob)). A figure carried from the box `a` to the box `b`: scaled by
+`scale` when its forms are text (`ratio` above 0: their ems, so two forms of one size keep it, however their ink
+differs), else by the boxes (`_carried`).
+$[# {_carriedBy mobs a b scale ratio} {!if {> ratio 0.0}
+    {mapped mobs {^ {p} {add2 {boxCenter b} {scale2 {sub2 p {boxCenter a}} scale}}} scale}
+    {_carried mobs a b}}]
 Fn([Box, Box, Float], Box). From one box to another.
 $[# {_boxBetween a b s} {box {lerp2 {.lo a} {.lo b} s} {lerp2 {.hi a} {.hi b} s}}]
 Fn([Float, List(Mob), List(Mob)], List(Mob)). One figure turned into another (manim's `TransformMatchingTex`):
@@ -525,9 +643,14 @@ $[# {transform t from to}
         [# ba {boxOf a}]
         [# bb {boxOf b}]
         [# now {_boxBetween ba bb s}]
-        {append
-            {faded {_carried a ba now} {min 1.0 {* 2.0 {- 1.0 s}}}}
-            {faded {_carried b bb now} {min 1.0 {* 2.0 s}}}}}}}]
+        [# r {_emRatio a b}]
+        {!if {_sameShape a b}
+            {_carriedBy a ba now {lerp 1.0 r s} r}
+            {append
+                {faded {_carriedBy a ba now {lerp 1.0 r s} r} {_outgoing s}}
+                {faded
+                    {_carriedBy b bb now {lerp {/ 1.0 {max r 0.0001}} 1.0 s} r}
+                    {_incoming s}}}}}}}]
     [# leaving {filter from {^ {m} {not {_isShared m}}}}]
     [# coming {filter to {^ {m} {not {_isShared m}}}}]
     {!if {<= s 0.0}
@@ -545,8 +668,173 @@ $[# {fromCopy t source target}
         {!if {>= s 1.0}
             target
             {append
-                {faded {_carried source a now} {min 1.0 {* 2.0 {- 1.0 s}}}}
-                {faded {_carried target b now} {min 1.0 {* 2.0 s}}}}}}]
+                {faded {_carried source a now} {_outgoing s}}
+                {faded {_carried target b now} {_incoming s}}}}}]
+
+Scores
+
+A score writes a scene as its parts and when each changes, so the library alone decides what shows at each moment
+of the scene and no change can happen at once. Each part is a figure (a function of where the scene is, `s`, for a
+figure that moves on its own; most ignore it) with the changes it goes through at steps of the scene: it enters
+(`write`, `fadeIn`, `create`, a growth, a copy flown in), turns into another figure (`become`, a `transform` of
+the pieces named alike), is pointed at for a while (`emphasize`: `indicate`, `circumscribe`, a cross), and leaves
+(`fadeOut`). A part with no `enter` shows from the start; one with an `exit` is gone after it. Every change takes
+at least a tenth of a step, so a part can fade, move, or turn into another, but never pop. The frame's moves are
+keyed the same way (`frameKey`).
+
+Changes are listed in the order of their steps; each applies to the figure as the changes before it left it, so
+an exit while a part is turning fades it out where it is.
+
+$[# _Change [% {Struct {'
+    {Field "at" Float}
+    {Field "length" Float}
+    {Field "kind" String}
+    {Field "how" {Fn {' Float {List Mob}} {List Mob}}}
+    {Field "figure" {Fn {' Float} {List Mob}}}}}]]
+A part of a score: its name (for errors), its figure at `s`, and its changes.
+$[# ScorePart [% {Struct {'
+    {Field "id" String}
+    {Field "figure" {Fn {' Float} {List Mob}}}
+    {Field "changes" {List _Change}}}}]]
+A move of a score's frame: to the frame `frame` gives at `s`, from `at` over `length` steps.
+$[# FrameKey [% {Struct {'
+    {Field "at" Float}
+    {Field "length" Float}
+    {Field "frame" {Fn {' Float} Frame}}}}]]
+A score: the scene's name (its progress) and count of steps, its parts in drawing order, and its frame's moves.
+$[# Score [% {Struct {'
+    {Field "name" String}
+    {Field "count" Int}
+    {Field "parts" {List ScorePart}}
+    {Field "frames" {List FrameKey}}}}]]
+
+The shortest change, in steps.
+$[# shortestChange 0.1]
+$[# _noFigure [% {: {^ {s} {'}} {Fn {' Float} {List Mob}}}]]
+$[# _asIs [% {: {^ {t mobs} mobs} {Fn {' Float {List Mob}} {List Mob}}}]]
+Fn([Float, Float, String, Fn([Float, List(Mob)], List(Mob)), Fn([Float], List(Mob))], _Change). A change of a part.
+$[# {_change at length kind how figure} {: {.
+    at at
+    length {max length shortestChange}
+    kind kind
+    how how
+    figure figure} _Change}]
+
+Fn([String, Fn([Float], List(Mob)), List(_Change)], ScorePart). A part named `id`: its figure at `s` and its
+changes, in the order of their steps.
+$[# {part id figure changes} {: {. id id figure figure changes changes} ScorePart}]
+Fn([Float, Fn([Float, List(Mob)], List(Mob))], _Change). The part enters at `at` over half a step, by `how` (an
+animation that shows nothing at 0 and the figure at 1: `write`, `fadeIn`, `create`).
+$[# {enter at how} {_change at 0.5 "enter" how _noFigure}]
+Fn([Float, Float, Fn([Float, List(Mob)], List(Mob))], _Change). The part enters at `at` over `length` steps.
+$[# {enterOver at length how} {_change at length "enter" how _noFigure}]
+Fn([Float], _Change). The part leaves at `at`, fading out over half a step.
+$[# {exit at} {_change at 0.5 "exit" fadeOut _noFigure}]
+Fn([Float, Float, Fn([Float, List(Mob)], List(Mob))], _Change). The part leaves at `at` over `length` steps, by
+`how` (an animation that shows the figure at 0 and nothing at 1).
+$[# {exitOver at length how} {_change at length "exit" how _noFigure}]
+Fn([Float, Fn([Float], List(Mob))], _Change). The part turns into the figure `figure` gives, at `at` over 0.6 of a
+step (`transform`: pieces named alike move, the others fade).
+$[# {become at figure} {_change at 0.6 "become" _asIs figure}]
+Fn([Float, Float, Fn([Float], List(Mob))], _Change). The part turns into another figure over `length` steps.
+$[# {becomeOver at length figure} {_change at length "become" _asIs figure}]
+Fn([Float, Float, Fn([Float, List(Mob)], List(Mob))], _Change). The part pointed at from `from` to `to` by `how`,
+an animation that leaves the figure as it was at both ends (`{^ {t f} {indicate t f accentColor}}`,
+`circumscribe`).
+$[# {emphasize from to how} {_change from {- to from} "emphasize" how _noFigure}]
+Fn([Float, Float, Fn([Float, List(Mob)], List(Mob))], _Change). The part marked by `how` from `on` to `off`,
+across steps: the mark comes on over 0.4 of a step at `on`, stays, and goes over 0.4 at `off`; `how` takes how
+far the mark is on (`{^ {t f} {crossOut t f color}}`: a strike drawn, kept, and taken away; not `indicate`, whose pulse is over at 1).
+$[# {hold on off how} {_change on {+ {- off on} 0.4} "hold" how _noFigure}]
+
+Fn([Float, Float, Fn([Float], Frame)], FrameKey). The frame moves to the frame `frame` gives at `at`, over `length`
+steps.
+$[# {frameKey at length frame} {: {.
+    at at
+    length {max length shortestChange}
+    frame frame} FrameKey}]
+Fn([String, Int, List(ScorePart), List(FrameKey)], Score). A score of the scene `name` of `count` steps.
+$[# {score name count parts frames} {: {. name name count count parts parts frames frames} Score}]
+
+Fn([ScorePart, Float], List(Mob)). What a part draws at `s`: its entries and turns begun by then applied in order,
+each to what the ones before it left; then the emphases under way, over what is drawn (a turn during an emphasis
+never carries its marks away); then its exit, which takes the marks with the figure. A part enters and leaves once.
+$[# {_partAt p s}
+    [# changes {filter {.changes p} {^ {c} {<= {.at c} s}}}]
+    [# {_of kind} {filter changes {^ {c} {= {.kind c} kind}}}]
+    [# {_t c} {phase s {.at c} {+ {.at c} {.length c}}}]
+    [# entered {any {.changes p} {^ {c} {= {.kind c} "enter"}}}]
+    [# first {.figure p}]
+    [# shape {.second {fold
+        {filter changes {^ {c} {!or {= {.kind c} "enter"} {= {.kind c} "become"}}}}
+        {pair first {!if entered {'} {first s}}}
+        {^ {acc c} {!if {= {.kind c} "enter"}
+            {pair {.first acc} {{.how c} {_t c} {{.first acc} s}}}
+            {pair {.figure c} {transform {_t c} {.second acc} {{.figure c} s}}}}}}}]
+    [# emphasized {fold
+        {_of "emphasize"}
+        shape
+        {^ {drawn c} {!if {< {_t c} 1.0} {{.how c} {_t c} drawn} drawn}}}]
+    [# marked {fold
+        {_of "hold"}
+        emphasized
+        {^ {drawn c}
+            [# level {heldMark {_t c} {.at c} {.length c} {.at c} {- {+ {.at c} {.length c}} 0.4}}]
+            {!if {> level 0.0} {{.how c} level drawn} drawn}}}]
+    {fold {_of "exit"} marked {^ {drawn c} {{.how c} {_t c} drawn}}}]
+Fn([ScorePart], Bool). Whether a part's changes are in the order of their steps.
+$[# {_inOrder p} {.second {fold
+    {.changes p}
+    {pair -1000000.0 true}
+    {^ {acc c} {pair {.at c} {!and {.second acc} {>= {.at c} {.first acc}}}}}}}]
+Fn([Float, Float], Bool). Whether a change from `at` over `length` steps runs across the start of a step: a story
+plays a step per sentence and holds the scene between them, so such a change would stop half done.
+$[# {_crossesStep at length}
+    [# next {+ {float {floor {+ at 0.000001}}} 1.0}]
+    {< next {- {+ at length} 0.000001}}]
+Fn([ScorePart], List(_Change)). A part's changes that run across the start of a step.
+$[# {_crossing p} {filter
+    {.changes p}
+    {^ {c} {!if {= {.kind c} "hold"}
+        {!or {_crossesStep {.at c} 0.4} {_crossesStep {- {+ {.at c} {.length c}} 0.4} 0.4}}
+        {_crossesStep {.at c} {.length c}}}}}]
+Fn([Score, ScorePart], List(Mob)). The error of a part with a change across the start of a step.
+$[# {_crossingError sc p}
+    [# c {head {_crossing p}}]
+    {error
+        f"{the part `${.id p}` of the score `${.name sc}` has a change (${.kind c}) at ${str {.at c}} over ${str {.length c}} that runs across the start of a step}"}]
+Fn([List(FrameKey), Float], Frame). Where the frame is at `s`: each move begun by then eased from where the moves
+before it left it.
+$[# {_frameAt keys s} {fold
+    {filter keys {^ {k} {<= {.at k} s}}}
+    fullFrame
+    {^ {f k} {frameBetween f {{.frame k} s} {phase s {.at k} {+ {.at k} {.length k}}}}}}]
+Fn([Score, Float], List(Mob)). The score at `s`: every part as its changes leave it, then the frame.
+$[# {scoreAt sc s}
+    [# late {filter {.parts sc} {^ {p} {not {_inOrder p}}}}]
+    [# crossing {filter {.parts sc} {^ {p} {not {isEmpty {_crossing p}}}}}]
+    [# movesAcross {filter {.frames sc} {^ {k} {_crossesStep {.at k} {.length k}}}}]
+    {!if {not {isEmpty late}}
+        {error
+            f"{the part `${.id {head late}}` of the score `${.name sc}` lists a change before an earlier one}"}
+        {!if {not {isEmpty crossing}}
+            {_crossingError sc {head crossing}}
+            {!if {not {isEmpty movesAcross}}
+                {error f"{a frame move of the score `${.name sc}` runs across the start of a step}"}
+                {append
+                    {flatten {map {.parts sc} {^ {p} {_partAt p s}}}}
+                    {showFrame {_frameAt {.frames sc} s}}}}}}]
+Fn([Score], List(Mob)). The score where its scene is (`stepOf`): what a `Math` hook returns.
+$[# {playScore sc} {scoreAt sc {stepOf {.name sc} {.count sc}}}]
+
+Fn([Float, Float, Float, List(Mob)], List(Mob)). A figure shown while `s` runs from `a` to `b`, fading in over its
+first 0.3 of a step and out over its last 0.3 (less in a shorter span): a piece inside a part's figure that comes
+and goes, never at once.
+$[# {during s a b mobs}
+    [# fade {min 0.3 {/ {- b a} 2.0}}]
+    {!if {!or {<= s a} {>= s b}}
+        {'}
+        {fadeOut {phase s {- b fade} b} {fadeIn {phase s a {+ a fade}} mobs}}}]
 
 Axes and number lines
 
@@ -554,9 +842,12 @@ A range of numbers on an axis: from `lo` to `hi`, a tick every `step`.
 $[# Range [% {Struct {' {Field "lo" Float} {Field "hi" Float} {Field "step" Float}}}]]
 Fn([Float, Float, Float], Range). A range of an axis.
 $[# {axisRange lo hi step} {: {. lo lo hi hi step step} Range}]
+Fn([Range, Float], Float). How far `x` is along a range, 0 at its low end and 1 at its high end (the middle for a
+range of no length).
+$[# {_along r x} [# span {- {.hi r} {.lo r}}] {!if {= span 0.0} 0.5 {/ {- x {.lo r}} span}}]
 Fn([Range], List(Float)). The range's ticks, from `lo` to `hi` (a rounding short of `hi` counts).
 $[# {ticksOf r}
-    [# n {floor {+ {/ {- {.hi r} {.lo r}} {.step r}} 0.0001}}]
+    [# n {!if {<= {.step r} 0.0} 1 {min 1000 {floor {+ {/ {- {.hi r} {.lo r}} {.step r}} 0.0001}}}}]
     {map {range 0 {+ n 1}} {^ {i} {+ {.lo r} {* {.step r} {float i}}}}}]
 Fn([Float], String). A tick's label: a whole number without decimals, a tenth with one, else with two.
 $[# {tickLatex x}
@@ -573,8 +864,8 @@ Fn([Axes, Float, Float], Vec2). The canvas point of the axes' point (x, y).
 $[# {onAxes ax x y}
     [# b {.box ax}]
     {v2
-        {lerp {.x {.lo b}} {.x {.hi b}} {/ {- x {.lo {.x ax}}} {- {.hi {.x ax}} {.lo {.x ax}}}}}
-        {lerp {.y {.lo b}} {.y {.hi b}} {/ {- y {.lo {.y ax}}} {- {.hi {.y ax}} {.lo {.y ax}}}}}}]
+        {lerp {.x {.lo b}} {.x {.hi b}} {_along {.x ax} x}}
+        {lerp {.y {.lo b}} {.y {.hi b}} {_along {.y ax} y}}}]
 Fn([Axes, Float], Float). The axes' y clamped to their range.
 $[# {_clampY ax y} {clamp y {.lo {.y ax}} {.hi {.y ax}}}]
 Fn([Axes, Float], Float). Where the x axis crosses: y = 0 when the range holds it, else its bottom.
@@ -639,7 +930,7 @@ $[# {numberLine id r a b color size}
                     {sub2 p {v2 0.0 {+ 0.1 {* size 0.7}}}}}}}}}]
     {append {line {++ id ".line"} a b color 2.0} ticks}]
 Fn([Range, Vec2, Vec2, Float], Vec2). Where `x` is on a number line from `a` to `b`.
-$[# {onLine r a b x} {lerp2 a b {/ {- x {.lo r}} {- {.hi r} {.lo r}}}}]
+$[# {onLine r a b x} {lerp2 a b {_along r x}}]
 
 Functions
 
@@ -835,8 +1126,8 @@ $[# {bars id values top b colors gap}
         {^ {e}
             [# i {.first e}]
             [# x0 {+ {+ {.x {.lo b}} {* slot {float i}}} {/ {- slot w} 2.0}}]
-            [# h {* {boxHeight b} {/ {.second e} top}}]
-            [# color {nth colors {min i {- {length colors} 1}}}]
+            [# h {!if {> top 0.0} {* {boxHeight b} {/ {.second e} top}} 0.0}]
+            [# color {!if {isEmpty colors} textColor {nth colors {min i {- {length colors} 1}}}}]
             {'
                 {rectMob
                     {++ id {++ "." {str i}}}
@@ -1008,10 +1299,11 @@ $[# {graph id nodes edges layout b directed color seed}
             [# d {dist2 a c}]
             [# ra {/ {_radius {nth placed {.first {.second e}}}} {max d 0.0001}}]
             [# rc {/ {_radius {nth placed {.second {.second e}}}} {max d 0.0001}}]
+            [# fit {min 1.0 {/ 0.9 {max {+ ra rc} 0.0001}}}]
             {'
                 {pathMob
                     {++ id {++ "." {str {.first e}}}}
-                    {' {lerp2 a c ra} {lerp2 c a rc}}
+                    {' {lerp2 a c {* ra fit}} {lerp2 c a {* rc fit}}}
                     color
                     2.0
                     directed
@@ -1040,7 +1332,9 @@ Chances and shares
 Fn([String, Box, Float, Float, Bool, Float, Color], List(Mob)). A chance weighed at progress `t` (the picture of
 `u · total < w` in weighted reservoir sampling, and of any draw against a probability): a bar `b` from 0 to 1, its
 share `chance` lit in `color` (growing over the first 40 % of `t`), and the uniform number `u` dropping onto the bar
-as an arrow (from 45 % to 75 %), lit when it falls inside the share (`taken`). The bar's ends are labelled 0 and 1.
+as an arrow (fading in from 35 %, dropping from 45 % to 75 %), lit when it falls inside the share (`taken`). The
+bar's ends are labelled 0 and 1. The bar itself shows whole from the start: whoever shows it fades it in (a score's
+`enter`), so one bar can stay up while it weighs one chance after another.
 $[# {chanceBar id b chance u taken t color}
     [# y {.y {boxCenter b}}]
     [# x0 {.x {.lo b}}]
@@ -1065,12 +1359,9 @@ $[# {chanceBar id b chance u taken t color}
             3.0}
         {moveTo {tex {++ id "UText"} "u" 0.36 textColor} {v2 ux {+ y {lerp 1.0 0.85 drop}}}}}]
     [# ends {append
-        {moveTo {tex {++ id "Zero"} "0" 0.3 textDimColor} {v2 x0 {- y {+ 0.28 h}}}}
-        {moveTo {tex {++ id "One"} "1" 0.3 textDimColor} {v2 x1 {- y {+ 0.28 h}}}}}]
-    {flatten {'
-        {fadeIn {phase t 0.0 0.1} {append track ends}}
-        lit
-        {fadeIn {phase t 0.4 0.5} arrow}}}]
+        {moveTo {tex {++ id "Zero"} "0" 0.32 textDimColor} {v2 x0 {- y {+ 0.28 h}}}}
+        {moveTo {tex {++ id "One"} "1" 0.32 textDimColor} {v2 x1 {- y {+ 0.28 h}}}}}]
+    {flatten {' track ends lit {fadeIn {phase t 0.35 0.5} arrow}}}]
 
 Fn([List(Float)], List(Float)). Each share's start along a running sum: 0, then each share's total so far (one fewer
 than the shares, then their total last).

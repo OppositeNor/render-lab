@@ -255,6 +255,73 @@ fn the_math_library_computes_what_it_says() {
 }
 
 #[test]
+fn a_score_changes_its_parts_only_over_time() {
+    let x = r#"{part "a" {^ {s} {words "a" "x" 0.5 textColor}} {'
+        {enter 1.0 fadeIn}
+        {become 2.0 {^ {s} {words "a" "y" 0.5 textColor}}}
+        {emphasize 2.8 2.9 {^ {t f} {indicate t f accentColor}}}
+        {exit 3.0}}}"#;
+    let still = r#"{part "b" {^ {s} {words "b" "z" 0.5 textColor}} {'}}"#;
+    let sc = format!("{{score \"x\" 4 {{' {x} {still}}} {{'}}}}");
+    let math = format!("$[Import* {MATH_PACKAGE}]");
+    let v = evaluated(
+        &[
+            &format!("length {{scoreAt {sc} 0.5}}"),
+            &format!("length {{scoreAt {sc} 1.25}}"),
+            &format!("length {{scoreAt {sc} 2.3}}"),
+            &format!("length {{scoreAt {sc} 2.85}}"),
+            &format!("length {{scoreAt {sc} 4.0}}"),
+            "phase 1.0 1.0 1.0",
+            "phase 0.5 1.0 1.0",
+            "length {during 0.5 1.0 2.0 {words \"a\" \"x\" 0.5 textColor}}",
+            "length {during 1.5 1.0 2.0 {words \"a\" \"x\" 0.5 textColor}}",
+        ],
+        &math,
+    );
+    let n: Vec<i64> = v[..5]
+        .iter()
+        .map(|d| match d {
+            Data::Int(n) => *n,
+            other => panic!("{other:?}"),
+        })
+        .collect();
+    // Each count holds the frame and the part that never changes; the other part is gone before it enters, fading
+    // in, turning (both forms), pointed at (the figure and its tint), and gone after it leaves.
+    assert_eq!(n, vec![2, 3, 4, 4, 2]);
+    assert_eq!(v[5], Data::Float(1.0));
+    assert_eq!(v[6], Data::Float(0.0));
+    // A piece shown during a span is not there before it, and is inside it.
+    assert_eq!(v[7], Data::Int(0));
+    assert_eq!(v[8], Data::Int(1));
+    // A part whose changes are out of order is refused, not drawn.
+    let late = r#"{part "a" {^ {s} {'}} {' {exit 3.0} {enter 1.0 fadeIn}}}"#;
+    let refused = checked(
+        &[&format!("scoreAt {{score \"x\" 4 {{' {late}}} {{'}}}} 0.0")],
+        &math,
+    );
+    assert!(refused.is_err_and(|e| e.contains("lists a change before")));
+    // A change running across the start of a step would stop half done while a story holds that step: refused.
+    let across = r#"{part "a" {^ {s} {'}} {' {enterOver 0.8 0.4 fadeIn}}}"#;
+    let refused = checked(
+        &[&format!(
+            "scoreAt {{score \"x\" 4 {{' {across}}} {{'}}}} 0.0"
+        )],
+        &math,
+    );
+    assert!(refused.is_err_and(|e| e.contains("runs across the start of a step")));
+    // A mark held across steps comes on and goes within a step each, and is drawn between.
+    let held = r#"{part "a" {^ {s} {words "a" "x" 0.5 textColor}} {'
+        {hold 1.0 3.0 {^ {t f} {crossOut t f accentColor}}}}}"#;
+    let v = evaluated(
+        &[&format!(
+            "length {{scoreAt {{score \"x\" 4 {{' {held}}} {{'}}}} 2.0}}"
+        )],
+        &math,
+    );
+    assert_eq!(v[0], Data::Int(3));
+}
+
+#[test]
 fn clips_compose_and_read_into_the_lab_s() {
     use crate::clip::{Track, sample_keys};
     let v = raw(
