@@ -87,11 +87,20 @@ up; widths of lines in pixels at 1080p; an em `size` in canvas units. `t` is an 
 
 ## Progress and rate functions
 
-- `phase`: Fn([Float, Float, Float], Float). How far `x` is from `a` to `b`, 0 before and 1 after: one stage of a value that steps a sequence (`{phase step 3.0 4.0}` runs while `step` goes from 3 to 4; manim's `Succession`).
+- `phase`: Fn([Float, Float, Float], Float). How far `x` is from `a` to `b`, 0 before and 1 after: one stage of a value that steps a sequence (`{phase step 3.0 4.0}` runs while `step` goes from 3 to 4; manim's `Succession`). Equal bounds give a step at `b`.
+- `heldMark`: Fn([Float, Float, Float, Float, Float], Float). A mark held for a while (a strike that stays, then lifts), at the progress `t` of a score's emphasis from `from` over `length` steps: rising over 0.4 of a step from `on`, falling over 0.4 from `off`.
 - `thereAndBack`: Fn([Float], Float). There and back: 0 at both ends, 1 in the middle, smoothly (manim's `there_and_back`).
 - `rushInto`: Fn([Float], Float). Starting from rest, ending at speed (manim's `rush_into`).
 - `rushFrom`: Fn([Float], Float). Starting at speed, ending at rest (manim's `rush_from`).
 - `lagged`: Fn([Float, Int, Int, Float], Float). The progress of the `i`-th of `n` animations that start one after another, each `lag` of one's length after the one before, at the whole group's progress `t` (manim's `LaggedStart`).
+
+## Steps
+
+- `stepOf`: Fn([String, Int], Float). Where the scene `name` of `count` steps is: its progress, or `count` (the finished picture) while no clip has set it.
+- `stepClip`: Fn([String, Int, Float, Float], Clip). Step `k` from `a` to `b` of it, over a second, at an even pace.
+- `stepsAt`: Fn([String, Int, Int], Clip). The scene set at once to the end of step `n`.
+- `stepsInOrder`: Fn([String, Int], Clip). Every step in order from none, a second each: its demonstration's Play.
+- `stepsRun`: Fn([String, Float, Float], Clip). From `a` to `b` across several steps over a second, at an even pace.
 
 ## Animations
 
@@ -100,11 +109,28 @@ up; widths of lines in pixels at 1080p; an em `size` in canvas units. `t` is an 
 - `write`: Fn([Float, List(Mob)], List(Mob)). Written in, mob by mob from the first, each starting before the last ends (manim's `Write`; a formula's parts are its mobs, so it writes left to right as its parts are ordered).
 - `create`: Fn([Float, List(Mob)], List(Mob)). Drawn all at once (manim's `Create`): paths along their length, the rest faded in.
 - `growFrom`: Fn([Float, List(Mob), Side], List(Mob)). Grown out of one side of its box (manim's `GrowFromEdge`): a bar rises from its axis with `down`.
-- `indicate`: Fn([Float, List(Mob), String], List(Mob)). Pointed at: scaled up and lit in `color`, then back (manim's `Indicate`).
+- `growUp`: Fn([Float, List(Mob)], List(Mob)). Grown up from its bottom edge (`growFrom` with `down`, as an entering animation a part can name).
+- `indicate`: Fn([Float, List(Mob), String], List(Mob)). Pointed at: scaled up and lit in `color`, then back (manim's `Indicate`); the figure stays whole, the tint over it.
+- `indicateEach`: Fn([Float, List(Mob), Color], List(Mob)). Each mob pointed at about its own centre (a row lit together, none pushed outward).
 - `circumscribe`: Fn([Float, List(Mob), String], List(Mob)). An outline drawn around the figure, then faded (manim's `Circumscribe`): the figure with it.
 - `crossOut`: Fn([Float, List(Mob), String], List(Mob)). Struck out: a line drawn across the figure, which dims to half (a term a counterfactual leaves out).
-- `transform`: Fn([Float, List(Mob), List(Mob)], List(Mob)). One figure turned into another (manim's `TransformMatchingTex`): the pieces named alike in both move (and scale) from where they are in the first to where they are in the second, each cross-fading into its new form; the first's other pieces fade out, the second's fade in. Pieces named "" never match.
+- `transform`: Fn([Float, List(Mob), List(Mob)], List(Mob)). One figure turned into another (manim's `TransformMatchingTex`): the pieces named alike in both move (and scale: texts by their ems, so two forms of one size keep it; other pieces by their boxes) from where they are in the first to where they are in the second, cross-fading into the new form (the old whole until 0.4, gone at 0.8; the new from 0.2, whole at 0.6) unless both forms draw the same (then it only moves); the first's other pieces fade out, the second's fade in. Pieces named "" never match.
 - `fromCopy`: Fn([Float, List(Mob), List(Mob)], List(Mob)). A copy of `source` flying into `target`'s place and turning into it; `source` stays (manim's `TransformFromCopy`). Draw `source` beside it.
+- `write` gives each mob at least a quarter of the write (many mobs overlap more rather than flash in).
+- `during`: Fn([Float, Float, Float, List(Mob)], List(Mob)). A piece shown while `s` runs from `a` to `b`, faded in over its first 0.3 of a step and out over its last 0.3 (less in a shorter span).
+
+## Scores
+
+- `score`: Fn([String, Int, List(ScorePart), List(FrameKey)], Score). A scene of `count` steps named `name` (its progress): its parts in drawing order, and its frame's moves.
+- `part`: Fn([String, Fn([Float], List(Mob)), List(_Change)], ScorePart). A part named `id`: its figure at `s`, and its changes in the order of their steps. A part with no `enter` shows from the start.
+- `enter` / `enterOver`: Fn([Float, Fn([Float, List(Mob)], List(Mob))], _Change) / with a length. The part enters at `at` (half a step by default) by an animation that shows nothing at 0 and the figure at 1.
+- `exit` / `exitOver`: Fn([Float], _Change) (a fade over half a step) / Fn([Float, Float, Fn(…)], _Change). The part leaves; its emphases' marks leave with it.
+- `become` / `becomeOver`: Fn([Float, Fn([Float], List(Mob))], _Change) (0.6 of a step) / with a length. The part turns into another figure (`transform`).
+- `emphasize`: Fn([Float, Float, Fn([Float, List(Mob)], List(Mob))], _Change). The part pointed at from `from` to `to` by an animation that leaves it as it was at both ends; applied over the part's turns.
+- `hold`: Fn([Float, Float, Fn([Float, List(Mob)], List(Mob))], _Change). The part marked from `on` to `off`, across steps: `how` takes how far the mark is on (0 to 1 over 0.4 of a step at `on`, back over 0.4 at `off`), so it must stay drawn at 1 (`crossOut`, `crossParts`, `circumscribe`'s ring kept; not `indicate`).
+- `frameKey`: Fn([Float, Float, Fn([Float], Frame)], FrameKey). The frame moves to the frame given at `at` over `length` steps.
+- `scoreAt`: Fn([Score, Float], List(Mob)). The score at `s`: every part as its changes leave it, then the frame. Changes shorter than `shortestChange` (0.1 of a step) are lengthened; changes out of order, and a change (or a frame's move) that runs across the start of a step, are errors (a story holds each step's end between sentences; a `hold` is checked by its two transitions).
+- `playScore`: Fn([Score], List(Mob)). The score where its scene is (`stepOf`): what a `Math` hook returns.
 
 ## Axes and number lines
 

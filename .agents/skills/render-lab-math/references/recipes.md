@@ -1,16 +1,26 @@
 # Recipes: manim's techniques in `render_lab_math`
 
 Each recipe is code that ran in a scene (ReSTIR's scenes in `packages/paper_restir/script/`: `toy.lam`, `wrs.lam`,
-`params.lam`, `combine.lam`, `rounds.lam`, `history.lam`, `source.lam`, `bias.lam`; or the library's check scenes), with `s` where the scene is (`stepOf`, from its steps' progresses, which clips move; `SKILL.md`'s model) and `t` a
-progress. A scene starts:
+`params.lam`, `combine.lam`, `rounds.lam`, `history.lam`, `source.lam`, `bias.lam`, `lights.lam`, `weights.lam`), with
+`s` where the scene is (`stepOf`, its one progress, which clips move; `SKILL.md`'s model) and `t` a progress. A
+scene is a score:
 
 ```text
 $[Import* std]$[Import* render_lab_runtime]$[Import* render_lab_math]$[Import* <package>_values]$[Import* <package>_natives]$[Import* <package>_common]
 
-$[# myScene {: {^ {t}
-    [# s {stepOf "my" 12}]
-    …
-    {flatten {' figureA figureB {showFrame frame}}}} Math}]
+$[# {_score}
+    [# axes {axesFigure …}]
+    {score "my" 12
+        {'
+            {part "axes" {^ {s} axes} {' {enterOver 0.0 0.5 create}}}
+            {part "rule" {^ {s} rule1} {' {enterOver 1.0 0.6 write} {become 3.0 {^ {s} rule2}} {exit 6.0}}}
+            …}
+        {' {frameKey 10.0 1.0 {^ {s} {frameOn line 0.5}}}}}]
+$[# myScene {: {^ {t} {playScore {_score}}} Math}]
+
+$[# mySteps [% {stepsInOrder "my" 12}]]
+$[# myAt0 [% {stepsAt "my" 12 0}]]
+$[# myStep1 [% {stepClip "my" 1 0.0 1.0}]]
 ```
 
 ## The Lamlet a scene needs
@@ -31,9 +41,14 @@ $[# myScene {: {^ {t}
 - **Anchors** for layout (`nextTo`, `frameOn`, `brace`) are figures as they stand when the stage is done: build the
   figure once (`[# axes {axesFigure …}]`), lay out from it, and animate the copy you draw
   (`{create {phase s 0.0 1.0} axes}`).
-- **A figure that appears at a stage** without an animation of its own: `{fadeIn {phase s 3.0 3.3} fig}` (or
-  `{!if {< s 3.0} {'} fig}` for a cut). `tangentAt`, `dotOn`, and the like take the value they move with, not a
-  progress.
+- **A figure that appears at a stage** is a part of the score: `{part "id" {^ {s} fig} {' {enterOver 3.0 0.3 fadeIn}}}`.
+  Inside a figure, a piece that comes and goes is `{during s 3.0 5.0 piece}` (faded in and out). Never cut with
+  `{!if {< s 3.0} {'} fig}`: `script math` reports the pop. `tangentAt`, `dotOn`, and the like take the value they
+  move with, not a progress.
+- **A part whose figure follows `s`** (a curve redrawn, a marker sliding, a count ticking) takes its figure from it:
+  `{part "dot" {^ {s} {_dot s}} {' {enterOver 8.4 0.5 fadeIn}}}`; continuity is then the figure's own.
+- **Lamlet evaluates arguments eagerly**: `{lerp {/ 1.0 r} 1.0 s}` divides even where an `!if` around it would not
+  use it. Guard the value (`{max r 0.0001}`); `script math` reports the error at the frames it fails.
 
 ## A formula built term by term (manim's `Write` on `MathTex`)
 
@@ -92,6 +107,28 @@ $[# {_pointParts t mobs ids color} {!if {!and {> t 0.0} {< t 1.0}}
     {append {filter mobs {^ {m} {not {contains ids {idOf m}}}}} {indicate t {filter mobs {^ {m} {contains ids {idOf m}}}} color}}
     mobs}]
 ```
+
+## A part through a whole scene (ReSTIR's `toy.lam`)
+
+The estimate's formula enters as symbols, turns into each list's numbers, is circled, turns into the average and
+then into W, has two terms struck for a while, and leaves:
+
+```text
+{part "estimate" {^ {s} {_estimateSymbols}} {'
+    {enterOver 7.6 0.4 fadeIn}
+    {become 8.0 {^ {s} {_estimateNumbers 0}}}
+    {become 9.0 {^ {s} {_estimateNumbers 1}}}
+    {emphasize 10.0 11.0 {^ {t f} {circumscribe t f targetColor}}}
+    {become 13.0 {^ {s} {_averageFormula}}}
+    {become 15.0 {^ {s} {_wFormula}}}
+    {hold 18.0 19.0 {^ {t f} {crossParts t f {' "sum" "M"} weightColor}}}
+    {exit 22.0}}}
+```
+
+A copy that flies from another part's figure takes that figure as its source, built by the same function, so it
+leaves from where the source is drawn: `{enter 4.0 {^ {t f} {fromCopy t {_barPiece 0 "t"} f}}}`. A view that stays
+up while its contents change from one case to the next is one part turning (`become`) case after case
+(`wrs.lam`'s chance), not a part per case fading in and out.
 
 ## A counterfactual: a term struck out, and its effect (a `Cross`, then the figure moving)
 
@@ -183,12 +220,13 @@ halves step by step, each step `{phase f …}` of its slice of the stage.
 
 When a demonstration already has values a story sweeps (`biasReveal`, `biasMark`, `biasCandidates`), the math
 scene reads them, so the storyboard's ranges keep working and the dock still explores it; the scene's steps
-(`stepOf "bias" 31`, its clips in `bias.lam`) add what each sentence explains beside the figure. Show each addition
-for a span of steps:
-
-```text
-$[# {_during s a b fig} {!if {!or {< s a} {> s b}} {'} {fadeOut {phase s {- b 0.25} b} {fadeIn {phase s a {+ a 0.3}} fig}}}]
-```
+(`stepOf "bias" 31`, its clips in `bias.lam`) add what each sentence explains beside the figure, each addition a
+part shown over its span of steps. The demonstration's Play clip keys the same values as the story
+(`biasSteps`: `together` with `stepsInOrder`), so a step the story fills with a value's sweep is not dead in the
+viewer. What depends on a value fades by it (a legend row by `smooth {phase reveal n {+ n 0.8}}`), a whole count
+taken from a value is blended between its whole neighbours (`_curvesAt`: the natives' curves for the counts on either
+side, mixed by the fraction), and a dot riding a binned line reads it between bins (`_valueNear`). The story's
+ranges must start where the last one ended (a marker set to 0.05 after a range ended at 0.45 jumps).
 
 ## One scene over two beats, a 3D beat between (ReSTIR's `rounds.lam`)
 
