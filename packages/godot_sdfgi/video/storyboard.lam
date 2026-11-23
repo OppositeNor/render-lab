@@ -7,7 +7,7 @@ $[Import* godot_sdfgi_story]
 $[Import* godot_sdfgi_natives]
 # How Godot's SDFGI Lights a Room {#video subtitle="Signed distance field global illumination in Godot 4.7, followed through the source at the engine's sizes" engineVersion=4.7.2-stable commit=ed1daf0bf001b61586d9930840f2f1394092c079 date=2026-10-29 fps=30 width=1920 height=1080}
 
-## Where SDFGI runs {#c1 number=1 target=280  summary="The frame's SDFGI work, what turns it on, and two settings that are not what they say." sources="frame-order, sdfgi-update, settings, mobile-stub, prepass-gate, ray-count-table"}
+## Where SDFGI runs {#c1 number=1 target=295  summary="The frame's SDFGI work, what turns it on, and two settings that are not what they say." sources="frame-order, sdfgi-update, settings, mobile-stub, prepass-gate, ray-count-table"}
 
 ### SDFGI lights the room with light that bounced {#c1-room kind=3d}
 
@@ -281,7 +281,13 @@ It runs only in the Forward+ renderer.
 
 The next chapter takes up the first stage, the cascades.
 
-## Cascades that follow the camera {#c2 number=2 target=200 summary="Four nested grids, their squashed height, their probes, and how they jump after the camera." sources="cascade-create, cell-size-double, y-mult-table, probe-axis-count, scroll-update, dirty-all-rule"}
+### Where to read {#c1-sources kind=2d sources="frame-order, sdfgi-update, settings, mobile-stub, prepass-gate, ray-count-table"}
+
+These are the lines this chapter followed.
+
+They are the frame's SDFGI steps, the settings, the Mobile renderer's empty stub, the depth pre-pass gate, and the ray-count table.
+
+## Cascades that follow the camera {#c2 number=2 target=205 summary="Four nested grids, their squashed height, their probes, and how they jump after the camera." sources="cascade-create, cell-size-double, y-mult-table, probe-axis-count, scroll-update, dirty-all-rule"}
 
 ### Where the cascades sit in the frame {#c2-map kind=2d graph=frame focus=UPD}
 
@@ -455,7 +461,11 @@ When the camera strays, a cascade jumps, and only the slab of new space it takes
 
 The next chapter starts with that slab.
 
-## What is voxelized, and which lights {#c3 number=3 target=195 summary="The dirty slab becomes a box; Static meshes and static lights are listed for it." sources="pending-regions, region-bounds, sdfgi-cull, gi-mode, static-light-cull, static-lights-index"}
+### Where to read {#c2-sources kind=2d sources="cascade-create, cell-size-double, y-mult-table, probe-axis-count, scroll-update, dirty-all-rule"}
+
+These are the lines that create the cascades and move them after the camera.
+
+## What is voxelized, and which lights {#c3 number=3 target=205 summary="The dirty slab becomes a box; Static meshes and static lights are listed for it." sources="pending-regions, region-bounds, sdfgi-cull, gi-mode, static-light-cull, static-lights-index"}
 
 ### Still before the GPU draws {#c3-map kind=2d graph=frame focus=UPD}
 
@@ -647,7 +657,11 @@ The CPU lists the meshes inside it whose GI mode is Static, and the lights whose
 
 Those meshes are what the next chapter turns into voxels.
 
-## Voxelization {#c4 number=4 target=190 summary="Three orthographic views write albedo, facing, and emission into the grid." sources="render-sdfgi, sdf-fragment, albedo-pack, facing-mask, emission-pack"}
+### Where to read {#c3-sources kind=2d sources="pending-regions, region-bounds, sdfgi-cull, gi-mode, static-light-cull, static-lights-index"}
+
+These are the lines that bound each region and list its Static meshes and static lights.
+
+## Voxelization {#c4 number=4 target=195 summary="Three orthographic views write albedo, facing, and emission into the grid." sources="render-sdfgi, sdf-fragment, albedo-pack, facing-mask, emission-pack"}
 
 ### The GPU draws the slab {#c4-map kind=2d graph=frame focus=VOX}
 
@@ -825,7 +839,11 @@ It also records its colour, the direction its surface faces, and the light it em
 
 From the solid voxels, the next chapter builds the distance field.
 
-## The distance field {#c5 number=5 target=240 summary="A jump flood finds each cell's nearest solid voxel; STORE keeps one byte per cell and a list of the solid cells." sources="jump-flood-init, jump-flood, jump-flood-schedule, sdf-store, solid-cell-store"}
+### Where to read {#c4-sources kind=2d sources="render-sdfgi, sdf-fragment, albedo-pack, facing-mask, emission-pack"}
+
+These are the lines that draw the three views and pack albedo, facing, and emission into the voxels.
+
+## The distance field {#c5 number=5 target=245 summary="A jump flood finds each cell's nearest solid voxel; STORE keeps one byte per cell and a list of the solid cells." sources="jump-flood-init, jump-flood, jump-flood-schedule, sdf-store, solid-cell-store"}
 
 ### The same stage builds the field {#c5-map kind=2d graph=frame focus=VOX}
 
@@ -1036,7 +1054,11 @@ Rays use that distance to take long steps through empty space.
 
 The next chapter measures how well each probe can see the cells around it, so light does not leak through walls.
 
-## Occlusion {#c6 number=6 target=105 summary="For each probe, how visible every voxel around it is." sources="occlusion-dispatch, occlusion-shells, occlusion-store, occlusion-read"}
+### Where to read {#c5-sources kind=2d sources="jump-flood-init, jump-flood, jump-flood-schedule, sdf-store, solid-cell-store"}
+
+These are the jump flood's lines, and those that store the field and the solid voxels.
+
+## Occlusion {#c6 number=6 target=110 summary="For each probe, how visible every voxel around it is." sources="occlusion-dispatch, occlusion-shells, occlusion-store, occlusion-read"}
 
 ### The stage's last step {#c6-map kind=2d graph=frame focus=VOX}
 
@@ -1131,7 +1153,11 @@ It does so only when the use occlusion setting is on, and that setting is off by
 
 Next, the cells are lit.
 
-## Light in the voxels {#c7 number=7 target=255 summary="Every fourth solid cell per frame is lit, shadowed through the field, and packed per face; static light, and the bounce." sources="update-light, light-schedule, omni-attenuation, shadow-march, aniso-pack, static-pass, scroll-reinject, bounce-feedback"}
+### Where to read {#c6-sources kind=2d sources="occlusion-dispatch, occlusion-shells, occlusion-store, occlusion-read"}
+
+These are the lines that compute each probe's occlusion, store it, and read it back in the screen pass.
+
+## Light in the voxels {#c7 number=7 target=265 summary="Every fourth solid cell per frame is lit, shadowed through the field, and packed per face; static light, and the bounce." sources="update-light, light-schedule, omni-attenuation, shadow-march, aniso-pack, static-pass, scroll-reinject, bounce-feedback"}
 
 ### Then the cells are lit {#c7-map kind=2d graph=frame focus=LIGHT}
 
@@ -1390,7 +1416,11 @@ That light is what the scene's lights give the cell, plus last frame's bounce fr
 
 In the next chapter, the probes' rays bring that light back.
 
-## Probes trace the field {#c8 number=8 target=230 summary="Eight rays a frame per probe, marched through the field; sixteen coefficients kept in a ring of thirty frames." sources="update-probes, vogel-rays, probe-march, probe-hit, probe-sky, sh-accum, history-ring"}
+### Where to read {#c7-sources kind=2d sources="update-light, light-schedule, omni-attenuation, shadow-march, aniso-pack, static-pass, scroll-reinject, bounce-feedback"}
+
+These are the lines that light the solid voxels, shadow and pack that light, and feed the bounce back.
+
+## Probes trace the field {#c8 number=8 target=235 summary="Eight rays a frame per probe, marched through the field; sixteen coefficients kept in a ring of thirty frames." sources="update-probes, vogel-rays, probe-march, probe-hit, probe-sky, sh-accum, history-ring"}
 
 ### Then the probes gather {#c8-map kind=2d graph=frame focus=PRE}
 
@@ -1586,7 +1616,11 @@ A pixel cannot sample coefficients the way it samples a texture.
 
 So the next chapter converts them into small textures.
 
-## From coefficients to maps {#c9 number=9 target=180 summary="Two six-by-six octahedral maps per probe, a brightness gain, a half-texel shift, and scrolled probes." sources="store-probes, oct-store, oct-border, oct-read, probe-scroll, parent-seed"}
+### Where to read {#c8-sources kind=2d sources="update-probes, vogel-rays, probe-march, probe-hit, probe-sky, sh-accum, history-ring"}
+
+These are the lines that choose each probe's rays, march them, and keep their coefficients in the ring.
+
+## From coefficients to maps {#c9 number=9 target=190 summary="Two six-by-six octahedral maps per probe, a brightness gain, a half-texel shift, and scrolled probes." sources="store-probes, oct-store, oct-border, oct-read, probe-scroll, parent-seed"}
 
 ### Then the probes store {#c9-map kind=2d graph=frame focus=STORE}
 
@@ -1749,7 +1783,11 @@ So each probe now has two small maps, irradiance for diffuse light and radiance 
 
 In the next chapter, the screen pass reads them for every pixel.
 
-## Shading a pixel {#c10 number=10 target=210 summary="The screen pass: the finest cascade, eight probes, diffuse and specular, and how the frame uses them." sources="process-gi, cascade-select, cascade-blend, probe-weights, specular-trace, gi-compose, forward-gi, fog-sdfgi"}
+### Where to read {#c9-sources kind=2d sources="store-probes, oct-store, oct-border, oct-read, probe-scroll, parent-seed"}
+
+These are the lines that write the octahedral maps, read them back, and seed scrolled probes.
+
+## Shading a pixel {#c10 number=10 target=215 summary="The screen pass: the finest cascade, eight probes, diffuse and specular, and how the frame uses them." sources="process-gi, cascade-select, cascade-blend, probe-weights, specular-trace, gi-compose, forward-gi, fog-sdfgi"}
 
 ### Last, the screen {#c10-map kind=2d graph=frame focus=GI}
 
@@ -1947,7 +1985,11 @@ Those probes belong to the finest cascade that holds the pixel, where the probes
 
 The last chapter puts the whole frame together.
 
-## The frame again {#c11 number=11 target=100 summary="The frame, in order." sources=frame-order}
+### Where to read {#c10-sources kind=2d sources="process-gi, cascade-select, cascade-blend, probe-weights, specular-trace, gi-compose, forward-gi, fog-sdfgi"}
+
+These are the lines of the screen pass, of the opaque pass that adds its light, and of the other passes that read the probes.
+
+## The frame again {#c11 number=11 target=105 summary="The frame, in order." sources=frame-order}
 
 ### The cascades follow the camera {#c11-cascades kind=2d graph=frame focus=UPD}
 
@@ -2063,3 +2105,9 @@ ${cue "key" {opening demoRoom 1.0 {'
 ${cue "key" {' {motion {' swayYaw}}}}
 
 ${cue "key" {' {sdfgiMix 1.0} {blend 1.5}}}That is SDFGI, the way Godot's source builds it.
+
+### Where to read {#c11-sources kind=2d sources="frame-order"}
+
+This is where SDFGI's steps sit in the frame, in the order this video followed them.
+
+Every source this video cites is in its source-reading guide, in the order the frame runs it.
