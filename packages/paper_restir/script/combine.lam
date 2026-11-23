@@ -60,7 +60,7 @@ $[# {_card id at title src}
                 [# c {add2 at {v2 {nth xs k} 0.0}}]
                 {append
                     {moveTo
-                        {caption {++ id {++ "Cap" {str k}}} {nth captions k} 0.3 textDimColor}
+                        {caption {++ id {++ "Cap" {str k}}} {nth captions k} 0.32 textDimColor}
                         {add2 c {v2 0.0 0.8}}}
                     {moveTo
                         {tex {++ id {nth names k}} {nth values k} _size {nth colors k}}
@@ -80,31 +80,32 @@ $[# {_weight v at}
     [# colors {!if {= v 1} {' targetColor pColor} {' targetColor estimateColor textColor}}]
     {moveTo {texParts "weight" latex 0.52 weightColor names colors} at}]
 
-Fn([Float], List(Mob)). The weight's formula at stage s: written, its chance pointed at and struck out, W in its
-place, the target at P, M, and then moved to the top.
-$[# {_main s}
-    [# v1 {_weight 1 _mainAt}]
-    {!if {< s 5.0}
-        {crossParts
-            {phase s 3.0 3.6}
-            {pointParts {phase s 2.0 3.0} {write {phase s 1.0 1.8} v1} {' "p"} pColor}
-            {' "p"}
-            accentColor}
-        {!if {< s 6.0}
-            {transform {phase s 5.0 5.8} v1 {_weight 2 _mainAt}}
-            {!if {< s 9.0}
-                {transform {phase s 6.0 6.6} {_weight 2 _mainAt} {_weight 3 _mainAt}}
-                {!if {< s 10.0}
-                    {transform {phase s 9.0 9.6} {_weight 3 _mainAt} {_weight 4 _mainAt}}
-                    {_weight 4 {lerp2 _mainAt _topAt {smooth {phase s 10.0 10.4}}}}}}}}]
+Fn([], List(Mob)). The weight's formula moved to the top, where it waits while the reservoirs are combined.
+$[# {_weightAtTop} {_weight 4 _topAt}]
 
-Fn([Float, {kept: Int, m: Float, sources: List({light: Int, m: Float, pHat: Float, pHatP: Float, pixel: Int, running: Float, taken: Bool, u: Float, w: Float, weight: Float, wsum: Float}), w: Float, wsum: Float}], List(Mob)).
-What the derivation shows under the formula at stage s: the chance named, W on average one over it (with the worked
-example's numbers), the neighbour's sample's target at Q and at P, and P's own weight back as its sum of weights.
-$[# {_below s c}
+Fn([{kept: Int, m: Float, sources: List({light: Int, m: Float, pHat: Float, pHatP: Float, pixel: Int, running: Float, taken: Bool, u: Float, w: Float, weight: Float, wsum: Float}), w: Float, wsum: Float}], List(ScorePart)).
+The derivation (stages 1 to 10): the two reservoirs and their samples flying out as two new candidates; the weight's
+formula written, its chance pointed at and struck out, W in its place, the target at P, and M; under it the chance
+named, W on average one over it (with the worked example's numbers), the neighbour's sample's target at Q and at P,
+and P's own weight back as its sum of weights. All but the formula leave at stage 11.
+$[# {_derivationParts c}
     [# p {nth {.sources c} 0}]
     [# q {nth {.sources c} 1}]
     [# k {toyKept 1}]
+    [# {_point ids} {^ {t f} {pointParts t f ids accentColor}}]
+    [# cards {append
+        {_card "cardP" {v2 -4.4 2.2} {textKey "combinemath-res-p"} p}
+        {_card "cardQ" {v2 -4.4 -0.3} {textKey "combinemath-res-q"} q}}]
+    [# chipP {moveTo
+        {texParts "chipP" f"{y_P = \lit{1}{${_light {.light p}}}}" _size textColor
+            {' "chipPv"}
+            {' targetColor}}
+        {v2 -1.0 2.2}}]
+    [# chipQ {moveTo
+        {texParts "chipQ" f"{y_Q = \lit{1}{${_light {.light q}}}}" _size textColor
+            {' "chipQv"}
+            {' targetColor}}
+        {v2 -1.0 -0.3}}]
     [# chance {moveTo {caption "chance" {textKey "combinemath-chance"} 0.32 pColor} _belowAt}]
     [# mean {moveTo
         {texParts "mean" f"{\lit{1}{\overline{W}} = \frac{1}{\lit{2}{p(y)}}}" _size textColor
@@ -113,7 +114,7 @@ $[# {_below s c}
         _belowAt}]
     [# example {append
         {moveTo
-            {caption "exampleNote" {textKey "combinemath-example"} 0.3 textDimColor}
+            {caption "exampleNote" {textKey "combinemath-example"} 0.32 textDimColor}
             {add2 _belowAt {v2 0.0 -1.15}}}
         {moveTo
             {tex "example" f"{\overline{W}_B = \frac{1}{${numberLatex {.chance k} 1}} = ${numberLatex {.w k} 1}}" 0.42
@@ -144,69 +145,46 @@ $[# {_below s c}
             {' "v"}
             {' weightColor}}
         {add2 _belowAt {v2 0.0 -1.9}}}]
-    {!if {< s 2.0}
-        {'}
-        {!if {< s 4.0}
-            {fadeIn {phase s 2.0 2.4} chance}
-            {!if {< s 6.2}
-                {flatten {'
-                    {fadeOut {phase s 4.0 4.2} chance}
-                    {fadeOut
-                        {phase s 6.0 6.2}
-                        {flatten {'
-                            {write {phase s 4.1 4.6} mean}
-                            {fadeIn {phase s 4.5 4.9} example}}}}}}
-                {!if {< s 7.0}
-                    {pointParts
-                        {phase s 6.6 7.0}
-                        {write {phase s 6.2 6.6} atP}
-                        {' "pP"}
-                        targetColor}
-                    {!if {< s 10.0}
-                        {fadeOut
-                            {phase s 9.8 10.0}
-                            {append
-                                {pointParts
-                                    {phase s 8.0 9.0}
-                                    {fadeIn {phase s 7.0 7.4} own}
-                                    {' "M" "Mv"}
-                                    accentColor}
-                                {fadeIn {phase s 7.5 7.9} sum}}}
-                        {'}}}}}}]
-
-Fn([Float, {kept: Int, m: Float, sources: List({light: Int, m: Float, pHat: Float, pHatP: Float, pixel: Int, running: Float, taken: Bool, u: Float, w: Float, weight: Float, wsum: Float}), w: Float, wsum: Float}], List(Mob)).
-The two reservoirs at stage s, their kept samples flying out as two new candidates; W pointed at as it takes the
-chance's place, and P's W and M as its own weight is worked out.
-$[# {_pair s c}
-    [# p {nth {.sources c} 0}]
-    [# q {nth {.sources c} 1}]
-    [# cards {append
-        {_card "cardP" {v2 -4.4 2.2} {textKey "combinemath-res-p"} p}
-        {_card "cardQ" {v2 -4.4 -0.3} {textKey "combinemath-res-q"} q}}]
-    [# chipP {moveTo
-        {texParts "chipP" f"{y_P = \lit{1}{${_light {.light p}}}}" _size textColor
-            {' "chipPv"}
-            {' targetColor}}
-        {v2 -1.0 2.2}}]
-    [# chipQ {moveTo
-        {texParts "chipQ" f"{y_Q = \lit{1}{${_light {.light q}}}}" _size textColor
-            {' "chipQv"}
-            {' targetColor}}
-        {v2 -1.0 -0.3}}]
-    [# shown cards]
-    [# pointed {!if {< s 5.0}
-        shown
-        {!if {< s 7.0}
-            {pointParts {phase s 5.0 6.0} shown {' "cardQW"} estimateColor}
-            {pointParts
-                {phase s 8.0 9.0}
-                {pointParts {phase s 7.0 7.8} shown {' "cardPW"} estimateColor}
-                {' "cardPM"}
-                accentColor}}}]
-    {flatten {'
-        pointed
-        {!if {< s 0.4} {'} {fromCopy {phase s 0.4 0.8} {withId cards "cardPKept"} chipP}}
-        {!if {< s 0.6} {'} {fromCopy {phase s 0.6 1.0} {withId cards "cardQKept"} chipQ}}}}]
+    [# {_still fig} {^ {s} fig}]
+    [# {_leaves at} {exitOver at 0.3 fadeOut}]
+    {'
+        {part "cards"
+            {_still cards}
+            {'
+                {emphasize 5.0 6.0 {_point {' "cardQW"}}}
+                {emphasize 7.0 7.8 {_point {' "cardPW"}}}
+                {emphasize 8.0 9.0 {_point {' "cardPM"}}}
+                {_leaves 10.0}}}
+        {part "chipP"
+            {_still chipP}
+            {'
+                {enterOver 0.4 0.4 {^ {t f} {fromCopy t {withId cards "cardPKept"} f}}}
+                {_leaves 10.0}}}
+        {part "chipQ"
+            {_still chipQ}
+            {'
+                {enterOver 0.6 0.4 {^ {t f} {fromCopy t {withId cards "cardQKept"} f}}}
+                {_leaves 10.0}}}
+        {part "weight"
+            {_still {_weight 1 _mainAt}}
+            {'
+                {enterOver 1.0 0.8 write}
+                {emphasize 2.0 3.0 {_point {' "p"}}}
+                {hold 3.0 5.0 {^ {t f} {crossParts t f {' "p"} accentColor}}}
+                {becomeOver 5.0 0.8 {_still {_weight 2 _mainAt}}}
+                {becomeOver 6.0 0.6 {_still {_weight 3 _mainAt}}}
+                {becomeOver 9.0 0.9 {_still {_weight 4 _mainAt}}}
+                {becomeOver 10.0 0.4 {_still {_weightAtTop}}}}}
+        {part "chance" {_still chance} {' {enterOver 2.0 0.4 fadeIn} {_leaves 4.0}}}
+        {part "mean" {_still mean} {' {enterOver 4.1 0.5 write} {_leaves 6.0}}}
+        {part "example" {_still example} {' {enterOver 4.5 0.4 fadeIn} {_leaves 6.0}}}
+        {part "atP"
+            {_still atP}
+            {' {enterOver 6.2 0.35 write} {emphasize 6.55 6.8 {_point {' "pP"}}} {_leaves 6.7}}}
+        {part "own"
+            {_still own}
+            {' {enterOver 7.0 0.4 fadeIn} {emphasize 8.0 9.0 {_point {' "M" "Mv"}}} {_leaves 9.7}}}
+        {part "ownSum" {_still sum} {' {enterOver 7.5 0.4 fadeIn} {_leaves 9.7}}}}]
 
 The reservoirs in a table
 
@@ -245,82 +223,67 @@ $[# {_barBox t weights r}
 Fn([Box, Box, Float], Box). A box on its way from `a` to `b`.
 $[# {_between a b k} {box {lerp2 {.lo a} {.lo b} k} {lerp2 {.hi a} {.hi b} k}}]
 
-Fn([Table, Float], List(Mob)). The frame before, as a row under the table whose count is far more than thirty-two
-(stage 12 to 13).
-$[# {_before t s}
+Fn([Table], List(Mob)). The frame before, as a row under the table whose count is far more than thirty-two.
+$[# {_before t}
     [# y -1.35]
     [# x0 {.x {boxCenter {nth {nth {.boxes t} 0} 0}}}]
     [# xM {.x {boxCenter {nth {nth {.boxes t} 0} 4}}}]
     [# left {.x {.lo {nth {nth {.boxes t} 0} 0}}}]
     [# right {.x {.hi {nth {nth {.boxes t} 0} 5}}}]
-    {!if {!or {< s 12.0} {> s 13.2}}
-        {'}
-        {fadeOut
-            {phase s 13.0 13.2}
-            {fadeIn
-                {phase s 12.0 12.4}
-                {flatten {'
-                    {dashedLine "beforeTop"
-                        {v2 left {+ y 0.35}}
-                        {v2 right {+ y 0.35}}
-                        textDimColor
-                        2.0}
-                    {moveTo
-                        {caption "beforeName" {textKey "combinemath-before"} 0.32 textDimColor}
-                        {v2 x0 y}}
-                    {moveTo
-                        {tex "beforeM" f"{\gg ${str _count}}" _size accentColor}
-                        {v2 xM y}}}}}}}]
+    {flatten {'
+        {dashedLine "beforeTop" {v2 left {+ y 0.35}} {v2 right {+ y 0.35}} textDimColor 2.0}
+        {moveTo {caption "beforeName" {textKey "combinemath-before"} 0.32 textDimColor} {v2 x0 y}}
+        {moveTo {tex "beforeM" f"{\gg ${str _count}}" _size accentColor} {v2 xM y}}}}]
 
-Fn([Float, {kept: Int, m: Float, sources: List({light: Int, m: Float, pHat: Float, pHatP: Float, pixel: Int, running: Float, taken: Bool, u: Float, w: Float, weight: Float, wsum: Float}), w: Float, wsum: Float}], List(Mob)).
-The table at stage s: its columns written factor by factor, M's column ringed, the frame before as a row that could
-stand for far more, the weights as bars laid end to end for the pick, the kept row lit, the counts added, and W.
-$[# {_reuse s c}
+Fn([{kept: Int, m: Float, sources: List({light: Int, m: Float, pHat: Float, pHatP: Float, pixel: Int, running: Float, taken: Bool, u: Float, w: Float, weight: Float, wsum: Float}), w: Float, wsum: Float}], List(ScorePart)).
+The reservoirs in a table (stages 11 to 16): its columns written factor by factor, M's column ringed, the frame
+before as a row that could stand for far more, the weights as bars laid end to end for the pick, the kept row lit,
+the counts added, and W.
+$[# {_reuseParts c}
     [# t {_table c}]
     [# n {length {.sources c}}]
     [# weights {map {.sources c} .weight}]
     [# total {fold weights 0.0 +}]
     [# kept {.kept c}]
     [# {_column k} {flatten {map {range 0 {+ n 1}} {^ {r} {cellOf t r k}}}}]
-    [# columns {flatten {map
-        {range 0 6}
-        {^ {k} {write
-            {phase s {+ 10.2 {* 0.12 {float k}}} {+ 10.5 {* 0.12 {float k}}}}
-            {_column k}}}}}]
-    [# figure {append {create {phase s 10.1 10.4} {.rules t}} columns}]
-    [# ringed {!if {!and {> s 11.0} {< s 12.0}}
-        {drop {circumscribe {phase s 11.0 12.0} {_column 4} accentColor} {length {_column 4}}}
-        {'}}]
+    [# {_tableIn u f}
+        [# s {+ 10.0 u}]
+        {append
+            {create {phase s 10.0 10.3} {.rules t}}
+            {flatten {map
+                {range 0 6}
+                {^ {k} {write
+                    {phase s {+ 10.1 {* 0.1 {float k}}} {+ 10.4 {* 0.1 {float k}}}}
+                    {_column k}}}}}}]
     [# stripBox {box {v2 -5.5 -1.95} {v2 3.5 -1.65}}]
     [# segments {map
         {strip "pick" weights stripBox {' weightColor [% {rgb "#c4569a"}]} 0.04}
         boxOf}]
-    [# laid {smooth {phase s 13.1 13.6}}]
-    [# bars {flatten {map
-        {range 0 n}
-        {^ {r} {filled f"{bar${str r}}"
-            {_between {_barBox t weights r} {nth segments r} laid}
-            {!if {= {% r 2} 0} weightColor [% {rgb "#c4569a"}]}
-            0.85}}}}]
+    [# {_bars s}
+        [# laid {smooth {phase s 13.1 13.6}}]
+        {flatten {map
+            {range 0 n}
+            {^ {r} {filled f"{bar${str r}}"
+                {_between {_barBox t weights r} {nth segments r} laid}
+                {!if {= {% r 2} 0} weightColor [% {rgb "#c4569a"}]}
+                0.85}}}}]
     [# starts {runningSums weights}]
     [# u {/ {lerp {nth starts kept} {nth starts {+ kept 1}} 0.5} total}]
     [# ux {lerp {.x {.lo stripBox}} {.x {.hi stripBox}} u}]
-    [# fall {smooth {phase s 13.6 13.9}}]
-    [# pick {fadeIn
-        {phase s 13.6 13.7}
+    [# {_pick s}
+        [# fall {smooth {phase s 13.6 13.9}}]
         {append
             {arrowLine "pick"
                 {v2 ux {lerp -1.1 -1.25 fall}}
                 {v2 ux {lerp -1.4 -1.6 fall}}
                 accentColor
                 3.0}
-            {moveTo {tex "pickU" "u" 0.36 textColor} {v2 {- ux 0.3} -1.3}}}}]
+            {moveTo {tex "pickU" "u" 0.36 textColor} {v2 {- ux 0.3} -1.3}}}]
     [# rowBoxes {nth {.boxes t} {+ kept 1}}]
-    [# keptRow {filled "keptRow"
-        {fold {tail rowBoxes} {head rowBoxes} boxUnion}
+    [# keptRow {outlined "keptRow"
+        {padded {fold {tail rowBoxes} {head rowBoxes} boxUnion} 0.04}
         targetColor
-        {* 0.3 {smooth {phase s 13.8 14.0}}}}]
-    [# before {_before t s}]
+        2.5}]
     [# counts {moveTo
         {texParts "count" f"{\lit{1}{M} = ${join " + " {map {.sources c} {^ {src} {str {round {.m src}}}}}} = \lit{2}{${str {round {.m c}}}}}" _size textColor
             {' "M" "Mv"}
@@ -333,32 +296,32 @@ $[# {_reuse s c}
             {' estimateColor weightColor textColor targetColor weightColor textColor targetColor
                 estimateColor}}
         {v2 2.9 -2.75}}]
-    {flatten {'
-        {!if {< s 13.8} {'} keptRow}
-        figure
-        ringed
-        {!if {< s 10.6} {'} {growFrom {phase s 10.6 11.0} bars left}}
-        before
-        {!if {< s 13.6} {'} pick}
-        {!if {< s 14.0} {'} {write {phase s 14.0 14.7} counts}}
-        {!if {< s 15.0} {'} {write {phase s 15.0 15.8} w}}}}]
+    [# {_ringM t f} {append f {drop {circumscribe t {_column 4} accentColor} {length {_column 4}}}}]
+    {'
+        {part "keptRow" {^ {s} keptRow} {' {enterOver 13.75 0.25 create}}}
+        {part "table"
+            {^ {s} {tableFigure t}}
+            {' {enterOver 10.0 1.0 _tableIn} {emphasize 11.0 12.0 _ringM}}}
+        {part "bars" _bars {' {enterOver 10.75 0.25 {^ {t f} {growFrom t f left}}}}}
+        {part "before"
+            {^ {s} {_before t}}
+            {' {enterOver 12.0 0.4 fadeIn} {exitOver 13.0 0.3 fadeOut}}}
+        {part "pick" _pick {' {enterOver 13.6 0.2 fadeIn}}}
+        {part "count" {^ {s} counts} {' {enterOver 14.0 0.7 write}}}
+        {part "Wfinal" {^ {s} w} {' {enterOver 15.0 0.8 write}}}}]
 
 The scene
 
-Fn([Float], List(Mob)). The scene at stage s.
-$[# {_scene s}
+Fn([], Score). The reservoirs combined as a score of 16 steps: the weight a neighbour's sample gets at P worked
+out, then P's and its neighbours' reservoirs combined in a table.
+$[# {_score}
     [# c {exampleCombine _seed _count}]
-    {!if {< s 10.0}
-        {flatten {' {_pair s c} {_main s} {_below s c}}}
-        {flatten {'
-            {_main s}
-            {fadeOut {phase s 10.0 10.2} {flatten {' {_pair 9.99 c}}}}
-            {_reuse s c}}}}]
+    {score "combine" 16 {append {_derivationParts c} {_reuseParts c}} {'}}]
 
 The hook
 
 Fn([Float], List(Mob)). The reservoirs combined at stage its stage (`stepOf "combine" 16`, the clips below).
-$[# combineMath {: {^ {t} {_scene {stepOf "combine" 16}}} Math}]
+$[# combineMath {: {^ {t} {playScore {_score}}} Math}]
 
 Clips
 

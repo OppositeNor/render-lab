@@ -23,7 +23,7 @@ The table's place, and the size of its text.
 $[# _tableAt [% {v2 -4.4 0.5}]]
 $[# _size 0.46]
 The right column, where the formulas go.
-$[# _right [% {v2 4.6 0.0}]]
+$[# _right [% {v2 3.6 0.0}]]
 
 Fn([List({kept: Int, light: Int, p: Float, pHat: Float, taken: Bool, u: Float, w: Float, wsum: Float})], Table).
 The table of the candidates: x_i, p-hat, p, w.
@@ -45,31 +45,56 @@ $[# {_table steps}
     {tableShifted {table "table" {cons header rows} 0.11 textDimColor} _tableAt}]
 
 
-Fn([Table, List({kept: Int, light: Int, p: Float, pHat: Float, taken: Bool, u: Float, w: Float, wsum: Float}), Float], List(Mob)).
-Each candidate's weight as a bar to the right of its row, as long as the weight over the largest (stage 3 to 4).
-$[# {_bars t steps s}
+Fn([Table, List({kept: Int, light: Int, p: Float, pHat: Float, taken: Bool, u: Float, w: Float, wsum: Float})], List(Mob)).
+Each candidate's weight as a bar to the right of its row, as long as the weight over the largest.
+$[# {_bars t steps}
     [# top {fold {map steps .w} 0.000001 max}]
     [# x0 {+ {.x {.hi {nth {nth {.boxes t} 0} 3}}} 0.25}]
     {flatten {map
         {range 0 {length steps}}
         {^ {i}
-            [# b {nth {nth {.boxes t} {+ i 1}} 3}]
-            [# y {.y {boxCenter b}}]
-            {growFrom
-                {phase s {+ 3.0 {* 0.06 {float i}}} {+ 3.5 {* 0.06 {float i}}}}
-                {filled f"{bar${str i}}"
-                    {box
-                        {v2 x0 {- y 0.16}}
-                        {v2 {+ x0 {* 2.2 {/ {.w {nth steps i}} top}}} {+ y 0.16}}}
-                    weightColor
-                    0.85}
-                left}}}}]
+            [# y {.y {boxCenter {nth {nth {.boxes t} {+ i 1}} 3}}}]
+            {filled f"{bar${str i}}"
+                {box {v2 x0 {- y 0.16}} {v2 {+ x0 {* 2.2 {/ {.w {nth steps i}} top}}} {+ y 0.16}}}
+                weightColor
+                0.85}}}}]
+Bars grown from the left one after another.
+$[# _barsIn [% {: {^ {t f}
+    [# n {length f}]
+    {flatten {map
+        {range 0 n}
+        {^ {i} {growFrom
+            {lagged t i n 0.15}
+            {' {nth f i}}
+            left}}}}} {Fn {' Float {List Mob}} {List Mob}}}]]
+Fn([Table], List(List(Mob))). The table's cells by whether they are its weights (the last column): the others,
+then the weights.
+$[# {_cellsSplit t}
+    [# rows {range 0 {length {.cells t}}}]
+    {'
+        {flatten {map rows {^ {r} {flatten {map {range 0 3} {^ {c} {cellOf t r c}}}}}}}
+        {flatten {map rows {^ {r} {cellOf t r 3}}}}}]
+Fn([Table], Fn([Float], List(Mob))). The table, its weights written over the second step (its figure in the
+score: the part's entry writes the rest over the first).
+$[# {_tableShown t} {^ {s}
+    [# split {_cellsSplit t}]
+    {flatten {' {.rules t} {nth split 0} {write {phase s 1.4 2.0} {nth split 1}}}}}]
+Fn([Table], Fn([Float, List(Mob)], List(Mob))). The table written over its first step: its rules and the
+candidates' p-hat and p; its weights, which the figure writes, passed on as they are.
+$[# {_tableIn t} {^ {u f}
+    [# weights {map {nth {_cellsSplit t} 1} idOf}]
+    [# {_isWeight m} {any weights {^ {i} {= i {idOf m}}}}]
+    {flatten {'
+        {create {phase u 0.0 0.3} {.rules t}}
+        {write u {nth {_cellsSplit t} 0}}
+        {filter f _isWeight}}}}]
 
 The scene
 
-Fn([Float, List({kept: Int, light: Int, p: Float, pHat: Float, taken: Bool, u: Float, w: Float, wsum: Float}), List({kept: Int, light: Int, p: Float, pHat: Float, taken: Bool, u: Float, w: Float, wsum: Float})], List(Mob)).
-The scene at stage s, its eight candidates and the first sixteen of the same stream (for "however many").
-$[# {_scene s steps sixteen}
+Fn([List({kept: Int, light: Int, p: Float, pHat: Float, taken: Bool, u: Float, w: Float, wsum: Float}), List({kept: Int, light: Int, p: Float, pHat: Float, taken: Bool, u: Float, w: Float, wsum: Float})], Score).
+P's candidates as a score of 13 steps, its eight candidates and the first sixteen of the same stream (for "however
+many"): the table and the weights, the pick by the shares, what the kept one's estimate needs, and W.
+$[# {_score steps sixteen}
     [# n {length steps}]
     [# t {_table steps}]
     [# often {fold
@@ -82,34 +107,19 @@ $[# {_scene s steps sixteen}
     [# keptStep {nth steps kept}]
     [# starts {runningSums weights}]
     [# u {/ {lerp {nth starts kept} {nth starts {+ kept 1}} 0.5} total}]
-    [# columns {flatten {map
-        {range 0 {+ n 1}}
-        {^ {r} {flatten {map {range 0 3} {^ {c} {cellOf t r c}}}}}}}]
-    [# wColumn {flatten {map {range 0 {+ n 1}} {^ {r} {cellOf t r 3}}}}]
-    [# tableFig {flatten {'
-        {create {phase s 0.0 0.3} {.rules t}}
-        {write {phase s 0.0 1.0} columns}
-        {write {phase s 1.4 2.0} wColumn}}}]
-    [# pointed {pointParts
-        {phase s 2.0 3.0}
-        tableFig
-        {' f"{p${str often}}" f"{w${str often}}"}
-        accentColor}]
-    [# ringed {!if {!and {> s 4.0} {< s 5.0}}
-        {drop {circumscribe {phase s 4.0 5.0} tableFig accentColor} {length tableFig}}
-        {'}}]
+    [# {_point ids} {^ {t f} {pointParts t f ids accentColor}}]
     [# weightRule {moveTo
         {texParts "rule" f"{\lit{1}{w} = \frac{\lit{2}{\hat p(x)}}{\lit{3}{p(x)}}}" 0.48 textColor
             {' "w" "pHat" "p"}
             {' weightColor targetColor pColor}}
         {add2 _right {v2 0.0 3.3}}}]
     [# stripBox {box {v2 {- {.x _right} 2.2} 1.1} {v2 {+ {.x _right} 2.2} 1.45}}]
-    [# segments {strip "shares" weights stripBox {' weightColor [% {rgb "#c4569a"}]} 0.03}]
-    [# shareStrip {growFrom {phase s 5.0 5.4} {flatten segments} left}]
+    [# segments {flatten {strip "shares" weights stripBox
+        {' weightColor [% {rgb "#c4569a"}]}
+        0.03}}]
     [# ux {lerp {.x {.lo stripBox}} {.x {.hi stripBox}} u}]
-    [# drop {smooth {phase s 5.4 5.8}}]
-    [# pick {fadeIn
-        {phase s 5.4 5.5}
+    [# {_pick s}
+        [# drop {smooth {phase s 5.4 5.8}}]
         {append
             {arrowLine "pick"
                 {v2 ux {+ {.y {.hi stripBox}} {lerp 0.9 0.5 drop}}}
@@ -118,12 +128,12 @@ $[# {_scene s steps sixteen}
                 3.0}
             {moveTo
                 {tex "pickU" "u" 0.36 textColor}
-                {v2 ux {+ {.y {.hi stripBox}} {lerp 1.1 0.7 drop}}}}}}]
+                {v2 ux {+ {.y {.hi stripBox}} {lerp 1.1 0.7 drop}}}}}]
     [# rowBoxes {nth {.boxes t} {+ kept 1}}]
-    [# keptRow {filled "keptRow"
-        {fold {tail rowBoxes} {head rowBoxes} boxUnion}
+    [# keptRow {outlined "keptRow"
+        {padded {fold {tail rowBoxes} {head rowBoxes} boxUnion} 0.04}
         targetColor
-        {* 0.3 {smooth {phase s 5.7 6.0}}}}]
+        2.5}]
     [# keptName {moveTo
         {tex "keptName" f"{y = x_{${str {+ kept 1}}}}" 0.44 targetColor}
         {add2 _right {v2 0.0 0.55}}}]
@@ -133,26 +143,13 @@ $[# {_scene s steps sixteen}
             {' targetColor targetColor}}
         {add2 _right {v2 0.0 -0.55}}}]
     [# mean8 {/ total {float n}}]
-    [# total16 {fold {map sixteen .w} 0.0 +}]
-    [# mean16 {/ total16 {float {length sixteen}}}]
-    [# corr {transform
-        {phase s 9.2 9.8}
-        {moveTo
-            {texParts "corr" f"{\frac{1}{\lit{1}{M}} \sum \lit{2}{w_i} = \lit{3}{${short mean8}}}" 0.44 textColor
-                {' "M" "w" "v"}
-                {' textColor weightColor estimateColor}}
-            {add2 _right {v2 0.0 -1.7}}}
-        {moveTo
-            {texParts "corr" f"{\frac{1}{\lit{1}{16}} \sum \lit{2}{w_i} = \lit{3}{${short mean16}}}" 0.44 textColor
-                {' "M" "w" "v"}
-                {' textColor weightColor estimateColor}}
-            {add2 _right {v2 0.0 -1.7}}}}]
-    [# corrAt {moveTo
-        {texParts "corr" f"{\frac{1}{\lit{1}{M}} \sum \lit{2}{w_i} = \lit{3}{${short mean8}}}" 0.44 textColor
+    [# mean16 {/ {fold {map sixteen .w} 0.0 +} {float {length sixteen}}}]
+    [# {_corr m count} {moveTo
+        {texParts "corr" f"{\frac{1}{\lit{1}{$count}} \sum \lit{2}{w_i} = \lit{3}{${short m}}}" 0.44 textColor
             {' "M" "w" "v"}
             {' textColor weightColor estimateColor}}
         {add2 _right {v2 0.0 -1.7}}}]
-    [# brace {outlined "wRing"
+    [# ring {outlined "wRing"
         {padded {boxOf {flatten {map {range 1 {+ n 1}} {^ {r} {cellOf t r 3}}}}} 0.08}
         weightColor
         2.5}]
@@ -168,39 +165,40 @@ $[# {_scene s steps sixteen}
             {' "f" "W" "fV" "WV" "L"}
             {' targetColor estimateColor targetColor estimateColor totalColor}}
         {add2 _right {v2 0.0 -2.9}}}]
-    {flatten {'
-        {!if {< s 5.0} {'} keptRow}
-        {pointParts {phase s 7.0 8.0} pointed {' "hp"} accentColor}
-        ringed
-        {!if {< s 1.0} {'} {write {phase s 1.0 1.6} weightRule}}
-        {!if {< s 3.0} {'} {_bars t steps s}}
-        {!if {< s 5.0} {'} {flatten {' shareStrip pick {fadeIn {phase s 5.8 6.0} keptName}}}}
-        {!if {< s 6.0}
-            {'}
-            {pointParts
-                {phase s 10.0 11.0}
-                {fadeOut {phase s 10.8 11.0} {write {phase s 6.0 6.6} asIf}}
-                {' "pHat"}
-                targetColor}}
-        {!if {< s 8.0}
-            {'}
-            {!if {< s 11.0}
-                {append
-                    {create {phase s 8.0 8.4} brace}
-                    {!if {< s 9.0}
-                        {write {phase s 8.2 8.8} corrAt}
-                        {fadeOut {phase s 10.8 11.0} corr}}}
-                {'}}}
-        {!if {< s 11.0} {'} {write {phase s 11.0 11.8} big}}
-        {!if {< s 12.0} {'} {write {phase s 12.0 12.8} light}}}}]
+    [# {_leaves} {exitOver 10.7 0.3 fadeOut}]
+    {score "weights" 13
+        {'
+            {part "keptRow" {^ {s} keptRow} {' {enterOver 5.7 0.3 create}}}
+            {part "table"
+                {_tableShown t}
+                {'
+                    {enterOver 0.0 1.0 {_tableIn t}}
+                    {emphasize 2.0 3.0 {_point {' f"{p${str often}}" f"{w${str often}}"}}}
+                    {emphasize 4.0 5.0 {^ {t f} {circumscribe t f accentColor}}}
+                    {emphasize 7.0 8.0 {_point {' "hp"}}}}}
+            {part "rule" {^ {s} weightRule} {' {enterOver 1.0 0.6 write}}}
+            {part "bars" {^ {s} {_bars t steps}} {' {enterOver 3.0 0.9 _barsIn}}}
+            {part "shares" {^ {s} segments} {' {enterOver 5.0 0.4 {^ {t f} {growFrom t f left}}}}}
+            {part "pick" _pick {' {enterOver 5.4 0.2 fadeIn}}}
+            {part "keptName" {^ {s} keptName} {' {enterOver 5.8 0.2 fadeIn}}}
+            {part "asIf"
+                {^ {s} asIf}
+                {' {enterOver 6.0 0.6 write} {emphasize 10.0 11.0 {_point {' "pHat"}}} {_leaves}}}
+            {part "wRing" {^ {s} ring} {' {enterOver 8.0 0.4 create} {_leaves}}}
+            {part "corr"
+                {^ {s} {_corr mean8 "M"}}
+                {'
+                    {enterOver 8.2 0.6 write}
+                    {becomeOver 9.2 0.6 {^ {s} {_corr mean16 "16"}}}
+                    {_leaves}}}
+            {part "W" {^ {s} big} {' {enterOver 11.0 0.8 write}}}
+            {part "L" {^ {s} light} {' {enterOver 12.0 0.8 write}}}}
+        {'}}]
 
 The hook
 
 Fn([Float], List(Mob)). P's candidates at stage its stage (`stepOf "weights" 13`, the clips below).
-$[# risMath {: {^ {t} {_scene
-    {stepOf "weights" 13}
-    {exampleTrace _seed 8}
-    {exampleTrace _seed 16}}} Math}]
+$[# risMath {: {^ {t} {playScore {_score {exampleTrace _seed 8} {exampleTrace _seed 16}}}} Math}]
 
 Clips
 

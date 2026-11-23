@@ -23,7 +23,7 @@ $[# _rounds 9]
 $[# _seed 5]
 The size of the scene's formulas, and where the counts go.
 $[# _size 0.44]
-$[# _labelX 5.3]
+$[# _labelX 4.8]
 
 The tree
 
@@ -40,12 +40,13 @@ $[# {_tree k}
         {flatten {map
             {range 1 {+ k 1}}
             {^ {i} {map {range 0 k} {^ {j} {pair i {+ {+ k 1} {+ {* {- i 1} k} j}}}}}}}}}]
-    {graph "tree" nodes edges "tree" {box {v2 -6.6 -2.2} {v2 3.2 2.6}} false textDimColor 0}]
+    {graph "tree" nodes edges "tree" {box {v2 -6.6 -2.2} {v2 2.3 2.6}} false textDimColor 0}]
 
-Fn([Float, Int], List(Mob)). The tree at `t` (stage 0 to 2): the pixels' own reservoirs, round 1 combining k of
-them into each neighbour's, round 2 combining those into P's, each level's count beside it; then the count for n
-rounds, and every leaf lit (each a new neighbour).
-$[# {_treeScene s k}
+Fn([Int], List(ScorePart)). The tree (stages 1 and 2): the pixels' own reservoirs, round 1 combining k of them
+into each neighbour's, round 2 combining those into P's, each level's count beside it; then the count for n rounds,
+and every leaf lit (each a new neighbour). It is whole at the end of stage 2 (where the first beat ends) and fades
+out at once after it.
+$[# {_treeParts k}
     [# g {_tree k}]
     [# at {.at g}]
     [# m _count]
@@ -57,58 +58,66 @@ $[# {_treeScene s k}
     [# yLeaf {.y {nth at {+ k 1}}}]
     [# yMid {.y {nth at 1}}]
     [# yRoot {.y {nth at 0}}]
-    [# {_level id key latex y color t} {fadeIn t {append
-        {moveTo {caption {++ id "Note"} key 0.3 textDimColor} {v2 _labelX {+ y 0.45}}}
-        {moveTo {tex id latex _size color} {v2 _labelX y}}}}]
+    [# {_level id caption latex y color} {append
+        {moveTo caption {v2 _labelX {+ y 0.45}}}
+        {moveTo {tex id latex _size color} {v2 _labelX y}}}]
     [# leafCount {_level "leafM"
-        {textKey "roundsmath-own"}
+        {caption "leafMNote" {textKey "roundsmath-own"} 0.32 textDimColor}
         f"{M = ${str m}}"
         yLeaf
-        targetColor
-        {phase s 0.0 0.2}}]
+        targetColor}]
     [# midCount {_level "midM"
-        {textKey "roundsmath-round1"}
+        {caption "midMNote" {textKey "roundsmath-round1"} 0.32 textDimColor}
         f"{k\,M = ${str {* k m}}}"
         yMid
-        estimateColor
-        {phase s 0.45 0.6}}]
-    [# rootLabel {texParts "rootM" f"{k^{\lit{1}{2}} M = ${str {* {* k k} m}}}" _size accentColor
-        {' "n"}
-        {' accentColor}}]
-    [# rootGeneral {texParts "rootM" f"{k^{\lit{1}{n}} M}" 0.56 accentColor
-        {' "n"}
-        {' accentColor}}]
+        estimateColor}]
     [# rootAt {v2 _labelX yRoot}]
+    [# rootLabel {moveTo
+        {texParts "rootM" f"{k^{\lit{1}{2}} M = ${str {* {* k k} m}}}" _size accentColor
+            {' "n"}
+            {' accentColor}}
+        rootAt}]
+    [# rootGeneral {moveTo
+        {texParts "rootM" f"{k^{\lit{1}{n}} M}" 0.56 accentColor {' "n"} {' accentColor}}
+        rootAt}]
     [# rootNote {moveTo
-        {caption "rootNote" {textKey "roundsmath-round2"} 0.3 textDimColor}
+        {caption "rootNote" {textKey "roundsmath-round2"} 0.32 textDimColor}
         {v2 _labelX {+ yRoot 0.45}}}]
-    [# rootCount {!if {< s 1.0}
-        {fadeIn {phase s 0.85 1.0} {moveTo rootLabel rootAt}}
-        {transform {phase s 1.0 1.4} {moveTo rootLabel rootAt} {moveTo rootGeneral rootAt}}}]
-    [# newNote {fadeIn
-        {phase s 1.5 1.8}
-        {moveTo {caption "newNote" {textKey "roundsmath-paths"} 0.32 targetColor} {v2 -1.7 -2.75}}}]
-    {flatten {'
-        {fadeIn {phase s 0.0 0.2} leaves}
-        leafCount
-        {create {phase s 0.15 0.45} lowEdges}
-        {fadeIn {phase s 0.3 0.45} middle}
-        midCount
-        {create {phase s 0.55 0.8} highEdges}
-        {fadeIn {phase s 0.7 0.85} root}
-        {fadeIn {phase s 0.75 0.9} rootNote}
-        rootCount
-        {!if {!and {> s 1.4} {< s 2.0}}
-            {pointParts {phase s 1.4 1.9} leaves {map leaves idOf} targetColor}
-            {'}}
-        {!if {< s 1.5} {'} newNote}}}]
+    [# newNote {moveTo
+        {caption "newNote" {textKey "roundsmath-paths"} 0.32 targetColor}
+        {v2 -1.7 -2.75}}]
+    [# {_still fig} {^ {s} fig}]
+    [# {_in id fig at length how} {part id
+        {_still fig}
+        {' {enterOver at length how} {exitOver 2.0 0.1 fadeOut}}}]
+    {'
+        {part "leaves"
+            {_still leaves}
+            {'
+                {enterOver 0.0 0.2 fadeIn}
+                {emphasize 1.3 2.0 {^ {t f} {indicateEach t f accentColor}}}
+                {exitOver 2.0 0.1 fadeOut}}}
+        {_in "leafM" leafCount 0.0 0.2 fadeIn}
+        {_in "lowEdges" lowEdges 0.15 0.3 create}
+        {_in "middle" middle 0.3 0.15 fadeIn}
+        {_in "midM" midCount 0.45 0.15 fadeIn}
+        {_in "highEdges" highEdges 0.55 0.25 create}
+        {_in "root" root 0.7 0.15 fadeIn}
+        {_in "rootNote" rootNote 0.75 0.15 fadeIn}
+        {part "rootM"
+            {_still rootLabel}
+            {'
+                {enterOver 0.85 0.15 fadeIn}
+                {becomeOver 1.0 0.4 {_still rootGeneral}}
+                {exitOver 2.0 0.1 fadeOut}}}
+        {_in "newNote" newNote 1.5 0.25 fadeIn}}]
 
 The reach
 
-Fn([Float, Int, Float], List(Mob)). The count against the pixels reached at `s` (stage 2 to 4), on a logarithmic
-scale: k to the n times M for each number of rounds, the distinct pixels the rounds end on times M below it, and
-the paper's rounds marked.
-$[# {_reachScene s k radius}
+Fn([Int, Float], List(ScorePart)). The count against the pixels reached (stages 3 and 4), on a logarithmic scale:
+k to the n times M for each number of rounds, the distinct pixels the rounds end on times M below it, and the
+paper's rounds marked.
+$[# {_reachParts k radius}
     [# reach {exampleReach k radius _rounds _seed}]
     [# m {float _count}]
     [# ax {axesIn
@@ -127,53 +136,61 @@ $[# {_reachScene s k radius}
         {axesFigure "axes" ax textDimColor 0.34 true false}
         yLabels
         {moveTo
-            {caption "axisN" {textKey "roundsmath-rounds"} 0.3 textDimColor}
+            {caption "axisN" {textKey "roundsmath-rounds"} 0.32 textDimColor}
             {add2 {onAxes ax {/ {float _rounds} 2.0} 1.0} {v2 0.0 -0.85}}}}}]
     [# {_series id points color} {append
         {pathThrough id points color 3.0}
         {flatten {map
-            {range 0 {length points}}
-            {^ {i} {dotAt {++ id {str i}} {nth points i} 0.07 color}}}}}]
-    [# {_end id key points color dy} {moveTo
-        {caption id key 0.3 color}
-        {add2 {nth points {- {length points} 1}} {v2 2.5 dy}}}]
-    [# {_mark id key n dx} {append
+            {zip {range 0 {length points}} points}
+            {^ {e} {dotAt {++ id {str {.first e}}} {.second e} 0.07 color}}}}}]
+    [# {_end caption points dy} {moveTo caption {add2
+        {nth points {- {length points} 1}}
+        {v2 2.5 dy}}}]
+    [# {_mark id caption n dx} {append
         {dashedLine {++ id "Line"} {onAxes ax n 1.0} {onAxes ax n 8.0} accentColor 2.0}
-        {moveTo {caption id key 0.3 accentColor} {add2 {onAxes ax n 8.0} {v2 dx 0.65}}}}]
-    {flatten {'
-        {fadeIn {phase s 2.1 2.3} axes}
-        {create {phase s 2.25 2.55} {_series "paths" paths targetColor}}
-        {!if {< s 2.3}
-            {'}
-            {fadeIn
-                {phase s 2.3 2.5}
-                {_end "pathsNote" {textKey "roundsmath-paths"} paths targetColor 0.0}}}
-        {!if {< s 2.5} {'} {create {phase s 2.5 2.85} {_series "pixels" pixels totalColor}}}
-        {!if {< s 2.75}
-            {'}
-            {fadeIn
-                {phase s 2.75 2.95}
-                {_end "pixelsNote" {textKey "roundsmath-pixels"} pixels totalColor 0.0}}}
-        {!if {< s 3.0}
-            {'}
-            {fadeIn {phase s 3.0 3.3} {_mark "biased" {textKey "roundsmath-biased"} 2.0 1.0}}}
-        {!if {< s 3.5}
-            {'}
-            {fadeIn
-                {phase s 3.5 3.8}
-                {_mark "unbiased" {textKey "roundsmath-unbiased"} 1.0 -0.7}}}}}]
+        {moveTo caption {add2 {onAxes ax n 8.0} {v2 dx 0.65}}}}]
+    [# {_in id fig at length how} {part id {^ {s} fig} {' {enterOver at length how}}}]
+    {'
+        {_in "axes" axes 2.1 0.2 fadeIn}
+        {_in "paths" {_series "paths" paths targetColor} 2.25 0.3 create}
+        {_in "pathsNote"
+            {_end {caption "pathsNote" {textKey "roundsmath-paths"} 0.32 targetColor} paths 0.0}
+            2.3
+            0.2
+            fadeIn}
+        {_in "pixels" {_series "pixels" pixels totalColor} 2.5 0.35 create}
+        {_in "pixelsNote"
+            {_end {caption "pixelsNote" {textKey "roundsmath-pixels"} 0.32 totalColor} pixels 0.0}
+            2.75
+            0.2
+            fadeIn}
+        {_in "biased"
+            {_mark "biased"
+                {caption "biased" {textKey "roundsmath-biased"} 0.32 accentColor}
+                2.0
+                1.0}
+            3.0
+            0.3
+            fadeIn}
+        {_in "unbiased"
+            {_mark "unbiased"
+                {caption "unbiased" {textKey "roundsmath-unbiased"} 0.32 accentColor}
+                1.0
+                -0.7}
+            3.5
+            0.3
+            fadeIn}}]
 
 The scene
 
-Fn([Float], List(Mob)). The scene at stage s.
-$[# {_scene s}
-    [# k {restirNeighbours}]
-    {!if {< s 2.0} {_treeScene s k} {_reachScene s k {float {restirRadius}}}}]
+Fn([Int, Float], Score). The rounds of spatial reuse as a score of 4 steps: the paper's tree, then the count
+against the pixels the rounds reach.
+$[# {_score k radius} {score "rounds" 4 {append {_treeParts k} {_reachParts k radius}} {'}}]
 
 The hook
 
 Fn([Float], List(Mob)). The rounds of spatial reuse at stage its stage (`stepOf "rounds" 4`, the clips below).
-$[# roundsMath {: {^ {t} {_scene {stepOf "rounds" 4}}} Math}]
+$[# roundsMath {: {^ {t} {playScore {_score {restirNeighbours} {float {restirRadius}}}}} Math}]
 
 Clips
 
@@ -181,9 +198,11 @@ The scene's steps as clips (lab/src/clip.rs): its demonstration's Play plays eve
 the story plays each over its sentence's words, and sets the scene back to a step where a beat starts.
 $[# roundsSteps [% {stepsInOrder "rounds" 4}]]
 $[# roundsAt0 [% {stepsAt "rounds" 4 0}]]
-$[# roundsAt2 [% {stepsAt "rounds" 4 2}]]
+The second beat opens a tenth of a step into stage 3, the tree gone and the reach about to be drawn (the first beat
+ends on the whole tree, at 2); its first step's clip starts there too.
+$[# roundsAt2 [% {clip {' {progressKeys "rounds" {' {keyframe 0.0 2.1 "linear"}}}}}]]
 $[# roundsStep1 [% {stepClip "rounds" 1 0.0 1.0}]]
 $[# roundsStep2 [% {stepClip "rounds" 2 0.0 1.0}]]
-$[# roundsStep3 [% {stepClip "rounds" 3 0.0 1.0}]]
+$[# roundsStep3 [% {stepClip "rounds" 3 0.1 1.0}]]
 $[# roundsStep4From0To50 [% {stepClip "rounds" 4 0.0 0.5}]]
 $[# roundsStep4From50To100 [% {stepClip "rounds" 4 0.5 1.0}]]

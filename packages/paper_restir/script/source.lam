@@ -31,15 +31,13 @@ Fn([List(Float)], List(Float)). Each light's share of the target (the chance RIS
 $[# {_chances brings} [# total {fold brings 0.0 +}] {map brings {^ {b} {over b total}}}]
 
 Fn([String, List(Float), Box, Color, Int, Float], List(Mob)). A row of bars, one per light, the sample's bar lit
-and the rest dimmed by `dim`, grown at `t`.
-$[# {_row id chances b color y dim t}
+and the rest dimmed by `dim`.
+$[# {_row id chances b color y dim}
     [# top {fold chances 0.000001 max}]
     [# bars {bars id chances top b {' color} 0.25}]
-    {growFrom t
-        {flatten {map
-            {range 0 {length bars}}
-            {^ {i} {!if {= i y} {tinted {nth bars i} accentColor} {faded {nth bars i} dim}}}}}
-        down}]
+    {flatten {map
+        {range 0 {length bars}}
+        {^ {i} {!if {= i y} {tinted {nth bars i} accentColor} {faded {nth bars i} dim}}}}}]
 
 Fn([Float], List(Mob)). Why W's mean must be exact (stage 3 to 4): the estimate on a number line, at the true
 total when W is one over the chance, and too dark or too bright when W is too small or too large.
@@ -49,47 +47,43 @@ $[# {_scale s}
     [# exact {lerp2 a b 0.5}]
     [# swing {* 0.3 {sin {* 6.2831853 {phase s 3.4 4.0}}}}]
     [# at {lerp2 a b {+ 0.5 swing}}]
-    {fadeIn
-        {phase s 3.0 3.3}
-        {flatten {'
-            {line "scale" a b textDimColor 2.0}
-            {line "exactTick" {add2 exact {v2 0.0 -0.15}} {add2 exact {v2 0.0 0.15}} totalColor 3.0}
-            {moveTo
-                {caption "exactNote" {textKey "sourcemath-exact"} 0.3 totalColor}
-                {add2 exact {v2 0.0 -0.45}}}
-            {moveTo
-                {caption "darkNote" {textKey "sourcemath-dark"} 0.3 textDimColor}
-                {add2 a {v2 0.6 0.45}}}
-            {moveTo
-                {caption "brightNote" {textKey "sourcemath-bright"} 0.3 textDimColor}
-                {add2 b {v2 -0.6 0.45}}}
-            {dotAt "estimate" at 0.1 estimateColor}}}}]
+    {flatten {'
+        {line "scale" a b textDimColor 2.0}
+        {line "exactTick" {add2 exact {v2 0.0 -0.15}} {add2 exact {v2 0.0 0.15}} totalColor 3.0}
+        {moveTo
+            {caption "exactNote" {textKey "sourcemath-exact"} 0.32 totalColor}
+            {add2 exact {v2 0.0 -0.45}}}
+        {moveTo
+            {caption "darkNote" {textKey "sourcemath-dark"} 0.32 textDimColor}
+            {add2 a {v2 0.6 0.45}}}
+        {moveTo
+            {caption "brightNote" {textKey "sourcemath-bright"} 0.32 textDimColor}
+            {add2 b {v2 -0.6 0.45}}}
+        {dotAt "estimate" at 0.1 estimateColor}}}]
 
 The scene
 
-Fn([Float], List(Mob)). The scene at stage s.
-$[# {_scene s}
+Fn([], Score). A neighbour's W at P as a score of 5 steps: Q's chances over its lights and the sample among them,
+W and its mean, what Q's W comes to, why the mean must be exact, and what P would need.
+$[# {_score}
     [# q {_chances {map {exampleLights 1 0.0 1.0} .brings}}]
     [# p {_chances {map {exampleLights 0 0.0 1.0} .brings}}]
     [# y {.light {nth {.sources {exampleCombine _seed _count}} 1}}]
     [# pq {nth q y}]
     [# pp {nth p y}]
     [# name f"{\ell_{${str {+ y 1}}}}"]
-    [# qRow {_row "q" q _qBox targetColor y
-        {lerp 1.0 0.45 {smooth {phase s 0.5 0.9}}}
-        {phase s 0.0 0.4}}]
-    [# pRow {_row "p" p _pBox targetColor y 0.45 {phase s 0.4 0.8}}]
+    [# {_qRow dim} {_row "q" q _qBox targetColor y dim}]
     [# notes {append
-        {moveTo {caption "qNote" {textKey "lightsmath-pixel-q"} 0.3 textDimColor} {v2 -3.2 3.0}}
-        {moveTo {caption "pNote" {textKey "lightsmath-pixel-p"} 0.3 textDimColor} {v2 -3.2 -0.2}}}]
-    [# yBar {boxOf {withId qRow f"{q.${str y}}"}}]
+        {moveTo {caption "qNote" {textKey "lightsmath-pixel-q"} 0.32 textDimColor} {v2 -3.2 3.0}}
+        {moveTo {caption "pNote" {textKey "lightsmath-pixel-p"} 0.32 textDimColor} {v2 -3.2 -0.2}}}]
+    [# yBar {boxOf {withId {_qRow 1.0} f"{q.${str y}}"}}]
     [# sample {append
         {moveTo
-            {caption "sampleNote" {textKey "sourcemath-sample"} 0.3 accentColor}
+            {caption "sampleNote" {textKey "sourcemath-sample"} 0.32 accentColor}
             {v2 {.x {boxCenter yBar}} {+ {.y {.hi yBar}} 0.3}}}
         {moveTo
-            {tex "sampleY" name 0.4 accentColor}
-            {v2 {.x {boxCenter yBar}} {+ {.y {.hi yBar}} 0.75}}}}]
+            {tex "sampleY" name 0.42 accentColor}
+            {v2 {.x {boxCenter yBar}} {+ {.y {.hi yBar}} 0.78}}}}]
     [# rule {moveTo
         {texParts "w" f"{\lit{1}{W} = \frac{\sum w_i}{M\,\hat p(y)}}" _size textColor
             {' "W"}
@@ -120,27 +114,30 @@ $[# {_scene s}
             {' "need" "have"}
             {' targetColor estimateColor}}
         {v2 _rightX -2.4}}]
-    [# line {_scale s}]
-    {flatten {'
-        qRow
-        pRow
-        {fadeIn {phase s 0.0 0.3} notes}
-        {!if {< s 0.5} {'} {fadeIn {phase s 0.5 0.9} sample}}
-        {!if {< s 1.0}
-            {'}
-            {!if {< s 2.0} {write {phase s 1.0 1.6} rule} {transform {phase s 2.0 2.5} rule mean}}}
-        {!if {< s 2.4} {'} {write {phase s 2.4 2.8} atQ}}
-        {!if {< s 2.7} {'} {write {phase s 2.7 3.0} wQ}}
-        {!if {!or {< s 3.0} {> s 4.2}} {'} {fadeOut {phase s 4.0 4.2} line}}
-        {!if {< s 4.1}
-            {'}
-            {pointParts {phase s 4.6 5.0} {write {phase s 4.1 4.5} atP} {' "pP"} targetColor}}
-        {!if {< s 4.5} {'} {write {phase s 4.5 4.9} needs}}}}]
+    {score "source" 5
+        {'
+            {part "q"
+                {^ {s} {_qRow {lerp 1.0 0.45 {smooth {phase s 0.5 0.9}}}}}
+                {' {enterOver 0.0 0.4 growUp}}}
+            {part "p" {^ {s} {_row "p" p _pBox targetColor y 0.45}} {' {enterOver 0.4 0.4 growUp}}}
+            {part "notes" {^ {s} notes} {' {enterOver 0.0 0.3 fadeIn}}}
+            {part "sample" {^ {s} sample} {' {enterOver 0.5 0.4 fadeIn}}}
+            {part "w" {^ {s} rule} {' {enterOver 1.0 0.6 write} {becomeOver 2.0 0.5 {^ {s} mean}}}}
+            {part "atQ" {^ {s} atQ} {' {enterOver 2.4 0.4 write}}}
+            {part "wQ" {^ {s} wQ} {' {enterOver 2.7 0.3 write}}}
+            {part "scale" _scale {' {enterOver 3.0 0.3 fadeIn} {exitOver 4.0 0.3 fadeOut}}}
+            {part "atP"
+                {^ {s} atP}
+                {'
+                    {enterOver 4.1 0.4 write}
+                    {emphasize 4.6 5.0 {^ {t f} {pointParts t f {' "pP"} accentColor}}}}}
+            {part "needs" {^ {s} needs} {' {enterOver 4.5 0.4 write}}}}
+        {'}}]
 
 The hook
 
 Fn([Float], List(Mob)). A neighbour's W at P at stage its stage (`stepOf "source" 5`, the clips below).
-$[# sourceMath {: {^ {t} {_scene {stepOf "source" 5}}} Math}]
+$[# sourceMath {: {^ {t} {playScore {_score}}} Math}]
 
 Clips
 

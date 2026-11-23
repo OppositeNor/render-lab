@@ -271,4 +271,5 @@ sourcemath-dark = 过暗
 sourcemath-bright = 过亮
 biasmath-runs = 次 RIS 运行，两条线都由它们测得
 biasmath-neighbour = 就像邻居的 reservoir
-biasmath-balance = 平衡启发式，来自多重重要性采样
+biasmath-balance = 平衡启发式，
+biasmath-balance-mis = 来自多重重要性采样
