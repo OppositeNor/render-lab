@@ -1,0 +1,4 @@
+{
+  "_comment": "How the Chinese voice says words it misreads, for every package (speech_zh.pronounce); a package's video.json `pronunciationsZh` adds to it and wins for a word. Only what the voice speaks changes; captions keep the text.",
+  "厘米": "离米"
+}

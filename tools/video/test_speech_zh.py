@@ -1,5 +1,5 @@
 """Tests of the Chinese narration's text and timing (zh.py's `units`, `spoken_pieces`, `cue_marks`, `check_anchors`;
-zh_voice.py's error rate): `python3 -m unittest tools/video/test_speech_zh.py`. They need neither the lab nor the
+zh_voice.py's error rate; speech_zh.py's `pronounce`): `python3 -m unittest tools/video/test_speech_zh.py`. They need neither the lab nor the
 Chinese voice."""
 from __future__ import annotations
 
@@ -8,6 +8,9 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import types  # noqa: E402
+
+import speech_zh  # noqa: E402
 import zh  # noqa: E402
 import zh_voice  # noqa: E402
 from locations import DiagnosticError  # noqa: E402
@@ -158,6 +161,15 @@ class ErrorRate(unittest.TestCase):
         # Numbers heard in Chinese digits count as the digits written; punctuation and spaces do not count.
         self.assertEqual(zh_voice.error_rate('在 P 处，直接光为 0.074。', '在P处，直接光为零点零七四。'), 0.0)
         self.assertAlmostEqual(zh_voice.error_rate('一二三四', '一二三'), 0.25)
+
+
+class Pronounce(unittest.TestCase):
+    def test_shared_and_package_words(self) -> None:
+        # The shared table applies to every package; a package's own `pronunciationsZh` wins for its word.
+        plain = types.SimpleNamespace(spec={})
+        self.assertEqual(speech_zh.pronounce(plain, '单元格宽 5 厘米'), '单元格宽 5 离米')
+        own = types.SimpleNamespace(spec={'pronunciationsZh': {'厘米': '公分', 'SDF': '距离场'}})
+        self.assertEqual(speech_zh.pronounce(own, '5 厘米的 SDF'), '5 公分的 距离场')
 
 
 if __name__ == '__main__':

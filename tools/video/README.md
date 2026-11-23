@@ -426,7 +426,8 @@ environment `setup.sh --zh` makes, a chunk of sentences at a time, written to th
 (`<digest>.wav` and `<digest>.json`: the units' times, the transcript, its error rate, and the reference it was spoken
 from, `voice`: a clip spoken from another clip or transcript is spoken again). A sentence still heard with
 more than a tenth of its characters wrong is listed in the build's `narration-review.md`, to be listened to; fix it
-with the text, or with video.json's `pronunciationsZh` (a word and how the Chinese voice should say it).
+with the text, or with how the Chinese voice should say a word: `tools/video/pronunciations-zh.json` for a misreading
+every package shares (厘米 said as 离米), a package's video.json `pronunciationsZh` for its own (it wins for a word).
 
 Each cue of the English sentence fires on the Chinese unit it stands before (`zh.cue_marks`):
 

@@ -38,6 +38,8 @@ MODELS = {
 # The narrator: a serious, mature woman's voice (chosen 2026-11-21 over the built-in voices, whose pitch drifted
 # three times as far from sentence to sentence), cloned from this clip and its transcript for every sentence.
 REFERENCE = TOOLS / 'voices' / 'zh-CN-narrator.wav'
+# Words the voice misreads in every package, and how it should say them (`pronounce`).
+PRONUNCIATIONS = {w: s for w, s in json.loads((TOOLS / 'pronunciations-zh.json').read_text()).items() if not w.startswith('_')}
 REFERENCE_TEXT = json.loads(REFERENCE.with_suffix('.json').read_text())['text']
 # The reference a clip was spoken from, its audio and its transcript, which each sidecar records (`voice`): a clip
 # spoken from another is not in the cache.
@@ -54,9 +56,11 @@ Json = dict[str, Any]
 
 
 def pronounce(cfg: Config, text: str) -> str:
-    """`text` with the words of video.json's `pronunciationsZh` replaced by how the Chinese voice should say them
-    (a word is cut at letters and digits only, as Chinese characters run up against English words)."""
-    for word, said in sorted(cfg.spec.get('pronunciationsZh', {}).items(), key=lambda p: -len(p[0])):
+    """`text` with the words of tools/video/pronunciations-zh.json and video.json's `pronunciationsZh` (which wins
+    for a word) replaced by how the Chinese voice should say them (a word is cut at letters and digits only, as
+    Chinese characters run up against English words)."""
+    words = {**PRONUNCIATIONS, **cfg.spec.get('pronunciationsZh', {})}
+    for word, said in sorted(words.items(), key=lambda p: -len(p[0])):
         # Longest words first, so a word is never replaced inside a longer one being replaced.
         text = re.sub(r'(?<![A-Za-z0-9_])' + re.escape(word) + r'(?![A-Za-z0-9_])', said, text)
     return text
