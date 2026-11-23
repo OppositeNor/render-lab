@@ -4,6 +4,73 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+## [0.0.7] - 2026-11-22
+
+### Added
+
+- Math scenes: a package's scripts may define `Math` hooks, which the lab draws on a canvas (manim's: 8 units
+  high, +y up) instead of the 3D scene: formulas by their named parts, text, numbers, shapes, paths, and a frame
+  that moves and zooms. A story's beat shows one with `kind=2d math=<name>`, a demonstration with `math = "<name>"`.
+  The library `render_lab_math` builds them with manim's techniques, driven by values: fades, writing, growing,
+  indicating, crossing out, transforms between matching parts; axes, plots, areas, Riemann sums, seeded samples and
+  histograms, bars, braces, probability squares, tables, chance bars, and graphs with computed layouts. An
+  investigation whose math scenes never read the frame (`Investigation::math_reads_frame`) pauses its 3D rendering
+  under them. A new agent skill, `render-lab-math`, describes it, and `new-story` stages a core formula on it.
+- Clips: a package's scripts declare named animations (runtime.lam's `Clip`): tracks of keyframes, motions, or runs
+  of an `Animation` hook, composed with `after`, `sequence`, `together`, and others. A story plays one at its own
+  pace (`play…`) or stretched over a range of words (`playOver…`); a demonstration names its `clips`, the first its
+  Play (`animation = "…"` is refused with what to write instead). `render-lab clips` lists them, and the story check
+  warns of a clip nothing plays.
+- Viewer: the Animation tab shows a demonstration's clips as a dopesheet; dragging along a clip scrubs it.
+- Viewer: a help card (F1 or the toolbar's "?") lists the keys and pointer gestures the current context accepts,
+  read from the same table as the viewer's input (`src/bindings.rs`).
+- Viewer: task layouts in the Windows menu (Explore, Experiment, Debug) beside the user's own, which "Your layout"
+  brings back.
+- Experiments: a "Keep changes across demonstrations" checkbox and a status of the session; an "A vs B" table of
+  the values A and B set differently (a click filters the dock to one); a measurement marked stale when what it
+  measured changes; a question before replacing a file or discarding unsaved work; the wipe's line dragged in the
+  viewport (Shift+Left/Right nudge it); Pause A, and a note of what the timings include.
+- Fields of study: a package declares a field (`[[provides]] type = "field"`) and others join it (`field =
+  "<package>.<key>"`). The homepage's Play opens a folder per field (render_lab declares Computer Graphics, with a
+  new icon; packages that join none go to Other), and a series is a folder of its parts.
+- Frame: a general `raster` node in a package's `shading.toml` draws the scene's meshes with any vertex and
+  fragment entries; `scene`, `prepass`, and `depth-views` are its shorthands, and every investigation's graph is
+  unchanged.
+- Video: the zh-CN edition speaks Chinese (Qwen3-TTS in one cloned narrator's voice, checked by Qwen3-ASR and timed
+  by Qwen3-ForcedAligner; `setup.sh --zh`), each cue firing on the Chinese word it stands before. The voice is the
+  0.6B model, six sentences at a time.
+- Video: `tools/video/lint.py` measures each edition's narration for the ear (length, commas, colons, openings; 的
+  for zh-CN) and reports the sentences over its limits, never failing.
+- Snapshots: `--page viewer-timeline@<frame>[+<frames>]` plays a timeline from a frame offscreen; new pages for the
+  help card, the Animation tab, the fields page, and the Experiments tab's sessions, staleness, overwrite, wipe
+  drag, and pause.
+- ReSTIR: chapters 2 to 6's worked examples on the math canvas (importance sampling, RIS's weights and W, weighted
+  reservoir sampling and the merge, the alias table, combining reservoirs, rounds of spatial reuse, temporal reuse's
+  count, a neighbour's W, and the paper's 1D example of bias), on an example world of 24 lights; lights drawn by
+  power from an alias table, as the paper does, and the environment map as a light (`restirEnvironment`).
+
+### Changed
+
+- Viewer: the demonstrations are one menu in the header instead of a row of tabs, so many of them no longer push
+  the header's buttons off the window.
+- Viewer: the Frame graph tab fills the Controls window, laid out with new layout containers (`src/ui/layout.rs`),
+  and each dock tab keeps its own scroll.
+- Graph panel: its drawn buttons and grid marks take the keyboard focus (Tab, Enter, Space).
+- Scripts: a hook's results are read by type; a colour is runtime.lam's `Color` (a theme colour or `{rgb
+  "#rrggbb"}`), checked when the script loads; a number too large for an f32 is refused with its item and field.
+- The text check finds a `.lam` file's text keys with the Lamlet parser; a computed key fails the package's build.
+- Stories: a formula's `card` and `display` are Bools.
+- Godot SDFGI: the CPU mirror voxelizes by rasterizing triangles in the engine's three views, as Godot does, and the
+  selftest compares it with the GPU cell by cell; both editions revised after cold-listener and native reviews; each
+  chapter ends again on its sources card.
+
+### Fixed
+
+- Graph panel: Full screen opens again (it closed in the same frame), and from the grid too.
+- The dock showed a tab opened after a short one in a strip of that one's height.
+- A paused scene under a math scene no longer draws an experiment's reference, split panes, the free camera's
+  view, or overlaid views.
+
 ## [0.0.6] - 2026-11-13
 
 ### Added
@@ -158,7 +225,8 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
 
 First release: Linux (x86_64), Windows (x86_64), and macOS (Apple Silicon) packages.
 
-[Unreleased]: https://github.com/OppositeNor/render-lab/compare/v0.0.6...HEAD
+[Unreleased]: https://github.com/OppositeNor/render-lab/compare/v0.0.7...HEAD
+[0.0.7]: https://github.com/OppositeNor/render-lab/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/OppositeNor/render-lab/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/OppositeNor/render-lab/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/OppositeNor/render-lab/compare/v0.0.3...v0.0.4
