@@ -7,7 +7,7 @@ $[Import* godot_sdfgi_story]
 $[Import* godot_sdfgi_natives]
 # How Godot's SDFGI Lights a Room {#video subtitle="Signed distance field global illumination in Godot 4.7, followed through the source at the engine's sizes" engineVersion=4.7.2-stable commit=ed1daf0bf001b61586d9930840f2f1394092c079 date=2026-10-29 fps=30 width=1920 height=1080}
 
-## Where SDFGI runs {#c1 number=1 target=240  summary="The frame's SDFGI work, what turns it on, and two settings that are not what they say." sources="frame-order, sdfgi-update, settings, mobile-stub, prepass-gate, ray-count-table"}
+## Where SDFGI runs {#c1 number=1 target=280  summary="The frame's SDFGI work, what turns it on, and two settings that are not what they say." sources="frame-order, sdfgi-update, settings, mobile-stub, prepass-gate, ray-count-table"}
 
 ### SDFGI lights the room with light that bounced {#c1-room kind=3d}
 
@@ -22,16 +22,20 @@ This is the lab's study room, lit by the ceiling panel alone.
 ${cue "key" {' {motion {' {cameraPathOver sentence {' {pose 12.0 14.0 5.2}}}}}}}With only that direct light, every
 surface the panel cannot see stays black.
 
-${overText {' {sdfgiMixRange 0.0 1.0}} "Now SDFGI adds the light that bounced"}.
-
-SDFGI is short for signed distance field global illumination, and the coming chapters show what each part of that name means.
+${overText {' {sdfgiMixRange 0.0 1.0}} "Now SDFGI adds the light that bounced off other surfaces"}.
 
 ${cue "key" {'
     {cameraTarget {' -1.05 0.6 -0.55}}
     {cameraDistance 3.4}
     {cameraYaw 30.0}
     {cameraPitch 16.0}
-    {blend 2.5}}}The red wall tints the sphere, and the sky through the open top tints the floor.
+    {blend 2.5}}}The red wall tints the sphere.
+
+The sky through the open top tints the floor.
+
+SDFGI is short for signed distance field global illumination.
+
+The coming chapters show what each part of that name means.
 
 ${cue "key" {'
     {callout "frame-order"}
@@ -40,24 +44,28 @@ ${cue "key" {'
     {cameraYaw 18.0}
     {cameraPitch 16.0}
     {blend 3.0}}}
-This is SDFGI the way Godot four point seven builds it.
+This is SDFGI as Godot four point seven builds it.
 
 ${cue "key" {' {callout "settings"} {motion {' swayYaw}}}}
-SDFGI is a setting on the scene's environment, and it is ${cue "key" {' {sdfgiMix 0.0} {blend 1.5}}}off by default.
+SDFGI is a setting on the scene's environment.
+
+It is ${cue "key" {' {sdfgiMix 0.0} {blend 1.5}}}off by default.
 
 ### The lab runs Godot's passes {#c1-lab kind=2d graph=frame focus="VOX, LIGHT, PRE, STORE, GI"}
 
 ${cue "key" {' {callout "frame-order"}}}
-The lab rebuilds it from Godot's source, step by step.
+The lab rebuilds SDFGI from Godot's source, step by step.
 
-The lab's copy runs Godot's own passes on the GPU, at the same sizes as the engine, from its grids to its ray counts.
+The lab's rebuild runs Godot's own passes on the GPU.
+
+Every size matches the engine's, so the numbers in this video are Godot's own.
 
 ### Every line it shows is cited {#c1-cite kind=2d graph=frame focus=UPD}
 
 ${cue "key" {' {callout "sdfgi-update"}}}
-Every claim in this video cites a file, a symbol, and a line in Godot's source.
+Every claim in this video points to a file, a symbol, and a line in Godot's source.
 
-Each citation also records a hash of the line it cites, so the lab can tell when that line changes.
+Each citation also records a hash of that line, so when Godot changes the line, the lab flags the claim to be checked again.
 
 ### Every frame runs it in stages {#c1-frame kind=3d}
 
@@ -71,10 +79,14 @@ ${cue "key" {opening demoCascades 1.0 {'
     {cameraPitch 38.0}
     {cameraDistance 60.0}}}}
 
+Now to the frame itself.
+
 ${cue "key" {' {callout "sdfgi-update"}}}
 SDFGI keeps its data in ${overText
     {' {cascadesShownRange 0.0 4.0}}
     "grids around the camera, called cascades"}.
+
+Each frame runs in stages.
 
 ${cue "key" {'
     {cameraTarget {' 3.0 0.0 0.0}}
@@ -82,18 +94,20 @@ ${cue "key" {'
     {cameraPitch 60.0}
     {cameraDistance 30.0}
     {cascadesShown 1.0}
-    {blend 1.5}}}Each frame, SDFGI first ${overText
+    {blend 1.5}}}The first stage ${overText
         {' {cameraXRange 0.0 1.0}}
         "moves the cascades to follow the camera"}.
 
-${cue "key" {' {regions 1.0} {blend 1.0}}}When a cascade moves, new space enters it at one edge, and only that new part needs work.
+${cue "key" {' {regions 1.0} {blend 1.0}}}When a cascade moves, new space enters it at one edge.
+
+Only that new space needs work.
 
 ### The new space becomes voxels {#c1-frame-voxels kind=3d}
 
 ${cue "key" {opening demoVoxels 1.0 {' {voxels 1.0} {voxelPasses 0.0}}}}
 
 ${cue "key" {' {callout "render-region"}}}
-The new part is cut into ${overText
+SDFGI cuts the new space into ${overText
     {' {voxelPassesRange 0.0 3.0}}
     "voxels, small boxes marked solid or empty"}.
 
@@ -121,13 +135,16 @@ ${cue "key" {' {callout "update-light"}}} Next, the solid voxels ${overText
 
 ${cue "key" {opening demoProbes 1.0 {' {probeRays 0.0} {rayFrames 1.0}}}}
 
-Probes are points spread through the cascades, and ${cue "key" {' {probeRays 1.0} {blend 1.0}}}each one records the
-light arriving from every direction.
+Probes are points spread through the cascades.
+
+Each probe ${cue "key" {' {probeRays 1.0} {blend 1.0}}}records the light arriving from every direction.
 
 ${cue "key" {' {callout "update-probes"}}}
-Each probe ${overText
+To gather that light, each probe ${overText
     {' {rayFramesRange 1.0 8.0}}
-    "traces rays through the distance field, and each ray brings back the light stored in the voxel it hits"}.
+    "traces rays through the distance field"}.
+
+Each ray brings back the light stored in the voxel it hits.
 
 ### Each pixel reads the probes {#c1-frame-screen kind=3d}
 
@@ -138,34 +155,39 @@ Last, a pass over the screen ${overText
     {' {pixelProbesRange 0.0 1.0}}
     "reads the light of the probes around each pixel"}.
 
-After it, the opaque pass ${cue "key" {' {glide cameraDistance 2.6 sentence}}}shades the solid surfaces.
+After that screen pass, the opaque pass ${cue "key" {' {glide cameraDistance 2.6 sentence}}}shades the solid surfaces.
 
-It ${overText {' {sdfgiMixRange 0.0 1.0}} "uses that probe light as each pixel's ambient light"}, the soft light that fills the shadows.
+The opaque pass ${overText
+    {' {sdfgiMixRange 0.0 1.0}}
+    "uses that probe light as each pixel's ambient light"}, the soft light that fills the shadows.
 
 ### Forward+ only, and the defaults that shape it {#c1-switches kind=3d}
 
 ${cue "key" {opening demoRoom 1.0 {' {focusRow 1.0}}}}
 ${cue "key" {' {motion {' {cameraTurn {' {aim 18.0 16.0} {aim 8.0 22.0}}}}}}}
 
-${cue "key" {' {callout "mobile-stub"}}} Godot has three renderers, and SDFGI ${cue "key" {'
-    {cameraTarget {' -1.05 0.6 -0.55}}
-    {cameraDistance 3.6}
-    {blend 2.5}}}works only in Forward+.
+${cue "key" {' {callout "mobile-stub"}}} Godot has three renderers, three ways of drawing a frame.
 
-In the other two renderers, Mobile and Compatibility, SDFGI's functions are empty, so it ${cue "key"
-    {' {sdfgiMix 0.0} {focusRow 0.0} {blend 1.5}}}does nothing.
+SDFGI ${cue "key" {' {cameraTarget {' -1.05 0.6 -0.55}} {cameraDistance 3.6} {blend 2.5}}}works in only one of them, Forward+.
+
+In the other two renderers, Mobile and Compatibility, SDFGI's functions are empty, so SDFGI ${cue "key"
+    {' {sdfgiMix 0.0} {focusRow 0.0} {blend 1.5}}}does nothing there.
 
 ${cue "key" {' {sdfgiMix 1.0} {focusRow 1.0} {blend 1.5}}}In Forward+, the defaults are ${spoken
     {cascades}}
-cascades, each a grid of ${spoken {cascadeCells}} cells on a side, one voxel to a cell.
+cascades.
+
+Each cascade is a grid of cells, and a cell is the space one voxel fills.
+
+By default, each cascade has ${spoken {cascadeCells}} cells on a side.
 
 ### Twenty-centimetre cells {#c1-cells kind=3d}
 
 ${cue "key" {opening demoVoxels 0.5 {' {voxels 0.0} {voxelPasses 3.0} {cutHeight 4.0}}}}
 
-In the finest cascade, ${cue "key" {' {glide cameraDistance 3.2 sentence}}}${overText
+In the first cascade, the finest one, ${cue "key" {' {glide cameraDistance 3.2 sentence}}}${overText
     {' {voxelsRange 0.0 1.0}}
-    f"{the cells are ${spoken {cellCentimetres}} centimetres across}"}.
+    f"{each cell is ${spoken {cellCentimetres}} centimetres across}"}.
 
 ### Three project settings {#c1-settings kind=3d}
 
@@ -175,38 +197,51 @@ ${cue "key" {opening demoProbes 1.0 {'
     {frames 0.0}
     {historyChart 0.0}}}}
 
-${cue "key" {' {callout "project-settings"}}} Three more project settings shape SDFGI.
+${cue "key" {' {callout "project-settings"}}} Three project settings shape SDFGI further.
 
-They set ${overText {' {rayFramesRange 0.0 1.0}} "the number of rays each probe traces"}, ${cue "key"
-    {' {historyChart 1.0}}}${overText {' {framesRange 0.0 30.0}} "the number of frames it averages"}, and how often the light in the voxels is recomputed.
+The first sets ${overText {' {rayFramesRange 0.0 1.0}} "how many rays each probe traces"}.
+
+The second sets ${cue "key" {' {historyChart 1.0}}}${overText
+    {' {framesRange 0.0 30.0}}
+    "how many frames of rays each probe averages together"}.
+
+The third sets how often the light in the voxels is recomputed.
 
 ### The probes update only during the depth pre-pass {#c1-prepass kind=2d graph=frame focus=sdfgiPrepassFS}
 
 ${cue "key" {' {callout "prepass-gate"}}}
 The probes update only if one other pass runs.
 
-That pass is the depth pre-pass, which draws the scene's depth before any shading.
+That pass is the depth pre-pass.
+
+Before any shading, it draws the scene's depth, how far each surface is from the camera.
 
 ### The probe passes run beside it {#c1-prepass-probes kind=2d graph=frame focus="PRE, STORE"}
 
-The code starts the probe update in only one place, where it draws this pass.
+The reason is that the code starts the probe update in just one place, the function that draws the depth pre-pass.
 
 ### The two run at the same time {#c1-prepass-together kind=2d graph=frame focus="sdfgiPrepassFS, PRE"}
 
-A comment there says that the two then run at the same time.
+A comment there says this lets the probe update run at the same time as the pre-pass.
 
-And it does that only when the pass runs.
+So the probe update runs only when the pre-pass runs.
 
 ### What turns the pre-pass on {#c1-prepass-gate kind=2d graph=frame focus="sdfgiPrepassFS, PRE, STORE"}
 
 ${cue "key" {' {callout "prepass-gate"}}}
-The code shows that the pre-pass runs when the project setting for the depth pre-pass is on, or when a material uses the stencil.
+The code turns the pre-pass on in two ways.
+
+One is the project setting for the depth pre-pass.
+
+The other is a material that uses the stencil, a per-pixel mask the GPU can test while drawing.
 
 SDFGI itself never turns the pre-pass on.
 
 ### Without it, the probes freeze {#c1-prepass-freeze kind=2d graph=frame focus="PRE, STORE"}
 
-So with that setting off and no stencil material in view, the probes stop updating, and their light freezes.
+So with the depth pre-pass setting off and no stencil material in view, the probes stop updating.
+
+Their light then stays frozen at its last value.
 
 ### The default is eight rays, not sixteen {#c1-rays kind=3d}
 
@@ -217,7 +252,7 @@ ${cue "key" {opening demoProbes 1.0 {'
     {historyChart 0.0}}}}
 
 ${cue "key" {' {callout "ray-count-hint"}}}
-The setting for the probes' ray count lists ${overText
+The probe ray count setting offers ${overText
     {' {rayFramesRange 0.0 1.0}}
     "eight, sixteen, thirty-two, and more"}.
 
@@ -228,13 +263,17 @@ The default is the second choice, which the editor labels sixteen.
 ${cue "key" {' {callout "ray-count-table"}}}
 But the code ${cue "key" {' {glide cameraDistance 2.4 sentence}}}does not use the editor's labels.
 
-It looks the second choice up in its own list, ${cue "key" {' {giRayCount 0.0} {blend 1.0}}}which begins with four.
+Instead, the code looks up the second choice in its own list of ray counts.
+
+${cue "key" {' {giRayCount 0.0} {blend 1.0}}}That list begins with four, not eight.
 
 So the second choice means ${cue "key" {' {giRayCount 1.0} {blend 1.0}}}eight rays per probe each frame, half what the label says.
 
 ### So far: stages every frame {#c1-recap kind=2d graph=frame focus="UPD, SCROLL, VOX, LIGHT, PRE, STORE, GI"}
 
-So each frame, SDFGI runs in stages, and only in the Forward+ renderer.
+So SDFGI runs in stages every frame.
+
+It runs only in the Forward+ renderer.
 
 ### Next, the cascades {#c1-recap-next kind=2d graph=frame focus=UPD}
 
@@ -242,7 +281,7 @@ So each frame, SDFGI runs in stages, and only in the Forward+ renderer.
 
 The next chapter takes up the first stage, the cascades.
 
-## Cascades that follow the camera {#c2 number=2 target=190 summary="Four nested grids, their squashed height, their probes, and how they jump after the camera." sources="cascade-create, cell-size-double, y-mult-table, probe-axis-count, scroll-update, dirty-all-rule"}
+## Cascades that follow the camera {#c2 number=2 target=200 summary="Four nested grids, their squashed height, their probes, and how they jump after the camera." sources="cascade-create, cell-size-double, y-mult-table, probe-axis-count, scroll-update, dirty-all-rule"}
 
 ### Where the cascades sit in the frame {#c2-map kind=2d graph=frame focus=UPD}
 
@@ -258,11 +297,9 @@ ${cue "key" {opening demoCascades 1.0 {'
     {cameraDistance 10.0}}}}
 ${cue "key" {' {motion {' swayYaw}}}}
 
-The frame begins with the cascades.
+SDFGI must place ${cue "key" {' {scrollView 1.0} {blend 1.0}}}the cascades before it can draw any voxel into them.
 
-SDFGI must place ${cue "key" {' {scrollView 1.0} {blend 1.0}}}its grids before it can draw any voxel into them.
-
-A cell is one box of a cascade's grid, ${cue "key" {' {glide cameraPitch 70.0 sentence}}}the space that one voxel fills.
+Each cell of a cascade's grid is ${cue "key" {' {glide cameraPitch 70.0 sentence}}}the space that one voxel fills.
 
 ${cue "key" {' {callout "cascade-create"}}}
 Around the camera sit ${cue "key" {'
@@ -281,16 +318,17 @@ Each cascade after the first has cells twice the size of the one before, so it $
     {cameraDistance 140.0}
     {blend 3.0}}}spans twice as far.
 
-So the fourth and coarsest cascade ${cue "key" {' {cameraDistance 230.0} {blend 3.0}}}spans two hundred and five metres.
+Doubling three times makes the fourth and coarsest cascade ${cue "key" {'
+    {cameraDistance 230.0}
+    {blend 3.0}}}eight times as wide, about two hundred and five metres.
 
-That gives fine detail ${cue "key" {' {glide cameraDistance 40.0 sentence}}}near the camera, and a long reach far away.
+So together, the cascades give fine detail ${cue "key" {' {glide cameraDistance 40.0 sentence}}}near the camera and a long reach far away.
 
-That trade exists because every cascade has ${cue "key" {' {scrollView 1.0} {blend 1.0}}}${spoken
-    {cascadeCells}} cells a side.
+Every cascade has ${cue "key" {' {scrollView 1.0} {blend 1.0}}}${spoken {cascadeCells}} cells a side, whatever the size of its cells.
 
 ${cue "key" {' {cameraDistance 30.0} {cameraPitch 58.0} {blend 1.5}}}${overText
     {' {minCellSizeRange 0.2 0.1}}
-    "A smaller cell would give finer detail and a shorter reach"}.
+    "So a smaller cell gives finer detail and a shorter reach"}.
 
 The study room is only six metres across, so it ${cue "key" {'
     {minCellSize 0.2}
@@ -298,7 +336,7 @@ The study room is only six metres across, so it ${cue "key" {'
     {cascadesShown 1.0}
     {cameraDistance 12.0}
     {cameraPitch 38.0}
-    {blend 3.0}}}fits inside the first cascade, at its centre.
+    {blend 3.0}}}fits inside the first cascade, at the cascade's centre.
 
 ### "Seventy-five percent" squashes the grid by one and a half {#c2-yscale kind=3d}
 
@@ -311,25 +349,27 @@ ${cue "key" {opening demoCascades 0.6 {'
 ${cue "key" {' {callout "y-mult-table"} {motion {' swayYaw}}}}
 The grid's height has ${cue "key" {' {glide cameraPitch 20.0 sentence}}}a setting of its own, the y scale.
 
-${overText {' {yScaleRange 2.0 0.0}} "It has three choices"}, and its default is labelled seventy-five percent.
+${overText {' {yScaleRange 2.0 0.0}} "The y scale has three choices"}.
+
+The default choice is labelled seventy-five percent.
 
 The documentation says it trades ${overText
     {' {yScaleRange 0.0 2.0}}
     "how far the grid reaches up and down"} for finer detail in height.
 
-${overText
-    {' {yScaleRange 2.0 1.5}}
-    "In the code, the setting is a factor, and seventy-five percent becomes one and a half"}.
+${overText {' {yScaleRange 2.0 1.5}} "In the code, the setting is a factor"}.
+
+The code's table turns seventy-five percent into a factor of one and a half.
 
 ${overText
     {' {yScaleRange 1.5 1.0}}
-    "Every height is multiplied by one and a half before it is placed in the grid"}.
+    "The code multiplies every height by one and a half before placing it in the grid"}.
 
-So a cell covers only thirteen centimetres of real height, twenty divided by one and a half.
+So a cell covers only thirteen centimetres of height in the world, which is twenty divided by one and a half.
 
 The first cascade is therefore ${cue "key" {' {cameraPitch 12.0} {blend 2.5}}}just seventeen point oh seven metres high.
 
-The code shows that a cascade is two thirds as tall as it is wide, not the three quarters that seventy-five percent suggests.
+So a cascade ends up two thirds as tall as it is wide, not the three quarters that seventy-five percent suggests.
 
 ### Seventeen probes per axis, one every eight cells {#c2-probes kind=3d}
 
@@ -345,16 +385,16 @@ ${overText
     {' {probeRowRange 0.0 9.0}}
     f"{${capitalized {spoken {probeGaps}}} gaps of ${spoken {probeCells}} cells span the ${spoken {cascadeCells}} cells}"}.
 
-Counting both ends, that gives ${overText
+That gives ${overText
     {' {probeRowRange 9.0 17.0}}
-    f"{${spoken {probeAxisCount}} probes along each axis}"}.
+    f"{${spoken {probeAxisCount}} probes along each axis}"}, counting both ends.
 
 ${cue "key" {' {callout "probe-position"} {probeRow 0.0} {cameraDistance 9.0} {blend 3.0}}}
 In the first cascade, the probes are ${spokenFloat {probeSpacing}} metres apart.
 
-So only a handful of probes ${cue "key" {' {glide cameraYaw -20.0 sentence}}}fall inside the room.
+So only a handful of probes ${cue "key" {' {glide cameraYaw -20.0 sentence}}}fall inside the room, and each pixel takes its light from the few around it.
 
-This view draws those probes brighter.
+In this view, those probes inside the room are drawn brighter.
 
 ### The cascade jumps eight cells when the camera strays four {#c2-scroll kind=3d}
 
@@ -380,10 +420,12 @@ Each cascade compares ${cue "key" {' {glide cameraDistance 8.0 sentence}}}the ca
 
 ${cue "key" {' {highlightCode "cascade-update" {' "jump"}}}}${overText
     {' {cameraXRange 0.6 1.0}}
-    f"{When the camera strays more than ${spoken {dragMargin}} cells away, the cascade jumps ${spoken {probeCells}} cells to follow it}"}.
+    f"{When the camera's cell is more than ${spoken {dragMargin}} cells from the cascade's centre cell, the cascade jumps to follow the camera}"}.
+
+The jump is ${spoken {probeCells}} cells.
 
 ${capitalized {spoken {probeCells}}}
-cells is one probe spacing, so after the jump, ${cue "key" {' {probes 1.0} {blend 1.0}}}every probe lands where a probe stood before.
+cells is one probe spacing, so after the jump ${cue "key" {' {probes 1.0} {blend 1.0}}}every probe lands where a probe stood before and can keep that probe's light.
 
 ${cue "key" {'
     {regions 1.0}
@@ -391,33 +433,33 @@ ${cue "key" {'
     {cameraDistance 40.0}
     {cameraTarget {' 10.0 0.0 0.0}}
     {blend 2.5}}}
-The jump takes in new space on the side it moves toward, an eight-cell slab that holds nothing yet.
+On the side the cascade moves toward, the jump takes in an eight-cell slab of new space.
 
-That slab is marked dirty, which means it must be voxelized again.
+The slab holds nothing yet.
 
-Only the dirty slab is voxelized, ${cue "key" {' {glide cameraPitch 50.0 sentence}}}so the rest of the cascade keeps its work.
+That slab is marked dirty, which means it must be voxelized.
+
+Only the dirty slab is voxelized, ${cue "key" {' {glide cameraPitch 50.0 sentence}}}so the rest of the cascade keeps the voxels it already has.
 
 ${cue "key" {' {callout "dirty-all-rule"} {highlightCode "cascade-update" {' "all"}}}}
-But if the new space would be more than half the size of what is kept, ${cue "key" {'
-    {cameraJump 1.0}
-    {cameraX 10.0}
-    {blend 2.0}}}the whole cascade is rebuilt instead.
+But if the new space would be more than half as large as the space the cascade keeps, ${cue "key"
+    {' {cameraJump 1.0} {cameraX 10.0} {blend 2.0}}}the whole cascade is rebuilt instead.
 
 ### So far: grids that follow the camera {#c2-recap kind=2d graph=frame focus=UPD}
 
-So SDFGI keeps four grids around the camera, each twice as coarse as the one inside it.
+So SDFGI keeps four cascades around the camera, each twice as coarse as the cascade inside it.
 
 ### And a slab to build {#c2-recap-slab kind=2d graph=frame focus="UPD, SCROLL"}
 
-When the camera strays, a grid jumps, and only the slab of new space it takes in needs building.
+When the camera strays, a cascade jumps, and only the slab of new space it takes in needs building.
 
 The next chapter starts with that slab.
 
-## What is voxelized, and which lights {#c3 number=3 target=185 summary="The dirty slab becomes a box; Static meshes and static lights are listed for it." sources="pending-regions, region-bounds, sdfgi-cull, gi-mode, static-light-cull, static-lights-index"}
+## What is voxelized, and which lights {#c3 number=3 target=195 summary="The dirty slab becomes a box; Static meshes and static lights are listed for it." sources="pending-regions, region-bounds, sdfgi-cull, gi-mode, static-light-cull, static-lights-index"}
 
 ### Still before the GPU draws {#c3-map kind=2d graph=frame focus=UPD}
 
-Before the GPU draws the meshes of that new slab, the CPU decides which meshes and lights belong to it.
+Before the GPU draws anything, the CPU works on the new slab first.
 
 ### Each dirty axis becomes one box in the world {#c3-regions kind=3d}
 
@@ -439,17 +481,21 @@ Before the GPU voxelizes the slab, ${cue "key" {'
     {blend 2.5}}}the CPU decides which meshes and lights belong in it.
 
 ${cue "key" {' {callout "pending-regions"}}}
-A cascade can jump ${overText {' {walkZRange 0.0 1.0}} "along more than one axis in the same frame"}.
+But a cascade can jump ${overText
+    {' {walkZRange 0.0 1.0}}
+    "along more than one axis in the same frame"}.
 
-Each axis that moved gives ${cue "key" {'
+Each axis that moved leaves ${cue "key" {'
     {cameraTarget {' 6.0 2.0 6.0}}
     {cameraDistance 46.0}
     {blend 2.5}}}one dirty slab, called a region.
 
-Where two regions overlap, ${cue "key" {'
+Two regions can overlap at a corner.
+
+Only the first region ${cue "key" {'
     {cameraTarget {' 12.5 2.0 12.5}}
     {cameraDistance 16.0}
-    {blend 2.5}}}only the first keeps the shared corner, so no corner is voxelized twice.
+    {blend 2.5}}}keeps that corner, so no corner is voxelized twice.
 
 ${cue "key" {' {callout "region-bounds"} {walkZ 0.0} {blend 1.5}}}
 The CPU turns each region from cells into a box in metres.
@@ -460,11 +506,13 @@ So the box's height is divided by that one and a half, ${cue "key" {'
     {cameraTarget {' 12.0 4.0 0.0}}
     {cameraPitch 8.0}
     {cameraDistance 30.0}
-    {blend 2.5}}}which undoes it.
+    {blend 2.5}}}which undoes that multiplication.
 
-Here that box is one point six metres along the jump, seventeen metres high, and twenty-five point six metres deep.
+In this view, the box is one point six metres thick along the jump.
 
-### Only Static meshes are voxelized, seen or not {#c3-geometry kind=3d}
+It is seventeen point oh seven metres high and twenty-five point six metres deep.
+
+### A far jump rebuilds the whole cascade {#c3-geometry kind=3d}
 
 ${cue "key" {opening demoRegions 1.0 {'
     {cameraX 1.0}
@@ -474,9 +522,9 @@ ${cue "key" {opening demoRegions 1.0 {'
 ${cue "key" {' {motion {' swayYaw}}}}
 
 ${cue "key" {' {callout "sdfgi-cull"}}}
-When the camera jumps far, the new space is more than half of what is kept, so ${overText
-    {' {cameraXRange 1.0 10.0}}
-    "the whole first cascade becomes one region"}.
+When the camera jumps far, the new space is more than half as large as the space the cascade keeps.
+
+So ${overText {' {cameraXRange 1.0 10.0}} "the whole first cascade becomes one region"}.
 
 ### Every mesh in the box, and its GI mode {#c3-gimode kind=3d}
 
@@ -492,9 +540,10 @@ ${cue "key" {opening demoVoxels 0.0 {'
 
 Every mesh in the scene that is not hidden ${overText
     {' {voxelsRange 0.0 1.0}}
-    "is tested against that box"}.
+    "is tested against the region's box"}.
 
-There is no test against the camera's view, so ${cue "key" {' {glide cameraYaw 198.0 sentence}}}a mesh behind the camera is voxelized too.
+Nothing tests the mesh against the camera's view, so ${cue "key" {'
+    {glide cameraYaw 198.0 sentence}}}a mesh behind the camera is voxelized too.
 
 ${cue "key" {'
     {callout "gi-mode"}
@@ -504,11 +553,11 @@ ${cue "key" {'
     {cameraDistance 4.2}
     {cutHeight 0.6}
     {blend 2.0}}}
-Each mesh has a GI mode, and only meshes whose GI mode is Static ${overText
-    {' {teapotGiModeRange 0.0 1.0}}
-    "are voxelized"}.
+Each mesh has a GI mode, a setting that says how SDFGI treats it.
 
-A mesh set to Dynamic ${cue "key" {' {voxels 0.0} {blend 1.0}}}still receives SDFGI's light.
+Only meshes whose GI mode is Static ${overText {' {teapotGiModeRange 0.0 1.0}} "are voxelized"}.
+
+A mesh set to Dynamic, another GI mode, ${cue "key" {' {voxels 0.0} {blend 1.0}}}still receives SDFGI's light.
 
 But it is left out of the voxels, so ${cue "key" {' {voxels 1.0} {cameraPitch 45.0} {blend 1.0}}}${overText
     {' {cutHeightRange 0.6 0.25}}
@@ -525,28 +574,30 @@ ${cue "key" {opening demoRegions 1.0 {'
 ${cue "key" {' {motion {' swayYaw}}}}
 
 ${cue "key" {' {callout "light-bake-route"} {extraLight 1.0} {blend 1.0}}}
-Each positional light, an omni, a spot, or an area light, also has a bake mode, Static or Dynamic.
+Each positional light, an omni, a spot, or an area light, has a bake mode too.
+
+The bake mode is Static or Dynamic.
 
 SDFGI computes a dynamic light's effect on the voxels ${overText
     {' {lightHeightRange 2.0 1.2}}
-    "at every light update"}.
+    "every time it relights the voxels"}.
 
 ${cue "key" {' {lightBake 1.0} {blend 1.0}}}SDFGI computes a static light only once, when a region is built.
 
-Directional lights are always dynamic, so a sun is recomputed at every update.
+Directional lights such as a sun are always dynamic, so they are recomputed every time too.
 
 ${cue "key" {' {callout "static-light-cull"}}}
 For each region, the CPU lists ${overText
     {' {lightXRange 1.6 -1.0}}
     "the static lights whose range overlaps it"}.
 
-But each light also has ${cue "key" {' {glide cameraDistance 70.0 sentence}}}a maximum cascade.
+Each light also has ${cue "key" {' {glide cameraDistance 70.0 sentence}}}a cutoff, its maximum cascade.
 
-By default it is the third, and ${overText
-    {' {cameraXRange 1.0 10.0}}
-    "beyond that cascade the light is left out"}.
+By default that is the third cascade.
 
-So by default, the coarsest cascade, the fourth, ${cue "key" {'
+${overText {' {cameraXRange 1.0 10.0}} "Beyond that cascade, the light is left out"}.
+
+So by default, the fourth and coarsest cascade ${cue "key" {'
     {glide cameraDistance 120.0 sentence}}}never gets a static light.
 
 ### A list read by the wrong index {#c3-finding kind=3d}
@@ -558,6 +609,8 @@ ${cue "key" {opening demoRegions 0.5 {'
     {walkZ 0.0}
     {cameraJump 1.0}}}}
 
+Something goes wrong in how these lists are read.
+
 ${cue "key" {'
     {callout "static-lights-index"}
     panelCode
@@ -567,20 +620,22 @@ The CPU stores these light lists in slots, one slot per cascade.
 
 Suppose ${overText {' {cameraXRange 0.0 2.22}} "only the second cascade moves"}.
 
-${cue "key" {' {highlightCode "regions" {' "read"}} {cameraDistance 70.0} {blend 2.5}}}The code that reads the lists counts the slots differently, by position among the cascades that moved.
+${cue "key" {' {highlightCode "regions" {' "read"}} {cameraDistance 70.0} {blend 2.5}}}But the code that reads the lists numbers the slots another way, counting only the cascades that moved.
 
-The code shows that the second cascade's light list is stored in the second slot but read from the first.
+So the second cascade's list is stored in the second slot but read from the first, because it is the first cascade that moved.
 
 ${cue "key" {' panelValues {cameraDistance 40.0} {blend 2.5}}}
 The first slot stays empty, because the first cascade did not move.
 
 So the second cascade gets no static light at all.
 
-The readout shows the lab's model losing that light in the same way.
+Look at the readout on screen.
 
-The two counts agree only when ${overText
+It shows the lab's copy of this code losing that light in the same way.
+
+Storing and reading agree only ${overText
     {' {cameraXRange 2.22 10.0}}
-    "the cascades that moved are the first ones, in order"}.
+    "when the cascades that moved are the first ones, with none skipped"}.
 
 ### So far: a box and its lists {#c3-recap kind=2d graph=frame focus=UPD}
 
@@ -592,7 +647,7 @@ The CPU lists the meshes inside it whose GI mode is Static, and the lights whose
 
 Those meshes are what the next chapter turns into voxels.
 
-## Voxelization {#c4 number=4 target=170 summary="Three orthographic views write albedo, facing, and emission into the grid." sources="render-sdfgi, sdf-fragment, albedo-pack, facing-mask, emission-pack"}
+## Voxelization {#c4 number=4 target=190 summary="Three orthographic views write albedo, facing, and emission into the grid." sources="render-sdfgi, sdf-fragment, albedo-pack, facing-mask, emission-pack"}
 
 ### The GPU draws the slab {#c4-map kind=2d graph=frame focus=VOX}
 
@@ -610,10 +665,10 @@ The GPU draws each region three times, ${overText
     {' {voxelPassesRange 0.0 1.0}}
     "with a camera looking along each axis in turn"}.
 
-Each camera's image has one pixel per cell of the region, ${cue "key" {'
+Each camera sees two of the region's axes, ${cue "key" {'
     {cameraYaw 90.0}
     {cameraPitch 2.0}
-    {blend 2.5}}}across the two axes that camera sees.
+    {blend 2.5}}}and its image has one pixel per cell along them.
 
 Each view draws the surfaces it sees as fragments, ${cue "key" {'
     {cameraYaw 24.0}
@@ -630,11 +685,13 @@ ${overText
     "But a surface edge-on to one camera faces another, so the three views together cover the room"}.
 
 ${cue "key" {' {callout "sdf-double-sided"} {glide cameraYaw 160.0 sentence}}}
-A surface is drawn from both sides, because back-face culling, which skips faces turned away from the camera, is turned off for every material drawn here.
+The views also draw every surface from both sides.
 
-Alpha-blended materials are not drawn at all, so they leave no voxels.
+That is because back-face culling, which skips faces turned away from the camera, is off for every material drawn here.
 
-The lab finds the same fragments a different way, ${cue "key" {' {glide cameraYaw 30.0 sentence}}}by tracing a ray from each pixel into the scene.
+Alpha-blended materials such as glass are not drawn at all, so they leave no voxels and never block SDFGI's rays.
+
+The lab draws the room's meshes the same way, ${cue "key" {' {glide cameraYaw 30.0 sentence}}}in the same three views, one pixel per cell.
 
 ### A solid bit and five bits per colour {#c4-albedo kind=3d}
 
@@ -674,7 +731,7 @@ The other fifteen bits hold red, green, and blue, ${overText
 So each colour channel has ${overText {' {albedoLevelsRange 2.0 32.0}} "thirty-two levels"}.
 
 ${cue "key" {' panelValues {glide cameraPitch 40.0 sentence}}}
-The readout panel decodes the voxel at the top of the sphere, bit by bit.
+The readout panel on screen decodes one voxel, the one at the top of the sphere, bit by bit.
 
 ### Six bits say which way the surface faced {#c4-facing kind=3d}
 
@@ -691,13 +748,16 @@ ${cue "key" {'
     {highlightCode "voxelize" {' "facing"}}}}
 Each voxel also keeps six more bits, ${cue "key" {' {cameraDistance 2.2} {blend 2.0}}}one for each axis direction.
 
-${cue "key" {' {voxelFacing 1.0} {blend 1.5}}}They live in a 3D texture of their own.
+${cue "key" {' {voxelFacing 1.0} {blend 1.5}}}These six bits live in a 3D texture of their own.
 
-Each fragment sets the one bit ${cue "key" {' {glide cameraYaw -30.0 sentence}}}whose direction is nearest its normal.
+Each fragment sets the one bit ${cue "key" {' {glide cameraYaw -30.0 sentence}}}whose direction is nearest its normal, the direction its surface points.
 
-${cue "key" {' panelValues}} When several fragments land in one voxel, their bits are combined.
+${cue "key" {' panelValues}}
+When several fragments land in one voxel, the bits they set all stay set.
 
 So a voxel on the sphere's curve ${cue "key" {' {glide cameraYaw 60.0 sentence}}}can face two or three ways at once.
+
+Later, the light pass lights a voxel only on the faces these bits mark.
 
 ### Emission in a shared exponent, split over six faces {#c4-emission kind=3d}
 
@@ -712,27 +772,31 @@ ${cue "key" {'
     panelCode
     listingVoxelize
     {highlightCode "voxelize" {' "emission"}}}}
-An emissive surface also ${cue "key" {' {emissionChart 1.0} {blend 1.0}}}writes its light into the voxel.
+A surface that gives off light, an emissive one, also ${cue "key" {'
+    {emissionChart 1.0}
+    {blend 1.0}}}writes its light into the voxel.
 
-That light's colour is packed into thirty bits, ${overText
-    {' {emissionLevelRange 0.0 -1.5}}
-    "in a shared-exponent format"}.
+The light's colour is packed into ${overText {' {emissionLevelRange 0.0 -1.5}} "thirty bits"}.
 
 Red, green, and blue share one exponent, which lets so few bits ${overText
     {' {emissionLevelRange -1.5 2.5}}
     "cover a wide range of brightness"}.
 
-A separate texture splits that light over the six axis directions, ${cue "key" {'
+This packing is called a shared-exponent format.
+
+A second texture records how strongly that light leaves toward each of the six axis directions.
+
+It keeps ${cue "key" {'
     {emissionChart 0.0}
     {cameraTarget {' -1.05 0.9 -0.55}}
     {cameraDistance 2.2}
-    {blend 2.5}}}five bits each, so the light can differ by direction.
+    {blend 2.5}}}five bits for each direction, so the light can differ by direction.
 
 ${cue "key" {'
     {cameraTarget {' 0.0 2.95 0.0}}
     {cameraPitch -35.0}
     {cameraDistance 2.4}
-    {blend 2.5}}}In this room the panel's light arrives as an area light, so no voxel is emissive.
+    {blend 2.5}}}In this room the ceiling panel is an area light rather than a glowing surface, so no voxel here is emissive.
 
 ### Only surfaces: a thick object is hollow {#c4-shell kind=3d}
 
@@ -743,14 +807,12 @@ ${cue "key" {opening demoVoxels 0.4 {'
     {cameraDistance 3.6}
     {cameraTarget {' -1.05 0.6 -0.55}}}}}
 
-${overText
-    {' {cutHeightRange 4.0 0.62}}
-    "Here the view slices the room through the middle of the sphere"}.
+${overText {' {cutHeightRange 4.0 0.62}} "Here the view cuts through the middle of the sphere"}.
 
-The code shows that the voxels form only the sphere's shell, and ${cue "key" {'
+The views draw only surfaces, so the voxels form only the sphere's shell, and ${cue "key" {'
     {glide cameraPitch 70.0 sentence}}}nothing fills the inside.
 
-That is enough for the distance field of the next chapter, ${cue "key" {'
+A hollow shell is enough for the distance field of the next chapter, ${cue "key" {'
     {glide cameraPitch 35.0 sentence}}}because a ray stops at the shell.
 
 ### So far: what a voxel holds {#c4-recap kind=2d graph=frame focus=sdfgiVoxelize}
@@ -763,11 +825,11 @@ It also records its colour, the direction its surface faces, and the light it em
 
 From the solid voxels, the next chapter builds the distance field.
 
-## The distance field {#c5 number=5 target=220 summary="A jump flood finds each cell's nearest solid voxel; STORE keeps one byte per cell and a list of the solid cells." sources="jump-flood-init, jump-flood, jump-flood-schedule, sdf-store, solid-cell-store"}
+## The distance field {#c5 number=5 target=240 summary="A jump flood finds each cell's nearest solid voxel; STORE keeps one byte per cell and a list of the solid cells." sources="jump-flood-init, jump-flood, jump-flood-schedule, sdf-store, solid-cell-store"}
 
 ### The same stage builds the field {#c5-map kind=2d graph=frame focus=VOX}
 
-Those voxels then become a distance field, still in the stage that made them.
+Those voxels then become a distance field, in the same voxelization stage that made them.
 
 ### One byte per cell: the distance to the nearest surface {#c5-why kind=3d}
 
@@ -799,7 +861,7 @@ ${cue "key" {'
     panelCode
     listingJumpFlood
     {highlightCode "jump-flood" {' "init"}}}}
-To find each cell's nearest voxel, every cell keeps a seed.
+To find its nearest solid voxel, every cell keeps a seed.
 
 A seed is the nearest solid voxel the cell has found so far.
 
@@ -807,14 +869,13 @@ Cells then pass their seeds to each other, ${overText
     {' {floodStepRange 0.0 8.0}}
     "in a method called a jump flood"}.
 
-The flood runs at half size, ${cue "key" {' {floodStep 0.0} {blend 1.0}}}sixty-four cells a side, so it does an
-eighth of the work.
+The flood runs on a grid of half the size, ${cue "key" {' {floodStep 0.0} {blend 1.0}}}sixty-four cells a side.
 
 Each half-size cell covers ${overText
     {' {sliceHeightRange 0.62 0.82}}
-    "a block of two by two by two full cells"}.
+    "a block of two by two by two full cells"}, so the flood does an eighth of the work.
 
-If one of those is solid, ${overText
+If any of those eight is solid, ${overText
     {' {sliceHeightRange 0.82 1.1}}
     "the half-size cell takes it as its first seed"}.
 
@@ -829,11 +890,15 @@ ${cue "key" {opening demoField 0.0 {'
     {sliceHeight 0.62}}}}
 
 ${cue "key" {' {callout "jump-flood"}}}
+The flood runs as a series of passes.
+
 In each pass, a cell looks at ${overText
     {' {floodNeighboursRange 0.0 1.0}}
-    "twenty-six other cells, each a fixed step away along an axis or a diagonal"}.
+    "twenty-six other cells around it"}.
 
-The cell keeps ${cue "key" {' {floodStep 2.0} {blend 1.0}}}whichever of their seeds is nearest to itself.
+Each of them is the same fixed step away, along an axis or a diagonal.
+
+The cell keeps ${cue "key" {' {floodStep 2.0} {blend 1.0}}}whichever of those cells' seeds lies nearest to it.
 
 ${overText
     {' {floodStepRange 2.0 3.0}}
@@ -843,32 +908,42 @@ ${overText {' {floodStepRange 3.0 4.5}} "So a seed jumps across the room in a fe
 
 ${overText
     {' {floodStepRange 4.5 6.0}}
-    "A big step can hand a cell a seed that is not its nearest, and the smaller steps after it correct that"}.
+    "But a big step can hand a cell a seed that is not its nearest"}.
+
+The smaller steps after it correct that.
 
 ${cue "key" {' {callout "jump-flood-schedule"} {floodStep 1.0} {blend 1.0}}}
-The first two passes, whose steps are large, use the plain version of the shader.
+For speed, the passes do not all run the same shader.
 
-The last four use ${cue "key" {' {floodStep 4.0} {blend 1.0}}}a version that is faster for small steps, because it keeps each workgroup's nearby cells in shared memory.
+The first two, whose steps are large, use the plain version.
+
+The last four use ${cue "key" {' {floodStep 4.0} {blend 1.0}}}a version that is faster for small steps.
+
+That version first copies the nearby cells into shared memory.
+
+Shared memory is fast memory that the threads of one workgroup share.
 
 ### Back to full size, then one more pass {#c5-upscale kind=3d}
 
 ${cue "key" {opening demoField 0.0 {' {slice 2.0} {floodStep 6.0} {floodNeighbours 0.0}}}}
 
 ${cue "key" {' {callout "jump-flood-upscale"} {floodStep 7.0} {blend 1.0}}}
-The seeds are then scaled back up to the full one hundred twenty-eight cells.
+Then the seeds go back to full size, one hundred twenty-eight cells a side.
 
 Each full cell takes ${cue "key" {' {glide sliceHeight 0.72 sentence}}}the seed of its half-size cell.
 
-Then it checks ${overText
+Then the cell checks ${overText
     {' {floodNeighboursRange 0.0 1.0}}
-    "the eight voxels of the block that seed lies in"}, and keeps a nearer solid one.
+    "the eight voxels in its seed's block"}.
+
+If one of them is solid and nearer to the cell, the cell keeps that one instead.
 
 ${cue "key" {' {floodStep 8.0} {floodNeighbours 0.0} {sliceHeight 0.62} {blend 1.0}}}
-Searching at half size still leaves some cells with a seed one cell off.
+Because the flood ran on blocks, some cells still end up with a seed one cell off.
 
-Those cells are shown here in orange.
+On this slice, those cells are shown in orange.
 
-One last pass, with a step of one, fixes them.
+So one more pass at full size, with a step of one, fixes them.
 
 ### A byte of one plus the distance; zero inside {#c5-store kind=3d}
 
@@ -879,30 +954,36 @@ ${cue "key" {opening demoField 0.0 {'
     {byteCurve 0.0}}}}
 
 ${cue "key" {' {callout "sdf-store"} panelCode listingStore {highlightCode "store" {' "distance"}}}}
-STORE, the pass that writes the field, ${cue "key" {' {slice 1.0} {blend 1.0}}}keeps one byte per cell.
+Each cell's distance is how far it lies from its final seed.
+
+The pass that writes the field, called STORE, ${cue "key" {' {slice 1.0} {blend 1.0}}}keeps one byte per cell.
 
 A solid voxel stores zero, and ${cue "key" {' {slice 0.0}}}${overText
     {' {byteProfileRange 0.0 24.0}}
     "any other cell stores one plus its distance, in cells"}.
 
 ${cue "key" {' {callout "sdf-decode"} panelValues}}
-Despite the name SDFGI, the stored field has no sign, so it never goes negative.
+The S in SDFGI stands for signed.
 
-${cue "key" {' {fieldMarch 1.0} {fieldSteps 0.0}}}The probe and shadow rays that march through the field ${overText
+But the stored field has no sign, so it never goes negative.
+
+${cue "key" {' {fieldMarch 1.0} {fieldSteps 0.0}}}Every ray that later steps through the field ${overText
     {' {fieldStepsRange 0.0 12.0}}
-    "read the byte, then subtract the one that was added"}.
+    "reads the byte, then subtracts the one that was added"}.
 
 So a solid voxel reads as minus one, ${overText
     {' {byteReadRange 0.0 1.0}}
     "and its empty neighbour reads as plus one"}.
 
-A filtered read between those two cells ${overText
+A filtered read blends neighbouring cells by position.
+
+So between a solid voxel and its empty neighbour, the value read ${overText
     {' {byteCurveRange 0.0 1.0}}
-    "therefore crosses zero halfway"}.
+    "crosses zero halfway"}.
 
 That puts the surface between them.
 
-The readout shows a cell two cells from a surface, storing three.
+The readout on screen shows a cell two cells from a surface, storing three.
 
 ### Sixteen bytes for every solid cell {#c5-cells kind=3d}
 
@@ -920,20 +1001,20 @@ ${cue "key" {'
     panelCode
     listingStore
     {highlightCode "store" {' "cell"}}}}
-Every solid voxel also goes into ${overText
-    {' {voxelsRange 0.0 1.0}}
-    "a list of sixteen-byte records"}.
+STORE also builds a second structure.
+
+Every solid voxel goes into ${overText {' {voxelsRange 0.0 1.0}} "a list of sixteen-byte records"}.
 
 A record holds where the voxel is, its albedo and ${overText
     {' {voxelFacingRange 0.0 1.0}}
-    "facing"}, and its stored light.
+    "facing"}, and room for the light the light pass will give it.
 
 With that list, later passes can visit ${overText
     {' {cutHeightRange 4.0 0.9}}
     "only the solid cells"}.
 
 ${cue "key" {' {callout "process-voxel"} {highlightCode "store" {' "neighbours"}}}}
-The record's spare bits hold twenty-six flags, ${cue "key" {'
+The leftover bits in the record hold twenty-six flags, ${cue "key" {'
     {neighbourFlags 1.0}
     {voxelFacing 0.0}
     {voxels 0.0}
@@ -941,14 +1022,13 @@ The record's spare bits hold twenty-six flags, ${cue "key" {'
     {cameraPitch 40.0}
     {blend 2.0}}}one for each neighbour of the voxel.
 
-A neighbour's flag is set when that neighbour is empty ${cue "key" {'
-    {glide cameraYaw 70.0 sentence}}}and this voxel is the nearest surface to it.
+A flag marks an empty neighbour ${cue "key" {' {glide cameraYaw 70.0 sentence}}}whose nearest surface is this voxel.
 
-With those flags, the light pass can later copy the voxel's light out to those neighbours.
+With those flags, the light pass can later copy the voxel's light out to those neighbours, so a read beside the surface finds light.
 
 ### So far: how far to a surface {#c5-recap kind=2d graph=frame focus="sdfgiJumpFlood, sdfgiStore"}
 
-So every cell now holds one byte that says how far it is to the nearest surface.
+So every cell now holds one byte that says how far it is to the nearest solid voxel.
 
 Rays use that distance to take long steps through empty space.
 
@@ -960,7 +1040,7 @@ The next chapter measures how well each probe can see the cells around it, so li
 
 ### The stage's last step {#c6-map kind=2d graph=frame focus=VOX}
 
-That stage ends by measuring, for each probe, how visible the cells around it are.
+The voxelization stage ends by measuring, for each probe, how visible the cells around it are.
 
 ### Visibility spreads from a probe, shell by shell {#c6-shells kind=3d}
 
@@ -983,8 +1063,9 @@ ${cue "key" {'
     panelCode
     listingOcclusion
     {highlightCode "occlusion" {' "shells"}}}}
-SDFGI works on a cube of sixteen cells a side around each probe, ${cue "key" {'
-    {glide cameraDistance 4.6 sentence}}}which reaches out to the neighbouring probes.
+Around each probe, SDFGI works on a cube of sixteen cells a side.
+
+Probes are eight cells apart, so that cube ${cue "key" {' {glide cameraDistance 4.6 sentence}}}reaches out to the neighbouring probes.
 
 ${cue "key" {' {callout "occlusion-shells"}}}
 Each cell in that cube gets a visibility, ${overText
@@ -997,11 +1078,11 @@ ${overText
 
 ${cue "key" {' {highlightCode "occlusion" {' "average"}}}}${overText
     {' {occlusionShellRange 8.0 16.0}}
-    "Each cell takes the average visibility of its neighbours one step closer to the probe"}.
+    "Each cell averages the visibility of the neighbours just inside it, one layer closer to the probe"}.
 
 ${overText
     {' {occlusionShellRange 16.0 22.0}}
-    "A solid cell has zero visibility, so the cells behind it grow darker"}.
+    "A solid cell has zero visibility, so the cells behind it average that zero in and fall below one"}.
 
 ### Four bits for each of eight probes {#c6-store kind=3d}
 
@@ -1016,9 +1097,9 @@ ${cue "key" {'
     panelCode
     listingOcclusion
     {highlightCode "occlusion" {' "store"}}}}
-Every cell lies inside a probe cube, ${overText
+Every cell also lies in a smaller cube, ${overText
     {' {cubeProbesRange 0.0 8.0}}
-    "the cube with a probe at each of its eight corners"}.
+    "eight cells a side, with a probe at each of its corners"}.
 
 So each cell keeps eight visibilities, ${cue "key" {'
     {cameraTarget {' -1.4 0.6 0.4}}
@@ -1026,11 +1107,13 @@ So each cell keeps eight visibilities, ${cue "key" {'
     {blend 2.5}}}one for each of those probes, in four bits each.
 
 ${cue "key" {' {callout "occlusion-read"} panelValues}}
-These visibilities are read only when the environment's use occlusion setting is on, and it is off by default.
+The pass over the screen reads these visibilities only when the environment's use occlusion setting is on.
 
-The code shows that the visibility is still computed ${overText
+By default, that setting is off.
+
+Yet SDFGI still computes the visibility ${overText
     {' {occlusionShellRange 0.0 22.0}}
-    "every time a cascade is rebuilt"}.
+    "every time it rebuilds a cascade"}.
 
 So by default, that work is done and never used.
 
@@ -1040,7 +1123,7 @@ So each cell now keeps, for each of the eight probes around it, how well that pr
 
 ### Read by the screen pass, when switched on {#c6-recap-gi kind=2d graph=frame focus=GI}
 
-The pass over the screen can use it to give less weight to a probe behind a wall.
+The pass over the screen can use that visibility to give less weight to a probe behind a wall.
 
 It does so only when the use occlusion setting is on, and that setting is off by default.
 
@@ -1048,7 +1131,7 @@ It does so only when the use occlusion setting is on, and that setting is off by
 
 Next, the cells are lit.
 
-## Light in the voxels {#c7 number=7 target=235 summary="Every fourth solid cell per frame is lit, shadowed through the field, and packed per face; static light, and the bounce." sources="update-light, light-schedule, omni-attenuation, shadow-march, aniso-pack, static-pass, scroll-reinject, bounce-feedback"}
+## Light in the voxels {#c7 number=7 target=255 summary="Every fourth solid cell per frame is lit, shadowed through the field, and packed per face; static light, and the bounce." sources="update-light, light-schedule, omni-attenuation, shadow-march, aniso-pack, static-pass, scroll-reinject, bounce-feedback"}
 
 ### Then the cells are lit {#c7-map kind=2d graph=frame focus=LIGHT}
 
@@ -1074,7 +1157,7 @@ ${cue "key" {' {callout "update-light"} {glide cameraDistance 4.2 sentence}}}
 A compute shader runs one thread for each solid cell in the list that chapter five built.
 
 ${cue "key" {' {callout "light-schedule"} {lightPhase 0.0} {blend 0.5}}}
-By default, a frame relights only every fourth cell in that list.
+By default, a frame relights only every fourth cell in that list, which spreads the work over four frames.
 
 ${cue "key" {' {lightPhase 1.0} {blend 0.5}}}The next frame takes the next ${cue "key" {'
     {lightPhase 2.0}
@@ -1104,30 +1187,34 @@ ${cue "key" {'
     listingDirectLight
     {highlightCode "direct-light" {' "attenuation"}}}} ${overText
         {' {lightHeightRange 0.5 1.6}}
-        "The falloff starts from the cell's distance, divided by the light's range"}.
+        "To find how the light fades, the code divides the cell's distance by the light's range"}.
 
 ${overText
     {' {lightHeightRange 1.6 2.2}}
-    "The falloff is then the square of one minus that ratio's fourth power, so the light fades to zero at the range"}.
+    "Then it raises that ratio to the fourth power and subtracts the result from one"}.
 
-${overText
-    {' {lightHeightRange 2.2 2.8}}
-    "That falloff is then divided by the distance raised to the power of the light's attenuation setting"}.
+Squaring that gives the falloff, which reaches zero at the edge of the light's range.
+
+${overText {' {lightHeightRange 2.2 2.8}} "The falloff is then divided by a power of the distance"}.
+
+The exponent is the light's attenuation setting.
 
 ${cue "key" {' panelHidden {falloffChart 1.0} {blend 1.0}}}That setting is one by default.
 
-So by default, the light falls off with the distance itself, ${cue "key" {'
+So by default, the light falls off with the plain distance, ${cue "key" {'
     {falloffChart 2.0}
     {blend 1.0}}}not with the distance squared.
 
 ${cue "key" {' panelValues {falloffChart 0.0}}}
-The code shows that the cell's distance to the light is measured with every height multiplied by the y scale's one and a half.
+But the distance in these steps is not the true distance.
+
+In the code, the distance is measured after every height is multiplied by the y scale from chapter two, which is one and a half.
 
 So the light behaves ${overText
     {' {squashedLightRange 0.0 1.0}}
-    "as if it hung one and a half times higher than it really does"}.
+    "as if it hung one and a half times higher than it really is"}.
 
-The readout shows that the lab's model gets the same result.
+The readout on screen confirms that the lab's copy of these steps gives the same light.
 
 ### A shadow ray steps through the field {#c7-shadow kind=3d}
 
@@ -1173,7 +1260,7 @@ The shadow is all or nothing, so a cell is either fully lit ${cue "key" {'
     {lightX 0.9}
     {blend 1.2}}}or fully dark.
 
-Every light gets this shadow ray, ${cue "key" {' {lightX 2.4} {blend 1.5}}}even one whose own shadow setting is off.
+Every light gets this shadow ray, ${cue "key" {' {lightX 2.4} {blend 1.5}}}even one whose own shadow setting is off, so its light in the voxels is always shadowed.
 
 ### Light is kept per face, then packed {#c7-faces kind=3d}
 
@@ -1196,21 +1283,27 @@ ${cue "key" {'
     panelCode
     listingDirectLight
     {highlightCode "direct-light" {' "faces"}}}}
-A voxel has no single normal, so its light is summed separately ${overText
+A voxel is a cube, so it has no single normal.
+
+Its light is summed separately ${overText
     {' {faceLightRange 0.0 1.0}}
-    "for each of the six faces it shows"}.
+    "for each of its six faces, one for each axis direction"}.
 
-${cue "key" {' {highlightCode "direct-light" {' "store"}}}}The cell stores the sum of all six as one colour.
+${cue "key" {' {highlightCode "direct-light" {' "store"}}}}To save space, the cell does not store six colours.
 
-It also stores a weight per face, ${overText
+It keeps one colour, the sum of the six faces' light.
+
+Then for each face, it stores a weight, ${overText
     {' {faceWeightsRange 0.0 1.0}}
-    "which says how much of that colour the face gets"}.
+    "the share of that colour the face gets"}.
 
 ${cue "key" {' {highlightCode "direct-light" {' "neighbours"}}}}
+Chapter five flagged the empty neighbours whose nearest surface is this cell.
+
 The cell's light is also copied into ${cue "key" {'
     {faceLight 0.0}
     {neighbourFlags 1.0}
-    {blend 1.0}}}the empty neighbours flagged in chapter five, those whose nearest surface is this cell.
+    {blend 1.0}}}those flagged neighbours.
 
 So a filtered read next to a wall ${cue "key" {' {glide cameraYaw 80.0 sentence}}}blends in the wall's light, rather than fading toward black.
 
@@ -1223,11 +1316,11 @@ ${cue "key" {opening demoLight 0.5 {'
     {cellLight 0.0}}}}
 
 ${cue "key" {' {callout "static-pass"}}}
-A static light is written into its cells once, ${overText
+A static light is written once into the cells it reaches, ${overText
     {' {cellLightRange 0.0 1.0}}
     "when its region is built"}.
 
-Its light is added on top of whatever light the cell already stores.
+It is added on top of any light the cell already stores, and that matters at the next jump.
 
 ### And added again after every scroll {#c7-double kind=3d}
 
@@ -1240,37 +1333,46 @@ ${cue "key" {opening demoLight 0.5 {'
 ${cue "key" {' {callout "scroll-reinject"}}}
 When a cascade jumps, ${overText
     {' {cellLightRange 0.0 1.0}}
-    "the cells it keeps carry their stored light"} into the new list of cells.
+    "the cells it keeps carry their stored light"} into the list of solid cells rebuilt after the jump.
 
 That stored light includes any static light the cells already had.
 
 ${overText
     {' {scrollsRange 0.0 1.5}}
-    "The code shows that whenever a static light overlaps the new slab, the light is added again, to the kept cells too"}.
+    "But whenever a static light overlaps the new slab, the code adds that light again"}.
 
-${overText {' {scrollsRange 1.5 3.0}} "So each such jump adds the light once more"}.
+It is added to the kept cells too, not only to the slab's.
 
-In the lab's model, ${cue "key" {' {glide cameraDistance 4.0 sentence}}}a kept cell ends up holding it twice, then three times, then four.
+${overText {' {scrollsRange 1.5 3.0}} "So each such jump adds that static light once more"}.
+
+In the lab's model, ${cue "key" {' {glide cameraDistance 4.0 sentence}}}a kept cell ends up holding that static light twice, then three times, then four.
+
+So the cell grows brighter with every jump.
 
 ### Last frame's probes light the cells again {#c7-bounce kind=3d}
 
 ${cue "key" {opening demoLight 1.0 {' {extraLight 0.0} {bounceFeedback 0.0}}}}
 
-${cue "key" {' {callout "bounce-feedback"}}} The light pass also ${cue "key" {'
+${cue "key" {' {callout "bounce-feedback"}}}
+Besides the lights themselves, the light pass also ${cue "key" {'
     {cameraTarget {' -2.4 1.2 -0.5}}
     {cameraYaw 70.0}
     {cameraDistance 3.6}
     {blend 2.5}}}lets light bounce more than once.
 
-Before the lights are added, each cell reads the light of the eight probes around it.
+The eight probes around each cell ${cue "key" {' {glide cameraDistance 5.6 sentence}}}gathered light from these same cells on the frame before.
 
-The cell multiplies that probe light by its own colour and by ${overText
+Before the lights are added, each cell reads that probe light.
+
+The cell multiplies that probe light by its own colour.
+
+It also multiplies it by ${overText
     {' {bounceFeedbackRange 0.0 0.5}}
-    "a setting called the bounce feedback, and adds the result"}.
+    "a setting called the bounce feedback, and adds the result to its light"}.
 
-The bounce feedback scales each bounce, and its default is one half.
+So the bounce feedback sets how strong each bounce is.
 
-The probes were filled from ${cue "key" {' {glide cameraDistance 5.6 sentence}}}these same cells a frame earlier.
+Its default is one half.
 
 So the light makes a loop, from the cells to the probes and back, one bounce further each frame.
 
@@ -1282,13 +1384,13 @@ ${overText
 
 So each solid cell now stores, for each face, the light that reaches it.
 
-That is the lights' own light, plus last frame's bounce from the probes.
+That light is what the scene's lights give the cell, plus last frame's bounce from the probes.
 
 ### Next, the probes read it {#c7-recap-next kind=2d graph=frame focus=PRE}
 
 In the next chapter, the probes' rays bring that light back.
 
-## Probes trace the field {#c8 number=8 target=195 summary="Eight rays a frame per probe, marched through the field; sixteen coefficients kept in a ring of thirty frames." sources="update-probes, vogel-rays, probe-march, probe-hit, probe-sky, sh-accum, history-ring"}
+## Probes trace the field {#c8 number=8 target=230 summary="Eight rays a frame per probe, marched through the field; sixteen coefficients kept in a ring of thirty frames." sources="update-probes, vogel-rays, probe-march, probe-hit, probe-sky, sh-accum, history-ring"}
 
 ### Then the probes gather {#c8-map kind=2d graph=frame focus=PRE}
 
@@ -1308,20 +1410,24 @@ ${cue "key" {' {callout "update-probes"}}} Every frame, ${overText
 
 ${cue "key" {' {callout "vogel-rays"}}} ${overText
     {' {rayFramesRange 1.0 10.0}}
-    "The rays' directions follow a spiral over the sphere"}.
+    "The rays' directions follow a spiral over a sphere of directions"}.
 
 ${overText
     {' {rayFramesRange 10.0 30.0}}
     "Over thirty frames, the rays cover two hundred forty directions"}.
 
 ${cue "key" {' {rayFrames 1.0} {blend 1.0}}}
-The code numbers each ray, and whether the number is odd or even decides which half of the sphere the ray points toward.
+The code gives each ray a number.
 
-One frame's ray numbers are thirty apart, ${cue "key" {' {glide cameraDistance 2.0 sentence}}}and thirty is even, so they are all odd or all even.
+Whether a ray's number is odd or even decides which half of the sphere of directions it points toward.
+
+Within one frame, the eight ray numbers are thirty apart.
+
+Thirty is even, ${cue "key" {' {glide cameraDistance 2.0 sentence}}}so they are all odd or all even.
 
 So each frame's eight rays ${cue "key" {' {glide cameraYaw 95.0 sentence}}}point into the same half of the sphere.
 
-The halves ${overText {' {rayFramesRange 1.0 6.0}} "alternate from frame to frame"}.
+The halves ${overText {' {rayFramesRange 1.0 6.0}} "alternate from frame to frame"}, so every two frames cover the whole sphere.
 
 They are shown here ${cue "key" {' {glide cameraYaw 30.0 sentence}}}in two colours.
 
@@ -1343,6 +1449,8 @@ ${overText
     {' {rayStepsRange 15.0 30.0}}
     "The ray stops when it is within a twentieth of a cell of a surface"}.
 
+That counts as a hit.
+
 When the ray leaves the first cascade, ${overText
     {' {rayStepsRange 30.0 40.0}}
     "it carries on through the next one, which is coarser and larger"}.
@@ -1352,12 +1460,13 @@ When the ray leaves the first cascade, ${overText
 ${cue "key" {opening demoProbes 0.5 {' {probeRays 1.0} {rayFrames 1.0} {hitNormals 0.0}}}}
 
 ${cue "key" {' {callout "probe-hit"}}}
-At a hit, ${overText {' {hitNormalsRange 0.0 1.0}} "the ray needs the surface normal"}.
+To weigh the cell's faces at a hit, ${overText
+    {' {hitNormalsRange 0.0 1.0}}
+    "the ray needs the surface normal"}.
 
-The stored distance grows fastest directly away from the surface, so ${cue "key" {'
-    {cameraTarget {' -2.4 0.9 -0.2}}
-    {cameraDistance 2.2}
-    {blend 2.5}}}the field's gradient, the direction of fastest growth, gives that normal.
+The stored distance grows fastest directly away from the surface.
+
+So ${cue "key" {' {cameraTarget {' -2.4 0.9 -0.2}} {cameraDistance 2.2} {blend 2.5}}}the field's gradient, the direction in which it grows fastest, gives that normal.
 
 That normal decides ${overText
     {' {rayFramesRange 1.0 3.0}}
@@ -1368,7 +1477,7 @@ The ray brings that light ${cue "key" {'
     {cameraDistance 3.4}
     {blend 2.5}}}back to the probe.
 
-That light already includes the bounce that the last chapter added from last frame's probes.
+That light already includes the bounce from last frame's probes, which the last chapter added.
 
 ### A miss reads the sky {#c8-miss kind=3d}
 
@@ -1379,9 +1488,9 @@ A ray that leaves every cascade ${overText
     {' {giReadSkyLightRange 0.0 1.0}}
     "reads the sky instead"}.
 
-It reads the sky's mip level two, a blurred copy.
+It reads a blurred copy of the sky, mip level two, a smaller version of the sky texture.
 
-A comment in the code says the reason is that a probe throws few rays.
+A comment in the code explains the blur by saying that a probe traces few rays.
 
 With the blur, ${overText
     {' {rayFramesRange 4.0 30.0}}
@@ -1389,17 +1498,19 @@ With the blur, ${overText
 
 ### A sky the shader does not declare {#c8-sky kind=2d graph=frame focus=sdfgiProbeProcess}
 
-But the code has a mismatch here.
+But reading the sky runs into a mismatch in the code.
 
 ${cue "key" {' {callout "sky-define"}}}
-The code shows that in four point seven stable, the probe shader is built for a single sky texture.
+In four point seven stable, the probe shader is built for a single sky texture.
 
-By default on desktop, though, the sky is stored as an array of textures, a different texture type.
+By default on desktop, though, the sky is stored as an array of textures.
+
+That is a different texture type from the one the shader declares.
 
 ### Fixed after the release {#c8-sky-fix kind=2d graph=frame focus=PRE}
 
 ${cue "key" {' {callout "sky-define"}}}
-So the code does not define what an escaping ray reads.
+So what a ray that leaves every cascade reads is left undefined.
 
 A later commit fixes the mismatch.
 
@@ -1422,9 +1533,13 @@ Each ray's light is added into ${overText
 
 ${cue "key" {' {highlightCode "probe-rays" {' "fixed"}}}}The coefficients are then scaled by one thousand twenty-four and kept as integers.
 
-Integers add and subtract exactly, ${overText
+Storing fractions this way is called fixed point.
+
+Integers add and subtract exactly.
+
+${overText
     {' {rayFramesRange 12.0 30.0}}
-    "and the probe's history in the next step depends on that"}.
+    "The next step relies on that, because it adds and subtracts whole frames of rays"}.
 
 ### A ring of thirty frames, summed exactly {#c8-history kind=3d}
 
@@ -1439,17 +1554,25 @@ The probe keeps its last thirty frames in a ring, ${overText
     {' {framesRange 0.0 5.0}}
     "where the newest frame replaces the oldest"}.
 
-Each frame, the probe subtracts the oldest frame from its sum and adds the newest.
+The probe keeps a running sum of those thirty frames.
+
+Each frame, it subtracts the oldest frame from that sum and adds the newest.
+
+So when a light turns on, each frame swaps one old frame in the sum for one that sees the light.
 
 ${overText
     {' {framesRange 5.0 20.0}}
-    "So when a light turns on, the probe brightens by a thirtieth of the change each frame"}.
+    "So the probe brightens by a thirtieth of the change each frame"}.
 
 ${overText
     {' {framesRange 20.0 40.0}}
-    "The chart on screen shows that as a straight line, which levels off after thirty frames"}.
+    "The chart on screen shows that brightening as a straight line"}.
+
+The line levels off after thirty frames.
 
 So a light that moves takes thirty frames to show up fully.
+
+Thirty is the default of the second project setting from chapter one, the frames each probe averages together.
 
 ### So far: thirty frames of rays {#c8-recap kind=2d graph=frame focus=PRE}
 
@@ -1459,9 +1582,11 @@ They are the exact sum of the rays it traced over its last thirty frames.
 
 ### Next, from coefficients to textures {#c8-recap-next kind=2d graph=frame focus=STORE}
 
-A pixel cannot sample coefficients the way it samples a texture, so the next chapter converts them into small textures.
+A pixel cannot sample coefficients the way it samples a texture.
 
-## From coefficients to maps {#c9 number=9 target=160 summary="Two six-by-six octahedral maps per probe, a brightness gain, a half-texel shift, and scrolled probes." sources="store-probes, oct-store, oct-border, oct-read, probe-scroll, parent-seed"}
+So the next chapter converts them into small textures.
+
+## From coefficients to maps {#c9 number=9 target=180 summary="Two six-by-six octahedral maps per probe, a brightness gain, a half-texel shift, and scrolled probes." sources="store-probes, oct-store, oct-border, oct-read, probe-scroll, parent-seed"}
 
 ### Then the probes store {#c9-map kind=2d graph=frame focus=STORE}
 
@@ -1491,9 +1616,11 @@ ${cue "key" {'
     {highlightCode "probe-store" {' "direction"}}}}
 Each probe gets two maps ${cue "key" {' {glide cameraDistance 2.6 sentence}}}of six by six texels.
 
-${cue "key" {' {mapTexel 0.0}}}Each is an octahedral map, which folds ${overText
+${cue "key" {' {mapTexel 0.0}}}Each map ${overText
     {' {mapTexelRange 0.0 5.0}}
-    "the sphere of directions flat into a square"}.
+    "unfolds the sphere of directions into a flat square"}.
+
+That layout is called an octahedral map.
 
 Every texel of the map then ${overText {' {mapTexelRange 5.0 35.0}} "stands for one direction"}.
 
@@ -1504,16 +1631,22 @@ ${cue "key" {' {highlightCode "probe-store" {' "radiance"}}}}The other map holds
     {' {mapTexelRange 14.0 21.0}}
     "the light arriving from a texel's direction"}.
 
-A diffuse surface reads the irradiance map, and a reflection reads the radiance map.
+A diffuse surface, one with no mirror-like shine, reads the irradiance map.
+
+A reflection reads the radiance map.
 
 ${cue "key" {' {callout "oct-border"} {highlightCode "probe-store" {' "border"}}}}
 Each map has a border of one texel, ${cue "key" {' {mapTexel 2.0} {blend 1.0}}}drawn darker here.
 
-The border is there because bilinear filtering ${cue "key" {' {mapTexel 0.0} {blend 1.0}}}near a map's edge reads one texel beyond the edge.
+The border is there because bilinear filtering, which blends the nearest texels, ${cue "key" {'
+    {mapTexel 0.0}
+    {blend 1.0}}}reads one texel past the edge when it samples near it.
 
-So the border holds copies of the edge texels, ${overText
+So the border holds copies of the edge texels.
+
+${overText
     {' {mapTexelRange 0.0 5.0}}
-    "mirrored the way the fold continues them"}.
+    "Each copy is mirrored across the square's edge, so it continues the map the way the sphere does"}.
 
 That way, filtering at the edge reads the directions that really lie beyond it.
 
@@ -1526,6 +1659,8 @@ ${cue "key" {opening demoMaps 0.5 {'
     {rayFrames 0.0}
     {uniformSky 0.0}
     {gainFix 1.0}}}}
+
+The maps also have to come out at the right brightness.
 
 ${cue "key" {'
     {callout "sh-gain"}
@@ -1541,17 +1676,17 @@ So the sum of the rays should be multiplied by four pi over the ray count, ${cue
     {uniformSky 1.0}
     {blend 1.0}}}to give the light over the whole sphere.
 
-The code instead multiplies by four over the ray count, ${overText
+The code instead multiplies by just four over the ray count, ${overText
     {' {rayFramesRange 0.0 1.0}}
     "when it adds up the rays"}.
 
 Then it multiplies by four again, when it stores the maps.
 
-Four times four is sixteen instead of four pi, so ${overText
-    {' {gainFixRange 1.0 0.0}}
-    "the result is too large by a factor of four over pi"}.
+Together, the code multiplies by sixteen, where it needed four pi.
 
-${cue "key" {' panelValues}}So a uniform sky comes out about twenty-seven percent too bright.
+So ${overText {' {gainFixRange 1.0 0.0}} "the stored light is four over pi times too large"}.
+
+${cue "key" {' panelValues}}So a uniform sky, the same colour in every direction, comes out about twenty-seven percent too bright.
 
 The readout shows the same extra brightness in the lab's model.
 
@@ -1564,12 +1699,16 @@ ${cue "key" {'
     panelCode
     listingProbeStore
     {highlightCode "probe-store" {' "direction"}}}}
+The maps have a second mismatch, this time in their directions.
+
 The code computes each texel's direction ${cue "key" {' {mapTexel 14.0} {blend 0.5}}}from the texel's corner.
 
 But a lookup treats a texel's value ${cue "key" {' {glide cameraDistance 2.4 sentence}}}as sitting at its centre, half
 a texel away.
 
-So every lookup lands half a texel off and returns ${overText
+So every lookup lands half a texel off.
+
+Along each axis, it returns ${overText
     {' {mapTexelRange 14.0 15.0}}
     "a blend of two neighbouring texels"}.
 
@@ -1584,13 +1723,16 @@ ${cue "key" {opening demoCascades 0.6 {'
     {cameraX 0.0}
     {cameraDistance 34.0}}}}
 
-${cue "key" {' {callout "probe-scroll"}}} The probes' histories ${overText
+${cue "key" {' {callout "probe-scroll"}}}
+In chapter two, a jump left every probe where a probe stood before.
+
+So the probes' histories, their thirty frames of light, ${overText
     {' {probesRange 0.0 1.0}}
-    "also follow a cascade's jump"}.
+    "follow the jump too"}.
 
 ${overText
     {' {cameraXRange 0.0 1.0}}
-    "When a cascade jumps, they move with it, to their new place in the grid"}.
+    "Each probe's history moves with its probe, to the probe's new place in the grid"}.
 
 So the probes that remain ${cue "key" {' {glide cameraDistance 18.0 sentence}}}keep their thirty frames of light.
 
@@ -1607,7 +1749,7 @@ So each probe now has two small maps, irradiance for diffuse light and radiance 
 
 In the next chapter, the screen pass reads them for every pixel.
 
-## Shading a pixel {#c10 number=10 target=175 summary="The screen pass: the finest cascade, eight probes, diffuse and specular, and how the frame uses them." sources="process-gi, cascade-select, cascade-blend, probe-weights, specular-trace, gi-compose, forward-gi, fog-sdfgi"}
+## Shading a pixel {#c10 number=10 target=210 summary="The screen pass: the finest cascade, eight probes, diffuse and specular, and how the frame uses them." sources="process-gi, cascade-select, cascade-blend, probe-weights, specular-trace, gi-compose, forward-gi, fog-sdfgi"}
 
 ### Last, the screen {#c10-map kind=2d graph=frame focus=GI}
 
@@ -1622,12 +1764,15 @@ Every probe now has its maps, and the screen pass from chapter one ${overText
     "turns them into each pixel's light"}.
 
 ${cue "key" {' {callout "process-gi"}}}
-After the depth pre-pass, the screen pass, a compute pass over the screen, ${cue "key" {'
-    {glide cameraDistance 2.4 sentence}}}rebuilds each pixel's position from its depth.
+The screen pass runs after the depth pre-pass.
+
+From each pixel's depth, it ${cue "key" {' {glide cameraDistance 2.4 sentence}}}rebuilds the pixel's position.
 
 The pass also reads each pixel's normal, ${overText
     {' {pixelYRange 0.6 0.9}}
     "as at this point on the red wall"}.
+
+The position and the normal are what the probe lookup starts from.
 
 ### The finest cascade that holds it {#c10-cascade kind=3d}
 
@@ -1653,11 +1798,13 @@ ${cue "key" {'
 
 ${overText
     {' {blendPointRange 7.0 14.0}}
-    "The blend begins five and a half probe spacings from the camera, and it is complete at seven and a half"}.
+    "The blend begins five and a half probe spacings from the camera"}.
+
+It is complete at seven and a half, just inside the grid, which reaches about eight spacings out.
 
 ${cue "key" {' panelValues}}The readout follows a test point ${overText
     {' {blendPointRange 14.0 20.0}}
-    "as it moves out through that band"}.
+    "as it moves out through the blend"}.
 
 ### Eight probes, weighted by distance and by facing {#c10-probes kind=3d}
 
@@ -1673,23 +1820,33 @@ ${cue "key" {'
     panelCode
     listingScreenPass
     {highlightCode "screen-pass" {' "bias"}}}}
-Before reading the probes, ${cue "key" {' {glide cameraDistance 2.6 sentence}}}the pass pushes the pixel's point off the wall.
+Before reading the probes, ${cue "key" {' {glide cameraDistance 2.6 sentence}}}the pass moves the pixel's position along the normal, away from the wall.
 
-It pushes the point along the normal, by one point one cells.
+The distance is one point one cells, the engine's choice.
 
 ${cue "key" {' {highlightCode "screen-pass" {' "weight"}}}}
-Then it weights ${overText
-    {' {pixelProbesRange 0.0 1.0}}
-    "the eight probes at the corners of the probe cube around the point"}.
+The moved position lies inside a probe cube.
 
-A probe's weight grows ${overText {' {pixelYRange 0.9 1.3}} "as the probe gets closer to the point"}, and as the probe sits farther in front of the surface.
+Then the pass weights ${overText
+    {' {pixelProbesRange 0.0 1.0}}
+    "the eight probes at the cube's corners"}.
+
+A probe's weight grows ${overText
+    {' {pixelYRange 0.9 1.3}}
+    "as the probe gets closer to the position"}.
+
+It also grows as the probe sits farther in front of the surface.
 
 So a probe behind the wall ${cue "key" {' {glide cameraYaw 110.0 sentence}}}counts for almost nothing, about two
 hundred times less.
 
 ${overText
     {' {pixelZRange -0.4 1.4}}
-    "As the point slides along the wall, the weights move between the probes"}.
+    "As the position slides along the wall, the weights move between the probes"}.
+
+From each probe, the pass reads the irradiance map in the normal's direction.
+
+So each pixel's light is a mix of its eight probes.
 
 ### Rough surfaces read the maps {#c10-specular kind=3d}
 
@@ -1701,8 +1858,9 @@ ${cue "key" {opening demoPixel 0.5 {'
     {cameraDistance 3.2}}}}
 
 ${cue "key" {' {callout "specular-probes"}}}
-The probes light reflections too, by looking up the radiance map ${cue "key" {'
-    {glide cameraYaw 40.0 sentence}}}along the mirror direction.
+The probes light reflections too.
+
+The pass looks up the radiance map ${cue "key" {' {glide cameraYaw 40.0 sentence}}}along the mirror direction, the way a mirror would send the view ray.
 
 ${overText
     {' {sphereRoughnessRange 1.0 0.25}}
@@ -1728,14 +1886,17 @@ Without SDFGI, the opaque pass fills ${cue "key" {'
 
 With SDFGI, it takes the screen pass's ambient light instead.
 
-The opaque pass multiplies that ambient light by the albedo, ${cue "key" {'
-    {cameraTarget {' -1.05 0.6 -0.55}}
-    {cameraDistance 3.2}
-    {blend 2.5}}}and adds the reflection.
+The opaque pass multiplies the screen pass's ambient light by the albedo, the surface's own colour.
+
+Then it ${cue "key" {' {cameraTarget {' -1.05 0.6 -0.55}} {cameraDistance 3.2} {blend 2.5}}}adds the reflection.
+
+The lab's port, unlike Godot, leaves that sky ambient light out.
 
 ${overText
     {' {sdfgiMixRange 1.0 0.0}}
-    "The lab's port leaves the sky's ambient light out, so without SDFGI only the panel's direct light reaches the room, and the shadows are black"}.
+    "So without SDFGI, only the panel's direct light reaches the room"}.
+
+The shadows are black.
 
 ${overText {' {sdfgiMixRange 0.0 1.0}} "With SDFGI, the bounced light comes back"}.
 
@@ -1747,11 +1908,13 @@ ${cue "key" {' {motion {' swayYaw}}}}
 ${cue "key" {' {callout "forward-gi"}}}
 Transparent surfaces skip the screen pass and repeat the probe lookup in their own shader.
 
-They never march a reflection ray.
+They never march a reflection ray, even when they are smoother than a roughness of a fifth.
 
 And SDFGI's energy setting, ${overText
     {' {sdfgiEnergyRange 1.0 2.0}}
     "which scales its light, never reaches them"}.
+
+So at any value but one, they stop matching the opaque surfaces.
 
 ### Fog reads the probes at the wrong height {#c10-fog kind=3d}
 
@@ -1764,11 +1927,11 @@ ${cue "key" {opening demoPixel 0.3 {'
     {cameraPitch 24.0}}}}
 
 ${cue "key" {' {callout "fog-sdfgi"}}}
-Volumetric fog is ${cue "key" {' {fogHeight 0.5} {blend 0.6}}}another reader of the probes.
+Volumetric fog, fog that fills the air of the scene, is ${cue "key" {' {fogHeight 0.5} {blend 0.6}}}another reader of the probes.
 
-It reads their average light, ${cue "key" {' {glide cameraDistance 3.8 sentence}}}one colour per probe.
+It reads not the maps but a separate texture, ${cue "key" {' {glide cameraDistance 3.8 sentence}}}one colour per probe, its light without direction.
 
-The code shows that the fog never applies the y scale, ${overText
+Yet the fog never applies the y scale, ${overText
     {' {fogHeightRange 0.5 2.4}}
     "the factor of one and a half from chapter two"}.
 
@@ -1795,7 +1958,9 @@ Each jump leaves a dirty slab to rebuild.
 ### The slab becomes a distance field {#c11-voxels kind=2d graph=frame focus=VOX}
 
 ${cue "key" {' {callout "render-region"}}}
-The slab is voxelized, and a jump flood turns it into a distance field.
+The slab is voxelized.
+
+Then a jump flood turns the voxels into a distance field.
 
 Then the occlusion step measures how well each probe sees the cells around it.
 
@@ -1827,7 +1992,9 @@ ${cue "key" {opening demoRoom 1.0 {append narrationCleared {'
     {cameraPitch 20.0}
     {cameraDistance 4.6}}}}}
 
-So SDFGI keeps ${cue "key" {' {glide cameraDistance 6.4 sentence}}}the scene around the camera as data.
+Three things are worth taking away from this frame.
+
+First, SDFGI keeps ${cue "key" {' {glide cameraDistance 6.4 sentence}}}the scene around the camera as data it can trace rays through.
 
 ### Voxels, a field, and probes {#c11-data kind=3d}
 
@@ -1849,9 +2016,9 @@ ${cue "key" {opening demoProbes 1.0 {'
     {frames 30.0}
     {historyChart 0.0}}}}
 
-It spreads its work ${overText
-    {' {rayFramesRange 0.0 12.0}}
-    "across many frames, and each frame reuses what the earlier frames computed"}.
+Second, it spreads its work ${overText {' {rayFramesRange 0.0 12.0}} "across many frames"}.
+
+Each frame reuses what the earlier frames computed.
 
 ### The price {#c11-price kind=3d}
 
@@ -1864,7 +2031,7 @@ ${cue "key" {' {motion {' swayYaw}}}}
 
 ${overText
     {' {sdfgiMixRange 1.0 0.0}}
-    f"{The price is that its light is only as fine as its cells, ${spoken {cellCentimetres}} centimetres and larger}"}.
+    f"{Third, the price of that speed is light only as fine as its cells, ${spoken {cellCentimetres}} centimetres and larger}"}.
 
 ### Static meshes only {#c11-static kind=3d}
 
@@ -1878,13 +2045,13 @@ ${cue "key" {opening demoVoxels 1.0 {'
     {cameraPitch 28.0}
     {cameraDistance 3.0}}}}
 
-It sees only meshes ${overText {' {teapotGiModeRange 0.0 1.0}} "whose GI mode is Static"}.
+It also sees only meshes ${overText {' {teapotGiModeRange 0.0 1.0}} "whose GI mode is Static"}.
 
 ### Thirty frames behind {#c11-lag kind=3d}
 
 ${cue "key" {opening demoProbes 1.0 {' {probeRays 0.0} {frames 0.0} {historyChart 1.0}}}}
 
-And it takes ${overText {' {framesRange 0.0 30.0}} "about thirty frames to catch up with a change"}.
+And a change takes ${overText {' {framesRange 0.0 30.0}} "about thirty frames to show up fully"}.
 
 ### SDFGI {#c11-end kind=3d}
 
