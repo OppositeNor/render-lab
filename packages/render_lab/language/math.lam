@@ -624,8 +624,21 @@ $[# {_carriedBy mobs a b scale ratio} {!if {> ratio 0.0}
     {_carried mobs a b}}]
 Fn([Box, Box, Float], Box). From one box to another.
 $[# {_boxBetween a b s} {box {lerp2 {.lo a} {.lo b} s} {lerp2 {.hi a} {.hi b} s}}]
+Fn([List(Mob)], Bool). Whether a piece is one rectangle (a bar, a share), which a transform reshapes into the box
+between its forms rather than scaling it evenly.
+$[# {_oneRect mobs} {!and {= {length mobs} 1} {= {_shapeOf {nth mobs 0}} "rect"}}]
+Fn([List(Mob), Box], List(Mob)). A rectangle given the box `b` as its corners.
+$[# {_rectInto mobs b} {map mobs {^ {m} {: {!case m
+    {tex r {#tex r}}
+    {text r {#text r}}
+    {rect r {#rect {.lo= {.hi= r {.hi b}} {.lo b}}}}
+    {path r {#path r}}
+    {band r {#band r}}
+    {dot r {#dot r}}
+    {frame r {#frame r}}} Mob}}}]
 Fn([Float, List(Mob), List(Mob)], List(Mob)). One figure turned into another (manim's `TransformMatchingTex`):
-the pieces named alike in both move (and scale) from where they are in the first to where they are in the second,
+the pieces named alike in both move (and scale; a rectangle takes the box between its two forms) from where they
+are in the first to where they are in the second,
 each cross-fading into its new form; the first's other pieces fade out, the second's fade in. Pieces named ""
 never match.
 $[# {transform t from to}
@@ -645,7 +658,7 @@ $[# {transform t from to}
         [# now {_boxBetween ba bb s}]
         [# r {_emRatio a b}]
         {!if {_sameShape a b}
-            {_carriedBy a ba now {lerp 1.0 r s} r}
+            {!if {_oneRect a} {_rectInto a now} {_carriedBy a ba now {lerp 1.0 r s} r}}
             {append
                 {faded {_carriedBy a ba now {lerp 1.0 r s} r} {_outgoing s}}
                 {faded
