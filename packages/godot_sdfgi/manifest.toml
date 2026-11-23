@@ -11,8 +11,7 @@ import = ["render_lab", "godot_voxelgi"]
 # function, which hands the lab the package's investigations (lab/src/plugin.rs).
 library = "godot_sdfgi"
 negotiate = "godot_sdfgi_negotiate"
-# Its narrated video's timelines and narration, which a narration package overrides (resources.toml).
-export = ["timeline/en", "timeline/zh-cn", "narration/en", "narration/zh-cn"]
+export = []
 
 # The copyright and license line shown after the engine's version (src/packages.rs).
 credit-text = "notice-credit"
@@ -22,21 +21,6 @@ field = "render_lab.computer-graphics"
 [[provides]]
 type = "resource"
 path = "resources.toml"
-
-# The narrated video, in its two editions.
-[[provides]]
-type = "demo"
-key = "video"
-title = "How Godot's SDFGI Lights a Room"
-timeline = "timeline/en"
-audio = "narration/en"
-
-[[provides]]
-type = "demo"
-key = "video-zh-CN"
-title = "Godot 的 SDFGI 如何照亮一个房间"
-timeline = "timeline/zh-cn"
-audio = "narration/zh-cn"
 
 # Legal notices (src/packages.rs `[[notice]]`): shown on the homepage, at the end of its videos, and beside them.
 

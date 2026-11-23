@@ -1,0 +1,29 @@
+# The narrated videos of the package `o3de_lighting`: their timelines and narration, which tools/video builds from
+# packages/o3de_lighting/video/ into build/ here. Each demo narrates `o3de_lighting`'s investigations (`for`). A release
+# publishes this package on its own (tools/publish_narration.py), the same on every platform.
+
+name = "o3de_lighting_narration"
+author = "OppositeNor"
+license = "MIT"
+import = ["o3de_lighting"]
+export = []
+
+[[provides]]
+type = "resource"
+path = "resources.toml"
+
+[[provides]]
+type = "demo"
+key = "video"
+title = "How O3DE Lights a Frame"
+timeline = "timeline/en"
+audio = "narration/en"
+for = "o3de_lighting"
+
+[[provides]]
+type = "demo"
+key = "video-zh-CN"
+title = "O3DE 如何照亮一帧"
+timeline = "timeline/zh-cn"
+audio = "narration/zh-cn"
+for = "o3de_lighting"

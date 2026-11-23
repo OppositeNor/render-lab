@@ -1,0 +1,29 @@
+# The narrated videos of the package `godot_voxelgi`: their timelines and narration, which tools/video builds from
+# packages/godot_voxelgi/video/ into build/ here. Each demo narrates `godot_voxelgi`'s investigations (`for`). A release
+# publishes this package on its own (tools/publish_narration.py), the same on every platform.
+
+name = "godot_voxelgi_narration"
+author = "OppositeNor"
+license = "MIT"
+import = ["godot_voxelgi"]
+export = []
+
+[[provides]]
+type = "resource"
+path = "resources.toml"
+
+[[provides]]
+type = "demo"
+key = "video"
+title = "How Godot's VoxelGI Lights a Room"
+timeline = "timeline/en"
+audio = "narration/en"
+for = "godot_voxelgi"
+
+[[provides]]
+type = "demo"
+key = "video-zh-CN"
+title = "Godot 的 VoxelGI 如何照亮一个房间"
+timeline = "timeline/zh-cn"
+audio = "narration/zh-cn"
+for = "godot_voxelgi"

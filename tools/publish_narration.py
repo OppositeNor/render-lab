@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Publishes each public package's narrated videos as a package of its own.
+"""Publishes the narration packages: each investigation's narrated videos, as a package of their own.
 
-A package's demos play a timeline and a narration track that tools/video builds into its `build/` (`built = true`
-resources), which the CI's release, built without the video tools, does not have. They are data, the same on every
-platform, so they are built here, once, and published beside the release's archives: for package `<name>`, the
-content-only package `<name>_narration`, which imports `<name>` and overrides its demos' resources (they are exported
-and `overridable`). A user unpacks it into the `packages/` folder beside `render-lab`.
+A narration package, `packages/<name>_narration/`, holds no code: its demos (`for = "<name>"`) play the timelines and
+narration that tools/video builds into its `build/` from `packages/<name>/video/`. The CI's release, built without the
+video tools, leaves them out of its platform archives. They are data, the same on every platform, so they are built
+here, once, and published beside those archives as `<name>_narration-<tag>.zip`, which a user unpacks inside the
+packages folder in the executable's directory.
 
     python3 tools/publish_narration.py v0.0.8              # build, pack, check, and upload to the release v0.0.8
     python3 tools/publish_narration.py v0.0.8 --no-upload  # build, pack, and check only
@@ -30,30 +30,22 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+BUILT = ROOT / 'target' / 'release' / 'packages'
 # The heading the release's notes get once, above the install instructions.
 NOTES_HEADING = '## Narrated videos'
 
 
 @dataclass
-class DemoResource:
-    """A resource a package's demo plays: its key in the package, its source file, and its license."""
-
-    key: str
-    source: str
-    license: str
-
-
-@dataclass
 class Narration:
-    """One package's narration package: the package it overrides, its manifest, and the resources it replaces."""
+    """A narration package: its source, the package it narrates, and the sources of the resources its demos play."""
 
     package: Path
-    manifest: dict
-    resources: list[DemoResource]
+    narrates: str
+    sources: dict[str, str]
 
     @property
     def name(self) -> str:
-        return f'{self.package.name}_narration'
+        return self.package.name
 
 
 def git(*args: str) -> str:
@@ -65,44 +57,40 @@ def public_packages() -> list[Path]:
     return sorted({(ROOT / path).parent for path in git('ls-files', 'packages/*/manifest.toml').split()})
 
 
-def demo_resources(package: Path) -> tuple[dict, list[DemoResource]]:
-    """A package's manifest, and the resources its demos play (each once), which must be its own, exported, and
-    overridable."""
+def read_narration(package: Path) -> Narration | None:
+    """A package's narration: the package its demos narrate (`for`) and the sources of what they play; None for a
+    package without demos."""
     manifest = tomllib.loads((package / 'manifest.toml').read_text())
-    declared: dict[str, dict] = {}
-    keys: list[str] = []
-    for provided in manifest.get('provides', []):
-        # Its collections declare the resources; its demos name them.
+    demos = [p for p in manifest.get('provides', []) if p['type'] == 'demo']
+    if not demos:
+        return None
+    narrates = {d.get('for') for d in demos}
+    if len(narrates) != 1 or None in narrates:
+        raise SystemExit(f'{package.name}: every demo of a narration package names the one package it narrates (`for`)')
+    declared: dict[str, str] = {}
+    for provided in manifest['provides']:
+        # Its collections declare the files its demos play.
         if provided['type'] == 'resource':
             collection = tomllib.loads((package / provided['path']).read_text())
-            declared.update({r['id']: r for r in collection.get('resource', [])})
-        elif provided['type'] == 'demo':
-            keys += [k for k in (provided['timeline'], provided['audio']) if k not in keys]
-    resources = []
-    for key in keys:
-        resource = declared.get(key)
-        if resource is None:
-            raise SystemExit(f'{package.name}: a demo plays `{key}`, which is not one of its own resources')
-        if not (resource.get('overridable') and key in manifest.get('export', [])):
-            raise SystemExit(f'{package.name}: `{key}` must be exported and `overridable = true` for a narration package to override it')
-        resources.append(DemoResource(key, resource['source'], resource['license']))
-    return manifest, resources
+            declared.update({r['id']: r['source'] for r in collection.get('resource', [])})
+    keys = {k for d in demos for k in (d['timeline'], d['audio'])}
+    if missing := sorted(k for k in keys if k not in declared):
+        raise SystemExit(f'{package.name}: its demos play {", ".join(missing)}, which are not its own resources')
+    return Narration(package, narrates.pop(), {k: declared[k] for k in sorted(keys)})
 
 
-def editions(package: Path) -> list[tuple[str, str]]:
-    """The investigation and language of each edition of a package's video (video/video.json), English first."""
-    spec_path = package / 'video' / 'video.json'
-    if not spec_path.is_file():
-        return []
-    spec = json.loads(spec_path.read_text())
+def editions(narration: Narration) -> list[tuple[str, str]]:
+    """The investigation and language of each edition of the narrated package's video (video/video.json), English
+    first."""
+    spec = json.loads((ROOT / 'packages' / narration.narrates / 'video' / 'video.json').read_text())
     return [(spec['investigation'], lang) for lang in ['en', *spec.get('translations', {})]]
 
 
 def build_narration(narrations: list[Narration]) -> None:
-    """Builds each edition's narration and timeline (tools/video's build without `--video`, from its audio cache), one after
-    another."""
+    """Builds each edition's narration and timeline (tools/video without `--video`, from its audio cache), one
+    after another."""
     for narration in narrations:
-        for investigation, lang in editions(narration.package):
+        for investigation, lang in editions(narration):
             print(f'== {investigation} ({lang})', flush=True)
             command = [sys.executable, str(ROOT / 'tools/video/build.py'), '--investigation', investigation, '--lang', lang]
             if subprocess.run(command, cwd=ROOT).returncode != 0:
@@ -118,66 +106,34 @@ def digest(path: Path) -> str:
 
 
 def check_outputs(narration: Narration) -> list[str]:
-    """What is wrong with a package's built outputs: a file missing, or two editions playing the same narration (one
-    left from another language)."""
+    """What is wrong with a narration package's built files: one missing, or two editions playing the same narration
+    (one left from another language)."""
     problems = []
     seen: dict[str, str] = {}
-    for resource in narration.resources:
-        path = narration.package / resource.source
+    for key, source in narration.sources.items():
+        path = narration.package / source
         if not path.is_file():
-            problems.append(f'{narration.package.name}: `{resource.key}` is not built ({resource.source})')
+            problems.append(f'{narration.name}: `{key}` is not built ({source})')
             continue
-        if resource.key.startswith('narration/'):
+        if key.startswith('narration/'):
             # Every language's narration is its own recording.
-            same = seen.setdefault(digest(path), resource.key)
-            if same != resource.key:
-                problems.append(f'{narration.package.name}: `{resource.key}` is the same audio as `{same}`')
+            same = seen.setdefault(digest(path), key)
+            if same != key:
+                problems.append(f'{narration.name}: `{key}` is the same audio as `{same}`')
     return problems
 
 
-def toml_string(s: str) -> str:
-    return json.dumps(s, ensure_ascii=False)
-
-
-def write_package(narration: Narration, out: Path) -> Path:
-    """Writes `<name>_narration` into `out` as a built package (lab/src/cook.rs's form, which the loader reads): its
-    manifest, a collection that overrides each demo resource, and the files, linked from the sources or copied."""
+def take_built(narration: Narration, out: Path) -> Path:
+    """The narration package as the cook built it, copied into `out` without `cooked-from` (this checkout's path), so
+    that it is a package of its own wherever it is unpacked."""
     directory = out / narration.name
     shutil.rmtree(directory, ignore_errors=True)
-    directory.mkdir(parents=True)
-    name = narration.package.name
-    manifest = [
-        f'# The narrated videos of the package `{name}`: their timelines and narration, which replace its own',
-        '# (written by tools/publish_narration.py). Unpack it into the packages folder beside render-lab.',
-        f'name = {toml_string(narration.name)}',
-        f'author = {toml_string(narration.manifest["author"])}',
-        f'license = {toml_string(narration.manifest["license"])}',
-        f'import = [{toml_string(name)}]',
-        'export = []',
-        '',
-        '[[provides]]',
-        'type = "resource"',
-        'path = "resources.toml"',
-    ]
-    collection: list[str] = []
-    for resource in narration.resources:
-        target = directory / resource.source
-        target.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            os.link(narration.package / resource.source, target)
-        except OSError:
-            shutil.copy2(narration.package / resource.source, target)
-        collection += [
-            '[[resource]]',
-            f'id = {toml_string(resource.key)}',
-            'kind = "file"',
-            f'file = {toml_string(resource.source)}',
-            f'license = {toml_string(resource.license)}',
-            f'override = {toml_string(f"{name}.{resource.key}")}',
-            '',
-        ]
-    (directory / 'manifest.toml').write_text('\n'.join(manifest) + '\n')
-    (directory / 'resources.toml').write_text('\n'.join(collection))
+    shutil.copytree(BUILT / narration.name, directory, copy_function=os.link)
+    manifest = directory / 'manifest.toml'
+    lines = manifest.read_text().splitlines()
+    kept = [line for line in lines if not line.startswith(('cooked-from', '# Built from'))]
+    manifest.unlink()
+    manifest.write_text('\n'.join(kept) + '\n')
     return directory
 
 
@@ -197,27 +153,27 @@ def lab_json(binary: Path, env: dict[str, str], command: str) -> list[dict]:
 
 
 def check_with_lab(binary: Path, packages: list[Path], out: Path) -> None:
-    """Loads the built packages with the narration packages beside them, as a release would (no source checkout, so
-    nothing is cooked), and checks each demo now plays the narration package's files."""
+    """Loads the public built packages a release ships (no narration package among them) with the narration
+    packages beside them, as a release would (no source checkout, so nothing is cooked), and checks every demo's
+    files are there."""
     root = out / 'release'
     shutil.rmtree(root, ignore_errors=True)
-    # The public packages as built (what a release ships), then the narration packages beside them.
-    for public in public_packages():
-        shutil.copytree(ROOT / 'target/release/packages' / public.name, root / 'packages' / public.name, copy_function=os.link, symlinks=True)
+    shipped = [p.name for p in public_packages() if read_narration(p) is None]
+    for name in shipped:
+        shutil.copytree(BUILT / name, root / 'packages' / name, copy_function=os.link, symlinks=True)
     for package in packages:
         shutil.copytree(package, root / 'packages' / package.name, copy_function=os.link)
     # A root with no source packages, so the lab reads the built ones as they are.
     (root / 'root').mkdir()
     env = {**os.environ, 'RENDER_LAB_ROOT': str(root / 'root'), 'RENDER_LAB_PACKAGES': str(root / 'packages')}
     listed = {p['name']: p for p in lab_json(binary, env, 'packages')}
-    files = {r['id']: Path(r['file']).resolve() for r in lab_json(binary, env, 'resources')}
+    sizes = {r['id']: r['bytes'] for r in lab_json(binary, env, 'resources')}
     for package in packages:
-        overridden = package.name.removesuffix('_narration')
-        for demo in listed[overridden]['demos']:
-            # Each demo's files are now the narration package's.
+        for demo in listed[package.name]['demos']:
+            # Each demo's timeline and narration are files of the package.
             for key in (demo['timeline'], demo['audio']):
-                if not files[key].is_relative_to((root / 'packages' / package.name).resolve()):
-                    raise SystemExit(f'{overridden}: `{key}` plays {files[key]}, not {package.name}\'s')
+                if not sizes.get(key):
+                    raise SystemExit(f'{package.name}: demo `{demo["key"]}` has no file for `{key}`')
     shutil.rmtree(root)
 
 
@@ -235,8 +191,8 @@ def notes(archives: list[Path]) -> str:
     lines = [
         NOTES_HEADING,
         '',
-        'The narrated videos come in a package of their own, the same on every platform. To watch one, download its',
-        '`*_narration` archive below and unpack it into the `packages` folder beside `render-lab` (or `render-lab.exe`).',
+        'The narrated videos come in packages of their own, the same on every platform. To watch one, download its',
+        '`*_narration` archive below and unpack it inside the `packages` folder in the executable\'s directory.',
         'The narration plays through FFplay (FFmpeg), which must be on your PATH.',
         '',
     ]
@@ -272,11 +228,11 @@ def check_tag(tag: str) -> None:
 def arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('tag', help='the release, v<version> (Cargo.toml)')
-    parser.add_argument('--package', action='append', help='only this package (repeatable)')
+    parser.add_argument('--package', action='append', help='only this narration package (repeatable)')
     parser.add_argument('--skip-build', action='store_true', help='publish the outputs as they are built')
     parser.add_argument('--no-upload', action='store_true', help='pack and check only (the tag need not be checked out)')
     parser.add_argument('--wait', action='store_true', help='wait for the CI to publish the release before uploading')
-    parser.add_argument('--binary', type=Path, default=ROOT / 'target/release/render-lab', help='the built lab that checks the packages')
+    parser.add_argument('--binary', type=Path, default=ROOT / 'target/release/render-lab', help='the built lab that cooks and checks the packages')
     return parser
 
 
@@ -284,21 +240,18 @@ def main() -> None:
     args = arg_parser().parse_args()
     if not args.no_upload:
         check_tag(args.tag)
-    narrations = []
-    for package in public_packages():
-        manifest, resources = demo_resources(package)
-        # Only a package whose demos play something has narration to publish.
-        if resources and (not args.package or package.name in args.package):
-            narrations.append(Narration(package, manifest, resources))
+    narrations = [n for p in public_packages() if (n := read_narration(p)) and (not args.package or n.name in args.package)]
     if not narrations:
-        raise SystemExit('no public package has a narrated video' + (f' among {", ".join(args.package)}' if args.package else ''))
+        raise SystemExit('no public narration package' + (f' among {", ".join(args.package)}' if args.package else ''))
     if not args.skip_build:
         build_narration(narrations)
     problems = [p for n in narrations for p in check_outputs(n)]
     if problems:
         raise SystemExit('\n'.join(problems))
+    # The lab builds the packages as it would for a launch, the narration packages' new files with them.
+    subprocess.run([str(args.binary), 'cook'], cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
     out = ROOT / 'target' / 'narration' / args.tag
-    packages = [write_package(n, out / 'packages') for n in narrations]
+    packages = [take_built(n, out / 'packages') for n in narrations]
     if stray := [p for d in packages for p in local_paths(d)]:
         raise SystemExit('these files name a local path: ' + ', '.join(map(str, stray)))
     check_with_lab(args.binary, packages, out)

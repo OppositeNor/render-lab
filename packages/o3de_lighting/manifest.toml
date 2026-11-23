@@ -10,8 +10,7 @@ import = ["render_lab"]
 # function, which hands the lab the package's investigations (lab/src/plugin.rs).
 library = "o3de_lighting"
 negotiate = "o3de_lighting_negotiate"
-# Its narrated video's timelines and narration, which a narration package overrides (resources.toml).
-export = ["timeline/en", "timeline/zh-cn", "narration/en", "narration/zh-cn"]
+export = []
 
 # The copyright and license line shown after the engine's version (src/packages.rs).
 credit-text = "notice-credit"
@@ -21,21 +20,6 @@ field = "render_lab.computer-graphics"
 [[provides]]
 type = "resource"
 path = "resources.toml"
-
-# The narrated video, in its two editions.
-[[provides]]
-type = "demo"
-key = "video"
-title = "How O3DE Lights a Frame"
-timeline = "timeline/en"
-audio = "narration/en"
-
-[[provides]]
-type = "demo"
-key = "video-zh-CN"
-title = "O3DE 如何照亮一帧"
-timeline = "timeline/zh-cn"
-audio = "narration/zh-cn"
 
 # Legal notices (src/packages.rs `[[notice]]`): shown on the homepage, at the end of its videos, and beside them.
 

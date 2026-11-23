@@ -152,7 +152,7 @@ cargo run --release -- --investigation <id> render --timeline <timeline.json> \
     --snapshot A,B,C --frames A0:C1 --snapshot-dir <scratch>/stills    # A0 a little before A: blends need the frames before
 ```
 
-The timeline is the package's `build/timelines/<lang>/timeline.json`; the caption frames are in its
+The timeline is the narration package's `build/timelines/<lang>/timeline.json` (`packages/<package>_narration/`); the caption frames are in its
 `beats[].captions` (start, end, text). Look at the stills yourself before moving on.
 
 ## Phase 6: showing the data

@@ -111,6 +111,6 @@ python3 tools/video/build.py --investigation <engine>/<feature> --lang zh-CN    
 ```
 
 Render a few stills across a beat (`render --timeline … --snapshot A,B,C --snapshot-dir D`) to see an animation's
-steps, not just its midpoint. Outputs go to the package's `build/video/<lang>/` and the timelines to its
-`build/timelines/<lang>/` (both ignored by git: generated files are never tracked). `tools/video/README.md` has the
+steps, not just its midpoint. Outputs go to the narration package's `build/video/<lang>/` and the timelines to its
+`build/timelines/<lang>/` (`packages/<package>_narration/`; both ignored by git: generated files are never tracked). `tools/video/README.md` has the
 details.

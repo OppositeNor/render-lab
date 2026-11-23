@@ -87,5 +87,5 @@ An investigation's narrated video is built by [`tools/video`](../tools/video/REA
 bash tools/video/setup.sh --gpu                                     # once: Piper and FFmpeg under .cache/
 python3 tools/video/build.py --investigation o3de/lighting          # the narration and timeline the viewer plays
 python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN
-python3 tools/video/build.py --investigation o3de/lighting --video  # also packages/o3de_lighting/build/video/en/o3de-lighting.mp4
+python3 tools/video/build.py --investigation o3de/lighting --video  # also packages/o3de_lighting_narration/build/video/en/o3de-lighting.mp4
 ```

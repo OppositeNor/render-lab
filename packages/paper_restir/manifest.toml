@@ -10,8 +10,7 @@ import = ["render_lab"]
 # function, which hands the lab the package's investigations (lab/src/plugin.rs).
 library = "paper_restir"
 negotiate = "paper_restir_negotiate"
-# Its narrated story's timelines and narration, which a narration package overrides (resources.toml).
-export = ["timeline/en", "timeline/zh-cn", "narration/en", "narration/zh-cn"]
+export = []
 # Its shadow rays trace the scene in hardware (lab/src/gpu.rs, src/ray_tracing.rs).
 requires = ["ray-tracing"]
 
@@ -24,17 +23,3 @@ field = "render_lab.computer-graphics"
 type = "resource"
 path = "resources.toml"
 
-# The narrated story, one story in two editions: the homepage opens the one in the interface's language.
-[[provides]]
-type = "demo"
-key = "video"
-title = "How ReSTIR Lights a Room of Many Lights"
-timeline = "timeline/en"
-audio = "narration/en"
-
-[[provides]]
-type = "demo"
-key = "video-zh-CN"
-title = "ReSTIR 如何照亮一个多光源的房间"
-timeline = "timeline/zh-cn"
-audio = "narration/zh-cn"

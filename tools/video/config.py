@@ -2,10 +2,10 @@
 edition's paths, and the tools of the local environment (tools/video/setup.sh).
 
 An investigation lists its video in its package, `packages/<package>/video/video.json`
-(the one whose `investigation` names it); its paths are relative to that file. Everything a build writes
-stays in the package, under its `build/` (git-ignored): intermediates and deliverables in
-`build/video/<lang>/`, and the timeline and its diagram frames in `build/timelines/<lang>/`, which the
-package's demos name and the lab's viewer plays.
+(the one whose `investigation` names it); its paths are relative to that file. Everything a build writes goes
+into the package's narration package, `packages/<package>_narration/`, under its `build/` (git-ignored):
+intermediates and deliverables in `build/video/<lang>/`, and the timeline and its diagram frames in
+`build/timelines/<lang>/`, which the narration package's demos name and the lab's viewer plays.
 """
 from __future__ import annotations
 
@@ -147,21 +147,27 @@ class Config:
         """The package video.json belongs to (its `video/` holds video.json)."""
         return self.base.parent
 
+    @property
+    def narration(self) -> Path:
+        """The package the build writes into, `<package>_narration` beside it: its demos play the timeline and
+        narration (lab/src/packages.rs, a demo's `for`)."""
+        return self.package.parent / f'{self.package.name}_narration'
+
     def timeline_dir(self, lang: str | None = None) -> Path:
-        """The edition's timeline and diagram frames: the package's build/timelines/<lang> (generated, so git
-        ignores it; the package's demo names the same file)."""
-        return (self.prepared_root or self.package / 'build') / 'timelines' / (lang or self.lang)
+        """The edition's timeline and diagram frames: the narration package's build/timelines/<lang> (generated, so
+        git ignores it; its demo names the same file)."""
+        return (self.prepared_root or self.narration / 'build') / 'timelines' / (lang or self.lang)
 
     def timeline(self, lang: str | None = None) -> Path:
         return self.timeline_dir(lang) / 'timeline.json'
 
     def build(self, lang: str | None = None) -> Path:
-        """The edition's build directory: the package's build/video/<lang>, or video.json's `build`."""
+        """The edition's build directory: the narration package's build/video/<lang>, or video.json's `build`."""
         if self.prepared_root is not None:
             return self.prepared_root / 'video' / (lang or self.lang)
         if 'build' in self.spec:
             return self.path(self.spec['build'][lang or self.lang])
-        return self.package / 'build' / 'video' / (lang or self.lang)
+        return self.narration / 'build' / 'video' / (lang or self.lang)
 
     @property
     def audio_cache(self) -> Path:
@@ -169,7 +175,7 @@ class Config:
         what is said and the voice, English (Piper) and Chinese (Qwen3-TTS) side by side."""
         if 'audioCache' in self.spec:
             return self.path(self.spec['audioCache'])
-        return self.package / 'build' / 'video' / 'audio'
+        return self.narration / 'build' / 'video' / 'audio'
 
     def video_name(self, lang: str | None = None) -> str:
         return self.spec['video'][lang or self.lang]

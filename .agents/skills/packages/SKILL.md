@@ -27,8 +27,13 @@ packages/<name>/
   shading.toml         its frame, if it shades the scene its own way (resource id `shading`; lab/src/shading_file.rs, the render-graph skill)
   video/               a narrated video's inputs (video.json, storyboards, diagrams), for tools/video
   Cargo.toml, build.rs, src/   its code, if it has investigations (section 5)
-  build/               what its tools write: build/timelines/<lang>/, build/video/<lang>/ (git-ignored)
+  build/               what its tools write (git-ignored)
 ```
+
+Its narrated videos are a package of their own, `packages/<name>_narration/`: no code, its demos (`for =
+"<name>"`, section 2) and the `built` timelines and narration tools/video writes into its `build/timelines/<lang>/`
+and `build/video/<lang>/` from `packages/<name>/video/`. The CI's release leaves it out of its platform archives;
+`tools/publish_narration.py` builds, checks, and uploads it beside them, the same on every platform.
 
 Its built package, which the build writes and the loader reads (never edit it; it is rebuilt from the source):
 
@@ -65,11 +70,12 @@ type = "resource"                    # a collection, relative to the manifest
 path = "resources.toml"
 
 [[provides]]
-type = "demo"                        # a narrated timeline the homepage's Watch plays
+type = "demo"                        # a narrated timeline the homepage's Watch plays (a narration package's)
 key = "video"                        # letters, digits, `-`, `_`; unique in the package
 title = "How My Feature Works"         # the edition picker names it by its timeline's language (locales.toml)
 timeline = "timeline/en"             # resources (keys of this package, or `<package>.<key>`)
 audio = "narration/en"
+for = "my_feature"                   # optional: the imported package whose investigations it narrates (else its own)
 
 [[provides]]
 type = "series"                      # investigations told one after another as the parts of one story
@@ -164,8 +170,8 @@ parts = ["render_lab.shader/scene", "wgsl/my-shading"]
   a package that imports it: `override = "<package>.<key>"`. Two packages may not override the same key.
 - **Tool outputs.** `built = true` marks a file (or directory) a tool writes into the source package
   (`source = "build/timelines/en/timeline.json"`). It may be missing until the tool runs; the next launch builds it
-  into the built package, and `render-lab resources` shows `not built` until then. Demos name such resources:
-  tools/video writes them.
+  into the built package, and `render-lab resources` shows `not built` until then. A narration package's demos name
+  such resources: tools/video writes them.
 - **Experiments.** An experiment file (`lab/src/experiment.rs`) declared as `experiment/<name>`
   (`kind = "file"`, `source = "experiments/<name>.toml"`) is offered by the viewer's Experiments tab and run by
   `render-lab experiment <package>.experiment/<name>` (the `experiments` skill).
@@ -218,7 +224,8 @@ lab::negotiate!(my_feature_negotiate, ["investigations" => investigations as Inv
 
 - The symbol is the manifest's `negotiate`; the library's file is `lib<library>.so`.
 - The investigation's `fn package(&self) -> Option<&'static str> { Some("my_feature") }` ties it to its package: its
-  timelines are the package's demos, and its text, listings, demonstrations, and shading name its keys.
+  timelines are the demos of its narration package (`for` it), and its text, listings, demonstrations, and shading
+  name its keys.
 - The library names the lab's items as `lab::…`. A lab item the library uses must be `pub` (not `pub(crate)`), and a
   lab macro `#[macro_export]`.
 - Add a public package to the root `Cargo.toml`'s `[workspace] members` and `default-members`, so

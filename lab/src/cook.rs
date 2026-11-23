@@ -339,6 +339,24 @@ fn built_collection(
     Ok(collection)
 }
 
+/// A built manifest's demos, as its source's give them.
+fn write_demos(manifest: &mut String, demos: &[packages::Demo]) {
+    for demo in demos {
+        writeln!(
+            manifest,
+            "\n[[provides]]\ntype = \"demo\"\nkey = {}\ntitle = {}\ntimeline = {}\naudio = {}",
+            quote(&demo.key),
+            quote(&demo.title),
+            quote(&demo.timeline),
+            quote(&demo.audio)
+        )
+        .unwrap();
+        if let Some(narrated) = &demo.narrates {
+            writeln!(manifest, "for = {}", quote(narrated)).unwrap();
+        }
+    }
+}
+
 /// The built package's manifest: what the source's says, with where it was cooked from and its one collection.
 fn built_manifest(package: &Package, source: &str) -> String {
     let mut manifest = format!("# Built from {source}; rebuilt when it changes. Do not edit.\n");
@@ -385,17 +403,7 @@ fn built_manifest(package: &Package, source: &str) -> String {
         quote(source)
     )
     .unwrap();
-    for demo in &package.demos {
-        writeln!(
-            manifest,
-            "\n[[provides]]\ntype = \"demo\"\nkey = {}\ntitle = {}\ntimeline = {}\naudio = {}",
-            quote(&demo.key),
-            quote(&demo.title),
-            quote(&demo.timeline),
-            quote(&demo.audio)
-        )
-        .unwrap();
-    }
+    write_demos(&mut manifest, &package.demos);
     for series in &package.series {
         let by_language = |m: &std::collections::BTreeMap<String, String>| {
             format!(

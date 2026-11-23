@@ -53,7 +53,7 @@ present, read every `AGENTS.md` inside them before working on anything else.** I
   Shaders (`[[shader]]` modules, lab/src/shaders.rs), scripts (Lamlet the lab runs live: a package's `script/<name>`
   overlays, readouts, click handlers, actions, and animations, lab/src/script/runtime.rs), text tables, listings, source indexes, scenes
   (`packages/render_lab/scenes/`), demonstrations (a package's `params.toml` and `demos/`, lab/src/demo.rs), and
-  narrated timelines (a package's demos) are such content: an edit shows on the next launch, without a rebuild. Nothing
+  narrated timelines (a narration package's demos, `packages/<name>_narration/`) are such content: an edit shows on the next launch, without a rebuild. Nothing
   a scene needs is read before it plays (lab/src/loading.rs).
 - On-screen text is a key (`group-name`: Fluent ids have no dots) in the package's `text/en.ftl` and `text/zh-CN.ftl` (Project Fluent, loaded at run time), read with `tr("key")` (or `tr_with("key", args!(name = value))` for a message with variables, `{ $name }` in both languages). Formulas and code names in text are Fluent function calls, `{ FORMULA("LaTeX") }` and `{ CODE("Name") }` (lab/src/rich_text.rs). The package's build.rs (the lab's, for render_lab) fails on a key missing from a language, variables that differ between languages, an unknown key, or an unused one.
 - Python: type-annotate parameters and returns, `X | None` unions, concrete generics. Rust: follow the surrounding code,

@@ -510,7 +510,8 @@ fn check_scripts(report: &mut Report, renderer: &mut lab::renderer::Renderer) ->
     // The scripts (script/logic.lam): marchCone steps the cone one sample every `seconds` on every frame the
     // story runs it, and pickSliceCell picks the leaf under a click at the slice's height.
     let timeline = lab::shot::Timeline::load(
-        &lab::resources::root().join("packages/godot_voxelgi/build/timelines/en/timeline.json"),
+        &lab::resources::root()
+            .join("packages/godot_voxelgi_narration/build/timelines/en/timeline.json"),
     )?;
     let (mut checked, mut differ) = (0, Vec::new());
     for key in timeline

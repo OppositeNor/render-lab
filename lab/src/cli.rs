@@ -299,7 +299,7 @@ enum ScriptCommand {
         /// Only this math scene (its binding, `toyMath`).
         #[arg(long)]
         scene: Option<String>,
-        /// A built timeline (build/timelines/<lang>/timeline.json) whose math beats to check instead.
+        /// A built timeline (a narration package's build/timelines/<lang>/timeline.json) whose math beats to check instead.
         #[arg(long)]
         timeline: Option<PathBuf>,
         /// Print what each scene draws at this time (a demonstration's seconds, a timeline's frame) instead.

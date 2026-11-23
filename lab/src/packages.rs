@@ -31,8 +31,9 @@
 //!     manifest), of `[[resource]]` and `[[shader]]` tables (the format is in
 //!     src/pipeline);
 //!   - `"demo"`: a narrated timeline the viewer plays: its `key`, `title`,
-//!     `edition` (its name on the homepage's picker), and the resources of its
-//!     `timeline` and `audio`;
+//!     `edition` (its name on the homepage's picker), the resources of its
+//!     `timeline` and `audio`, and, if given, `for`: the imported package whose
+//!     investigations it narrates (a narration package's; without it, its own);
 //!   - `"series"`: investigations told as the parts of one story (`Series`);
 //!   - `"field"`: a field of study, a folder of the homepage (src/packages/fields.rs);
 //! - `field`, if given: the field its investigations are in, `<package>.<key>` of a field a package declares
@@ -77,6 +78,8 @@ pub struct Demo {
     pub title: String,
     pub timeline: String,
     pub audio: String,
+    /// The package whose investigations it narrates (`for`, one it imports); None: its own.
+    pub narrates: Option<String>,
 }
 
 /// A series a package provides (`type = "series"`): investigations told one
@@ -400,7 +403,9 @@ fn read_provides(
         })?;
         let allowed: &[&str] = match kind.as_str() {
             "resource" => &["type", "path"],
-            "demo" => &["type", "key", "title", "edition", "timeline", "audio"],
+            "demo" => &[
+                "type", "key", "title", "edition", "timeline", "audio", "for",
+            ],
             "series" => &["type", "key", "title", "summary", "parts"],
             "field" => fields::FIELD_KEYS,
             other => {
@@ -439,12 +444,19 @@ fn read_provides(
                     "demo `{key}`: a key is letters, digits, `-` and `_`, unique in its package"
                 )));
             }
+            let narrates = string(entry, "for", fail)?;
+            if let Some(target) = narrates.as_ref().filter(|t| !imports.contains(t)) {
+                return Err(fail(format!(
+                    "demo `{key}`: `for` names `{target}`, which is not one of its imports"
+                )));
+            }
             references.push((field("timeline")?, field("audio")?));
             demos.push(Demo {
                 key,
                 title: field("title")?,
                 timeline: String::new(),
                 audio: String::new(),
+                narrates,
             });
         }
     }
@@ -959,6 +971,32 @@ mod tests {
             ],
         );
         assert!(scan(&dir, &dir).err().unwrap().contains("part `c`"));
+    }
+
+    #[test]
+    fn a_demo_narrates_an_imported_package() {
+        let demo = "[[provides]]\ntype = \"demo\"\nkey = \"video\"\ntitle = \"V\"\ntimeline = \"timeline/en\"\naudio = \"narration/en\"\nfor = \"b\"\n";
+        let narration = manifest("b_narration", "\"b\"", "") + demo;
+        let dir = directory(
+            "narrates",
+            &[("b_narration", &narration), ("b", &manifest("b", "", ""))],
+        );
+        let packages = scan(&dir, &dir).unwrap();
+        let d = &packages
+            .iter()
+            .find(|p| p.name == "b_narration")
+            .unwrap()
+            .demos[0];
+        assert_eq!(
+            (d.narrates.as_deref(), d.timeline.as_str()),
+            (Some("b"), "b_narration.timeline/en")
+        );
+        let unimported = manifest("b_narration", "", "") + demo;
+        let dir = directory(
+            "narrates-unimported",
+            &[("b_narration", &unimported), ("b", &manifest("b", "", ""))],
+        );
+        assert!(scan(&dir, &dir).err().unwrap().contains("`for` names `b`"));
     }
 
     #[test]

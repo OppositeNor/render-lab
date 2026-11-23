@@ -30,7 +30,8 @@ struct Registry {
     packages: Vec<Package>,
     resources: Vec<Resource>,
     shaders: Vec<ShaderDeclaration>,
-    /// Each package's demos, as the viewer plays them.
+    /// The demos that narrate each package's investigations (its own, and those of packages `for` it), as the
+    /// viewer plays them.
     timelines: BTreeMap<String, Vec<TimelineInfo>>,
 }
 
@@ -159,28 +160,7 @@ fn mount() -> Result<Registry> {
                 ));
             }
         }
-        let mut list = Vec::new();
-        for demo in &package.demos {
-            let source = |key: &str| -> Result<String> {
-                let i = resources
-                    .binary_search_by(|r| r.decl.id.as_str().cmp(key))
-                    .map_err(|_| {
-                        anyhow!(
-                            "packages: {}: demo `{}`: no resource `{key}`",
-                            package.manifest,
-                            demo.key
-                        )
-                    })?;
-                Ok(resources[i].decl.file.to_string_lossy().into_owned())
-            };
-            list.push(TimelineInfo {
-                id: demo.key.clone(),
-                title: demo.title.clone(),
-                path: source(&demo.timeline)?,
-                narration: source(&demo.audio)?,
-            });
-        }
-        timelines.insert(package.name.clone(), list);
+        add_timelines(&mut timelines, package, &resources)?;
     }
     Ok(Registry {
         packages,
@@ -188,6 +168,47 @@ fn mount() -> Result<Registry> {
         shaders,
         timelines,
     })
+}
+
+/// Adds `package`'s demos to the demos of the packages they narrate: its own, or the one each names with `for`.
+fn add_timelines(
+    timelines: &mut BTreeMap<String, Vec<TimelineInfo>>,
+    package: &Package,
+    resources: &[Resource],
+) -> Result<()> {
+    timelines.entry(package.name.clone()).or_default();
+    for demo in &package.demos {
+        let source = |key: &str| -> Result<String> {
+            let i = resources
+                .binary_search_by(|r| r.decl.id.as_str().cmp(key))
+                .map_err(|_| {
+                    anyhow!(
+                        "packages: {}: demo `{}`: no resource `{key}`",
+                        package.manifest,
+                        demo.key
+                    )
+                })?;
+            Ok(resources[i].decl.file.to_string_lossy().into_owned())
+        };
+        let info = TimelineInfo {
+            id: demo.key.clone(),
+            title: demo.title.clone(),
+            path: source(&demo.timeline)?,
+            narration: source(&demo.audio)?,
+        };
+        // A narration package's demo joins the demos of the package it narrates (imported, so read before it).
+        let narrated = demo.narrates.as_ref().unwrap_or(&package.name);
+        let list: &mut Vec<TimelineInfo> = timelines.entry(narrated.clone()).or_default();
+        if list.iter().any(|t| t.id == info.id) {
+            return Err(anyhow!(
+                "packages: {}: demo `{}`: `{narrated}` already has a demo of that key",
+                package.manifest,
+                demo.key
+            ));
+        }
+        list.push(info);
+    }
+    Ok(())
 }
 
 /// Every package's built collections read: their resources and shaders (each declared once), and the overrides

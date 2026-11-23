@@ -318,7 +318,7 @@ fn packages(json: bool) -> Result<()> {
         let list: Vec<serde_json::Value> = packages
             .iter()
             .map(|m| {
-                let demos: Vec<serde_json::Value> = m.demos.iter().map(|d| serde_json::json!({"key": d.key, "title": d.title, "timeline": d.timeline, "audio": d.audio})).collect();
+                let demos: Vec<serde_json::Value> = m.demos.iter().map(|d| serde_json::json!({"key": d.key, "title": d.title, "timeline": d.timeline, "audio": d.audio, "for": d.narrates})).collect();
                 let library = library(m).map(|(file, loaded)| match loaded {
                     Ok((handles, imports)) => serde_json::json!({"file": file, "handles": handles, "imports": imports}),
                     Err(error) => serde_json::json!({"file": file, "error": error}),
@@ -366,9 +366,14 @@ fn packages(json: bool) -> Result<()> {
                 None => {}
             }
             for d in &m.demos {
+                let narrates = d.narrates.as_ref().map(|p| format!(" (for {p})"));
                 println!(
-                    "    demo {}: {}, {} + {}",
-                    d.key, d.title, d.timeline, d.audio
+                    "    demo {}{}: {}, {} + {}",
+                    d.key,
+                    narrates.unwrap_or_default(),
+                    d.title,
+                    d.timeline,
+                    d.audio
                 );
             }
             for s in &m.series {

@@ -1,0 +1,29 @@
+# The narrated videos of the package `paper_restir`: their timelines and narration, which tools/video builds from
+# packages/paper_restir/video/ into build/ here. Each demo narrates `paper_restir`'s investigations (`for`). A release
+# publishes this package on its own (tools/publish_narration.py), the same on every platform.
+
+name = "paper_restir_narration"
+author = "OppositeNor"
+license = "MIT"
+import = ["paper_restir"]
+export = []
+
+[[provides]]
+type = "resource"
+path = "resources.toml"
+
+[[provides]]
+type = "demo"
+key = "video"
+title = "How ReSTIR Lights a Room of Many Lights"
+timeline = "timeline/en"
+audio = "narration/en"
+for = "paper_restir"
+
+[[provides]]
+type = "demo"
+key = "video-zh-CN"
+title = "ReSTIR 如何照亮一个多光源的房间"
+timeline = "timeline/zh-cn"
+audio = "narration/zh-cn"
+for = "paper_restir"

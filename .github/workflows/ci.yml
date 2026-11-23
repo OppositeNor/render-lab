@@ -180,7 +180,8 @@ jobs:
   # A `v*` tag: each platform's package, then one GitHub Release with all of them. A package is the binary, the
   # libraries it links (the lab and the standard library, which it finds beside it: build.rs), the built packages
   # and themes beside it (lab/src/resources.rs, src/theme.rs), and the licenses. The cook hard-links the built
-  # packages' files to their sources (or copies them), so they copy as files. No videos: the CI builds none.
+  # packages' files to their sources (or copies them), so they copy as files. No narration: the CI builds none, and
+  # tools/publish_narration.py uploads the narration packages to the release afterwards.
   package:
     name: Package (${{ matrix.name }})
     if: startsWith(github.ref, 'refs/tags/v')
@@ -224,7 +225,16 @@ jobs:
           mkdir "$dist"
           cp target/release/render-lab${{ runner.os == 'Windows' && '.exe' || '' }} ${{ matrix.libraries }} "$dist/"
           if [ -n "${{ matrix.std }}" ]; then cp "$(rustc --print target-libdir)"/${{ matrix.std }} "$dist/"; fi
-          cp -rL target/release/packages target/release/themes "$dist/"
+          # The narration packages (`*_narration`, their demos' timelines and narration) are published beside the
+          # archives, built locally (tools/publish_narration.py): the CI builds no narration.
+          mkdir "$dist/packages"
+          for package in target/release/packages/*/; do
+            case "$(basename "$package")" in
+              *_narration) ;;
+              *) cp -rL "$package" "$dist/packages/" ;;
+            esac
+          done
+          cp -rL target/release/themes "$dist/"
           cp -r LICENSE LICENSES THIRD_PARTY.md README.md README.zh-CN.md "$dist/"
           # macOS: every library the binary and the packages' libraries load must be found through @rpath or the
           # system, never at a path on the runner.

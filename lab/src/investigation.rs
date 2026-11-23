@@ -37,7 +37,7 @@ pub struct Engine {
 }
 
 /// A narrated timeline of an investigation, playable in the viewer: a demo
-/// of its package (src/packages.rs).
+/// for its package (a narration package's, src/packages.rs).
 pub struct TimelineInfo {
     pub id: String,
     pub title: String,
@@ -702,7 +702,7 @@ pub trait Investigation: Sync {
     fn wording(&self) -> &'static Wording;
     /// The footer line, in the current locale.
     fn footer(&self) -> &'static str;
-    /// Its narrated timelines: its package's demos.
+    /// Its narrated timelines: the demos for its package (a narration package's, src/packages.rs `for`).
     fn timelines(&self) -> &'static [TimelineInfo] {
         self.package().map(resources::timelines).unwrap_or(&[])
     }

@@ -1,0 +1,29 @@
+# Built by tools/video (`built`: missing until they are built). Each edition plays its own narration.
+
+[[resource]]
+id = "timeline/en"
+kind = "file"
+source = "build/timelines/en/timeline.json"
+license = "MIT"
+built = true
+
+[[resource]]
+id = "timeline/zh-cn"
+kind = "file"
+source = "build/timelines/zh-CN/timeline.json"
+license = "MIT"
+built = true
+
+[[resource]]
+id = "narration/en"
+kind = "file"
+source = "build/video/en/narration.wav"
+license = "MIT"
+built = true
+
+[[resource]]
+id = "narration/zh-cn"
+kind = "file"
+source = "build/video/zh-CN/narration.wav"
+license = "MIT"
+built = true

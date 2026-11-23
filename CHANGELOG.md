@@ -6,12 +6,15 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
 
 ### Added
 
-- Narration packages: a release ships each package's narrated videos (their timelines and narration) as a package
-  of its own, `<package>_narration-v<version>.zip`, the same on every platform, which overrides the package's demo
-  resources (now exported and `overridable`). `tools/publish_narration.py` builds them locally, checks them (every
-  file built, each language its own recording, no local path, the lab playing them beside the built packages), and
-  uploads them to the tag's release with install instructions in its notes. Unpacked into `packages/` beside
-  `render-lab`, they make the homepage's Watch play; without one, the homepage names the archive to download.
+- Narration packages: each investigation's narrated videos are a package of their own,
+  `packages/<name>_narration/`, with no code: its demos (`for = "<name>"`, a new demo field naming the imported
+  package whose investigations it narrates) and the timelines and narration tools/video now writes into its `build/`.
+  The investigations' packages no longer declare demos, timelines, or narration. The CI's release leaves the
+  narration packages out of its platform archives; `tools/publish_narration.py` builds them locally, checks them
+  (every file built, each language its own recording, no local path, the lab playing them beside the release's
+  packages), and uploads each as `<name>_narration-v<version>.zip`, the same on every platform, with install
+  instructions in the release's notes. Without one, the homepage names the archive to unpack inside the packages
+  folder in the executable's directory.
 
 ### Changed
 

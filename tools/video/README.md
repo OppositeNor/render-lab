@@ -13,7 +13,8 @@ python3 tools/video/build.py --all                                  # every pack
 ```
 
 The viewer plays a timeline with its narration, so a build stops once they are written; `--video` renders the
-video file too. A release ships them as narration packages (`tools/publish_narration.py`).
+video file too. Both go into the package's narration package, `packages/<package>_narration/`, which a release
+publishes on its own (`tools/publish_narration.py`).
 
 | Option | Does |
 |---|---|
@@ -450,10 +451,13 @@ the rest still fails the 10% check: shorten its sentences.
 
 ## Outputs
 
-- the package's `build/timelines/<lang>/`: `timeline.json` and the diagram frames, which the homepage's Watch
-  and `render-lab render` play. They are generated, so git ignores them: in a fresh checkout, `--prepare-only` builds
-  them (the homepage shows "Not built yet" until then).
-- the package's `build/video/<lang>/`: the video, `narration.wav`, captions, `chapters.txt` (one `MM:SS Title` line per chapter, for a video site's description), `script.md`,
+Everything goes into the package's narration package, `packages/<package>_narration/`, whose demos (`for` the
+package) play the timelines and narration:
+
+- its `build/timelines/<lang>/`: `timeline.json` and the diagram frames, which the homepage's Watch
+  and `render-lab render` play. They are generated, so git ignores them: in a fresh checkout, a build without
+  `--video` makes them (the homepage shows "Not built yet" until then).
+- its `build/video/<lang>/`: the video (with `--video`), `narration.wav`, captions, `chapters.txt` (one `MM:SS Title` line per chapter, for a video site's description), `script.md`,
   `source-reading-guide.md`, `preview.html`, `NOTICE.txt` (the package's `[[notice]]`s and each one's license
   text), `contact-sheet.png`, `poster.png`, `snapshots/`, logs, and `verification-report.{json,md}` (git-ignored).
   A package with notices gets a closing notices card (a silent 2D beat, `timeline.py` `NOTICES` seconds) at the end of

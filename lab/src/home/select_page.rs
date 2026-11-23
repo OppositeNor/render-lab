@@ -299,6 +299,22 @@ impl Home {
                 {
                     picks.choice = Some(choice);
                 }
+                // No narration package narrates it: name the one its release would offer.
+                if rows.is_empty()
+                    && let Some(package) = chosen.package()
+                {
+                    let archive = format!("{package}_narration-v{}.zip", env!("CARGO_PKG_VERSION"));
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(tr_with(
+                                "home-narration_not_installed",
+                                args!(archive = archive),
+                            ))
+                            .color(palette::text_faint()),
+                        )
+                        .wrap(),
+                    );
+                }
             });
             // The demonstrations, with their keys in the viewer.
             ui.vertical(|ui| demonstrations(ui, chosen));
@@ -537,20 +553,13 @@ impl Home {
                         .font(FontId::new(24.0, ui::bold()))
                         .color(palette::accent()),
                 );
-                // Without a source checkout nothing builds a missing timeline: its package's narration package
-                // brings it (tools/publish_narration.py), so name that package's archive.
-                let why = match chosen.package() {
-                    Some(package)
-                        if resources::sources_dir().is_none()
-                            && !Path::new(&row.info.path).is_file() =>
-                    {
-                        let archive =
-                            format!("{package}_narration-v{}.zip", env!("CARGO_PKG_VERSION"));
-                        tr_with("home-narration_not_installed", args!(archive = archive))
-                    }
-                    _ => format!("{} {e}", tr("home-not_built_yet")),
-                };
-                ui.add(egui::Label::new(RichText::new(why).color(palette::text_faint())).wrap());
+                ui.add(
+                    egui::Label::new(
+                        RichText::new(format!("{} {e}", tr("home-not_built_yet")))
+                            .color(palette::text_faint()),
+                    )
+                    .wrap(),
+                );
             }
         }
         ui.add_space(10.0);

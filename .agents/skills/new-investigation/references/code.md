@@ -37,7 +37,8 @@ packages/<package>/Cargo.toml       a cdylib (crate-type = ["cdylib"]) that depe
                  pseudocode/*.py, source-index.json
                  shaders/*.wgsl     (optional own scene shading)
                  video/             the narrated video's inputs
-                 build/             what tools/video writes (git-ignored): build/timelines/<lang>, build/video/<lang>
+packages/<engine>_<feature>_narration/   its narrated video: manifest.toml (its demos, `for` the package),
+                 resources.toml (the `built` timelines and narration), build/ (what tools/video writes, git-ignored)
 ```
 
 Everything the package is stays in its directory, so it can be packed and shared.
@@ -63,7 +64,7 @@ Register it:
 
 The trait's required methods are `engine`, `id`, `title`, `summary`, `wording`, `sources`, `listings`, `build_frame`,
 `dock`, `click`, and `selftest` (`lab/src/investigation.rs`); `package` names its package, and `timelines` comes from
-the package's demos. Return the demonstrations' files from `demo_specs` (and the investigation's text from `text`), and
+the demos of its narration package. Return the demonstrations' files from `demo_specs` (and the investigation's text from `text`), and
 `demos`, `demo_title`, `demo_tab`, `demo_hint`, `demo_scene` (which of the lab's scenes, `packages/render_lab/scenes/`
 read by `lab/src/scene.rs`, a demonstration shows), `resets_camera`, `param_default`, and `shot_state` come from them.
 Optional ones include `backdrop` (its homepage scene), `animation` (Play), `shading_hooks`, `script_natives`,
