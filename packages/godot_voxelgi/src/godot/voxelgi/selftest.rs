@@ -267,7 +267,7 @@ fn check_light(report: &mut Report) {
     let probe = &w.probe;
     let leaves = probe.level_range(probe.leaf_level());
     // ---- 6. The light passes ------------------------------------------------------
-    let lit = &w.lit;
+    let lit = world::lit_for(&LightSettings::default());
     let params = world::params(probe, &LightSettings::default());
     report.check(
         "cell_size: ps = octree_size / size = 20 cells per metre in every axis, 0.05 m per cell",
@@ -338,7 +338,7 @@ fn check_light(report: &mut Report) {
         .iter()
         .filter(|&&c| lit.outputs[c].max_element() < 1e-5)
         .count();
-    report.check("the second bounce only adds light: no leaf loses light; it lights leaves the panel's area light did not reach", brighter && gained > 0 && unlit_after < unlit_direct, json!({"leaves": leaves_v.len(), "gainedOver5pc": gained, "unlitDirect": unlit_direct, "unlitAfter": unlit_after, "lightSeconds": w.light_seconds}));
+    report.check("the second bounce only adds light: no leaf loses light; it lights leaves the panel's area light did not reach", brighter && gained > 0 && unlit_after < unlit_direct, json!({"leaves": leaves_v.len(), "gainedOver5pc": gained, "unlitDirect": unlit_direct, "unlitAfter": unlit_after}));
     // The area light has no shadow: the floor cell under the sphere's centre still receives it.
     let under = demos_leaf(Vec3::new(-1.33, 0.0, -0.64));
     let under_light = under
@@ -366,7 +366,7 @@ fn check_light(report: &mut Report) {
 fn check_cones(report: &mut Report) {
     let w = world::world();
     let probe = &w.probe;
-    let lit = &w.lit;
+    let lit = world::lit_for(&LightSettings::default());
     // ---- 7. The cone traces -------------------------------------------------------
     let inst = world::instance(probe, &LightSettings::default(), false);
     let mut steps = Vec::new();
@@ -439,20 +439,22 @@ fn check_dynamic(report: &mut Report) {
     });
     let changed = plot.plotted[0]
         .iter()
-        .filter(|&&p| plot.texture.texel(0, p) != dw.lit.texture.texel(0, p))
+        .filter(|&&p| plot.texture.texel(0, p) != world::dynamic_lit().texture.texel(0, p))
         .count();
-    let untouched = (0..dw.lit.texture.mips[0].len()).step_by(101).all(|i| {
-        let s = dw.probe.octree_size;
-        let p = IVec3::new(
-            i as i32 % s.x,
-            (i as i32 / s.x) % s.y,
-            i as i32 / (s.x * s.y),
-        );
-        plot.plotted[0]
-            .binary_search_by_key(&(p.z, p.y, p.x), |v| (v.z, v.y, v.x))
-            .is_ok()
-            || plot.texture.mips[0][i] == dw.lit.texture.mips[0][i]
-    });
+    let untouched = (0..world::dynamic_lit().texture.mips[0].len())
+        .step_by(101)
+        .all(|i| {
+            let s = dw.probe.octree_size;
+            let p = IVec3::new(
+                i as i32 % s.x,
+                (i as i32 / s.x) % s.y,
+                i as i32 / (s.x * s.y),
+            );
+            plot.plotted[0]
+                .binary_search_by_key(&(p.z, p.y, p.x), |v| (v.z, v.y, v.x))
+                .is_ok()
+                || plot.texture.mips[0][i] == world::dynamic_lit().texture.mips[0][i]
+        });
     let maps = plot.views[0].maps.len();
     report.check("the dynamic pass: six views, 4 oversampled maps then one per mip; the plotted voxels lie at the teapot and change their texels; texels it does not plot keep the static light", plot.views.len() == 6 && maps == 4 + dw.probe.mip_count() && !plot.plotted[0].is_empty() && near && changed > 0 && untouched, json!({"box": [plot.begin.to_array(), plot.end.to_array()], "plottedMip0": plot.plotted[0].len(), "changed": changed, "maps": maps, "seconds": seconds}));
 }
@@ -476,6 +478,8 @@ fn check_gpu(
     check_screen_pass(report, rng, &mut renderer, &gpu_texture);
     check_light_pass(report, &mut renderer);
     check_bounce(report, &mut renderer, &gpu_texture);
+    check_moved_light(report, &mut renderer);
+    check_dynamic_gpu(report, &mut renderer);
     check_floor_click(report)?;
     check_beats(report, &mut renderer, options)?;
     Ok(())
@@ -488,7 +492,7 @@ fn check_cost_numbers(report: &mut Report) {
     let c = super::cost::costs(&state);
     let mut one = state.clone();
     one.set("giTwoBounces", 0.0);
-    let one_bounce = super::update::plan(&one).dispatches.len();
+    let one_bounce = super::update::update_dispatches(&one).0;
     let ok = c.leaves == 42_289
         && c.texels == 1_048_576
         && c.dispatches == 32
@@ -635,7 +639,7 @@ fn light_on_gpu(
 ) -> storage::LightTexture {
     let w = world::world();
     let probe = &w.probe;
-    let lit = &w.lit;
+    let lit = world::lit_for(&LightSettings::default());
     // The light passes on the GPU (update.rs) against light.rs: every texel of every mip.
     let mut gpu_texture = lit.texture.clone();
     let mut worst = 0u8;
@@ -644,7 +648,7 @@ fn light_on_gpu(
     let mut sizes = true;
     for mip in 0..probe.mip_count() {
         // Each mip read back: its size, and how far each texel is from the CPU's byte.
-        let Some((bytes, size)) = renderer.read_volume("voxelgiLight", mip as u32) else {
+        let Some((bytes, size)) = renderer.read_program_mip("voxelgiLight", 0, mip as u32) else {
             sizes = false;
             break;
         };
@@ -673,6 +677,111 @@ fn light_on_gpu(
     gpu_texture
 }
 
+/// The light texture the GPU holds after a frame of `state`, every mip, as light.rs keeps it.
+fn read_light_texture(
+    renderer: &mut lab::renderer::Renderer,
+    state: &lab::shot::ShotState,
+    like: &storage::LightTexture,
+) -> Option<storage::LightTexture> {
+    renderer.render_frame(request(state, &still_timeline(640, 360)), None);
+    let mut texture = like.clone();
+    for (mip, m) in texture.mips.iter_mut().enumerate() {
+        // Each mip read back whole, four bytes a texel.
+        let (bytes, _) = renderer.read_program_mip("voxelgiLight", 0, mip as u32)?;
+        *m = bytes.as_chunks::<4>().0.to_vec();
+    }
+    Some(texture)
+}
+
+/// How two textures differ: texels over one 8-bit step apart, the most steps apart, and the texels compared.
+fn texture_difference(a: &storage::LightTexture, b: &storage::LightTexture) -> (usize, u8, usize) {
+    let (mut differing, mut worst, mut texels) = (0, 0u8, 0);
+    for (ma, mb) in a.mips.iter().zip(&b.mips) {
+        for (ta, tb) in ma.iter().zip(mb) {
+            // The texel's largest channel difference.
+            let d = ta
+                .iter()
+                .zip(tb)
+                .map(|(x, y)| x.abs_diff(*y))
+                .max()
+                .unwrap_or(0);
+            worst = worst.max(d);
+            differing += (d > 1) as usize;
+            texels += 1;
+        }
+    }
+    (differing, worst, texels)
+}
+
+/// The extra omni light turned on: the plan sees the light cache change, uploads the lights, and the GPU's light
+/// passes relight every cell, as light.rs does with the panel and the omni light.
+fn check_moved_light(report: &mut Report, renderer: &mut lab::renderer::Renderer) {
+    let w = world::world();
+    let mut state = shot::for_demo(Demo::Room);
+    state.set("extraLight", 1.0);
+    let lights = super::demos::shot_lights(&state, w);
+    let cpu = light::update(
+        &w.probe,
+        &world::params(&w.probe, &LightSettings::default()),
+        &lights,
+        true,
+    );
+    let Some(gpu) = read_light_texture(renderer, &state, &cpu.texture) else {
+        report.check(
+            "a moved or added light relights the cells on the GPU",
+            false,
+            json!({"read": false}),
+        );
+        return;
+    };
+    let (differing, worst, texels) = texture_difference(&gpu, &cpu.texture);
+    let base = world::lit_for(&LightSettings::default());
+    let (relit, _, _) = texture_difference(&gpu, &base.texture);
+    report.check(
+        "a light added (the omni light) changes the light cache: the GPU's light passes relight the cells, as light.rs does with both lights (within one 8-bit step but for rounding)",
+        worst <= 2 && differing * 50 <= texels && relit > 0,
+        json!({"texels": texels, "differing": differing, "worstStep": worst, "texelsChangedFromPanelOnly": relit}),
+    );
+}
+
+/// The dynamic teapot on the GPU (dynamic_gpu.rs): the room without it lit, its six views drawn, lit, shrunk,
+/// and plotted, against dynamic.rs's plot (which casts a ray through each texel's column instead of drawing).
+fn check_dynamic_gpu(report: &mut Report, renderer: &mut lab::renderer::Renderer) {
+    let state = shot::for_demo(Demo::Dynamic);
+    let plot = world::dynamic_plot(0.0);
+    let base = world::dynamic_lit();
+    let Some(gpu) = read_light_texture(renderer, &state, &plot.texture) else {
+        report.check(
+            "the dynamic teapot is plotted on the GPU",
+            false,
+            json!({"read": false}),
+        );
+        return;
+    };
+    let (differing, worst, texels) = texture_difference(&gpu, &plot.texture);
+    let (gpu_changed, _, _) = texture_difference(&gpu, &base.texture);
+    let (cpu_changed, _, _) = texture_difference(&plot.texture, &base.texture);
+    let mut by_mip = Vec::new();
+    for mip in 0..gpu.mips.len() {
+        // Each mip's texels the plot changed, on the GPU and on the CPU, and how many disagree.
+        let one = |t: &storage::LightTexture| storage::LightTexture {
+            mips: vec![t.mips[mip].clone()],
+            ..t.clone()
+        };
+        let (d, wst, _) = texture_difference(&one(&gpu), &one(&plot.texture));
+        let (g, _, _) = texture_difference(&one(&gpu), &one(&base.texture));
+        let (c, _, _) = texture_difference(&one(&plot.texture), &one(&base.texture));
+        by_mip.push(
+            json!({"mip": mip, "gpuChanged": g, "cpuChanged": c, "differing": d, "worst": wst}),
+        );
+    }
+    report.check(
+        "the dynamic teapot on the GPU: drawn in six views, lit, shrunk, and plotted, it changes the light texture where dynamic.rs's plot does (all but 5 % of its texels within one 8-bit step)",
+        gpu_changed > 0 && differing * 20 <= cpu_changed.max(1),
+        json!({"texels": texels, "differing": differing, "worstStep": worst, "gpuChanged": gpu_changed, "cpuChanged": cpu_changed, "byMip": by_mip}),
+    );
+}
+
 /// The 3D texture's sampler against storage.rs's sample_lod.
 fn check_sampler(
     report: &mut Report,
@@ -682,7 +791,7 @@ fn check_sampler(
 ) {
     let w = world::world();
     let probe = &w.probe;
-    let lit = &w.lit;
+    let lit = world::lit_for(&LightSettings::default());
     let params = world::params(probe, &LightSettings::default());
     // The 3D texture's sampler (trilinear, between mips, clamped) against storage.rs's sample_lod.
     let mut cases = Vec::new();
@@ -884,14 +993,16 @@ fn check_light_pass(report: &mut Report, renderer: &mut lab::renderer::Renderer)
             f32::from_bits(words[k * 4 + 1]),
             f32::from_bits(words[k * 4 + 2]),
         );
+        // The march samples the R8 field through the texture unit, whose filtering weights are coarser than the
+        // CPU's exact trilinear: within 1 %.
         let d = (gpu - cpu).abs().max_element() / cpu.max_element().max(1e-3);
-        if d > 1e-3 {
+        if d > 1e-2 {
             mismatched += 1;
         }
         worst = worst.max(d);
     }
     // A shadow ray that grazes an edge can flip between float orders; allow one.
-    report.check("light pass: the WGSL port of compute_light_at_pos (with raymarch) and compute_area_light matches light.rs (area, omni, spot, directional)", mismatched <= 1, json!({"cases": cells.len(), "mismatched": mismatched, "worstRelative": worst}));
+    report.check("light pass: the WGSL port of compute_light_at_pos (with raymarch through the R8 field's texture) and compute_area_light matches light.rs (area, omni, spot, directional; the texture unit's filtering within 1 %)", mismatched <= 1, json!({"cases": cells.len(), "mismatched": mismatched, "worstRelative": worst}));
 }
 
 /// The bounce's cone, from sampled leaves along their normals.
@@ -1051,7 +1162,7 @@ fn check_story(report: &mut Report) -> Result<()> {
     let w = world::world();
     let probe = &w.probe;
     let leaves = probe.level_range(probe.leaf_level());
-    let lit = &w.lit;
+    let lit = world::lit_for(&LightSettings::default());
     // Listings: each cites a source entry and a demonstration, and every demonstration has one.
     {
         let index = super::sources::INDEX.get();

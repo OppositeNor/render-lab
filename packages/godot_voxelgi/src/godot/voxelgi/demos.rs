@@ -1153,7 +1153,7 @@ pub fn pixel_cones(state: &ShotState, w: &World, eye_pos: Vec3) -> (Vec3, Vec3, 
     let mut cones = Cones::default();
     let (amb, spec) = cone::process(
         &inst,
-        &w.lit.texture,
+        &world::lit_for(&LightSettings::default()).texture,
         &cone::Sample {
             position: p,
             normal: n,
@@ -1369,9 +1369,26 @@ pub fn shader_data(block: &mut lab::shader_data::Block, state: &ShotState) {
         "dynamicRange",
         state.p("giDynamicRange") * state.p("giEnergy"),
     );
+    block.set("exposureNormalization", inst.exposure_normalization);
     block.set("bias", state.p("giBias"));
     block.set("normalBias", state.p("giNormalBias"));
     block.set("mipCount", w.probe.mip_count() as f32);
-    block.set("sdfOffset", 0.0);
     block.set("halfResolution", state.p("giHalfResolution"));
+    // The extra omni light, in metres, for the scene pass's direct light.
+    let omni = world::omni_light(&w.probe, omni_position(state));
+    block.set("omniPosition", omni_position(state).to_array());
+    block.set("omniOn", state.p("extraLight"));
+    block.set("omniColor", (omni.color * omni.energy).to_array());
+    block.set("omniRange", world::OMNI_RANGE);
+    block.set("omniAttenuation", omni.attenuation);
+    // The teapot's GI mode is Dynamic in the dynamic demonstration.
+    let dynamic = world::bake_of(state) == world::Bake::DynamicTeapot;
+    block.set(
+        "dynamicObject",
+        if dynamic {
+            lab::scene::ids::TEAPOT as f32 + 1.0
+        } else {
+            0.0
+        },
+    );
 }

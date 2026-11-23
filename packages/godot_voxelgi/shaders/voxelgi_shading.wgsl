@@ -49,6 +49,9 @@ struct VoxelgiShading {
     /// dynamic_range * energy (giDynamicRange, giEnergy).
     /// {@ derived}
     dynamicRange: f32,
+    /// VoxelGIData's exposure_normalization: 1 without physical light units (gi.cpp:3897-3902), as in the lab.
+    /// {@ derived}
+    exposureNormalization: f32,
     /// VoxelGIData.bias and normal_bias, cells.
     /// {@ derived}
     bias: f32,
@@ -57,12 +60,25 @@ struct VoxelgiShading {
     /// The texture's mips (one per octree level).
     /// {@ derived}
     mipCount: f32,
-    /// The distance field's first word in gShadingData.
-    /// {@ derived}
-    sdfOffset: f32,
     /// rendering/global_illumination/gi/use_half_resolution (giHalfResolution): 1 traces one pixel of each 2 x 2 block.
     /// {@ derived}
     halfResolution: f32,
+    /// The extra omni light (extraLight; world.rs `omni_light`): its world position, and 1 when it is on.
+    /// {@ derived}
+    omniPosition: vec3<f32>,
+    /// {@ derived}
+    omniOn: f32,
+    /// Its colour times its energy, and its range in metres.
+    /// {@ derived}
+    omniColor: vec3<f32>,
+    /// {@ derived}
+    omniRange: f32,
+    /// Its attenuation (decay).
+    /// {@ derived}
+    omniAttenuation: f32,
+    /// The object with GI mode Dynamic, plus one (0: none): the teapot in the dynamic demonstration.
+    /// {@ derived}
+    dynamicObject: f32,
 }
 /// {@ shader_data}
 @group(1) @binding(0) var<uniform> gShading: VoxelgiShading;
@@ -72,11 +88,13 @@ struct VoxelgiShading {
 @group(1) @binding(1) var<storage, read> gShadingData: array<vec4<f32>>;
 @group(1) @binding(2) var<storage, read> gShadingFrame: array<vec4<f32>>;
 
-// The light texture (SceneShading::volumes, update.rs): RGBA8, one mip per
-// octree level, written by the light passes; and the sampler gi.glsl reads it
-// with (SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP).
+// The program's images the GI pass reads (shading.toml's scene-uses; update.rs
+// writes them): the light texture, RGBA8, one mip per octree level, and the
+// sampler gi.glsl reads it with (SAMPLER_LINEAR_WITH_MIPMAPS_CLAMP); and the
+// distance field (R8, one mip), which the light passes march.
 @group(3) @binding(0) var gVolumeSampler: sampler;
 @group(3) @binding(1) var gVoxelgiLight: texture_3d<f32>;
+@group(3) @binding(2) var gVoxelgiSdf: texture_3d<f32>;
 
 // gi.glsl's M_PI.
 const VOXELGI_M_PI: f32 = 3.141592;
@@ -178,9 +196,9 @@ fn voxelgiProcess(positionWorld: vec3<f32>, normalWorld: vec3<f32>, refWorld: ve
             light += 0.25 * voxelgiConeTrace45(cellSize, position, dir, maxDistance, gShading.bias);
         }
     }
-    light = vec4<f32>(light.rgb * gShading.dynamicRange, select(1.0, light.a, blendAmbient));
+    light = vec4<f32>(light.rgb * gShading.dynamicRange * gShading.exposureNormalization, select(1.0, light.a, blendAmbient));
     var irr = voxelgiConeTrace(cellSize, position, refVec, tan(roughness * 0.5 * VOXELGI_M_PI * 0.99), maxDistance, gShading.bias);
-    irr = vec4<f32>(irr.rgb * gShading.dynamicRange, select(1.0, irr.a, blendAmbient));
+    irr = vec4<f32>(irr.rgb * gShading.dynamicRange * gShading.exposureNormalization, select(1.0, irr.a, blendAmbient));
     if (blend > 0.0) {
         out.ambient = light * blend / blend;
         out.reflection = irr * blend / blend;
@@ -232,19 +250,53 @@ struct VoxelgiForwardOutput {
     @location(0) direct: vec4<f32>,
     // The normal, turned toward the eye.
     @location(1) normal: vec4<f32>,
+    // Godot's normal-roughness buffer, the GI pass's input.
+    @location(2) normalRoughness: vec4<f32>,
     @builtin(sample_mask) coverage: u32,
 }
 
-// The scene pass, against the pre-pass's depth: the lab's direct light, and
-// the normal the GI pass reads (Godot's normal-roughness buffer; the
-// roughness is the object's).
+// MODE_RENDER_NORMAL_ROUGHNESS's output (scene_forward_clustered.glsl:3019-3028):
+// the normal made to touch the unit cube (encode24 without its best-fit
+// scale, which the GI pass's normalisation undoes), mapped to 0..1; the
+// roughness times 127 / 255, mirrored above one half for a dynamic object.
+fn voxelgiNormalRoughness(n: vec3<f32>, roughness: f32, objectIndex: u32) -> vec4<f32> {
+    let cube = n / max(abs(n.z), max(abs(n.x), abs(n.y)));
+    var w = roughness * (127.0 / 255.0);
+    if (f32(objectIndex) + 1.0 == gShading.dynamicObject) {
+        w = 1.0 - w;
+    }
+    return vec4<f32>(cube * 0.5 + 0.5, w);
+}
+
+// The lab's direct light from the extra omni light, when it is on: Godot's
+// omni falloff (get_omni_attenuation) times the cosine, shadowed by the lab's
+// ray-traced visibility (the panel's direct light is the lab's own as well).
+fn voxelgiOmniIrradiance(p: vec3<f32>, n: vec3<f32>, selfObject: u32) -> vec3<f32> {
+    if (gShading.omniOn < 0.5) {
+        return vec3<f32>(0.0);
+    }
+    let origin = p + n * 2e-3;
+    let w = gShading.omniPosition - origin;
+    let d = length(w);
+    let cosS = dot(n, w / d);
+    if (cosS <= 0.0 || d >= gShading.omniRange) {
+        return vec3<f32>(0.0);
+    }
+    let visible = shadowVisibility(origin, w / d, d - 1e-3, selfObject);
+    return gShading.omniColor * voxelgiOmniAttenuation(d, 1.0 / gShading.omniRange, gShading.omniAttenuation) * cosS * visible;
+}
+
+// The scene pass, against the pre-pass's depth: the lab's direct light, the
+// normal the composite reads, and the normal-roughness buffer the GI pass reads.
 @fragment
 fn voxelgiForwardFS(input: SceneVaryings) -> VoxelgiForwardOutput {
     let v = normalize(gFrame.camera.position - input.worldPosition);
     let n = eyeSideNormal(input.worldNormal, input.worldPosition, gFrame.camera.position);
     let o = gObjects[input.objectIndex];
-    let direct = o.albedoRoughness.rgb * directIrradiance(input.worldPosition, n, input.objectIndex) / PI + o.emissive.rgb * o.emissive.w;
-    return VoxelgiForwardOutput(vec4<f32>(direct, f32(input.objectIndex) + 1.0), vec4<f32>(n, 0.0), voxelgiCoverage(input.objectIndex, input.clip.xy));
+    let irradiance = directIrradiance(input.worldPosition, n, input.objectIndex) + voxelgiOmniIrradiance(input.worldPosition, n, input.objectIndex);
+    let direct = o.albedoRoughness.rgb * irradiance / PI + o.emissive.rgb * o.emissive.w;
+    let nr = voxelgiNormalRoughness(n, o.albedoRoughness.w, input.objectIndex);
+    return VoxelgiForwardOutput(vec4<f32>(direct, f32(input.objectIndex) + 1.0), vec4<f32>(n, 0.0), nr, voxelgiCoverage(input.objectIndex, input.clip.xy));
 }
 
 // The chain's targets (SceneShading in src/godot/voxelgi/mod.rs): target i
@@ -255,22 +307,64 @@ fn voxelgiForwardFS(input: SceneVaryings) -> VoxelgiForwardOutput {
 @group(2) @binding(5) var oGiAmbient: texture_storage_2d<rgba16float, write>;
 @group(2) @binding(6) var tGiReflection: texture_2d<f32>;
 @group(2) @binding(7) var oGiReflection: texture_storage_2d<rgba16float, write>;
-@group(2) @binding(8) var tDepth: texture_depth_multisampled_2d;
-@group(2) @binding(9) var oHdr: texture_storage_2d<rgba16float, write>;
+@group(2) @binding(8) var tNormalRoughness: texture_multisampled_2d<f32>;
+@group(2) @binding(10) var tDepth: texture_depth_multisampled_2d;
+@group(2) @binding(11) var oHdr: texture_storage_2d<rgba16float, write>;
 
-// The world position at a pixel's centre and a reversed depth: the view-space
-// z the projection maps to that depth, along the pixel's view ray.
-fn voxelgiWorldPosition(pixel: vec2<u32>, size: vec2<u32>, depth: f32) -> vec3<f32> {
+// The world position at a point of the screen (in pixels) and a reversed
+// depth: the view-space z the projection maps to that depth, along the ray
+// through that point. The GI pass reconstructs a pixel at its top-left
+// corner, as gi.glsl's reconstruct_position does (`vec2(screen_pos)`,
+// gi.glsl:161-190); the composite, standing for the opaque pass's fragment,
+// at its centre.
+fn voxelgiWorldPosition(pixel: vec2<f32>, size: vec2<u32>, depth: f32) -> vec3<f32> {
     let c = gFrame.camera;
-    let uv = (vec2<f32>(pixel) + vec2<f32>(0.5)) / vec2<f32>(size);
+    let uv = pixel / vec2<f32>(size);
     let z = -c.viewToClip[3].z / (depth + c.viewToClip[2].z);
     let p = vec3<f32>((uv.x * 2.0 - 1.0) / c.viewToClip[0][0], (1.0 - uv.y * 2.0) / c.viewToClip[1][1], -1.0) * -z;
     let r = c.worldToView;
     return c.position + vec3<f32>(dot(r[0].xyz, p), dot(r[1].xyz, p), dot(r[2].xyz, p));
 }
 
-// The GI pass (gi.cpp's process_gi, gi.glsl): once per pixel, on its first
-// sample (Godot resolves its MSAA buffers to one sample first, resolve_gi),
+// resolve_gi's choice of an MSAA sample (resolve.glsl:53-221, the branch it
+// compiles): with 2 samples the nearer; with 4, the sample whose depth the
+// fewest samples share (the first on a tie); with 8, the same within each
+// half, then, as the code reads, the second half's pick when the first half's
+// smallest count is the smaller; else the first sample.
+fn voxelgiResolveGiSample(pixel: vec2<u32>) -> u32 {
+    let n = textureNumSamples(tDepth);
+    if (n == 2u) {
+        return select(0u, 1u, textureLoad(tDepth, pixel, 0) < textureLoad(tDepth, pixel, 1));
+    }
+    if (n != 4u && n != 8u) {
+        return 0u;
+    }
+    var depths: array<f32, 8>;
+    for (var i = 0u; i < n; i++) {
+        depths[i] = textureLoad(tDepth, pixel, i);
+    }
+    var best = array<u32, 2>(0u, 4u);
+    var least = array<f32, 2>(1e9, 1e9);
+    for (var i = 0u; i < n; i++) {
+        // How many samples share this one's depth; the rarest of each half of four is kept.
+        var freq = 0.0;
+        for (var j = 0u; j < n; j++) {
+            freq += select(0.0, 1.0, depths[j] == depths[i]);
+        }
+        let h = i / 4u;
+        if (freq < least[h]) {
+            least[h] = freq;
+            best[h] = i;
+        }
+    }
+    if (n == 8u && least[0] < least[1]) {
+        return best[1];
+    }
+    return best[0];
+}
+
+// The GI pass (gi.cpp's process_gi, gi.glsl): once per pixel, on the sample
+// resolve_gi picks (Godot resolves its MSAA buffers to one sample first),
 // voxel_gi_compute into the ambient and reflection buffers. At half
 // resolution (gi.glsl:705-724) the buffers are half the size and each texel
 // traces the top-left pixel of its 2 x 2 block (`pos <<= 1`); a block past
@@ -290,13 +384,20 @@ fn voxelgiGiCS(@builtin(global_invocation_id) id: vec3<u32>) {
         return;
     }
     var gi: VoxelgiResult;
-    let depth = textureLoad(tDepth, pixel, 0);
-    let direct = textureLoad(tDirect, pixel, 0);
+    let s = voxelgiResolveGiSample(pixel);
+    let depth = textureLoad(tDepth, pixel, s);
+    let direct = textureLoad(tDirect, pixel, s);
     if (depth > 0.0 && direct.a > 0.5) {
-        let p = voxelgiWorldPosition(pixel, size, depth);
-        let n = textureLoad(tNormal, pixel, 0).xyz;
-        let roughness = gObjects[u32(direct.a - 0.5)].albedoRoughness.w;
-        let r = reflect(-normalize(gFrame.camera.position - p), n);
+        let p = voxelgiWorldPosition(vec2<f32>(pixel), size, depth);
+        // fetch_normal_and_roughness and process_gi's decode (gi.glsl:609-627).
+        let nr = textureLoad(tNormalRoughness, pixel, s);
+        let n = normalize(nr.xyz * 2.0 - 1.0);
+        var roughness = nr.w;
+        if (roughness > 0.5) {
+            roughness = 1.0 - roughness;
+        }
+        roughness /= 127.0 / 255.0;
+        let r = normalize(reflect(-normalize(gFrame.camera.position - p), n));
         gi = voxelgiProcess(p, n, r, roughness, gShading.quality > 0.5, gShading.interior < 0.5);
     }
     textureStore(oGiAmbient, texel, gi.ambient);
@@ -349,7 +450,7 @@ fn voxelgiComposeCS(@builtin(global_invocation_id) id: vec3<u32>) {
         let o = gObjects[u32(direct.a - 0.5)];
         let albedo = o.albedoRoughness.rgb;
         let roughness = o.albedoRoughness.w;
-        let p = voxelgiWorldPosition(pixel, size, depth);
+        let p = voxelgiWorldPosition(vec2<f32>(pixel) + vec2<f32>(0.5), size, depth);
         let n = textureLoad(tNormal, pixel, i).xyz;
         let v = normalize(gFrame.camera.position - p);
         let r = reflect(-v, n);

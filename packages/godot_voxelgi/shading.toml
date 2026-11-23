@@ -2,8 +2,8 @@
 # format is in lab/src/shading_file.rs; the functions it names are in src/godot/voxelgi/mod.rs (`shading_hooks`),
 # update.rs, and world.rs.
 #
-# The scene shades with shaders/voxelgi_shading.wgsl, in Forward+'s order: the light passes when the settings change
-# (update.rs, writing the RGBA8 3D texture), a depth pre-pass, the scene pass (the lab's direct light and the
+# The scene shades with shaders/voxelgi_shading.wgsl, in Forward+'s order: the light passes when a light or a setting
+# changes, and the dynamic objects every frame (update.rs's plan, writing the RGBA8 3D texture), a depth pre-pass, the scene pass (the lab's direct light and the
 # normal), the WGSL port of Godot's VoxelGI screen pass once per pixel (or per 2 × 2 block at half resolution), then
 # the opaque pass's mix.
 
@@ -27,41 +27,193 @@ format = "rgba16float"
 name = "giReflection"
 format = "rgba16float"
 
-# The light texture: the octree's size (world.rs's node, subdiv 128), one mip per octree level.
-[[volume]]
-name = "voxelgiLight"
+# Godot's normal-roughness buffer (R8G8B8A8_UNORM), which its GI pass reads.
+[[target]]
+name = "normalRoughness"
 format = "rgba8unorm"
+
+# The light passes and the dynamic objects' path, as `GI::VoxelGIInstance::update` runs them each frame
+# (gi.cpp:2963-3397): one plan (update.rs) over the light texture both write.
+[program]
+plan = "light-program"
+# What the GI pass reads (and the selftest's kernels): the light texture with gi.glsl's
+# linear_sampler_with_mipmaps, and the distance field.
+scene-uses = [
+    { binding = 0, resource = "trilinearSampler", access = "sampler" },
+    { binding = 1, resource = "voxelgiLight", access = "sampled" },
+    { binding = 2, resource = "voxelgiSdf", access = "sampled" },
+]
+
+# The light texture (gi.cpp:2631-2641): RGBA8, the octree's size (world.rs's node, subdiv 128), one mip per
+# octree level.
+[[program.image]]
+name = "voxelgiLight"
+kind = "3d"
 size = [128, 64, 128]
+format = "rgba8unorm"
 mips = 8
+
+# The distance field (gi.cpp:93-112): R8, the octree's size, one mip, uploaded from the bake's bytes.
+[[program.image]]
+name = "voxelgiSdf"
+kind = "3d"
+size = [128, 64, 128]
+format = "r8unorm"
+
+# `write_buffer` (gi.cpp:2650-2654): one float light per cell, 16 bytes each (room for 131072 cells; update.rs
+# checks the bake's count against it).
+[[program.buffer]]
+name = "voxelgiOutputs"
+bytes = 2097152
+
+# The light uniform buffer (gi.cpp:3583): voxel_gi_max_lights = 32 lights, six vec4s each as the lab packs them.
+[[program.buffer]]
+name = "voxelgiLights"
+bytes = 3072
+
+# The dynamic maps (gi.cpp:2748-2830): `dynamic_maps[k]`'s light (R16G16B16A16_SFLOAT) and depth (R32_SFLOAT) are
+# mip k of these two images (Godot's are twelve textures): 2048, 1024, 512, 256 (16x to 2x the octree's 128),
+# then 128 down to 1, one per light mip. The first map's albedo, normal, and ORM (RGBA8) and its framebuffer's
+# depth (D16) are the material draw's.
+[[program.image]]
+name = "voxelgiDynLight"
+kind = "2d"
+size = [2048, 2048, 1]
+format = "rgba16float"
+mips = 12
+
+[[program.image]]
+name = "voxelgiDynDepth"
+kind = "2d"
+size = [2048, 2048, 1]
+format = "r32float"
+mips = 12
+
+[[program.image]]
+name = "voxelgiDynAlbedo"
+kind = "2d"
+size = [2048, 2048, 1]
+format = "rgba8unorm"
+
+[[program.image]]
+name = "voxelgiDynNormal"
+kind = "2d"
+size = [2048, 2048, 1]
+format = "rgba8unorm"
+
+[[program.image]]
+name = "voxelgiDynOrm"
+kind = "2d"
+size = [2048, 2048, 1]
+format = "rgba8unorm"
+
+[[program.image]]
+name = "voxelgiDynFbDepth"
+kind = "2d"
+size = [2048, 2048, 1]
+format = "depth16unorm"
+
+# Each map's VoxelGIDynamicPushConstant, as dynamic_gpu.rs computes it: six views of twelve maps, 32 words each.
+[[program.buffer]]
+name = "voxelgiDynamicRecords"
+bytes = 9216
 
 # The frame, in order (lab/src/shading_file.rs): each node's passes run where it is, as their reads and
 # writes allow.
+# The distance field's bytes into its texture, when the plan starts from nothing (gi.cpp:104-112).
 [[node]]
-kind = "update"
-entry = "voxelgiLightCS"
-writes = ["voxelgiOutputs"]
-workgroup = 64
+kind = "program"
+name = "voxelgiSdfUploadCS"
+compute = "voxelgiSdfUploadCS"
+workgroup = [4, 4, 4]
+uses = [{ binding = 6, resource = "voxelgiSdf", access = "write" }]
 
+# MODE_COMPUTE_LIGHT: the leaves' direct light, into write_buffer.
 [[node]]
-kind = "update"
-entry = "voxelgiBounceCS"
-reads = ["voxelgiLight", "voxelgiOutputs"]
-writes = ["voxelgiOutputs"]
-workgroup = 64
+kind = "program"
+name = "voxelgiLightCS"
+compute = "voxelgiLightCS"
+workgroup = [64, 1, 1]
+uses = [
+    { binding = 0, resource = "trilinearSampler", access = "sampler" },
+    { binding = 2, resource = "voxelgiSdf", access = "sampled" },
+    { binding = 3, resource = "voxelgiOutputs", access = "read-write" },
+    { binding = 4, resource = "voxelgiLights", access = "read" },
+]
 
+# MODE_SECOND_BOUNCE: six cones through the texture the first pass wrote.
 [[node]]
-kind = "update"
-entry = "voxelgiMipmapsCS"
-reads = ["voxelgiOutputs"]
-writes = ["voxelgiOutputs"]
-workgroup = 64
+kind = "program"
+name = "voxelgiBounceCS"
+compute = "voxelgiBounceCS"
+workgroup = [64, 1, 1]
+uses = [
+    { binding = 0, resource = "trilinearSampler", access = "sampler" },
+    { binding = 1, resource = "voxelgiLight", access = "sampled" },
+    { binding = 3, resource = "voxelgiOutputs", access = "read-write" },
+]
 
+# MODE_UPDATE_MIPMAPS: one dispatch per level, the leaves' parents first.
 [[node]]
-kind = "update"
-entry = "voxelgiWriteCS"
-reads = ["voxelgiOutputs"]
-writes = ["voxelgiLight"]
-workgroup = 64
+kind = "program"
+name = "voxelgiMipmapsCS"
+compute = "voxelgiMipmapsCS"
+workgroup = [64, 1, 1]
+uses = [{ binding = 3, resource = "voxelgiOutputs", access = "read-write" }]
+
+# MODE_WRITE_TEXTURE: each level's cells into its mip (instance = the mip).
+[[node]]
+kind = "program"
+name = "voxelgiWriteCS"
+compute = "voxelgiWriteCS"
+workgroup = [64, 1, 1]
+instances = 8
+uses = [
+    { binding = 3, resource = "voxelgiOutputs", access = "read" },
+    { binding = 5, resource = "voxelgiLight", access = "write", mip = 0 },
+]
+
+# A dynamic object's view drawn with its material (`_render_material`, gi.cpp:3279) into the first map.
+[[node]]
+kind = "program"
+name = "voxelgiDynamicDraw"
+vertex = "voxelgiDynamicVS"
+fragment = "voxelgiDynamicFS"
+targets = ["voxelgiDynAlbedo", "voxelgiDynNormal", "voxelgiDynOrm", "voxelgiDynLight", "voxelgiDynDepth"]
+depth = "voxelgiDynFbDepth"
+
+# MODE_DYNAMIC_LIGHTING over the first map.
+[[node]]
+kind = "program"
+name = "voxelgiDynamicLightingCS"
+compute = "voxelgiDynamicLightingCS"
+workgroup = [8, 8, 1]
+uses = [
+    { binding = 0, resource = "trilinearSampler", access = "sampler" },
+    { binding = 2, resource = "voxelgiSdf", access = "sampled" },
+    { binding = 4, resource = "voxelgiLights", access = "read" },
+    { binding = 7, resource = "voxelgiDynAlbedo", access = "read" },
+    { binding = 8, resource = "voxelgiDynNormal", access = "read" },
+    { binding = 9, resource = "voxelgiDynLight", access = "read-write", mip = 0 },
+    { binding = 10, resource = "voxelgiDynDepth", access = "read-write", mip = 0 },
+    { binding = 11, resource = "voxelgiDynamicRecords", access = "read" },
+]
+
+# MODE_DYNAMIC_SHRINK: map k (the instance) from map k - 1, plotted into light mip k - 4 from the 1x map on.
+[[node]]
+kind = "program"
+name = "voxelgiDynamicShrinkCS"
+compute = "voxelgiDynamicShrinkCS"
+workgroup = [8, 8, 1]
+instances = 12
+uses = [
+    { binding = 11, resource = "voxelgiDynamicRecords", access = "read" },
+    { binding = 12, resource = "voxelgiDynLight", access = "read", mip = -1 },
+    { binding = 13, resource = "voxelgiDynDepth", access = "read", mip = -1 },
+    { binding = 14, resource = "voxelgiDynLight", access = "write", mip = 0 },
+    { binding = 15, resource = "voxelgiDynDepth", access = "write", mip = 0 },
+    { binding = 16, resource = "voxelgiLight", access = "read-write", mip = -4 },
+]
 
 [[node]]
 kind = "prepass"
@@ -70,12 +222,12 @@ entry = "voxelgiPrepassFS"
 [[node]]
 kind = "scene"
 entry = "voxelgiForwardFS"
-outputs = ["direct", "normal"]
+outputs = ["direct", "normal", "normalRoughness"]
 
 [[node]]
 kind = "compute"
 entry = "voxelgiGiCS"
-reads = ["direct", "normal", "depth", "voxelgiLight"]
+reads = ["direct", "normalRoughness", "depth", "voxelgiLight"]
 writes = ["giAmbient", "giReflection"]
 workgroup = [8, 8]
 
@@ -91,17 +243,6 @@ workgroup = [8, 8]
 [resolution]
 targets = ["giAmbient", "giReflection"]
 divisor = "gi-divisor"
-
-# The light passes, as `GI::VoxelGIInstance::update` runs them (gi.cpp:3096-3171): only when the light settings
-# change, one dispatch per pass and level over that level's cells, 64 to a workgroup (voxel_gi.glsl's local size);
-# update.rs plans them and light.rs is their CPU mirror.
-[update]
-plan = "light-update"
-
-# `write_buffer` (`VoxelGIInstance::write_buffer`): one float light per cell, four words each.
-[[update.buffer]]
-name = "voxelgiOutputs"
-words = "outputs-words"
 
 # The cells' light is four floats a cell, listed in cell order; the light texture is dim (it is divided by its
 # dynamic range): a slice near the floor, brighter.

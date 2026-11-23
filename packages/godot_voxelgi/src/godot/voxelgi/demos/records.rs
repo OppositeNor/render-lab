@@ -150,7 +150,9 @@ pub(super) fn record_rows(
         decoded(&d.normal().to_array()),
         palette::NORMAL,
     ));
-    let t = w.lit.texture.texel(0, pos);
+    let t = world::lit_for(&LightSettings::default())
+        .texture
+        .texel(0, pos);
     rows.push(row(
         tr("demos-texel"),
         decoded(&t.to_array()),

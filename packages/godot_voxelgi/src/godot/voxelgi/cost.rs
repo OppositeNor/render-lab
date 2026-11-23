@@ -62,7 +62,7 @@ pub struct Costs {
 pub fn costs(state: &ShotState) -> Costs {
     let w = world::world();
     let probe = &w.probe;
-    let plan = update::plan(state);
+    let (dispatches, workgroups) = update::update_dispatches(state);
     let max = probe.octree_size.as_vec3().length();
     let bias = state.p("giBias");
     let s = probe.mip_size(0);
@@ -75,8 +75,8 @@ pub fn costs(state: &ShotState) -> Costs {
         } else {
             1
         },
-        dispatches: plan.dispatches.len(),
-        workgroups: plan.dispatches.iter().map(|d| d.groups).sum(),
+        dispatches,
+        workgroups,
         low_steps: steps_45(bias, max),
         high_steps: steps_cone(0.577, bias, max),
         spec_steps: [1.0, 0.5, 0.0].map(|r| steps_cone(spec_tan(r), bias, max)),

@@ -77,7 +77,7 @@ pub struct Plot {
 }
 
 /// Godot's `Basis::looking_at(target, up)`: columns x, y, z with -z toward the target.
-fn looking_at(target: Vec3, up: Vec3) -> [Vec3; 3] {
+pub fn looking_at(target: Vec3, up: Vec3) -> [Vec3; 3] {
     let v_z = -target.normalize();
     let v_x = up.cross(v_z).normalize();
     let v_y = v_z.cross(v_x);
@@ -95,8 +95,9 @@ fn axis_of(v: Vec3) -> usize {
     }
 }
 
-/// The views' setup for the box `begin..end` (oversampled cells).
-fn view_axes(j: usize, begin: IVec3, end: IVec3) -> (Vec3, [Vec3; 3], Vec3) {
+/// The views' setup for the box `begin..end` (oversampled cells): the direction
+/// view `j` renders along, its basis (`xform.set_look_at`), and its eye.
+pub fn view_axes(j: usize, begin: IVec3, end: IVec3) -> (Vec3, [Vec3; 3], Vec3) {
     let render_dir = RENDER_Z[j];
     let size = (end - begin).as_vec3();
     let center = begin.as_vec3() + size * 0.5;
@@ -116,19 +117,19 @@ struct Plotting<'a> {
 
 /// One view of the oversampled box: the direction it renders along, the texture axes its x, y, and depth run
 /// along, those directions in cells, where its depth starts and which way it counts, and its rectangle.
-struct ViewFrame {
-    render_dir: Vec3,
-    axes: [usize; 3],
-    dirs: [IVec3; 3],
-    z_base: f32,
-    z_sign: f32,
-    rect_pos: IVec2,
-    rect_size: IVec2,
+pub struct ViewFrame {
+    pub render_dir: Vec3,
+    pub axes: [usize; 3],
+    pub dirs: [IVec3; 3],
+    pub z_base: f32,
+    pub z_sign: f32,
+    pub rect_pos: IVec2,
+    pub rect_size: IVec2,
 }
 
 impl ViewFrame {
     /// View `j` of the box `begin..end` (oversampled cells).
-    fn new(j: usize, begin: IVec3, end: IVec3) -> ViewFrame {
+    pub fn new(j: usize, begin: IVec3, end: IVec3) -> ViewFrame {
         let size = end - begin;
         let (render_dir, basis, eye) = view_axes(j, begin, end);
         let x_axis = axis_of(basis[0]);
@@ -227,60 +228,65 @@ pub fn plot(
     }
 }
 
-impl Plotting<'_> {
-    /// A world point in oversampled cells.
-    fn over_of(&self, p: Vec3) -> Vec3 {
-        self.probe.to_cell(p - self.node) * MULTIPLIER as f32
-    }
+/// A world point in oversampled cells of `probe` (its node at `node`).
+fn over_of_in(probe: &Probe, node: Vec3, p: Vec3) -> Vec3 {
+    probe.to_cell(p - node) * MULTIPLIER as f32
+}
 
+/// An object's box in oversampled cells, from its world bounds through its transform (its eight corners):
+/// `begin = aabb.position - 1`, `end = aabb.end + 1` (Vector3i truncates), even sizes, clamped
+/// (gi.cpp:3204-3220).
+pub fn oversampled_box(probe: &Probe, o: &ObjectData, node: Vec3) -> (IVec3, IVec3) {
+    let octree = probe.octree_size;
+    let over_of = |p: Vec3| over_of_in(probe, node, p);
+    let l2w = glam::Mat4::from_cols_array_2d(&o.local_to_world);
+    let (lc, le) = (Vec3::from(o.local_center), Vec3::from(o.local_extent));
+    let corners: Vec<Vec3> = (0..8)
+        .map(|i| {
+            over_of(l2w.transform_point3(
+                lc + le
+                    * Vec3::new(
+                        if i & 1 == 0 {
+                            -1.0
+                        } else {
+                            1.0
+                        },
+                        if i & 2 == 0 {
+                            -1.0
+                        } else {
+                            1.0
+                        },
+                        if i & 4 == 0 {
+                            -1.0
+                        } else {
+                            1.0
+                        },
+                    ),
+            ))
+        })
+        .collect();
+    let min = corners.iter().fold(Vec3::splat(f32::MAX), |a, &c| a.min(c));
+    let max = corners.iter().fold(Vec3::splat(f32::MIN), |a, &c| a.max(c));
+    let mut begin = (min - Vec3::ONE).as_ivec3();
+    let mut end = (min + (max - min) + Vec3::ONE).as_ivec3();
+    for j in 0..3 {
+        if (end[j] - begin[j]) & 1 != 0 {
+            end[j] += 1;
+        }
+        begin[j] = begin[j].max(0);
+        end[j] = end[j].min(octree[j] * MULTIPLIER);
+    }
+    (begin, end)
+}
+
+impl Plotting<'_> {
     /// An oversampled cell's point in the world.
     fn world_of(&self, c: Vec3) -> Vec3 {
         self.probe.from_cell(c / MULTIPLIER as f32) + self.node
     }
 
-    /// The object's box in oversampled cells, from its world bounds through its transform (its eight corners):
-    /// `begin = aabb.position - 1`, `end = aabb.end + 1` (Vector3i truncates), even sizes, clamped.
     fn oversampled_box(&self) -> (IVec3, IVec3) {
-        let octree = self.probe.octree_size;
-        let o = self.object;
-        let l2w = glam::Mat4::from_cols_array_2d(&o.local_to_world);
-        let (lc, le) = (Vec3::from(o.local_center), Vec3::from(o.local_extent));
-        let corners: Vec<Vec3> = (0..8)
-            .map(|i| {
-                self.over_of(l2w.transform_point3(
-                    lc + le
-                        * Vec3::new(
-                            if i & 1 == 0 {
-                                -1.0
-                            } else {
-                                1.0
-                            },
-                            if i & 2 == 0 {
-                                -1.0
-                            } else {
-                                1.0
-                            },
-                            if i & 4 == 0 {
-                                -1.0
-                            } else {
-                                1.0
-                            },
-                        ),
-                ))
-            })
-            .collect();
-        let min = corners.iter().fold(Vec3::splat(f32::MAX), |a, &c| a.min(c));
-        let max = corners.iter().fold(Vec3::splat(f32::MIN), |a, &c| a.max(c));
-        let mut begin = (min - Vec3::ONE).as_ivec3();
-        let mut end = (min + (max - min) + Vec3::ONE).as_ivec3();
-        for j in 0..3 {
-            if (end[j] - begin[j]) & 1 != 0 {
-                end[j] += 1;
-            }
-            begin[j] = begin[j].max(0);
-            end[j] = end[j].min(octree[j] * MULTIPLIER);
-        }
-        (begin, end)
+        oversampled_box(self.probe, self.object, self.node)
     }
 
     /// The view's first map (16x): each texel's column cast along the view to the object, its albedo, and its

@@ -19,6 +19,7 @@ pub mod controls;
 pub mod cost;
 pub mod demos;
 pub mod dynamic;
+pub mod dynamic_gpu;
 pub mod light;
 pub mod pseudocode;
 pub mod script;
@@ -215,6 +216,10 @@ impl Investigation for VoxelGi {
             "voxelgiBounceCS" => tr("pass-voxelgiBounceCS"),
             "voxelgiMipmapsCS" => tr("pass-voxelgiMipmapsCS"),
             "voxelgiWriteCS" => tr("pass-voxelgiWriteCS"),
+            "voxelgiSdfUploadCS" => tr("pass-voxelgiSdfUploadCS"),
+            "voxelgiDynamicDraw" => tr("pass-voxelgiDynamicDraw"),
+            "voxelgiDynamicLightingCS" => tr("pass-voxelgiDynamicLightingCS"),
+            "voxelgiDynamicShrinkCS" => tr("pass-voxelgiDynamicShrinkCS"),
             "voxelgiPrepassFS" => tr("pass-voxelgiPrepassFS"),
             "voxelgiForwardFS" => tr("pass-voxelgiForwardFS"),
             "voxelgiGiCS" => tr("pass-voxelgiGiCS"),
@@ -228,8 +233,13 @@ impl Investigation for VoxelGi {
         static HOOKS: &[(&str, ShadingHook)] = &[
             ("data", ShadingHook::Data(world::shading_data)),
             ("gi-divisor", ShadingHook::Divisor(gi_divisor)),
-            ("light-update", ShadingHook::UpdatePlan(update::plan)),
-            ("outputs-words", ShadingHook::Words(update::outputs_words)),
+            (
+                "light-program",
+                ShadingHook::Program {
+                    init: update::init,
+                    plan: update::plan,
+                },
+            ),
         ];
         HOOKS
     }

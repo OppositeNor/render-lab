@@ -225,11 +225,6 @@ pub(super) fn light_pass_readout(
             format!("{clipped}"),
             palette::SELECTED,
         ),
-        row(
-            tr("demos-light_seconds"),
-            format!("{:.2} s", w.light_seconds),
-            palette::text_dim(),
-        ),
     ];
     content.readout = Some(readout(
         tr("demos-light_pass"),

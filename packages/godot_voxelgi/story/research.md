@@ -169,9 +169,11 @@ the engine.
   **checked**).
 - Debug `LIGHT_FULL` exists because dynamic voxels can be outside the baked cell set (gi.cpp:3487-3499).
 
-Where the lab differs: the plot is a read-modify-write of an `rgba8` 3D storage image; WGSL storage textures are
-read-write only for a few 32-bit formats, so the lab will need a ping-pong copy or an `r32uint` packed stand-in, or a
-CPU stand-in. To decide in Phase 3; say on screen if it differs.
+Where the lab differs (2026-11-23): the dynamic path runs on the GPU as Godot's (dynamic_gpu.rs, update.rs): the
+object drawn in six views by the lab's program raster pass into five colour targets and a D16 depth, then the lighting
+and shrink kernels, the plot a read-modify-write of the `rgba8unorm` light texture as a read-write storage image (the
+device's adapter-specific format features). The twelve dynamic maps are the mips of one light and one depth image.
+dynamic.rs remains the CPU mirror the demonstration's points and insets are drawn from.
 
 ## 5. The read side: the per-pixel tag and the cone trace
 
@@ -301,10 +303,10 @@ the sky ends at the bounds test; the per-pixel cones stop at alpha 1.0, the boun
 Specular cone steps depend on the roughness: in the lab's box (192 cells across, bias 1.5), at most 2 at roughness 1, 15 at
 0.5, 381 at 0 (cost.rs, asserted by the selftest).
 
-**Where the lab differs, now:** the light passes run on the GPU as Godot's (update.rs, voxelgi_passes.wgsl: one
-dispatch per level, 64 cells a workgroup, only when the scene node's light settings change; the lab's lights never
-move, so its cache is the settings' key), into a real RGBA8 3D texture sampled with a trilinear, mip-linear sampler
-(`SceneShading::volumes`). light.rs remains the CPU mirror the demonstrations draw; the selftest compares the two
+**Where the lab differs, now (2026-11-23):** the light passes run on the GPU as Godot's (update.rs, the program's plan;
+voxelgi_passes.wgsl: one dispatch per level, 64 cells a workgroup), only when the light cache (the shot's lights as
+uploaded) or the settings change, or as the write pass alone while dynamic objects are plotted, into a real RGBA8 3D
+texture sampled with a trilinear, mip-linear sampler; the distance field is an R8 3D texture sampled linearly. light.rs remains the CPU mirror the demonstrations draw; the selftest compares the two
 (about 1 % of texels differ by one 8-bit step; the texture unit's filtering is within 2 %). Half resolution follows
 gi.glsl and the opaque pass's bilinear fetch, without MSAA's normal-aware pick. The lab can relight every frame
 (`giRelightEachFrame`, a measurement, not a Godot setting) so the performance panel times the passes.

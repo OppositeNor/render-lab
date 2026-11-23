@@ -565,7 +565,7 @@ impl Voxelizer {
             c.normal = if n.length() < 0.01 {
                 [0.0; 3]
             } else {
-                n.normalize().to_array()
+                normalized(n).to_array()
             };
             c.alpha = 1.0;
             return;

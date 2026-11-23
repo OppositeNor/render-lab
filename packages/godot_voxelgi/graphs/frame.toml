@@ -20,7 +20,7 @@ to = ["LIGHT"]
 [[section]]
 id = "LIGHT"
 title-text = "frame-light"
-passes = ["voxelgiLightCS", "voxelgiBounceCS", "voxelgiMipmapsCS", "voxelgiWriteCS"]
+passes = ["voxelgiSdfUploadCS", "voxelgiLightCS", "voxelgiBounceCS", "voxelgiMipmapsCS", "voxelgiWriteCS"]
 
 [[section]]
 id = "TEX"
@@ -31,8 +31,7 @@ resources = ["voxelgiLight"]
 id = "DYN"
 title-text = "frame-dyn"
 note-text = "frame-dyn_note"
-outside = true
-to = ["TEX"]
+passes = ["voxelgiDynamicDraw", "voxelgiDynamicLightingCS", "voxelgiDynamicShrinkCS"]
 
 [[section]]
 id = "PRE"

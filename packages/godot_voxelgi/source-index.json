@@ -60,7 +60,7 @@
       "line": 3943,
       "symbol": "RendererSceneCull::render_probes (VoxelGI light cache)",
       "lineHash": "b8dcc83b9fff52f4",
-      "inspect": "Each frame the culler compares every paired light (and every visible directional light) with its cached parameters: shadow, type, transform, colour, energy, intensity, indirect energy, range, attenuation, spot angle and attenuation, and the area light's size, normalization, and texture (a directional light's sky mode); a difference marks the lights dirty and relights the probe.",
+      "inspect": "Each frame the culler compares every visible paired light (and every visible directional light) with its cached parameters: shadow, type, transform, colour, energy, intensity, indirect energy, range, attenuation, spot angle and attenuation, and the area light's size, normalization, and texture (a directional light's sky mode); a difference marks the lights dirty and relights the probe.",
       "details": []
     },
     "mobile-stub": {
@@ -201,7 +201,7 @@
       "line": 239,
       "symbol": "Voxelizer::_plot_face (going down)",
       "lineHash": "0f5b5a449018c331",
-      "inspect": "Above the leaves, the triangle is tested against each of the cell's eight octants; a child cell is created only for an octant the triangle overlaps, and the triangle goes down into it.",
+      "inspect": "Above the leaves, the triangle is tested against each of the cell's eight octants; an octant outside the grid is skipped, a child cell is created only for an octant the triangle overlaps, and the triangle goes down into it.",
       "details": [
         {
           "line": 270,
@@ -253,7 +253,7 @@
       "line": 336,
       "symbol": "Voxelizer::_get_material_cache",
       "lineHash": "c7c185cffe659e41",
-      "inspect": "A BaseMaterial3D becomes two 128 x 128 tables: albedo (its texture times its colour, converted to linear) and emission (colour times energy times the bake's exposure); other materials bake white with no emission.",
+      "inspect": "A BaseMaterial3D becomes two 128 x 128 tables: albedo (its texture times its colour, converted to linear) and emission (colour times energy times the bake's exposure, added to or multiplied by the emission texture as the material's emission operator says); other materials bake white with no emission.",
       "details": []
     },
     "sort-cells": {
@@ -384,6 +384,22 @@
         }
       ]
     },
+    "sdf-texture": {
+      "path": "servers/rendering/renderer_rd/environment/gi.cpp",
+      "line": 106,
+      "symbol": "GI::voxel_gi_allocate_data (the distance field)",
+      "lineHash": "82f036af2f4f1e15",
+      "inspect": "The distance field becomes an R8 3D texture of the octree's size with one mip, made from the bake's bytes when the data is allocated.",
+      "details": []
+    },
+    "sdf-sampler": {
+      "path": "servers/rendering/renderer_rd/environment/gi.cpp",
+      "line": 2701,
+      "symbol": "GI::VoxelGIInstance::update (the field's sampler)",
+      "lineHash": "54dfe630aeabb5b5",
+      "inspect": "The light passes read the distance field through a linear sampler clamped to the edge, so a march samples it trilinearly between cells.",
+      "details": []
+    },
     "sdf-gpu-disabled": {
       "path": "servers/rendering/renderer_rd/environment/gi.cpp",
       "line": 117,
@@ -433,12 +449,12 @@
       "line": 3098,
       "symbol": "GI::VoxelGIInstance::update (passes)",
       "lineHash": "15bb054044b694e6",
-      "inspect": "With the lights changed, pass 0 lights the leaves, fills the mips, and writes the texture; with two bounces, pass 1 adds the bounce at the leaves, fills the mips again, and writes the texture again. Without a change, only the write runs.",
+      "inspect": "With the lights changed, pass 0 lights the leaves, fills the mips, and writes the texture; with two bounces, pass 1 adds the bounce at the leaves, fills the mips again, and writes the texture again. Without a light change, the pass runs only while dynamic objects are or were plotted, and then only the write runs.",
       "details": [
         {
           "line": 3100,
           "lineHash": "0b18d0ac2aed470a",
-          "note": "nothing changed: write only"
+          "note": "no light change: write only"
         }
       ]
     },
@@ -461,7 +477,7 @@
       "line": 284,
       "symbol": "compute_light_at_pos",
       "lineHash": "5f42ae055d88a01e",
-      "inspect": "A punctual light: its attenuation and direction; a cell facing away or an attenuation below 0.01 gets nothing; with shadows on, a march through the distance field toward the light scales it.",
+      "inspect": "A punctual light: its attenuation and direction; a cell facing away or an attenuation below 0.01 gets nothing; with shadows on, a march through the distance field, from the light's side back to the cell, scales it.",
       "details": [
         {
           "line": 294,
@@ -623,7 +639,7 @@
       "line": 642,
       "symbol": "voxel_gi.glsl MODE_DYNAMIC_SHRINK",
       "lineHash": "cce60ef217fd7f98",
-      "inspect": "Each shrink sums the non-empty texels of a 2 x 2 block and halves the depth (averaged over those texels); before the first mip it divides the sum by 4, on a mip it divides the light by mix(8, count, propagation) and the alpha by 8.",
+      "inspect": "Each shrink sums the non-empty texels of a 2 x 2 block and halves the depth (averaged over those texels); into the oversampled maps and the finest mip it divides the sum by 4; into each coarser mip it divides the light by mix(8, count, propagation) and the alpha by 8.",
       "details": []
     },
     "plot-blend": {
@@ -640,6 +656,14 @@
       "symbol": "GI::VoxelGIInstance::update (clear)",
       "lineHash": "7005b937e8ea9db0",
       "inspect": "While dynamic data exists, each update clears the whole texture and writes the static light again from the float buffer before the objects are plotted.",
+      "details": []
+    },
+    "reblit": {
+      "path": "servers/rendering/renderer_rd/environment/gi.cpp",
+      "line": 3100,
+      "symbol": "GI::VoxelGIInstance::update (re-blit)",
+      "lineHash": "0b18d0ac2aed470a",
+      "inspect": "With no light update the pass loop runs once and skips the light and mip passes: only the write pass copies the float buffer into the texture again, which a frame with dynamic objects needs after its clear.",
       "details": []
     },
     "dynamic-light-count": {
@@ -706,6 +730,42 @@
           "note": "the ambient buffer"
         }
       ]
+    },
+    "normal-roughness": {
+      "path": "servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered.glsl",
+      "line": 3020,
+      "symbol": "scene_forward_clustered.glsl MODE_RENDER_NORMAL_ROUGHNESS",
+      "lineHash": "be51184aee265389",
+      "inspect": "The pre-pass writes the normal-roughness buffer at 8 bits a channel: the normal (encode24: scaled to the unit cube, then by a best-fit factor) mapped to 0..1, the roughness times 127/255, mirrored above one half for a dynamic object.",
+      "details": [
+        {
+          "line": 3026,
+          "lineHash": "9f0aee12c65de78b",
+          "note": "a dynamic object's mirrored roughness"
+        }
+      ]
+    },
+    "resolve-gi": {
+      "path": "servers/rendering/renderer_rd/shaders/effects/resolve.glsl",
+      "line": 183,
+      "symbol": "resolve.glsl MODE_RESOLVE_GI",
+      "lineHash": "d038890c5d2246e4",
+      "inspect": "With MSAA, the GI pass reads one sample per pixel, copied out first: the sample whose depth the fewest samples share; with eight samples this line keeps the second half's pick when the first half's count is the smaller.",
+      "details": [
+        {
+          "line": 115,
+          "lineHash": "a1c6e16fe8c67437",
+          "note": "two samples: the nearer"
+        }
+      ]
+    },
+    "reconstruct-position": {
+      "path": "servers/rendering/renderer_rd/shaders/environment/gi.glsl",
+      "line": 183,
+      "symbol": "gi.glsl reconstruct_position",
+      "lineHash": "2de65884b8d8ef8d",
+      "inspect": "The GI pass rebuilds a pixel's position from its depth along the ray through the pixel's top-left corner, not its centre.",
+      "details": []
     },
     "normal-length-quirk": {
       "path": "servers/rendering/renderer_rd/shaders/environment/gi.glsl",
@@ -1000,6 +1060,7 @@
         "edt-1d",
         "sdf-encode",
         "allocate-data",
+        "sdf-texture",
         "sdf-gpu-disabled",
         "instance-texture"
       ]
@@ -1016,6 +1077,7 @@
         "light-at-pos",
         "omni-atten",
         "raymarch",
+        "sdf-sampler",
         "area-light",
         "ltc",
         "write-texture",
@@ -1047,6 +1109,7 @@
         "shrink",
         "plot-blend",
         "dynamic-clear",
+        "reblit",
         "dynamic-light-count"
       ]
     },
@@ -1059,6 +1122,9 @@
         "tag-format",
         "tag-write",
         "process-gi",
+        "normal-roughness",
+        "resolve-gi",
+        "reconstruct-position",
         "normal-length-quirk",
         "instance-loop",
         "voxel-gi-compute",

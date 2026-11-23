@@ -105,14 +105,15 @@ pub fn data_cells(cells: &[Cell]) -> Vec<CellData> {
 }
 
 pub fn data_cell(c: &Cell) -> CellData {
-    // Albedo and alpha as bytes, emission as RGBE9995, the normal as three signed bytes.
-    let q = |v: f32| (v * 255.0).clamp(0.0, 255.0) as u32;
+    // Albedo and alpha as bytes, emission as RGBE9995, the normal as three signed bytes; each float times a
+    // double literal, so in double precision before it is truncated (voxelizer.cpp:774-793).
+    let q = |v: f32| (v as f64 * 255.0).clamp(0.0, 255.0) as u32;
     let position = c.x as u32 | ((c.y as u32) << 11) | ((c.z as u32) << 21);
     let albedo =
         (q(c.alpha) << 24) | (q(c.albedo[2]) << 16) | (q(c.albedo[1]) << 8) | q(c.albedo[0]);
     let emission = to_rgbe9995(Vec3::from(c.emission));
     let n = super::bake::normalized(Vec3::from(c.normal));
-    let s = |v: f32| (v * 127.0).clamp(-128.0, 127.0) as i8 as u8 as u32;
+    let s = |v: f32| (v as f64 * 127.0).clamp(-128.0, 127.0) as i8 as u8 as u32;
     let normal = s(n.x) | (s(n.y) << 8) | (s(n.z) << 16);
     CellData {
         position,
