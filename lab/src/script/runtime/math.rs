@@ -2,7 +2,10 @@
 //! (src/math/), and the natives the library `render_lab_math` measures by.
 
 use super::*;
-use crate::math::{Mob, Part, Scene};
+use crate::math::{
+    Mob, Part, Scene,
+    check::{Probe, Role},
+};
 
 /// The resource that holds the math library.
 pub const MATH_LIBRARY: &str = "render_lab.script/math";
@@ -91,6 +94,7 @@ fn text_of(key: &str) -> Result<String, String> {
 crate::lamlet_record! {
     /// runtime.lam's `_MathTex`, the parts the canvas draws.
     struct TexRecord {
+        id: String = "id",
         latex: String = "latex",
         part: i64 = "part",
         at: V2 = "at",
@@ -106,18 +110,22 @@ crate::lamlet_record! {
 crate::lamlet_record! {
     /// runtime.lam's `_MathText`, the parts the canvas draws: its text written out, or (`key`) a text key.
     struct TextRecord {
+        id: String = "id",
         text: String = "text",
         key: bool = "key",
         at: V2 = "at",
         size: Num = "size",
         color: ScriptColor = "color",
         alpha: Num = "alpha",
+        lo: V2 = "lo",
+        hi: V2 = "hi",
     }
 }
 
 crate::lamlet_record! {
     /// runtime.lam's `_MathRect`, the parts the canvas draws.
     struct RectRecord {
+        id: String = "id",
         lo: V2 = "lo",
         hi: V2 = "hi",
         fill: ScriptColor = "fill",
@@ -132,6 +140,7 @@ crate::lamlet_record! {
 crate::lamlet_record! {
     /// runtime.lam's `_MathPath`, the parts the canvas draws.
     struct PathRecord {
+        id: String = "id",
         points: Vec<V2> = "points",
         color: ScriptColor = "color",
         alpha: Num = "alpha",
@@ -145,6 +154,7 @@ crate::lamlet_record! {
 crate::lamlet_record! {
     /// runtime.lam's `_MathBand`, the parts the canvas draws.
     struct BandRecord {
+        id: String = "id",
         top: Vec<V2> = "top",
         bottom: Vec<V2> = "bottom",
         color: ScriptColor = "color",
@@ -155,6 +165,7 @@ crate::lamlet_record! {
 crate::lamlet_record! {
     /// runtime.lam's `_MathDot`, the parts the canvas draws.
     struct DotRecord {
+        id: String = "id",
         at: V2 = "at",
         radius: Num = "radius",
         color: ScriptColor = "color",
@@ -179,88 +190,245 @@ fn points(list: Vec<V2>) -> Vec<glam::Vec2> {
     list.into_iter().map(|p| p.0).collect()
 }
 
-/// runtime.lam's `Mob`, read by its type.
-struct MobRecord(Mob);
+/// runtime.lam's `Mob`, read by its type: what the canvas draws, and what the motion check measures of it (none for
+/// the frame).
+struct MobRecord {
+    mob: Mob,
+    probe: Option<Probe>,
+}
+
+/// The ink box of a polyline or of a band's lines.
+fn bounds(points: &[glam::Vec2]) -> (glam::Vec2, glam::Vec2) {
+    points.iter().fold(
+        (glam::Vec2::splat(f32::MAX), glam::Vec2::splat(f32::MIN)),
+        |(lo, hi), p| (lo.min(*p), hi.max(*p)),
+    )
+}
+
+/// The first `drawn` fraction (by length) of a polyline, as the canvas draws it.
+fn drawn_part(points: &[glam::Vec2], drawn: f32) -> Vec<glam::Vec2> {
+    if drawn >= 1.0 || points.len() < 2 {
+        return points.to_vec();
+    }
+    let total: f32 = points.windows(2).map(|w| w[0].distance(w[1])).sum();
+    let mut left = total * drawn.max(0.0);
+    let mut out = vec![points[0]];
+    for w in points.windows(2) {
+        // Each segment is kept whole while the length left covers it, and cut where it runs out.
+        let d = w[0].distance(w[1]);
+        if d >= left {
+            out.push(w[0] + (w[1] - w[0]) * (left / d.max(1e-6)));
+            break;
+        }
+        out.push(w[1]);
+        left -= d;
+    }
+    out
+}
+
+/// What the check measures of a mob named `id` of `kind`.
+fn probe(
+    id: String,
+    kind: &'static str,
+    (lo, hi): (glam::Vec2, glam::Vec2),
+    color: ScriptColor,
+) -> Probe {
+    let c = color.color32();
+    Probe {
+        id,
+        kind,
+        lo,
+        hi,
+        alpha: 1.0,
+        coverage: 1.0,
+        rgb: [c.r(), c.g(), c.b()].map(|v| v as f32 / 255.0),
+        em: None,
+        fine_print: false,
+        formula: None,
+        points: Vec::new(),
+        rest: false,
+        fill: 0.0,
+        role: match color {
+            ScriptColor::Text => Some(Role::Text),
+            ScriptColor::TextDim => Some(Role::Dim),
+            ScriptColor::TextFaint => Some(Role::Faint),
+            ScriptColor::Accent => Some(Role::Accent),
+            ScriptColor::Rgb(_) => None,
+        },
+    }
+}
+
+/// A `tex` mob, and what the check measures of it.
+fn read_tex(r: TexRecord) -> Result<MobRecord, String> {
+    let fine = ["\\frac", "_", "^", "\\sum", "\\int"]
+        .iter()
+        .any(|m| r.latex.contains(m));
+    // A formula is known by its LaTeX: a transform carries its parts apart, each to its own place.
+    let formula = r.latex.clone();
+    let probe = Probe {
+        alpha: r.alpha.0,
+        coverage: r.wipe.0.clamp(0.0, 1.0),
+        em: Some(r.size.0),
+        fine_print: fine,
+        formula: Some(formula),
+        // Only a formula with terms has a rest apart from them (its box the whole formula's); one without is whole.
+        rest: r.part == 0 && r.latex.contains("\\lit"),
+        ..probe(r.id, "tex", (r.at.0 + r.lo.0, r.at.0 + r.hi.0), r.color)
+    };
+    let mob = Mob::Tex {
+        latex: r.latex,
+        part: Part::of(r.part)?,
+        at: r.at.0,
+        size: r.size.0,
+        color: tinted(r.color, r.alpha),
+        wipe: r.wipe.0,
+        lo: r.lo.0,
+        hi: r.hi.0,
+    };
+    Ok(MobRecord {
+        mob,
+        probe: Some(probe),
+    })
+}
+
+/// A `text` mob, and what the check measures of it.
+fn read_text(r: TextRecord) -> Result<MobRecord, String> {
+    let probe = Probe {
+        alpha: r.alpha.0,
+        em: Some(r.size.0),
+        ..probe(r.id, "text", (r.lo.0, r.hi.0), r.color)
+    };
+    let mob = Mob::Text {
+        // A key is looked up in the viewer's language; a written text is drawn as it is.
+        text: if r.key {
+            text_of(&r.text)?
+        } else {
+            r.text
+        },
+        at: r.at.0,
+        size: r.size.0,
+        color: tinted(r.color, r.alpha),
+    };
+    Ok(MobRecord {
+        mob,
+        probe: Some(probe),
+    })
+}
+
+/// A `rect` mob, and what the check measures of it.
+fn read_rect(r: RectRecord) -> Result<MobRecord, String> {
+    // A rectangle shows by its fill, and by its outline when it has one.
+    let outline = if r.width.0 > 0.0 {
+        r.stroke_alpha.0
+    } else {
+        0.0
+    };
+    let probe = Probe {
+        alpha: r.fill_alpha.0.max(outline),
+        fill: r.fill_alpha.0,
+        ..probe(
+            r.id,
+            "rect",
+            (r.lo.0.min(r.hi.0), r.lo.0.max(r.hi.0)),
+            r.fill,
+        )
+    };
+    let mob = Mob::Rect {
+        lo: r.lo.0,
+        hi: r.hi.0,
+        fill: tinted(r.fill, r.fill_alpha),
+        stroke: tinted(r.stroke, r.stroke_alpha),
+        width: r.width.0,
+        radius: r.radius.0,
+    };
+    Ok(MobRecord {
+        mob,
+        probe: Some(probe),
+    })
+}
+
+/// A `path` mob, and what the check measures of it.
+fn read_path(r: PathRecord) -> Result<MobRecord, String> {
+    let points = points(r.points);
+    let probe = Probe {
+        alpha: r.alpha.0,
+        coverage: r.drawn.0.clamp(0.0, 1.0),
+        points: drawn_part(&points, r.drawn.0),
+        ..probe(r.id, "path", bounds(&points), r.color)
+    };
+    let mob = Mob::Path {
+        points,
+        color: tinted(r.color, r.alpha),
+        width: r.width.0,
+        drawn: r.drawn.0,
+        arrow: r.arrow,
+        dashed: r.dashed,
+    };
+    Ok(MobRecord {
+        mob,
+        probe: Some(probe),
+    })
+}
+
+/// A `band` mob, and what the check measures of it.
+fn read_band(r: BandRecord) -> Result<MobRecord, String> {
+    let (top, bottom) = (points(r.top), points(r.bottom));
+    let all: Vec<glam::Vec2> = top.iter().chain(&bottom).copied().collect();
+    let probe = Probe {
+        alpha: r.alpha.0,
+        ..probe(r.id, "band", bounds(&all), r.color)
+    };
+    let mob = Mob::Band {
+        top,
+        bottom,
+        color: tinted(r.color, r.alpha),
+    };
+    Ok(MobRecord {
+        mob,
+        probe: Some(probe),
+    })
+}
+
+/// A `dot` mob, and what the check measures of it.
+fn read_dot(r: DotRecord) -> Result<MobRecord, String> {
+    let d = glam::Vec2::splat(r.radius.0);
+    let probe = Probe {
+        alpha: r.alpha.0,
+        fill: r.alpha.0,
+        ..probe(r.id, "dot", (r.at.0 - d, r.at.0 + d), r.color)
+    };
+    let mob = Mob::Dot {
+        at: r.at.0,
+        radius: r.radius.0,
+        color: tinted(r.color, r.alpha),
+    };
+    Ok(MobRecord {
+        mob,
+        probe: Some(probe),
+    })
+}
 
 impl lamlet::embed::FromLamlet for MobRecord {
     fn from_lamlet(v: &Value) -> Result<Self, String> {
         use super::typed::payload;
         let (tag, p) = super::typed::variant(v)?;
-        Ok(MobRecord(match tag {
-            "tex" => {
-                let r: TexRecord = payload(tag, p)?;
-                Mob::Tex {
-                    latex: r.latex,
-                    part: Part::of(r.part)?,
-                    at: r.at.0,
-                    size: r.size.0,
-                    color: tinted(r.color, r.alpha),
-                    wipe: r.wipe.0,
-                    lo: r.lo.0,
-                    hi: r.hi.0,
-                }
-            }
-            "text" => {
-                let r: TextRecord = payload(tag, p)?;
-                Mob::Text {
-                    // A key is looked up in the viewer's language; a written text is drawn as it is.
-                    text: if r.key {
-                        text_of(&r.text)?
-                    } else {
-                        r.text
-                    },
-                    at: r.at.0,
-                    size: r.size.0,
-                    color: tinted(r.color, r.alpha),
-                }
-            }
-            "rect" => {
-                let r: RectRecord = payload(tag, p)?;
-                Mob::Rect {
-                    lo: r.lo.0,
-                    hi: r.hi.0,
-                    fill: tinted(r.fill, r.fill_alpha),
-                    stroke: tinted(r.stroke, r.stroke_alpha),
-                    width: r.width.0,
-                    radius: r.radius.0,
-                }
-            }
-            "path" => {
-                let r: PathRecord = payload(tag, p)?;
-                Mob::Path {
-                    points: points(r.points),
-                    color: tinted(r.color, r.alpha),
-                    width: r.width.0,
-                    drawn: r.drawn.0,
-                    arrow: r.arrow,
-                    dashed: r.dashed,
-                }
-            }
-            "band" => {
-                let r: BandRecord = payload(tag, p)?;
-                Mob::Band {
-                    top: points(r.top),
-                    bottom: points(r.bottom),
-                    color: tinted(r.color, r.alpha),
-                }
-            }
-            "dot" => {
-                let r: DotRecord = payload(tag, p)?;
-                Mob::Dot {
-                    at: r.at.0,
-                    radius: r.radius.0,
-                    color: tinted(r.color, r.alpha),
-                }
-            }
+        match tag {
+            "tex" => read_tex(payload(tag, p)?),
+            "text" => read_text(payload(tag, p)?),
+            "rect" => read_rect(payload(tag, p)?),
+            "path" => read_path(payload(tag, p)?),
+            "band" => read_band(payload(tag, p)?),
+            "dot" => read_dot(payload(tag, p)?),
             "frame" => {
                 let r: FrameRecord = payload(tag, p)?;
-                Mob::Frame {
+                let mob = Mob::Frame {
                     center: r.center.0,
                     height: r.height.0,
-                }
+                };
+                Ok(MobRecord { mob, probe: None })
             }
-            other => return Err(format!("no mob `{other}`")),
-        }))
+            other => Err(format!("no mob `{other}`")),
+        }
     }
 }
 
@@ -268,8 +436,39 @@ impl lamlet::embed::FromLamlet for MobRecord {
 fn mobs(list: &Value) -> Result<Vec<Mob>, String> {
     Ok(super::typed::items::<MobRecord>(list, "mob")?
         .into_iter()
-        .map(|m| m.0)
+        .map(|m| m.mob)
         .collect())
+}
+
+/// What the motion check measures of the math scene `name` for `state` at `time` seconds (src/math/check.rs): the
+/// mobs it draws, as probes, and the part of the canvas its frame shows. Its natives read no frame (the check
+/// renders none); an error is the scene's, never an earlier frame.
+pub fn math_probe(
+    name: &str,
+    state: &ShotState,
+    statics: &Statics,
+    time: f32,
+) -> Result<(Vec<Probe>, (glam::Vec2, f32)), String> {
+    let result = with_runtime(|rt| {
+        let kind = Kind::Math(name.to_string());
+        if rt.hook(&kind).is_none() {
+            return Err(format!("the scripts have no math scene `{name}`"));
+        }
+        let value = rt.call(
+            &kind,
+            vec![Value::Float(time as f64)],
+            state,
+            None,
+            Some(statics),
+        )?;
+        let records = super::typed::items::<MobRecord>(&value, "mob")?;
+        let frame = Scene {
+            mobs: records.iter().map(|r| r.mob.clone()).collect(),
+        }
+        .frame();
+        Ok((records.into_iter().filter_map(|r| r.probe).collect(), frame))
+    })?;
+    result.unwrap_or_else(|| Err("the investigation has no scripts".into()))
 }
 
 /// The scripts' math scenes, by name.
@@ -281,7 +480,7 @@ pub fn math_scenes() -> Vec<String> {
 }
 
 /// What the math scene `name` draws for `state` at `time` seconds, its natives reading `frame` (what the
-/// investigation's `build_frame` left, `frame_data`): its mobs, or what it last drew when the call fails in the
+/// investigation's `build_frame` left, `frame_data`): its mobs, or the error drawn in their place when the call fails in the
 /// viewer (a recording or a selftest fails instead, `set_strict`); None when the scripts have no such scene.
 pub fn math_scene(
     name: &str,
@@ -315,13 +514,13 @@ pub fn math_scene(
         match result {
             Ok(mobs) => {
                 rt.succeeded(&label);
-                let scene = Scene { mobs };
-                rt.last_math.insert(name.to_string(), scene.clone());
-                Some(scene)
+                Some(Scene { mobs })
             }
             Err(e) => {
+                // The viewer shows the error where the scene would be, never an earlier frame of it.
+                let shown = Scene::failed(&format!("{label}: {e}"));
                 rt.failed(&label, e);
-                rt.last_math.get(name).cloned()
+                Some(shown)
             }
         }
     });

@@ -494,8 +494,6 @@ pub struct Runtime {
     maths: BTreeMap<String, Hook>,
     /// The clips (src/clip.rs), by name: static bindings of `Clip`, read when the scripts load.
     clips: BTreeMap<String, Arc<crate::clip::Clip>>,
-    /// Each math scene's last mobs that drew: what the viewer keeps showing while it fails.
-    last_math: BTreeMap<String, crate::math::Scene>,
     /// Each overlay's last shapes that drew, by view: what the viewer keeps showing while it fails.
     last: BTreeMap<(usize, Option<&'static str>), Vec<Shape>>,
     /// The failing hooks and their messages, shown until the next call of the hook succeeds.
@@ -748,7 +746,6 @@ impl Runtime {
             animations: BTreeMap::new(),
             maths: BTreeMap::new(),
             clips: BTreeMap::new(),
-            last_math: BTreeMap::new(),
             last: BTreeMap::new(),
             errors: BTreeMap::new(),
             reported: BTreeSet::new(),

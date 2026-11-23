@@ -11,6 +11,7 @@ use crate::formula::{self, Formula};
 use egui::{Color32, Pos2, Rect, Vec2, vec2};
 use std::sync::Arc;
 
+pub mod check;
 mod draw;
 mod layout;
 pub use draw::draw;
@@ -107,13 +108,45 @@ pub struct Scene {
 }
 
 impl Scene {
+    /// A failing scene's error, drawn where its mobs would be, in red, wrapped to the canvas.
+    pub fn failed(message: &str) -> Scene {
+        let mut lines: Vec<String> = Vec::new();
+        for word in message.split_whitespace() {
+            // Words go on a line until it is about 90 characters long.
+            match lines.last_mut() {
+                Some(l) if l.len() + word.len() < 90 => {
+                    l.push(' ');
+                    l.push_str(word);
+                }
+                _ => lines.push(word.to_string()),
+            }
+        }
+        let top = (lines.len() as f32 - 1.0) * 0.25;
+        let mobs = lines
+            .into_iter()
+            .enumerate()
+            .map(|(i, text)| Mob::Text {
+                text,
+                at: glam::Vec2::new(0.0, top - i as f32 * 0.5),
+                size: 0.3,
+                color: Color32::from_rgb(0xff, 0x6b, 0x6b),
+            })
+            .collect();
+        Scene { mobs }
+    }
+
     /// The part of the canvas the frame shows: the last `frame` mob's, or the canvas's centre, 8 high.
     pub fn frame(&self) -> (glam::Vec2, f32) {
         self.mobs
             .iter()
             .rev()
             .find_map(|m| match m {
-                Mob::Frame { center, height } => Some((*center, height.max(0.01))),
+                // A frame of no height, or not a number, is the whole canvas.
+                Mob::Frame { center, height }
+                    if height.is_finite() && *height > 0.01 && center.is_finite() =>
+                {
+                    Some((*center, *height))
+                }
                 _ => None,
             })
             .unwrap_or((glam::Vec2::ZERO, FRAME_HEIGHT))
@@ -291,10 +324,14 @@ pub fn samples_from(masses: &[f64], seed: u64, count: usize) -> Result<Vec<f64>,
         .collect())
 }
 
+/// The largest size a formula is typeset at, in pixels per em.
+const MAX_TYPESET_PX: f32 = 1024.0;
+
 /// The formula `latex` typeset for drawing at about `px` pixels an em: sizes are rounded to twelfths of an octave
 /// (about 6 %), so a zoom typesets each size once, and the drawing scales the rest of the way.
 pub fn typeset_near(latex: &str, px: f32) -> Result<(Arc<Formula>, f32), String> {
-    let steps = (px.max(1.0).log2() * 12.0).round();
+    // Sizes are capped: a frame zoomed far into a formula draws its bitmap scaled up rather than typeset huge.
+    let steps = (px.clamp(1.0, MAX_TYPESET_PX).log2() * 12.0).round();
     let near = (steps / 12.0).exp2();
     Ok((formula::get(latex, near, true)?, near))
 }

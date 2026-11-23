@@ -15,6 +15,7 @@ use anyhow::{Context, Result, bail};
 use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
 use std::path::{Path, PathBuf};
 
+mod math_check;
 mod report;
 mod run;
 use report::*;
@@ -291,6 +292,20 @@ enum ScriptCommand {
     /// Check the scripts and list their hooks (overlays, click handlers, actions, animations); fails with the
     /// first diagnostic.
     Check,
+    /// Check the math scenes' motion and layout (src/math/check.rs): each demonstration's Play clip, or with
+    /// --timeline every frame of a story's math beats, sampled; fails on pops, double draws, dead steps, small
+    /// text, overlaps, mobs outside the frame, and errors.
+    Math {
+        /// Only this math scene (its binding, `toyMath`).
+        #[arg(long)]
+        scene: Option<String>,
+        /// A built timeline (build/timelines/<lang>/timeline.json) whose math beats to check instead.
+        #[arg(long)]
+        timeline: Option<PathBuf>,
+        /// Print what each scene draws at this time (a demonstration's seconds, a timeline's frame) instead.
+        #[arg(long)]
+        at: Option<f64>,
+    },
     /// The Lamlet packages a script may import besides `std` (the runtime library, the generated values package,
     /// the natives' stubs), for reading and for editors; with NAME, that one package's source.
     Stubs { name: Option<String> },
@@ -442,6 +457,11 @@ fn script(
             }
             Ok(())
         }
+        ScriptCommand::Math {
+            scene,
+            timeline,
+            at,
+        } => math_check::run(scene.as_deref(), timeline.as_deref(), at),
         ScriptCommand::Stubs { name } => {
             let (_, sources) = runtime::engine(investigation)?;
             match name {

@@ -222,14 +222,17 @@ fn draw_path(ink: &Ink, points: &[Pos2], color: Color32, width: f32, arrow: bool
         return;
     }
     let stroke = Stroke::new(width, color);
-    let head = (width * 5.0).max(14.0);
+    // A path being drawn grows its head with it: never more than half of the length drawn so far.
+    let length: f32 = points.windows(2).map(|w| w[0].distance(w[1])).sum();
+    let head = (width * 5.0).max(14.0).min(length * 0.5);
     let mut line = points.to_vec();
     let end = *points.last().unwrap();
-    let dir = (end - points[points.len() - 2]).normalized();
+    let before = points[points.len() - 2];
+    let dir = (end - before).normalized();
     if arrow {
-        // The line stops at the arrowhead's base, so the tip stays sharp.
+        // The line stops at the arrowhead's base, so the tip stays sharp, and never runs back past its last point.
         if let Some(last) = line.last_mut() {
-            *last = end - dir * head * 0.8;
+            *last = end - dir * (head * 0.8).min(end.distance(before));
         }
     }
     if dashed {
