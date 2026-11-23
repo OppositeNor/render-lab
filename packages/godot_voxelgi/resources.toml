@@ -279,12 +279,15 @@ license = "MIT (Godot, THIRD_PARTY.md)"
 # The narrated video's timelines and narration, which tools/video builds from
 # video/ into build/ (`built`: missing until they are built).
 # Each edition plays its own narration.
+# Exported and overridable: a release ships them in a narration package of their own
+# (tools/publish_narration.py), which overrides them.
 [[resource]]
 id = "timeline/en"
 kind = "file"
 source = "build/timelines/en/timeline.json"
 license = "MIT"
 built = true
+overridable = true
 
 [[resource]]
 id = "timeline/zh-cn"
@@ -292,6 +295,7 @@ kind = "file"
 source = "build/timelines/zh-CN/timeline.json"
 license = "MIT"
 built = true
+overridable = true
 
 [[resource]]
 id = "narration/en"
@@ -299,6 +303,7 @@ kind = "file"
 source = "build/video/en/narration.wav"
 license = "MIT"
 built = true
+overridable = true
 
 [[resource]]
 id = "narration/zh-cn"
@@ -306,6 +311,7 @@ kind = "file"
 source = "build/video/zh-CN/narration.wav"
 license = "MIT"
 built = true
+overridable = true
 
 # An experiment the Experiments tab offers and the command line runs (lab/src/experiment.rs).
 [[resource]]

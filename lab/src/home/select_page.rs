@@ -537,13 +537,20 @@ impl Home {
                         .font(FontId::new(24.0, ui::bold()))
                         .color(palette::accent()),
                 );
-                ui.add(
-                    egui::Label::new(
-                        RichText::new(format!("{} {e}", tr("home-not_built_yet")))
-                            .color(palette::text_faint()),
-                    )
-                    .wrap(),
-                );
+                // Without a source checkout nothing builds a missing timeline: its package's narration package
+                // brings it (tools/publish_narration.py), so name that package's archive.
+                let why = match chosen.package() {
+                    Some(package)
+                        if resources::sources_dir().is_none()
+                            && !Path::new(&row.info.path).is_file() =>
+                    {
+                        let archive =
+                            format!("{package}_narration-v{}.zip", env!("CARGO_PKG_VERSION"));
+                        tr_with("home-narration_not_installed", args!(archive = archive))
+                    }
+                    _ => format!("{} {e}", tr("home-not_built_yet")),
+                };
+                ui.add(egui::Label::new(RichText::new(why).color(palette::text_faint())).wrap());
             }
         }
         ui.add_space(10.0);

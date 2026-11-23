@@ -63,6 +63,7 @@ cargo run --release -- --investigation o3de/lighting selftest --report o3de.json
 
 ```bash
 bash tools/video/setup.sh --gpu                                     # 只需一次：在 .cache/ 下安装 Piper 和 FFmpeg
-python3 tools/video/build.py --investigation o3de/lighting          # packages/o3de_lighting/build/video/en/o3de-lighting.mp4
+python3 tools/video/build.py --investigation o3de/lighting          # 查看器播放的旁白与时间线
 python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN
+python3 tools/video/build.py --investigation o3de/lighting --video  # 另外生成 packages/o3de_lighting/build/video/en/o3de-lighting.mp4
 ```

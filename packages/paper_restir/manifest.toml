@@ -10,7 +10,8 @@ import = ["render_lab"]
 # function, which hands the lab the package's investigations (lab/src/plugin.rs).
 library = "paper_restir"
 negotiate = "paper_restir_negotiate"
-export = []
+# Its narrated story's timelines and narration, which a narration package overrides (resources.toml).
+export = ["timeline/en", "timeline/zh-cn", "narration/en", "narration/zh-cn"]
 # Its shadow rays trace the scene in hardware (lab/src/gpu.rs, src/ray_tracing.rs).
 requires = ["ray-tracing"]
 

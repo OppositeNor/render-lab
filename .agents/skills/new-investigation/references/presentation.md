@@ -104,9 +104,9 @@ Build (one GPU job at a time; the full render runs in the background):
 
 ```sh
 bash tools/video/setup.sh --gpu                                                   # once
-python3 tools/video/build.py --investigation <engine>/<feature> --prepare-only    # narration, timeline, captions, documents
+python3 tools/video/build.py --investigation <engine>/<feature>                   # narration, timeline, captions, documents (what the viewer plays)
 python3 tools/video/build.py --investigation <engine>/<feature> --snapshots-only  # one still per beat: look at them
-python3 tools/video/build.py --investigation <engine>/<feature>                   # the full video and its verification
+python3 tools/video/build.py --investigation <engine>/<feature> --video           # the full video and its verification
 python3 tools/video/build.py --investigation <engine>/<feature> --lang zh-CN      # after the English edition
 ```
 

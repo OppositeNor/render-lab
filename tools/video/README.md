@@ -6,19 +6,25 @@ guide, review stills, and a verification report.
 
 ```sh
 bash tools/video/setup.sh [--gpu] [--zh]                             # once: the local environment under .cache/ (--zh: the Chinese voice)
-python3 tools/video/build.py --investigation o3de/lighting           # the English edition
+python3 tools/video/build.py --investigation o3de/lighting           # the English edition: narration, timeline, captions, documents
 python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN   # the Chinese edition: Chinese narration (Qwen3-TTS), text, and subtitles
-python3 tools/video/build.py --all                                  # every package's video, each in all its languages, in turn
+python3 tools/video/build.py --investigation o3de/lighting --video   # also the video: rendered, muxed, and verified
+python3 tools/video/build.py --all                                  # every package's narration, each in all its languages, in turn
 ```
+
+The viewer plays a timeline with its narration, so a build stops once they are written; `--video` renders the
+video file too. A release ships them as narration packages (`tools/publish_narration.py`).
 
 | Option | Does |
 |---|---|
-| `--prepare-only` | Narration, timeline, captions, and documents (about 15 s once the narration is cached) |
+| (none) | Narration, timeline, captions, and documents (about 15 s once the narration is cached) |
+| `--video` | Also renders the video, muxes it, takes the stills, and verifies it |
+| `--prepare-only` | The default; kept for scripts that pass it |
 | `--snapshots-only` | Also the diagrams and one still per beat in the package's `build/video/<lang>/snapshots/` |
-| `--frames A:B` | Renders only those frames (testing; no mux or verification) |
+| `--frames A:B` | With `--video`: renders only those frames (testing; no mux or verification) |
 | `--encoder auto\|nvenc\|x264` | The H.264 encoder. `auto` (the default) uses NVENC, the GPU's own video encoder, when FFmpeg can (one test frame encoded), else x264. NVENC encodes at a constant quantiser of 18, which on the lab's noisy frames matches x264's CRF 18 (SSIM 0.978 against 0.977) in a file about a tenth larger, and takes the encoding off the CPU |
-| `--jobs N` | Renders the video in N parallel frame ranges, each after a second of warm-up frames it does not write, and joins them without re-encoding: the same frames as one render, faster where one render leaves the GPU idle. Each range takes about 1.1 GB of RAM, 1.4 GB for its FFmpeg, and 1.7 GB of video memory; 2 suits a 6 GB GPU |
-| `--skip-render` | Reuses the rendered `video.mp4` |
+| `--jobs N` | With `--video`: renders the video in N parallel frame ranges, each after a second of warm-up frames it does not write, and joins them without re-encoding: the same frames as one render, faster where one render leaves the GPU idle. Each range takes about 1.1 GB of RAM, 1.4 GB for its FFmpeg, and 1.7 GB of video memory; 2 suits a 6 GB GPU |
+| `--skip-render` | With `--video`: reuses the rendered `video.mp4` |
 | `--verify-only` | Only the checks of an existing build |
 | `--tts-device auto/cuda/cpu` | Where new narration is synthesised (`auto`: the GPU when the CUDA packages are installed) |
 | `--listing-style blocks/text` | How the code panel draws pseudo-code listings (`blocks`, the default, whatever the user's settings say) |

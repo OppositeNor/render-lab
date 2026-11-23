@@ -64,7 +64,7 @@ jobs:
           python3 tools/check_skills.py
           python3 tools/check_sizes.py
           python3 tools/lamlet_fmt.py --check
-          for test in tools/video/test_*.py tools/experiments/test_report.py tools/test_lamlet_fmt.py; do
+          for test in tools/video/test_*.py tools/experiments/test_report.py tools/test_lamlet_fmt.py tools/test_publish_narration.py; do
             python3 -m unittest "$test"
           done
       - name: Clippy

@@ -3,11 +3,12 @@
 Narration is synthesised per sentence and measured (English with a Piper
 voice, Chinese with Qwen3-TTS, speech_zh.py); the storyboard's shot keys are
 placed at the words their cues stand before, turned into frame indices, and
-written as a timeline that `render-lab render` records frame by frame. The
-muxed video, captions, chapters, script, source-reading guide, and
-verification report come from the same data.
+written as a timeline, which the viewer plays with the narration. Captions,
+chapters, script, and source-reading guide come from the same data. By
+default the build stops there; `--video` also records the timeline frame by
+frame with `render-lab render`, muxes the video, and verifies it.
 
-    python3 tools/video/build.py --investigation o3de/lighting [--lang zh-CN] [--resolution 1080p] [--prepare-only | --snapshots-only | --verify-only]
+    python3 tools/video/build.py --investigation o3de/lighting [--lang zh-CN] [--video [--resolution 1080p] | --snapshots-only | --verify-only]
     python3 tools/video/build.py --all [--lang zh-CN] [the same options]
 
 `--all` builds every video the packages in packages/ define (each package's
@@ -15,7 +16,7 @@ video/video.json), one after another, each in every language it has, English
 first (or only in `--lang`); it carries on past a failed build and lists the
 results at the end.
 
-The video is 1920 x 1080 unless `--resolution` names another size (720p,
+The video (`--video`) is 1920 x 1080 unless `--resolution` names another size (720p,
 1080p, 1440p, 2160p or 4k, or WIDTHxHEIGHT); the stills and the verification
 use the same size, so give `--verify-only` the size the video was built at.
 
@@ -105,7 +106,8 @@ def arg_parser() -> argparse.ArgumentParser:
     parser.add_argument('--investigation-dir', type=Path, help='the directory of its video/video.json, when not its package in packages/')
     parser.add_argument('--lang', choices=LANGS, help='en (the default) or zh-CN; with --all, only that language')
     parser.add_argument('--resolution', default='1080p', type=resolution_arg, help='frame size: 720p, 1080p (default), 1440p, 2160p, 4k, or WIDTHxHEIGHT')
-    parser.add_argument('--prepare-only', action='store_true', help='narration, timeline, captions, and documents only')
+    parser.add_argument('--video', action='store_true', help='also render the video, mux it, and verify it (without it: narration, timeline, captions, and documents)')
+    parser.add_argument('--prepare-only', action='store_true', help='narration, timeline, captions, and documents only: the default, kept for scripts that pass it')
     parser.add_argument('--binary', type=Path, help='use this prebuilt render-lab and its package libraries instead of building')
     parser.add_argument('--cached-audio-only', action='store_true', help='fail if narration or word timings are missing from the cache')
     parser.add_argument('--prepare-dir', type=Path, help='write this investigation\'s timelines and video outputs under this directory')
@@ -181,6 +183,12 @@ def speak(cfg: Config, env: Environment, board: Json, args: argparse.Namespace) 
 def main() -> None:
     parser = arg_parser()
     args = parser.parse_args()
+    # The render's own options need the render.
+    rendering = [o for o, given in (('--frames', args.frames), ('--skip-render', args.skip_render), ('--jobs', args.jobs != 1)) if given]
+    if rendering and not args.video:
+        parser.error(f'{", ".join(rendering)} only goes with --video')
+    if args.video and args.prepare_only:
+        parser.error('--prepare-only stops before the video; it does not go with --video')
     if args.all:
         build_every_video(parser, args)
         return
@@ -256,15 +264,16 @@ def main() -> None:
     outputs.write_guide(cfg, board, index, tl)
     outputs.write_preview(cfg, board, tl)
     outputs.write_notice(cfg)
-    if args.prepare_only:
-        # `--prepare-only` stops once the outputs are written.
-        return
     if args.preview:
         render_preview(cfg, env, binary, (tl, provenance), args)
         return
     if args.snapshots_only:
         outputs.snapshots(cfg, env, binary, tl, args.resolution)
         log(f'Snapshots in {build / "snapshots"}')
+        return
+    if not args.video:
+        # Without `--video` the build stops once the outputs the viewer plays are written.
+        log(f'Narration and timeline written (the video: --video): {cfg.timeline()}')
         return
     if not args.skip_render:
         outputs.render_video(cfg, env, binary, args.frames, args.resolution, args.jobs, args.encoder)

@@ -45,6 +45,7 @@ home-edition = 版本：
 home-no_narration = 暂无旁白音轨，将无声播放。
 home-start_from_a_chapter = 选择起始章节：
 home-not_built_yet = 尚未构建：
+home-narration_not_installed = 尚未安装旁白：请从此版本的发布页面下载 { $archive }，并解压到 render-lab 旁的 packages 文件夹中。
 home-demonstrations = 演示
 home-esc_hint = 在查看器中按 Esc 返回此页；在此页按 Esc 返回上一级文件夹。按 F11 截图。
 home-display = 显示
