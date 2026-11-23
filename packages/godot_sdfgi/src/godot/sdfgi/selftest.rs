@@ -1082,6 +1082,69 @@ fn check_image_kind(report: &mut Report) -> Result<()> {
     Ok(())
 }
 
+/// The GPU voxelizer against the CPU's rasterizer of the same meshes: cascade 3's render images (the last the
+/// working images hold), which cells are solid and their facing bits, cell for cell, their albedo too but where two
+/// objects' fragments meet (the GPU writes them in its own order, the last one winning, as in Godot); and cascade
+/// 0's STORE list, each solid cell's position and its albedo with its facing bits, sorted.
+/// How two sorted lists of solid cells (position, albedo with facing bits) differ: the cells in one list only, and of
+/// the cells in both, those whose albedo differs and those whose facing bits do.
+fn cascade0_differ(gpu: &[[u32; 2]], cpu: &[[u32; 2]]) -> [usize; 3] {
+    let map = |l: &[[u32; 2]]| {
+        l.iter()
+            .map(|c| (c[0], c[1]))
+            .collect::<std::collections::HashMap<u32, u32>>()
+    };
+    let (g, c) = (map(gpu), map(cpu));
+    let only = g.keys().filter(|k| !c.contains_key(k)).count()
+        + c.keys().filter(|k| !g.contains_key(k)).count();
+    let both: Vec<(u32, u32)> = g
+        .iter()
+        .filter_map(|(k, a)| c.get(k).map(|b| (*a, *b)))
+        .collect();
+    let albedo = both
+        .iter()
+        .filter(|(a, b)| (a & 0x7FFF) != (b & 0x7FFF))
+        .count();
+    let facing = both.iter().filter(|(a, b)| (a >> 15) != (b >> 15)).count();
+    [only, albedo, facing]
+}
+
+fn voxelizer_cells(
+    report: &mut Report,
+    renderer: &lab::renderer::Renderer,
+    gpu: &voxels::RenderVoxels,
+    world: &sim::World,
+    gpu_total: usize,
+) {
+    let (cpu, cpu_cells) = (&world.data[3].voxels, &world.data[0].stored.cells);
+    // Cascade 0's STORE list on both sides, each cell's position and albedo with its facing bits, sorted.
+    let list = renderer
+        .read_program("solidCells", 0)
+        .expect("cascade 0's list")
+        .0;
+    let mut gpu0: Vec<[u32; 2]> = list
+        .chunks(16)
+        .take(gpu_total)
+        .map(|c| [0, 4].map(|o| u32::from_le_bytes([c[o], c[o + 1], c[o + 2], c[o + 3]])))
+        .collect();
+    let mut cpu0: Vec<[u32; 2]> = cpu_cells.iter().map(|c| [c.position, c.albedo]).collect();
+    gpu0.sort_unstable();
+    cpu0.sort_unstable();
+    let (gpu0, cpu0) = (&gpu0[..], &cpu0[..]);
+    let differ = |f: &dyn Fn(usize) -> bool| (0..cpu.albedo.len()).filter(|&i| f(i)).count();
+    let solid = differ(&|i| (gpu.albedo[i] & 1) != (cpu.albedo[i] & 1));
+    let facing = differ(&|i| gpu.facing[i] != cpu.facing[i]);
+    let albedo = differ(&|i| gpu.albedo[i] != cpu.albedo[i]);
+    let cells = differ(&|i| cpu.albedo[i] & 1 == 1);
+    let [only0, albedo0, facing0] = cascade0_differ(gpu0, cpu0);
+    report.check(
+        "GPU voxelizer: cascade 3's solid cells and facing bits as the CPU's rasterizer of the same meshes gives them, its albedo but where objects meet; cascade 0's solid cells, albedo, and facing too",
+        solid == 0 && facing == 0 && albedo * 100 <= cells && gpu0.len() == cpu0.len() && only0 == 0 && facing0 == 0 && albedo0 * 100 <= cpu0.len(),
+        json!({"solid_cells": cells, "solid_differ": solid, "facing_differ": facing, "albedo_differ": albedo,
+               "cascade0_cells": [gpu0.len(), cpu0.len()], "cascade0_only_one": only0, "cascade0_albedo_differ": albedo0, "cascade0_facing_differ": facing0}),
+    );
+}
+
 /// The GPU passes (gpu.rs, Godot's own passes ported) against their CPU
 /// mirrors at the same camera: cascade 0's solid cells and distance field
 /// after the voxelizer, the jump flood, and STORE; and its probes'
@@ -1119,7 +1182,7 @@ fn gpu_passes(report: &mut Report, renderer: &lab::renderer::Renderer) {
         .filter(|(a, b)| (**a as i32 - **b as i32).abs() <= 1)
         .count() as f64
         / cpu.len() as f64;
-    report.check("GPU voxelizer and jump flood: cascade 0's distance bytes as the CPU's voxelizer gives them (98 % within one step: the GPU rasterizes the meshes)", size == [128, 128, 128] && near >= 0.98, json!({"identical": same, "within_one": near}));
+    report.check("GPU voxelizer and jump flood: cascade 0's distance bytes as the CPU's give them, each within one step (the GPU's float-to-UNORM rounding of d / 255)", size == [128, 128, 128] && near == 1.0, json!({"identical": same, "within_one": near}));
     // The jump flood and STORE alone: the CPU's on the GPU's own voxels. The working images
     // still hold the last cascade built (3), so its field and list must be the GPU's exactly.
     let read = |name: &str| renderer.read_program(name, 0).expect("a working image").0;
@@ -1138,6 +1201,7 @@ fn gpu_passes(report: &mut Report, renderer: &lab::renderer::Renderer) {
         emission: u32s(read("renderEmission")),
         emission_aniso: u32s(read("renderEmissionAniso")),
     };
+    voxelizer_cells(report, renderer, &voxels, &world, words[3] as usize);
     let stored = voxels::store(&voxels, &voxels::jump_flood(&voxels).seeds);
     let (gpu_sdf, _) = renderer.read_program("sdf", 3).expect("cascade 3's field");
     let differing = gpu_sdf

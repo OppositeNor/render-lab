@@ -5,12 +5,11 @@
 //! half-size jump flood and `MODE_STORE` of sdfgi_preprocess.glsl, scheduled
 //! as `GI::SDFGI::render_region` dispatches them (gi.cpp).
 //!
-//! Where the lab differs: the engine rasterizes triangles; the lab finds the
-//! same fragments by tracing each pixel's ray through the room's shapes
-//! (every surface the ray crosses, both faces, as with culling disabled), with
-//! the shapes' exact normals in place of interpolated vertex normals. Writes
-//! that the GPU orders by scheduling (last write wins, the solid-cell list's
-//! order) follow the lab's loop order.
+//! The voxelizer rasterizes the room's meshes as the GPU pass draws them
+//! (`sdfgiVoxelize`): pixel centres, the top-left fill rule, both faces, no
+//! depth test, the position and the vertex normal interpolated. Writes that
+//! the GPU orders by scheduling (last write wins, the solid-cell list's order)
+//! follow the lab's loop order.
 //!
 //! Ported from Godot Engine (MIT; Copyright (c) 2014-present Godot Engine
 //! contributors, Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur).
@@ -166,23 +165,137 @@ fn write_fragment(
     }
 }
 
-/// Every surface a ray crosses, nearest first, within `t_max`: the fragments
-/// one pixel of an orthographic pass produces with culling disabled.
-fn crossings(objects: &[ObjectData], ro: Vec3, rd: Vec3, t_max: f32) -> Vec<(f32, usize, Vec3)> {
-    let mut hits = Vec::new();
+/// The room's meshes, as the scene's passes draw them (`lab::scene::build_meshes`): each object's triangles in its
+/// local space, with their vertex normals.
+fn meshes() -> &'static lab::scene::Meshes {
+    static MESHES: std::sync::OnceLock<lab::scene::Meshes> = std::sync::OnceLock::new();
+    MESHES.get_or_init(|| lab::scene::build_meshes(&lab::scene::Scene::study_room()))
+}
+
+/// A triangle of one object in the world, as the vertex stage leaves it (sdfgi_gpu_light.wgsl `sdfgiVoxelizeVS`):
+/// its corners and their normals, and the object it belongs to.
+struct Triangle {
+    corners: [Vec3; 3],
+    normals: [Vec3; 3],
+    object: usize,
+}
+
+/// Every triangle of the objects' meshes, in the world.
+fn triangles(objects: &[ObjectData]) -> Vec<Triangle> {
+    let meshes = meshes();
+    let mut out = Vec::new();
     for (k, o) in objects.iter().enumerate() {
-        let mut t0 = 0.0;
-        // Every surface of the object along the ray, front and back, stepping just past each hit.
-        while let Some((t, n)) = lab::scene::intersect_object(o, ro + rd * t0, rd, t_max - t0) {
-            hits.push((t0 + t, k, n));
-            t0 += t + 1e-4;
-            if t0 >= t_max {
-                break;
-            }
+        // Each of the object's triangles moved into the world, its normals as `normalToWorld` turns them.
+        let to_world = glam::Mat4::from_cols_array_2d(&o.local_to_world);
+        let range = meshes.ranges[o.object_index as usize].clone();
+        for tri in meshes.indices[range.start as usize..range.end as usize]
+            .as_chunks::<3>()
+            .0
+        {
+            let v = tri.map(|i| meshes.vertices[i as usize]);
+            out.push(Triangle {
+                corners: v.map(|v| to_world.transform_point3(Vec3::from(v.position))),
+                normals: v.map(|v| lab::scene::normal_to_world(o, Vec3::from(v.normal))),
+                object: k,
+            });
         }
     }
-    hits.sort_by(|a, b| a.0.total_cmp(&b.0));
-    hits
+    out
+}
+
+/// One axis's view of a region (`_render_sdfgi`, render_forward_clustered.cpp:3133-3171): the camera on the region
+/// box's +axis face looking along -axis, orthographic over the box, a framebuffer of one pixel per cell of the face.
+struct View {
+    axis: usize,
+    right: usize,
+    up: usize,
+    size: [usize; 2],
+    min: Vec3,
+    extent: Vec3,
+}
+
+impl View {
+    /// A point's framebuffer position (x right, y down, pixel centres at half-integers) and its depth across the
+    /// box (0 at the far face, 1 at the camera's).
+    fn project(&self, p: Vec3) -> (f32, f32, f32) {
+        let t = (p - self.min) / self.extent;
+        (
+            t[self.right] * self.size[0] as f32,
+            (1.0 - t[self.up]) * self.size[1] as f32,
+            t[self.axis],
+        )
+    }
+}
+
+/// The edge function of `p` against the edge `a` to `b` in the framebuffer.
+fn edge(a: (f32, f32), b: (f32, f32), p: (f32, f32)) -> f32 {
+    (b.0 - a.0) * (p.1 - a.1) - (b.1 - a.1) * (p.0 - a.0)
+}
+
+/// Whether a pixel centre exactly on an edge belongs to the triangle: the top-left rule, for a triangle wound with
+/// a positive area (a top edge is horizontal with the triangle below it, a left edge goes up).
+fn top_left(a: (f32, f32), b: (f32, f32)) -> bool {
+    (a.1 == b.1 && b.0 > a.0) || b.1 < a.1
+}
+
+/// The fragments one triangle produces in one view, culling disabled and no depth test
+/// (`CULL_VARIANT_DOUBLE_SIDED` and an empty framebuffer, render_forward_clustered.cpp:398, 3170): at each pixel
+/// centre it covers, its world position and normal interpolated, clipped to the box's depth.
+fn rasterize(view: &View, t: &Triangle, mut fragment: impl FnMut(Vec3, Vec3)) {
+    let mut c = t.corners;
+    let mut n = t.normals;
+    let mut s = c.map(|p| view.project(p));
+    let mut area = edge((s[0].0, s[0].1), (s[1].0, s[1].1), (s[2].0, s[2].1));
+    if area == 0.0 {
+        // A triangle seen edge-on covers no pixel centre.
+        return;
+    }
+    if area < 0.0 {
+        // Either winding is drawn: the other is turned round.
+        s.swap(1, 2);
+        c.swap(1, 2);
+        n.swap(1, 2);
+        area = -area;
+    }
+    let xy = s.map(|v| (v.0, v.1));
+    let x0 = (xy.iter().map(|v| v.0).fold(f32::INFINITY, f32::min) - 0.5)
+        .ceil()
+        .max(0.0) as usize;
+    let x1 = ((xy.iter().map(|v| v.0).fold(f32::NEG_INFINITY, f32::max) - 0.5).floor() as i64)
+        .min(view.size[0] as i64 - 1);
+    let y0 = (xy.iter().map(|v| v.1).fold(f32::INFINITY, f32::min) - 0.5)
+        .ceil()
+        .max(0.0) as usize;
+    let y1 = ((xy.iter().map(|v| v.1).fold(f32::NEG_INFINITY, f32::max) - 0.5).floor() as i64)
+        .min(view.size[1] as i64 - 1);
+    for py in y0 as i64..=y1 {
+        for px in x0 as i64..=x1 {
+            // A pixel centre inside the triangle, or on an edge the top-left rule gives it, makes a fragment.
+            let p = (px as f32 + 0.5, py as f32 + 0.5);
+            let w = [
+                edge(xy[1], xy[2], p),
+                edge(xy[2], xy[0], p),
+                edge(xy[0], xy[1], p),
+            ];
+            let edges = [(xy[1], xy[2]), (xy[2], xy[0]), (xy[0], xy[1])];
+            if w.iter()
+                .zip(edges)
+                .any(|(w, (a, b))| *w < 0.0 || (*w == 0.0 && !top_left(a, b)))
+            {
+                continue;
+            }
+            let w = w.map(|w| w / area);
+            let depth = w[0] * s[0].2 + w[1] * s[1].2 + w[2] * s[2].2;
+            if !(0.0..=1.0).contains(&depth) {
+                // Outside the box along the view: clipped, as the projection's depth range clips it.
+                continue;
+            }
+            fragment(
+                w[0] * c[0] + w[1] * c[1] + w[2] * c[2],
+                (w[0] * n[0] + w[1] * n[1] + w[2] * n[2]).normalize(),
+            );
+        }
+    }
 }
 
 /// `_render_sdfgi` for one region: three passes, camera at the region box's
@@ -193,7 +306,8 @@ pub fn voxelize(objects: &[ObjectData], region: &Region, voxels: &mut RenderVoxe
     voxelize_axes(objects, region, voxels, 3);
 }
 
-/// The first `passes` of `voxelize`'s three views (x, then y, then z).
+/// The first `passes` of `voxelize`'s three views (x, then y, then z): each rasterizes every triangle of the
+/// objects' meshes, as the GPU pass draws them (`sdfgiVoxelize`), and writes each fragment at its voxel.
 pub fn voxelize_axes(
     objects: &[ObjectData],
     region: &Region,
@@ -201,38 +315,32 @@ pub fn voxelize_axes(
     passes: usize,
 ) {
     let size = region.local_size;
-    let min = region.bounds_min;
-    let extent = region.bounds_size;
+    let tris = triangles(objects);
     for axis in 0..passes.min(3) {
-        // Each axis is drawn from its own side: a grid of rays across the region, each along -axis.
-        let right = (axis + 1) % 3;
-        let up = (axis + 2) % 3;
-        let (w, h) = (size[right], size[up]);
-        for py in 0..h {
-            for px in 0..w {
-                // The pixel's centre on the +axis face, the ray along -axis.
-                let mut ro = min;
-                ro[right] += (px as f32 + 0.5) / w as f32 * extent[right];
-                ro[up] += (py as f32 + 0.5) / h as f32 * extent[up];
-                ro[axis] += extent[axis];
-                let mut rd = Vec3::ZERO;
-                rd[axis] = -1.0;
-                for (t, k, n) in crossings(objects, ro, rd, extent[axis]) {
-                    // Each surface the ray crosses is a fragment in the voxel it lands in.
-                    let o = &objects[k];
-                    let p = ro + rd * t;
-                    let local = (p - min) / extent;
-                    let grid_pos = region.local_offset + (local * size.as_vec3()).as_ivec3();
-                    let albedo = Vec3::new(
-                        o.albedo_roughness[0],
-                        o.albedo_roughness[1],
-                        o.albedo_roughness[2],
-                    );
-                    let emission =
-                        Vec3::new(o.emissive[0], o.emissive[1], o.emissive[2]) * o.emissive[3];
-                    write_fragment(voxels, grid_pos, albedo, n.normalize(), emission);
-                }
-            }
+        // Each axis is drawn from its own side, its framebuffer the box's face in cells.
+        let (right, up) = ((axis + 1) % 3, (axis + 2) % 3);
+        let view = View {
+            axis,
+            right,
+            up,
+            size: [size[right] as usize, size[up] as usize],
+            min: region.bounds_min,
+            extent: region.bounds_size,
+        };
+        for t in &tris {
+            // Each fragment writes at the voxel its position falls in, with its object's albedo and emission.
+            let o = &objects[t.object];
+            let albedo = Vec3::new(
+                o.albedo_roughness[0],
+                o.albedo_roughness[1],
+                o.albedo_roughness[2],
+            );
+            let emission = Vec3::new(o.emissive[0], o.emissive[1], o.emissive[2]) * o.emissive[3];
+            rasterize(&view, t, |p, n| {
+                let local = (p - region.bounds_min) / region.bounds_size;
+                let grid_pos = region.local_offset + (local * size.as_vec3()).as_ivec3();
+                write_fragment(voxels, grid_pos, albedo, n, emission);
+            });
         }
     }
 }

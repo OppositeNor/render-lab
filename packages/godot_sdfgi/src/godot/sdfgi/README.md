@@ -50,8 +50,10 @@ selftest reproduces F1, F2, F4, F26, and F27); all of them are listed with their
 
 ## What the lab simplifies
 
-- The voxels are found by tracing each pixel of the engine's three orthographic views through the room's shapes,
-  with exact normals, not by rasterizing triangles; writes the GPU orders by scheduling follow the lab's loop order.
+- The voxels are rasterized as the engine rasterizes them, on the GPU and in the CPU mirror alike: the room's
+  meshes, in the three orthographic views, double-sided, without a depth test. Where two objects' fragments land in
+  one cell, the GPU keeps the last one to arrive and the CPU mirror the last in its loop order (24 of cascade 0's
+  3,097 solid cells differ in albedo; none in position or facing, which the selftest checks).
 - SDFGI follows a camera that stays at the room's centre; the viewer's camera only looks. The world is run 60 frames
   from creation at the default settings; the screen pass reads its maps.
 - The screen pass is evaluated per fragment of the scene pass, without the specular march below roughness 0.2.
