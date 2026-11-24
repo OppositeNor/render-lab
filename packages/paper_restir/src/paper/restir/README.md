@@ -47,7 +47,7 @@ Where the lab differs from the paper:
 ## Verify
 
 ```sh
-cargo run --release -- --investigation paper/restir selftest --report /tmp/restir.json
+cargo run --release -- --package paper_restir selftest --report /tmp/restir.json
 RESTIR_PAPER_PDF=/path/to/paper.pdf python3 packages/paper_restir/src/paper/restir/source_index.py
-python3 tools/video/build.py --investigation paper/restir --snapshots-only
+python3 tools/video/build.py --package paper_restir --snapshots-only
 ```

@@ -8,7 +8,7 @@
 //!
 //! The values gShading holds (the light's position, the view, the flags) are
 //! declared by their tags in shaders/standard_lighting.wgsl instead;
-//! `render-lab --investigation o3de/lighting values` lists both. A field's
+//! `render-lab --package o3de_lighting values` lists both. A field's
 //! `label` names the dock group that shows it (controls.rs); `toggle` marks
 //! a number used as on or off. **A value's default must change nothing**, so
 //! existing frames stay identical.

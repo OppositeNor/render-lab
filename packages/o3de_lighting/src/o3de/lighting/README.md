@@ -29,7 +29,7 @@ The story behind the video (research, outline, demonstrations, reviews) is in [`
 | transmission | an EnhancedPBR teapot lit from behind by the sun, thick and thin, its thickness from the cascades | `GetBackLighting_Default`, `TransmissionKernel`, `GetThickness` |
 | terrain | the lab's hills shaded as `TerrainPBR_ForwardPass` shades terrain, with O3DE's CPU vertex normals (`terrainO3deNormal`) | `TerrainPBR_ForwardPass`, `TerrainMeshManager` normals |
 
-Image kinds (GPU views a story shows by key, `render-lab --investigation o3de/lighting images`): `chainTarget` (any
+Image kinds (GPU views a story shows by key, `render-lab --package o3de_lighting images`): `chainTarget` (any
 forward target, the depth, or the stencil), `tileGrid`, `lightList`, `cascadeMap`, `shadowBuffer`, `cubemap`,
 `brdfLut`, `ssaoStage`. Each rings the inspected point (`pickShown`); a click on a view or the scene picks it
 (`pickPixel` and `scene`, script/picks.lam). The vectors and lobes at the inspected point are drawn by
@@ -63,15 +63,15 @@ script/overlay.lam, from the CPU mirror's pixel (`script.rs`).
 ## The video
 
 ```sh
-python3 tools/video/build.py --investigation o3de/lighting --prepare-only
-python3 tools/video/build.py --investigation o3de/lighting
-python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN
+python3 tools/video/build.py --package o3de_lighting --prepare-only
+python3 tools/video/build.py --package o3de_lighting
+python3 tools/video/build.py --package o3de_lighting --lang zh-CN
 ```
 
 ## Verifying
 
 ```sh
-cargo run --release -- --investigation o3de/lighting selftest --report o3de.json
+cargo run --release -- --package o3de_lighting selftest --report o3de.json
 python3 packages/o3de_lighting/src/o3de/lighting/source_index.py   # after changing an entry or moving to another O3DE commit
 ```
 

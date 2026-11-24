@@ -22,7 +22,7 @@ these questions:
 - **Code and animation.** At each listing highlight, does the scene change to show that line's work? Which highlight
   leaves the scene as it was?
 - **Change.** Where the narration says a value depends on another, does a sweep show it changing?
-- **Audience.** Against the chapter's line of `render-lab --investigation <id> knowledge` (the `knowledge-graph`
+- **Audience.** Against the chapter's line of `render-lab --package <name> knowledge` (the `knowledge-graph`
   skill): is every topic it teaches explained, every level topic recalled, nothing the audience knows explained at
   length?
 - **Teaching.** For each topic it teaches: are the steps of "Teaching a topic" (`references/outline.md`) there (the

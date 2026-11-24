@@ -1,7 +1,7 @@
 """One beat explained: its sentences, its cues in source order, what each writes and names, and which writes take a
 channel over. Untimed unless a measured timeline exists; then each cue's frame and seconds too. Standard library only.
 
-    python3 tools/video/check.py --investigation godot/ssr --explain c1-room
+    python3 tools/video/check.py --package godot_ssr --explain c1-room
 """
 from __future__ import annotations
 

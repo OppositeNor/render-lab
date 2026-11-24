@@ -47,7 +47,7 @@ Register it:
 
 - Add the package to `[workspace] members` and `default-members` in `Cargo.toml` (a local package is a workspace of its
   own instead; see AGENTS.md and the `packages` skill). Its library hands the lab its investigations when it negotiates
-  (`lab/src/plugin.rs`); the homepage lists them under their engine, and `--investigation <engine>/<feature>` selects
+  (`lab/src/plugin.rs`); the homepage lists them under their engine, and `--package <name>` selects
   one on the command line. `render-lab packages` shows whether the library loaded, and its handles.
 - If it brings its own shading (`SceneShading`: WGSL composed after `packages/render_lab/shaders/scene.wgsl`, a
   fragment entry point, uniforms in `FrameContent::shading`, compute kernels for the selftest), declare its file as a

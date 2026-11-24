@@ -6,9 +6,9 @@ guide, review stills, and a verification report.
 
 ```sh
 bash tools/video/setup.sh [--gpu] [--zh]                             # once: the local environment under .cache/ (--zh: the Chinese voice)
-python3 tools/video/build.py --investigation o3de/lighting           # the English edition: narration, timeline, captions, documents
-python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN   # the Chinese edition: Chinese narration (Qwen3-TTS), text, and subtitles
-python3 tools/video/build.py --investigation o3de/lighting --video   # also the video: rendered, muxed, and verified
+python3 tools/video/build.py --package o3de_lighting           # the English edition: narration, timeline, captions, documents
+python3 tools/video/build.py --package o3de_lighting --lang zh-CN   # the Chinese edition: Chinese narration (Qwen3-TTS), text, and subtitles
+python3 tools/video/build.py --package o3de_lighting --video   # also the video: rendered, muxed, and verified
 python3 tools/video/build.py --all                                  # every package's narration, each in all its languages, in turn
 ```
 
@@ -29,7 +29,7 @@ publishes on its own (`tools/publish_narration.py`).
 | `--verify-only` | Only the checks of an existing build |
 | `--tts-device auto/cuda/cpu` | Where new narration is synthesised (`auto`: the GPU when the CUDA packages are installed) |
 | `--listing-style blocks/text` | How the code panel draws pseudo-code listings (`blocks`, the default, whatever the user's settings say) |
-| `--investigation-dir DIR` | The directory of its `video/video.json`, when it is not its package in `packages/` |
+| `--package-dir DIR` | The directory of its `video/video.json`, when it is not its package in `packages/` |
 
 A full build of the 16-minute O3DE video takes about 15 minutes on an RTX 4050, almost all of it rendering. Run one GPU
 job at a time.
@@ -41,8 +41,8 @@ with the system Python. This command needs no video environment, voice model,
 audio cache, FFmpeg, or GPU:
 
 ```sh
-python3 tools/video/check.py --investigation godot/ssr --binary target/release/render-lab
-python3 tools/video/check.py --investigation godot/ssr --lang zh-CN --json
+python3 tools/video/check.py --package godot_ssr --binary target/release/render-lab
+python3 tools/video/check.py --package godot_ssr --lang zh-CN --json
 ```
 
 The check reads the real Lamlet document and vocabulary, checks its sources,
@@ -55,7 +55,7 @@ exact word times, frame boundaries, or chapter budgets.
 The narration measured for the ear (new-story's spoken-sentence rules; a report, never a failure):
 
 ```sh
-python3 tools/video/lint.py --investigation godot/ssr [--lang zh-CN] [--json]
+python3 tools/video/lint.py --package godot_ssr [--lang zh-CN] [--json]
 ```
 
 It prints the edition's numbers (sentences, median length, shares over the limits) and each sentence over a limit,
@@ -64,8 +64,8 @@ with its place in the storyboard and what it is over.
 One beat at a time:
 
 ```sh
-python3 tools/video/check.py --investigation godot/ssr --explain c1-adds [--json]
-python3 tools/video/build.py --investigation godot/ssr --preview c1-adds --cached-audio-only
+python3 tools/video/check.py --package godot_ssr --explain c1-adds [--json]
+python3 tools/video/build.py --package godot_ssr --preview c1-adds --cached-audio-only
 ```
 
 `--explain` (tools/video/explain.py) lists the beat's sentences, as shown and as spoken, then its cues in source
@@ -178,7 +178,7 @@ The timeline's existing `source` remains its beat ID; the separate, versioned
 changing playback data. Validate a directly supplied timeline without rendering:
 
 ```sh
-target/release/render-lab --investigation godot/ssr story check --timeline path/to/timeline.json
+target/release/render-lab --package godot_ssr story check --timeline path/to/timeline.json
 ```
 
 The machine interface `story check FILE` accepts `{renderLabStory: 1, cues: [...]}`
@@ -222,7 +222,7 @@ only in that disposable workspace, resolve its temporary lock offline, then buil
 Keep this checkout's manifests, lock and vendor unchanged. A candidate is a host build, not a standalone `lamlet`
 executable: the host's natives, conversions and presentation extension are part of the contract being checked.
 
-Capture directories must be new. `--investigation godot/ssr` (repeatable) selects a smaller corpus; both captures
+Capture directories must be new. `--package godot_ssr` (repeatable) selects a smaller corpus; both captures
 must select the same cases and languages. Each capture has `outputs/`, per-command `logs/`, and a completion
 `manifest.json` recording the corpus, artifact hashes, host hashes and lock hash. Input hashes detect content
 changes between captures; changing the host is expected. Comparison exits nonzero on any missing or changed output.
@@ -258,14 +258,14 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
   accepted as scene types in storyboards and timelines; a paused timeline keeps a 2D scene on screen. Before the
   first sentence, a paragraph of cues sets the beat's keys, one per cue. Then each paragraph is one sentence: its
   prose is CommonMark (`$` is written `$$`), with its cues (below); a cue before its first word fires at the
-  sentence's start. A cue's attributes are the investigation's vocabulary: `render-lab --investigation <path> story
+  sentence's start. A cue's attributes are the investigation's vocabulary: `render-lab --package <name> story
   keys` lists them, and the builder writes them as typed functions to the package's `build/<package>.lam` before it
   reads the storyboard, so a misspelled key is an unknown name and a wrong value a type error, at the storyboard's
   line. Each is named after its key (`camera.yaw` is `{cameraYaw 24.0}`), but `code` is `listing`, `image` is
   `inset`, `animate` is `motion`, and `ease` is `easing`; a key with options has one function per option too
   (`panelCode`, `demoRoom`, `imageCornerTopLeft`), and `{attr "key" "value"}` writes any key as text. The keys:
   shot parameters (a name a cue reserves, such as `formula`, is `param.formula`, `{paramFormula 1.0}`; `render-lab
-  --investigation <path> values` lists every key, the shaders' tagged values and their components included; a value
+  --package <name> values` lists every key, the shaders' tagged values and their components included; a value
   is a number, written as a Float whatever its type, since the timeline blends every value, a vector,
   `{lightPosition {' 0.4 1.9 0.8}}`, or a choice's option by name, `{viewModeNdotl}`, which the lab checks against
   the value's declaration when it loads the timeline), `demo`, `camera.target` (a vector), `camera.yaw` (`pitch`,
@@ -377,7 +377,7 @@ A sentence holds cues, `present`'s functions with the vocabulary's attributes an
 1.0} {callout "source-key"}}}`, and a range over words, `${overText {' {radiusRange 0.0 2.0}} "step by step"}` (or
 `over` with content: `{cat {' {text "a "} {cue "key" …} …}}`, for cues and ranges inside it; `present`'s `during` and
 `duringText` name the range, which nothing needs). render_lab checks the names the lab knows when the storyboard is
-read, through the lab's natives (`rl`, `lab/src/script/natives.rs`, with `render-lab --investigation <id> lamlet ir`):
+read, through the lab's natives (`rl`, `lab/src/script/natives.rs`, with `render-lab --package <name> lamlet ir`):
 a callout's source-index key, a text key (`imageTitle`, `imageMarkText`, `labelText`), a published point, and a
 formula's LaTeX, so a wrong one fails at its line before any speech. A package's code can give its narration numbers
 (`Investigation::script_natives`, the package `<package>_natives`): `${spoken {dispatches}}`. They are cut out of what is said and shown, and each takes effect on the frame where the word

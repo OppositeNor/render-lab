@@ -51,7 +51,7 @@ def normalized(board: Json) -> Json:
 
 def host_check(cfg: Config, data: Json, *, timeline: bool = False) -> Json:
     """Ask the selected, already-built host; its command never initializes a GPU."""
-    args = [str(lamlet.command()), '--investigation', cfg.investigation, 'story', 'check', '-']
+    args = [str(lamlet.command()), '--package', cfg.name, 'story', 'check', '-']
     if timeline:
         args.append('--timeline')
     proc = subprocess.run(args, input=json.dumps(data, ensure_ascii=False, allow_nan=False), capture_output=True, text=True)

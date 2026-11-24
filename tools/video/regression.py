@@ -26,8 +26,7 @@ import lamlet  # noqa: E402
 from config import LAB, LANGS, Config  # noqa: E402
 
 # An explicit, public corpus: adding unrelated local packages does not change what this gate checks.
-CORPUS = {'godot/ssr': 'godot_ssr', 'godot/sdfgi': 'godot_sdfgi',
-          'godot/voxelgi': 'godot_voxelgi', 'o3de/lighting': 'o3de_lighting'}
+CORPUS = ('godot_ssr', 'godot_sdfgi', 'godot_voxelgi', 'o3de_lighting')
 VERSION = 1
 
 
@@ -35,16 +34,15 @@ def write_json(path: Path, value: Any) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False, indent=1, sort_keys=True, allow_nan=False) + '\n', encoding='utf-8')
 
 
-def configurations(investigations: list[str]) -> list[list[Config]]:
+def configurations(packages: list[str]) -> list[list[Config]]:
     cases: list[list[Config]] = []
-    for investigation in investigations:
-        package = LAB / 'packages' / CORPUS[investigation]
-        english = Config.load(investigation, 'en', package)
+    for package in packages:
+        english = Config.load(package, 'en')
         # English first, then each translation its video.json names.
         languages = ['en', *english.spec.get('translations', {})]
         if any(lang not in LANGS for lang in languages):
-            raise RuntimeError(f'{investigation}: unsupported corpus language {languages}')
-        cases.append([Config.load(investigation, lang, package) for lang in languages])
+            raise RuntimeError(f'{package}: unsupported corpus language {languages}')
+        cases.append([Config.load(package, lang) for lang in languages])
     return cases
 
 
@@ -59,8 +57,8 @@ def execute(command: list[str], log: Path) -> str:
     return result.stdout
 
 
-def input_hashes(investigations: list[str]) -> dict[str, str]:
-    roots = ['packages/render_lab', *(f'packages/{CORPUS[i]}' for i in investigations), 'tools/video']
+def input_hashes(packages: list[str]) -> dict[str, str]:
+    roots = ['packages/render_lab', *(f'packages/{p}' for p in packages), 'tools/video']
     result = subprocess.run(['git', 'ls-files', '-z', '--', *roots], cwd=LAB, capture_output=True, check=True)
     names = [name for name in result.stdout.decode().split('\0') if name]
     if not names:
@@ -68,12 +66,12 @@ def input_hashes(investigations: list[str]) -> dict[str, str]:
     return {name: compare.digest(LAB / name) for name in names}
 
 
-def capture(out: Path, binary: Path, investigations: list[str]) -> None:
+def capture(out: Path, binary: Path, packages: list[str]) -> None:
     binary = binary.resolve()
     if not binary.is_file():
         raise RuntimeError(f'missing host binary: {binary}; build the host and its package libraries first')
-    cases = configurations(investigations)
-    before = input_hashes(investigations)
+    cases = configurations(packages)
+    before = input_hashes(packages)
     # Never mix a new capture with stale files from a previous run. The manifest is written only on success.
     out.mkdir(parents=True, exist_ok=False)
     artifacts, logs = out / 'outputs', out / 'logs'
@@ -85,29 +83,29 @@ def capture(out: Path, binary: Path, investigations: list[str]) -> None:
         package = english.package.name
         package_out = artifacts / package
         package_out.mkdir()
-        hooks = execute([str(binary), '--investigation', english.investigation, 'script', 'check'], logs / f'{package}-scripts.log')
+        hooks = execute([str(binary), '--package', english.name, 'script', 'check'], logs / f'{package}-scripts.log')
         (package_out / 'scripts.txt').write_text(hooks, encoding='utf-8')
         for cfg in editions:
             cfg.prepared_root = out / 'prepared' / package
             print(f'prepare {cfg.investigation} ({cfg.lang})', flush=True)
-            execute([sys.executable, str(LAB / 'tools/video/build.py'), '--investigation', cfg.investigation,
+            execute([sys.executable, str(LAB / 'tools/video/build.py'), '--package', cfg.name,
                      '--lang', cfg.lang, '--prepare-only', '--tts-device', 'cpu', '--cached-audio-only',
                      '--prepare-dir', str(cfg.prepared_root),
                      '--binary', str(binary)], logs / f'{package}-{cfg.lang}.log')
             dest = compare.save_edition(cfg, artifacts, required=True)
             # The English storyboard imports the package's vocabulary and story library; a translation imports none.
-            packages = [] if cfg.zh() else ['--package', f'{package}={cfg.package / "build" / (package + ".lam")}']
+            imports = [] if cfg.zh() else ['--import', f'{package}={cfg.package / "build" / (package + ".lam")}']
             if not cfg.zh() and cfg.story_library.exists():
-                packages += ['--package', f'{package}_story={cfg.story_library}']
-            chosen = [] if cfg.zh() else ['--investigation', cfg.investigation]
+                imports += ['--import', f'{package}_story={cfg.story_library}']
+            chosen = [] if cfg.zh() else ['--package', cfg.name]
             ir = execute([str(binary), *chosen, 'lamlet', 'ir', str(cfg.translation if cfg.zh() else cfg.storyboard),
-                          *packages], logs / f'{package}-{cfg.lang}-ir.log')
+                          *imports], logs / f'{package}-{cfg.lang}-ir.log')
             write_json(dest / 'document.json', json.loads(ir))
         # Unlike the historical filename-only check, detect changed audio and word timings under the same name.
         write_json(package_out / 'audio-sha256.json',
                    {p.name: compare.digest(p) for p in sorted(english.audio_cache.iterdir()) if p.is_file()})
     # The inputs must be the same as before the capture, or the outputs could mix two states.
-    after = input_hashes(investigations)
+    after = input_hashes(packages)
     if before != after:
         raise RuntimeError('corpus inputs changed during capture; retry with unchanged content')
     write_json(artifacts / 'inputs.json', before)
@@ -137,7 +135,7 @@ def checked_manifest(snapshot: Path) -> dict[str, Any]:
         # Every case must be a corpus package with English first, and have all its artifacts.
         package = case['package']
         languages = case['languages']
-        if CORPUS.get(case['investigation']) != package or not languages or languages[0] != 'en':
+        if package not in CORPUS or not languages or languages[0] != 'en':
             raise RuntimeError(f'{snapshot}: invalid corpus case {case}')
         required.update(f'{package}/{name}' for name in ('scripts.txt', 'audio.txt', 'audio-sha256.json'))
         for lang in languages:
@@ -165,14 +163,14 @@ def main() -> None:
     save = commands.add_parser('save', help='prepare and capture the corpus; missing narration cache is an error')
     save.add_argument('out', type=Path)
     save.add_argument('--binary', type=Path, default=lamlet.BINARY)
-    save.add_argument('--investigation', action='append', choices=CORPUS)
+    save.add_argument('--package', action='append', choices=CORPUS)
     diff = commands.add_parser('compare', help='validate and compare two complete captures')
     diff.add_argument('old', type=Path)
     diff.add_argument('new', type=Path)
     args = parser.parse_args()
     try:
         if args.command == 'save':
-            capture(args.out.resolve(), args.binary, list(dict.fromkeys(args.investigation or CORPUS)))
+            capture(args.out.resolve(), args.binary, list(dict.fromkeys(args.package or CORPUS)))
         else:
             changed = differences(args.old, args.new)
             print('\n'.join(changed) if changed else 'the same')

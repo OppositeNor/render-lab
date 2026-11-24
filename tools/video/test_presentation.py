@@ -91,7 +91,7 @@ class Presentation(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         # The key fields of an investigation's vocabulary (the cues below write them with `attr`).
-        cls.fields = markup.Fields.of(json.loads(lamlet.lab('--investigation', 'godot/voxelgi', 'story', 'keys')))
+        cls.fields = markup.Fields.of(json.loads(lamlet.lab('--package', 'godot_voxelgi', 'story', 'keys')))
 
     def load(self, text: str, translation: bool = False) -> dict:
         with tempfile.TemporaryDirectory() as d:
@@ -172,11 +172,11 @@ class Presentation(unittest.TestCase):
                 with self.subTest(wrong=wrong):
                     path.write_text(STORY.replace('{attr "callout" "key-a"}', wrong))
                     with self.assertRaises(lamlet.LamletError) as e:
-                        presentation.load(path, [], self.fields, 'godot/voxelgi')
+                        presentation.load(path, [], self.fields, 'godot_voxelgi')
                     self.assertIn('storyboard.lam:12:', str(e.exception))
             path.write_text(STORY.replace('There are ${spoken leaves} leaves.', 'A ${formulaSaid "x^{y^{z^{w}}}" "x to the y" {\'}}.'))
             with self.assertRaisesRegex(lamlet.LamletError, 'storyboard.lam:16:'):
-                presentation.load(path, [], self.fields, 'godot/voxelgi')
+                presentation.load(path, [], self.fields, 'godot_voxelgi')
 
     def test_key_check(self) -> None:
         # With the investigation's key list, every cue attribute is checked, also one written with `attr`: its key,
@@ -187,14 +187,14 @@ class Presentation(unittest.TestCase):
                  '${cue "key" {\' WRONG}}Another sentence.\n')
         with tempfile.TemporaryDirectory() as d:
             keys = Path(d) / 'keys.json'
-            keys.write_text(lamlet.lab('--investigation', 'godot/voxelgi', 'story', 'keys'))
+            keys.write_text(lamlet.lab('--package', 'godot_voxelgi', 'story', 'keys'))
             path = Path(d) / 'storyboard.lam'
             path.write_text(story.replace('WRONG', '{attr "blend" 1.0}'))
-            presentation.load(path, [], self.fields, 'godot/voxelgi', keys)
+            presentation.load(path, [], self.fields, 'godot_voxelgi', keys)
             wrong = '{attr "ease" "bounce"} {attr "camera.roll" 1.0} {attr "blend" "1"} {attr "panel" "nowhere"} {attr "stop" {\' "noSuchAction"}}'
             path.write_text(story.replace('WRONG', wrong))
             with self.assertRaises(lamlet.LamletError) as e:
-                presentation.load(path, [], self.fields, 'godot/voxelgi', keys)
+                presentation.load(path, [], self.fields, 'godot_voxelgi', keys)
             message = str(e.exception)
             for part in ('`bounce` is not one of', '`camera.roll` is not a cue attribute', '`blend="1"` is not a number', '`nowhere` is not one of',
                          '`noSuchAction` is not one of'):

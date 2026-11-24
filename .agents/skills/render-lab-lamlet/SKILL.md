@@ -80,11 +80,11 @@ ${overText {' {voxelgiMixRange 0.0 1.0}} "a range over words"}.
 
 ## 3. The vocabulary
 
-`render-lab --investigation <path> story keys` (`lab/src/script/keys.rs`) lists what a cue may set: the
+`render-lab --package <name> story keys` (`lab/src/script/keys.rs`) lists what a cue may set: the
 investigation's values (and their vector components), and a timeline key's fields with their options where the lab
 knows them (demos, panels, listings, images, image kinds, actions, click handlers, eases, corners). `build.py` turns
 it into a package named after the investigation's package, `build/<package>.lam` (`render-lab lamlet vocab`), every
-time it reads the storyboard, so it always matches the investigation. `render-lab --investigation <path> story schema`
+time it reads the storyboard, so it always matches the investigation. `render-lab --package <name> story schema`
 adds what writing each key needs (a value's type, unit, range, default, and doc; each key's attribute and function)
 and lists what the vocabulary leaves out (an option that makes no Lamlet name, a key whose function name another
 has), each with the `{attr "…" "…"}` that still writes it.
@@ -132,7 +132,7 @@ has), each with the `{attr "…" "…"}` that still writes it.
   `recordCamera`, `{recordObject n}`), and `formulaSaid`.
 - **Checked names**, through the lab's natives (the package `rl`, `lab/src/script/natives.rs`): `callout` (a
   source-index key), `imageTitle`, `imageMarkText`, `labelText` (text keys), `point`, and `formulaSaid`'s LaTeX
-  (typeset within the lab's limits). They check against the investigation `render-lab --investigation <id> lamlet ir`
+  (typeset within the lab's limits). They check against the investigation `render-lab --package <name> lamlet ir`
   names (the video builder passes it); without one they fail, but an empty name (clearing) needs none.
 - **Ranges** without names: `over`, `overText`, `overCallout`.
 - **Clips** (section 6): `play<Clip>` plays one at a cue's word at its own pace; `playOver<Clip>`, in a range only,
@@ -221,7 +221,7 @@ marks), since moving them would add a frame-data struct and natives to move a fe
 - **Errors.** A script that does not check fails when its package loads, with its line, and so does a function of
   its own (not `_`) that looks like a hook with the wrong signature: one returning a hook's list (`List(Shape)`,
   `List(Row)`, `List(Write)`) but taking what no hook takes, or one that is generic; the error names the parameters
-  a hook takes (`render-lab --investigation <id> script check` lists the hooks, or the diagnostic). At run time a failing hook fails a recording or a selftest
+  a hook takes (`render-lab --package <name> script check` lists the hooks, or the diagnostic). At run time a failing hook fails a recording or a selftest
   (`set_strict`); in the viewer it keeps its last good shapes, sets nothing, and shows its message as a note until
   it succeeds again. A script hook named like one of the code's (`#[click]`, `#[action]`) is an error.
 - **Clips** (runtime.lam's `Clip`, `lab/src/clip.rs`): a static binding of the type (`$[# combineSteps [% {clip
@@ -231,7 +231,7 @@ marks), since moving them would add a frame-data struct and natives to move a fe
   `sequence`, `together`, `laggedClips`, `delayed`, and `reversed` (keyframes only). A progress (`progress.<name>`)
   is a channel of the package's own that scenes, overlays, and readouts read (`progress`, `hasProgress`); two
   tracks of one clip on one channel: the later takes it. A played clip holds its end; a demonstration's switch
-  clears the progresses and ends its runs. `render-lab --investigation <id> clips` lists them; the story check
+  clears the progresses and ends its runs. `render-lab --package <name> clips` lists them; the story check
   warns of a declared clip no cue plays and no demonstration lists (`story.clip.unused`).
 - **Examples.** `packages/o3de_lighting/script/` (overlay, readout, picks, animations; natives in `script.rs`) and
   `packages/godot_voxelgi/script/logic.lam` (`marchCone`, `pickSliceCell`).
@@ -255,9 +255,9 @@ marks), since moving them would add a frame-data struct and natives to move a fe
 
 | Change | Check |
 |---|---|
-| A cue or sentence of a storyboard | `render-lab --investigation <id> story keys` when unsure of a key; `python3 tools/video/build.py --investigation <id> --prepare-only` (unknown names and type errors fail here, with the storyboard's line); stills of the beat (`new-story`, `references/storyboard.md`), looked at |
+| A cue or sentence of a storyboard | `render-lab --package <name> story keys` when unsure of a key; `python3 tools/video/build.py --package <name> --prepare-only` (unknown names and type errors fail here, with the storyboard's line); stills of the beat (`new-story`, `references/storyboard.md`), looked at |
 | The translation | `--prepare-only --lang zh-CN`; one paragraph per English sentence, the same heading ids |
-| A package's script (`script/*.lam`) | `render-lab --investigation <id> script check` (and `script stubs` for what it may import); the selftest; an offscreen snapshot of a demonstration it draws or animates (`home --snapshot … --page viewer:<demo>`), looked at (a failing hook fails the selftest and a recording, but only shows a note in the viewer) |
+| A package's script (`script/*.lam`) | `render-lab --package <name> script check` (and `script stubs` for what it may import); the selftest; an offscreen snapshot of a demonstration it draws or animates (`home --snapshot … --page viewer:<demo>`), looked at (a failing hook fails the selftest and a recording, but only shows a note in the viewer) |
 | The runtime library, `render_lab.lam`, or the lab's Lamlet code | every investigation's `script check`, the unit tests below, `--prepare-only` for every edition and `tools/video/compare.py` (outputs unchanged), the frame identity check (AGENTS.md) when it changes what frames show |
 | The story reader (`tools/video/presentation.py`, `markup.py`) or a storyboard's form | the unit tests below and `tools/video/compare.py` over every edition |
 | A Lamlet content file | `render-lab lamlet toml FILE NAME`, compared with what the reader expected; a snapshot of what it feeds |

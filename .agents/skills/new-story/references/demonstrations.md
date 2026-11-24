@@ -74,8 +74,8 @@ without them, a separate pass of your own that reads only the materials below an
 looking at the code that draws the views. Brief it with:
 
 - what each view shows and of which resource (`story/demonstrations.md`), and the outline's claim each one supports;
-- the investigation's values (`render-lab --investigation <id> values`), its click handlers and actions (`render-lab
-  --investigation <id> actions`), and its images (`render-lab --investigation <id> images`): what a viewer can
+- the investigation's values (`render-lab --package <name> values`), its click handlers and actions (`render-lab
+  --package <name> actions`), and its images (`render-lab --package <name> images`): what a viewer can
   already change;
 - offscreen stills of every view (`home --snapshot … --page viewer:<demo>`, and the free camera's,
   `viewer-free:<demo>`), rendered by the main agent one at a time;

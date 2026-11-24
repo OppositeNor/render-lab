@@ -105,7 +105,7 @@ license = "LICENSE-Engine.txt"       # optional: the file of its terms, in the p
 `requires` names what the package's investigations cannot run without. The lab knows one requirement,
 `"ray-tracing"`: hardware ray queries (Vulkan; lab/src/gpu.rs), which the lab turns on where the GPU has them
 (`RENDER_LAB_RAY_TRACING=off` turns them off). Where a requirement is not met, the loader (and `--list`)
-list the package's investigations as unavailable, with the reason, and `--investigation` refuses with it; the
+list the package's investigations as unavailable, with the reason, and `--package` refuses with it; the
 package's shaders still validate in its build (the lab validates with the ray-query capability).
 
 - Unknown keys are errors. `library` and `negotiate` come together or not at all.
@@ -248,7 +248,7 @@ lab::negotiate!(my_feature_negotiate, ["investigations" => investigations as Inv
   changes for a new tab: no enum, action, field, or snapshot arm.
 - **Behaviour can be content instead of code:** a resource `script/<name>` (Lamlet) is a script the lab runs: overlays,
   readout rows, click handlers, actions, Play animations (the `render-lab-lamlet` skill, section 6). The library keeps
-  what is heavy and exposes it to them through `Investigation::script_natives`; `render-lab --investigation <id>
+  what is heavy and exposes it to them through `Investigation::script_natives`; `render-lab --package <name>
   script check` checks them. A script edit shows on the next launch without rebuilding the library.
 
 ### The negotiation, in short

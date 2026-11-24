@@ -348,12 +348,12 @@ def header(video: Json, path: Path) -> Json:
     return out
 
 
-def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, investigation: str | None = None,
+def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, package: str | None = None,
          keys: Path | None = None) -> Json:
     """A presentation as the storyboard the builder reads, with these packages to import (its vocabulary), the
-    fields the vocabulary's key list names (`markup.Fields`), the investigation the lab checks its names
+    fields the vocabulary's key list names (`markup.Fields`), the package whose investigation the lab checks its names
     against (callouts, text keys, points, formulas), and the key list every cue attribute is checked against."""
-    video, chapters = sections(lamlet.ir(path, packages, investigation, keys or lamlet.heading_keys()), path)
+    video, chapters = sections(lamlet.ir(path, packages, package, keys or lamlet.heading_keys()), path)
     board = header(video, path)
     board['chapters'] = []
     for chapter_heading, beats in chapters:

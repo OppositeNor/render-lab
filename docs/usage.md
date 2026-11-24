@@ -67,16 +67,16 @@ Run these commands from the repository root:
 
 ```bash
 cargo run --release                                   # the homepage
-cargo run --release -- --list                         # the installed investigations (the values --investigation takes)
+cargo run --release -- --list                         # the packages that hold investigations (the values --package takes)
 cargo run --release -- home --snapshot home.png       # the title screen rendered offscreen (--page select, config, starting, viewer, viewer-timeline, viewer-experiments, viewer-compare, or viewer-quiz for the others)
 cargo run --release -- home --autotest home.json      # click through the homepage offscreen (it uses its own settings file)
 ```
 
 The lab also has `render` (record a timeline into FFmpeg), `selftest`, `layout`, and `viewer-autotest`, and every
-command takes `--investigation ENGINE/FEATURE` (default: the first one listed):
+command takes `--package PACKAGE` (default: the first one listed):
 
 ```bash
-cargo run --release -- --investigation o3de/lighting selftest --report o3de.json   # the port against its CPU mirror, frames, sources
+cargo run --release -- --package o3de_lighting selftest --report o3de.json   # the port against its CPU mirror, frames, sources
 ```
 
 ## Narrated videos
@@ -85,7 +85,7 @@ An investigation's narrated video is built by [`tools/video`](../tools/video/REA
 
 ```bash
 bash tools/video/setup.sh --gpu                                     # once: Piper and FFmpeg under .cache/
-python3 tools/video/build.py --investigation o3de/lighting          # the narration and timeline the viewer plays
-python3 tools/video/build.py --investigation o3de/lighting --lang zh-CN
-python3 tools/video/build.py --investigation o3de/lighting --video  # also packages/o3de_lighting_narration/build/video/en/o3de-lighting.mp4
+python3 tools/video/build.py --package o3de_lighting          # the narration and timeline the viewer plays
+python3 tools/video/build.py --package o3de_lighting --lang zh-CN
+python3 tools/video/build.py --package o3de_lighting --video  # also packages/o3de_lighting_narration/build/video/en/o3de-lighting.mp4
 ```

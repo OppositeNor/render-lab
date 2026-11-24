@@ -50,8 +50,8 @@ def animate(*motions: tuple[str, Json]) -> str:
 class Preflight(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.cfg = Config.load('godot/ssr', 'en')
-        cls.fields = markup.Fields.of(json.loads(lamlet.lab('--investigation', cls.cfg.investigation, 'story', 'keys')))
+        cls.cfg = Config.load('godot_ssr', 'en')
+        cls.fields = markup.Fields.of(json.loads(lamlet.lab('--package', cls.cfg.name, 'story', 'keys')))
 
     def board(self, attrs: str) -> Json:
         with tempfile.TemporaryDirectory() as directory:
@@ -102,7 +102,7 @@ class Preflight(unittest.TestCase):
             ("{motion {' {cameraTurnOver sentence {' {aim 18.0 10.0}}}}}", "{motion {' {path {' cameraYaw cameraPitch} {' {' 18.0 10.0}} sentence}}}"),
         ]
         name = self.cfg.package.name
-        vocabulary = lamlet.vocabulary(self.cfg.investigation, name, self.cfg.package / 'build' / f'{name}.lam')
+        vocabulary = lamlet.vocabulary(self.cfg.name, name, self.cfg.package / 'build' / f'{name}.lam')
         story = STORY.replace('$[Import* render_lab]', f'$[Import* render_lab]$[Import* {name}]')
 
         def key(attrs: str) -> Json:
@@ -125,7 +125,7 @@ class Preflight(unittest.TestCase):
         self.assertTrue(preflight.host_check(self.cfg, data)['ok'])
 
     def test_action_arguments_are_checked_without_running_the_action(self) -> None:
-        cfg = Config.load('godot/voxelgi', 'en')
+        cfg = Config.load('godot_voxelgi', 'en')
         board = self.board('{attr "run" "marchCone"} {attr "run.seconds" "typo"}')
         with self.assertRaises(preflight.CheckError) as caught:
             preflight.check(cfg, board)
@@ -153,7 +153,7 @@ class NoAudio(importlib.abc.MetaPathFinder):
         if fullname.split('.')[0] in {'narration', 'timeline', 'outputs', 'piper', 'onnxruntime', 'numpy', 'phonemizer'}:
             raise AssertionError('forbidden dependency: ' + fullname)
 sys.meta_path.insert(0, NoAudio())
-sys.argv = [sys.argv[1], '--investigation', 'godot/ssr', '--binary', sys.argv[2], '--json']
+sys.argv = [sys.argv[1], '--package', 'godot_ssr', '--binary', sys.argv[2], '--json']
 runpy.run_path(sys.argv[0], run_name='__main__')
 '''
         env = dict(os.environ, RENDER_LAB_VIDEO_ENV='/missing-video-env', RENDER_LAB_VOICES='/missing-voices',
@@ -169,7 +169,7 @@ runpy.run_path(sys.argv[0], run_name='__main__')
                       '{attr "panel" "code"} {highlightCode "trace" {\' "compress"}}', '{attr "panel" "grph"}'):
             board = self.board(attrs)
             with self.subTest(attrs=attrs), tempfile.TemporaryDirectory() as directory, \
-                    mock.patch.object(sys, 'argv', ['build.py', '--investigation', self.cfg.investigation, '--binary', str(lamlet.BINARY), '--prepare-only', '--prepare-dir', directory]), \
+                    mock.patch.object(sys, 'argv', ['build.py', '--package', self.cfg.name, '--binary', str(lamlet.BINARY), '--prepare-only', '--prepare-dir', directory]), \
                     mock.patch.object(build, 'reexec_in_environment'), \
                     mock.patch.object(build, 'load_board', return_value=board), \
                     mock.patch.object(build, 'validate'), \
@@ -188,7 +188,7 @@ runpy.run_path(sys.argv[0], run_name='__main__')
         invalid = {'fps': 30, 'width': 1280, 'height': 720, 'totalFrames': 10,
                    'title': 'test', 'engineLabel': 'test', 'chapters': [], 'beats': [], 'keys': []}
         with tempfile.TemporaryDirectory() as directory, \
-                mock.patch.object(sys, 'argv', ['build.py', '--investigation', self.cfg.investigation, '--binary', str(lamlet.BINARY), '--prepare-only', '--prepare-dir', directory]), \
+                mock.patch.object(sys, 'argv', ['build.py', '--package', self.cfg.name, '--binary', str(lamlet.BINARY), '--prepare-only', '--prepare-dir', directory]), \
                 mock.patch.object(build, 'reexec_in_environment'), \
                 mock.patch.object(build, 'load_board', return_value=board), \
                 mock.patch.object(build, 'validate'), \

@@ -128,37 +128,37 @@ cargo run --release -- home --snapshot /path/to/viewer.png --page viewer     # t
 cargo run --release -- home --snapshot /path/to/played.png --page viewer-timeline@25456+60   # the timeline played in the viewer from a frame, one frame per render; the last one saved
 cargo run --release -- home --snapshot /path/to/diagram.png --page viewer-diagram   # a timeline paused on a 2d scene with an image: its panel, zoomed
 cargo run --release -- home --snapshot /path/to/sources.png --page viewer-sources   # a timeline paused on a 2d scene's sources card
-cargo run --release -- --investigation o3de/lighting selftest --report /path/to/o3de.json   # O3DE: the WGSL port against its CPU mirror
+cargo run --release -- --package o3de_lighting selftest --report /path/to/o3de.json   # O3DE: the WGSL port against its CPU mirror
 O3DE_SOURCE_DIR=/path/to/o3de python3 packages/o3de_lighting/src/o3de/lighting/source_index.py   # O3DE: rewrite its package's source-index.json from the source (asks where it is without the variable)
-python3 tools/video/build.py --investigation o3de/lighting --snapshots-only   # the video's timeline and one still per beat; look at them
-python3 tools/video/check.py --investigation godot/ssr --explain c1-adds      # one beat: its sentences, cues in source order, the channels each writes and takes over (frames once prepared)
-python3 tools/video/lint.py --investigation godot/ssr --lang zh-CN           # the narration measured for the ear (length, commas, colons, openings; 的 for zh-CN): a report, the sentences over its limits
-python3 tools/video/build.py --investigation godot/ssr --preview c1-adds --cached-audio-only   # one beat's stills: each cue, the frame before it, motion and blend ends
-python3 tools/video/build.py --investigation o3de/lighting                    # the narration and timeline the viewer plays (no video)
-python3 tools/video/build.py --investigation o3de/lighting --video            # also the full video (~15 min, GPU; run it in the background)
+python3 tools/video/build.py --package o3de_lighting --snapshots-only   # the video's timeline and one still per beat; look at them
+python3 tools/video/check.py --package godot_ssr --explain c1-adds      # one beat: its sentences, cues in source order, the channels each writes and takes over (frames once prepared)
+python3 tools/video/lint.py --package godot_ssr --lang zh-CN           # the narration measured for the ear (length, commas, colons, openings; 的 for zh-CN): a report, the sentences over its limits
+python3 tools/video/build.py --package godot_ssr --preview c1-adds --cached-audio-only   # one beat's stills: each cue, the frame before it, motion and blend ends
+python3 tools/video/build.py --package o3de_lighting                    # the narration and timeline the viewer plays (no video)
+python3 tools/video/build.py --package o3de_lighting --video            # also the full video (~15 min, GPU; run it in the background)
 python3 tools/video/build.py --all [--video]                                  # every package's narration (or video), in all its languages, one after another (GPU; background)
 python3 tools/publish_narration.py v<version>                                 # a release's narration packages: built, checked, uploaded to the tag's release (after the CI publishes it)
 python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py tools/video/test_compare.py tools/video/test_lint.py tools/video/test_speech_zh.py   # cue attributes, the storyboard format (a Lamlet presentation; the lab built first), the comparison, the narration lint, the Chinese narration's timing
 python3 tools/video/compare.py save /tmp/before; python3 tools/video/compare.py /tmp/before /tmp/after   # every edition's prepared outputs unchanged by a change (after build.py --all --prepare-only each time)
 cargo run --release -- lamlet toml packages/render_lab/scenes/study-room.lam studyRoom   # a Lamlet content file's binding as the TOML the lab reads
 python3 tools/lamlet_fmt.py --check                                           # every tracked .lam file laid out (without --check: lays them out)
-cargo run --release -- --investigation godot/voxelgi story keys               # the keys a storyboard's cues may set: its vocabulary, as `render-lab lamlet vocab` reads them
-cargo run --release -- --investigation godot/sdfgi story schema              # the same keys with type, unit, range, default, doc; and what the vocabulary leaves out, with the `attr` that writes it
-cargo run --release -- --investigation o3de/lighting script check             # its package's scripts (script/*.lam) checked, and their hooks (`script stubs`: what they import)
+cargo run --release -- --package godot_voxelgi story keys               # the keys a storyboard's cues may set: its vocabulary, as `render-lab lamlet vocab` reads them
+cargo run --release -- --package godot_sdfgi story schema              # the same keys with type, unit, range, default, doc; and what the vocabulary leaves out, with the `attr` that writes it
+cargo run --release -- --package o3de_lighting script check             # its package's scripts (script/*.lam) checked, and their hooks (`script stubs`: what they import)
 cargo run --release -- formulas --check packages/o3de_lighting/text/en.ftl    # typeset a file's formulas against the lab's limits
 cargo run --release -- i18n --check                                           # every text table per language: missing keys, fallbacks, texts left in English, characters the fonts lack
-cargo run --release -- --investigation o3de/lighting values                   # the keys the dock, timelines, and stories set (shader tags, derived structs)
-cargo run --release -- --investigation o3de/lighting choices                  # the choices (enums) and their options; the lab writes their WGSL constants into build/ itself
-cargo run --release -- --investigation godot/sdfgi actions                    # the actions a story runs (`{run "…"}` with `run.<arg>`, `{stop "…"}`) and their arguments
-cargo run --release -- --investigation paper/restir clips                      # the clips its scripts declare (a story's play/playOver, a demonstration's Play): each one's length and tracks
-cargo run --release -- --investigation godot/sdfgi images                     # the images it publishes for a story to show (`{inset "…"}`; a PNG resource is one too), and its shaders' GPU image kinds (`imageFrom`) with their parameters
+cargo run --release -- --package o3de_lighting values                   # the keys the dock, timelines, and stories set (shader tags, derived structs)
+cargo run --release -- --package o3de_lighting choices                  # the choices (enums) and their options; the lab writes their WGSL constants into build/ itself
+cargo run --release -- --package godot_sdfgi actions                    # the actions a story runs (`{run "…"}` with `run.<arg>`, `{stop "…"}`) and their arguments
+cargo run --release -- --package paper_restir clips                      # the clips its scripts declare (a story's play/playOver, a demonstration's Play): each one's length and tracks
+cargo run --release -- --package godot_sdfgi images                     # the images it publishes for a story to show (`{inset "…"}`; a PNG resource is one too), and its shaders' GPU image kinds (`imageFrom`) with their parameters
 cargo run --release -- home --snapshot /path/to/perf.png --page viewer-performance   # the performance panel (GPU time per pass), its most expensive pass called out
 cargo run --release -- home --snapshot /path/to/free.png --page viewer-free         # the free camera on (C): the main camera and its view cone seen from beside it, its own view in a corner
 cargo run --release -- home --snapshot /path/to/code.png --page viewer-code:<listing>@<tag>   # the Code tab on a listing, its tag lit (blocks; --listing-style text for the text view)
 cargo run --release -- home --snapshot /path/to/download.png --page select-download   # the narration download's confirmation over the selection page (RENDER_LAB_PACKAGES at a release-like folder; select-download-install: a real download, installed there)
 cargo run --release -- home --snapshot /path/to/prereq.png --page viewer-prerequisites   # the Prerequisites tab, the knowledge graph in the panel (viewer-knowledge: zoomed onto a level topic; viewer-knowledge-graph: full screen; viewer-knowledge-compact: full screen, only the topics its context needs; select-knowledge: over the homepage)
-cargo run --release -- --investigation godot/sdfgi knowledge                  # the knowledge graph and the audience: checked, and its split (--known, --levels)
-cargo run --release -- --investigation o3de/lighting graph                    # the frame's render graph: passes in order, reads and writes (checked against the WGSL), lifetimes, engine passes (--json, --dot)
+cargo run --release -- --package godot_sdfgi knowledge                  # the knowledge graph and the audience: checked, and its split (--known, --levels)
+cargo run --release -- --package o3de_lighting graph                    # the frame's render graph: passes in order, reads and writes (checked against the WGSL), lifetimes, engine passes (--json, --dot)
 cargo run --release -- home --snapshot /path/to/graph.png --page viewer-graph   # the frame graph in the panel, the inspector on what the costliest pass writes
 cargo run --release -- home --snapshot /path/to/inspect.png --page "viewer-inspect:<node>.<resource>[/<show>][?<param>=<value>&…]"   # a resource right after a node, in the inspector
 cargo run --release -- home --snapshot /path/to/dag.png --page "viewer-dag[:<demo>][@<node>,…]"   # the frame graph as a DAG, each pass's result on its card (viewer-dag-full: full screen)
@@ -170,10 +170,10 @@ cargo run --release -- home --snapshot /path/to/scene.png --page "viewer-scene[:
 cargo run --release -- home --snapshot /path/to/anim.png --page "viewer-animation[:<demo>][@<clip>=<seconds>]"   # the Animation tab: the demonstration's clips as a dopesheet, a clip scrubbed to a time
 cargo run --release -- home --snapshot /path/to/exp.png --page viewer-experiments   # the Experiment button's viewer: the Experiments tab (viewer-compare: a reference, a wipe, a measurement)
 cargo run --release -- home --snapshot /path/to/quiz.png --page viewer-quiz:<n>@<letter>   # the Quiz button's viewer: question n answered with that choice (none: unanswered; past the last: the score)
-cargo run --release -- --investigation godot/voxelgi experiment godot_voxelgi.experiment/cones-and-bias --out /path/to/dir   # a research experiment headless (--dry-run lists its runs; GPU)
+cargo run --release -- --package godot_voxelgi experiment godot_voxelgi.experiment/cones-and-bias --out /path/to/dir   # a research experiment headless (--dry-run lists its runs; GPU)
 python3 tools/experiments/report.py /path/to/dir                              # its report: tables, plots, image grid
 python3 -m unittest tools/experiments/test_report.py                          # the report's tests
-cargo run --release -- --list                                                 # the installed investigations: the values --investigation takes
+cargo run --release -- --list                                                 # the packages that hold investigations (the values --package takes), with each one's path and title
 cargo run --release -- packages                                               # the packages: metadata, imports, exports, libraries and their handles, demos, series
 cargo run --release -- series                                                 # the series (investigations as the parts of one story): parts in order, and each part's audience knowing what the parts before it teach
 cargo run --release -- resources                                             # the built packages' resources: file size, or not built yet

@@ -38,7 +38,7 @@ the story must teach well, and that takes time. The graph, its commands, and the
 1. **List what each chapter uses**, as topics of the knowledge graph, in the package's `knowledge.toml`; add missing
    topics to render_lab's graph.
 2. **Start low.** Take an audience that knows only the bases and the topics every graphics programmer meets first
-   (rasterization's pipeline, textures, a BRDF, a light): `render-lab --investigation <id> knowledge --known …` prints
+   (rasterization's pipeline, textures, a BRDF, a light): `render-lab --package <name> knowledge --known …` prints
    the level and what the story would have to teach, per chapter.
 3. **Cost it.** Give each topic to teach a time: a taught topic is a sequence of beats (below), about 60 to 120
    seconds with its demonstration, more for a deep one. Add them to each chapter's budget for the feature's own
@@ -49,7 +49,7 @@ the story must teach well, and that takes time. The graph, its commands, and the
    carries (`--levels` lists them). Never raise it to spare a topic the feature itself is about.
 5. **Record it**: `[audience]` in `knowledge.toml` (its `profile` says who that viewer is), and in the outline the
    level, the topics taught with their chapters, beats, and seconds, and the topics recalled in a sentence (the
-   level's). Check it with `render-lab --investigation <id> knowledge`.
+   level's). Check it with `render-lab --package <name> knowledge`.
 
 ## Teaching a topic
 

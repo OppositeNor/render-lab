@@ -22,7 +22,7 @@ The graph is in `packages/render_lab/knowledge.toml`, each investigation's chapt
 and the method in the `knowledge-graph` skill:
 
 ```bash
-cargo run --release -- --investigation godot/sdfgi knowledge         # checked, and the audience's split per chapter
+cargo run --release -- --package godot_sdfgi knowledge         # checked, and the audience's split per chapter
 ```
 
 ## Formulas

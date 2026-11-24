@@ -1,6 +1,6 @@
 //! Research runs: an experiment file (src/experiment.rs) rendered headless,
 //! measured, and written down so that it can be reported and repeated
-//! (`render-lab --investigation <id> experiment <file> --out <dir>`).
+//! (`render-lab --package <name> experiment <file> --out <dir>`).
 //!
 //! The reference renders first (its own frame count), then each run: its
 //! values set over the base, its scene data built, `frames` frames rendered

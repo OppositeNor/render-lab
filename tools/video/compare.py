@@ -1,7 +1,7 @@
 """Compare two sets of prepared video outputs (`build.py --prepare-only`), to check that a change to the
 storyboards or the pipeline changes nothing the video says or shows.
 
-    python3 tools/video/compare.py save OUT [--investigation o3de/lighting ...]   # copy every edition's prepared outputs
+    python3 tools/video/compare.py save OUT [--package o3de_lighting ...]   # copy every edition's prepared outputs
     python3 tools/video/compare.py OLD NEW                                        # compare two saved sets
 
 `save` copies, for each video the packages define (or those named) and each of its editions, what
@@ -55,17 +55,17 @@ def save_edition(cfg: Config, out: Path, *, required: bool = False) -> Path:
     return dest
 
 
-def save(out: Path, investigations: list[str]) -> None:
-    """Copies every edition's prepared outputs under `out`."""
-    for investigation, langs in videos():
-        if investigations and investigation not in investigations:
+def save(out: Path, packages: list[str]) -> None:
+    """Copies every edition's prepared outputs under `out` (only `packages`' when given)."""
+    for package, langs in videos():
+        if packages and package not in packages:
             continue
         for lang in langs:
-            cfg = Config.load(investigation, lang)
+            cfg = Config.load(package, lang)
             if not cfg.timeline().exists():
                 continue
             save_edition(cfg, out)
-        print(f'saved {investigation}')
+        print(f'saved {package}')
 
 
 def same(a: Any, b: Any, path: str, out: list[str]) -> None:
@@ -143,9 +143,9 @@ def main() -> None:
         parser = argparse.ArgumentParser(description='copy every edition\'s prepared outputs')
         parser.add_argument('command')
         parser.add_argument('out', type=Path)
-        parser.add_argument('--investigation', action='append', default=[])
+        parser.add_argument('--package', action='append', default=[])
         args = parser.parse_args()
-        save(args.out, args.investigation)
+        save(args.out, args.package)
         return
     parser = argparse.ArgumentParser(description=(__doc__ or '').split('\n\n')[0])
     parser.add_argument('old', type=Path)

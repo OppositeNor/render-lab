@@ -16,7 +16,7 @@
 知识图谱在 `packages/render_lab/knowledge.toml`，每项研究的章节与观众在它自己的 `knowledge.toml`，方法见 `knowledge-graph` 技能：
 
 ```bash
-cargo run --release -- --investigation godot/sdfgi knowledge         # 检查知识图谱，并按章节列出观众的划分
+cargo run --release -- --package godot_sdfgi knowledge         # 检查知识图谱，并按章节列出观众的划分
 ```
 
 ## 公式

@@ -80,21 +80,20 @@ def read_narration(package: Path) -> Narration | None:
 
 
 def editions(narration: Narration) -> list[tuple[str, str]]:
-    """The investigation and language of each edition of the narrated package's video (video/video.json), English
-    first."""
+    """The narrated package and the language of each edition of its video (video/video.json), English first."""
     spec = json.loads((ROOT / 'packages' / narration.narrates / 'video' / 'video.json').read_text())
-    return [(spec['investigation'], lang) for lang in ['en', *spec.get('translations', {})]]
+    return [(narration.narrates, lang) for lang in ['en', *spec.get('translations', {})]]
 
 
 def build_narration(narrations: list[Narration]) -> None:
     """Builds each edition's narration and timeline (tools/video without `--video`, from its audio cache), one
     after another."""
     for narration in narrations:
-        for investigation, lang in editions(narration):
-            print(f'== {investigation} ({lang})', flush=True)
-            command = [sys.executable, str(ROOT / 'tools/video/build.py'), '--investigation', investigation, '--lang', lang]
+        for package, lang in editions(narration):
+            print(f'== {package} ({lang})', flush=True)
+            command = [sys.executable, str(ROOT / 'tools/video/build.py'), '--package', package, '--lang', lang]
             if subprocess.run(command, cwd=ROOT).returncode != 0:
-                raise SystemExit(f'the narration of {investigation} ({lang}) did not build')
+                raise SystemExit(f'the narration of {package} ({lang}) did not build')
 
 
 def digest(path: Path) -> str:

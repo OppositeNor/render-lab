@@ -50,4 +50,4 @@ for model in MODELS.values():
     print(snapshot_download(model['repository'], revision=model['revision']))
 PY
 fi
-printf 'Video environment ready. Build with: python3 tools/video/build.py --investigation ENGINE/FEATURE\n'
+printf 'Video environment ready. Build with: python3 tools/video/build.py --package PACKAGE\n'

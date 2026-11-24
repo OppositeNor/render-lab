@@ -27,10 +27,10 @@ your own that reads only the materials below, and writes its table before you ch
 **Brief it with:**
 
 - the storyboard (`video/storyboard.lam`): the sentences, by chapter, the only facts a question may rest on;
-- the outline's chapters and the topics the story teaches (`render-lab --investigation <id> knowledge`): what the
+- the outline's chapters and the topics the story teaches (`render-lab --package <name> knowledge`): what the
   viewer should now understand;
 - the demonstrations and their interactions (`story/demonstrations.md`), the values and click handlers
-  (`render-lab --investigation <id> values`, `actions`): the views a question can be asked over;
+  (`render-lab --package <name> values`, `actions`): the views a question can be asked over;
 - the rules of "What a question asks" above, the algorithm-not-configuration rule first, with the rejected example:
   "At Epic settings, how many shadow rays does it trace per pixel?" asks a setting's value; "Why does the frame's cost
   hardly grow as lights are added?" asks the mechanism.

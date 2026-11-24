@@ -37,7 +37,7 @@ class Frames(unittest.TestCase):
 @unittest.skipUnless(lamlet.BINARY.exists(), 'build the host and its public packages first')
 class Beat(unittest.TestCase):
     def test_a_real_beat_lists_its_cues_in_order_with_takeovers(self) -> None:
-        cfg = Config.load('godot/ssr', 'en')
+        cfg = Config.load('godot_ssr', 'en')
         board = load_board(cfg)
         report = explain.explain(cfg, board, preflight.normalized(board)['cues'], 'c1-adds')
         self.assertEqual(report['sentences'][0]['paragraph'], 1)

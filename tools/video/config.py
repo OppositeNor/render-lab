@@ -1,8 +1,8 @@
 """What one video build works with: the investigation's video.json, the
 edition's paths, and the tools of the local environment (tools/video/setup.sh).
 
-An investigation lists its video in its package, `packages/<package>/video/video.json`
-(the one whose `investigation` names it); its paths are relative to that file. Everything a build writes goes
+A package lists its investigation's video in `packages/<package>/video/video.json` (its `investigation` names
+the investigation); its paths are relative to that file. Everything a build writes goes
 into the package's narration package, `packages/<package>_narration/`, under its `build/` (git-ignored):
 intermediates and deliverables in `build/video/<lang>/`, and the timeline and its diagram frames in
 `build/timelines/<lang>/`, which the narration package's demos name and the lab's viewer plays.
@@ -85,29 +85,25 @@ class Config:
     lang: str
     spec: dict[str, Any]
     base: Path                       # the directory of video.json
+    name: str = ''                   # the package's name, which `--package` takes (default: base's parent's)
     listing_style: str = 'blocks'    # how the code panel draws listings: blocks or text
     prepared_root: Path | None = None  # an isolated preparation (regression captures)
 
     @staticmethod
-    def load(investigation: str, lang: str, directory: Path | None = None) -> Config:
-        """`directory`: the directory whose video/video.json to use, when it is
-        not the investigation's package in packages/."""
+    def load(package: str, lang: str, directory: Path | None = None) -> Config:
+        """The video of the package named `package`; `directory`: the directory whose video/video.json to use,
+        when it is not the package's in packages/."""
         if lang not in LANGS:
             raise SystemExit(f'unknown language {lang}; use one of {", ".join(LANGS)}')
-        if directory:
-            # A given directory names its video.json directly; otherwise exactly one package's names the investigation.
-            path = directory.resolve() / 'video' / 'video.json'
-            if not path.is_file():
-                raise SystemExit(f'{investigation}: no {path}')
-        else:
-            found = [p for p in sorted((LAB / 'packages').glob('*/video/video.json')) if json.loads(p.read_text()).get('investigation') == investigation]
-            if len(found) != 1:
-                raise SystemExit(f'{investigation}: {len(found)} packages/*/video/video.json name it, not one')
-            path = found[0]
+        path = (directory or LAB / 'packages' / package).resolve() / 'video' / 'video.json'
+        if not path.is_file():
+            raise SystemExit(f'{package}: no {path}')
         spec = json.loads(path.read_text())
-        if spec['investigation'] != investigation:
-            raise SystemExit(f'{path}: names {spec["investigation"]}, not {investigation}')
-        return Config(investigation, lang, spec, path.parent)
+        return Config(spec['investigation'], lang, spec, path.parent, package)
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            self.name = self.base.parent.name
 
     def path(self, value: str) -> Path:
         return (self.base / value).resolve()

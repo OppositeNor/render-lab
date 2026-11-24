@@ -45,7 +45,7 @@ With the local cache configured, run the unit tests and offscreen checks:
 export CARGO_HOME="$PWD/.cache/cargo"
 cargo test --release --locked --offline --workspace
 cargo run --release --locked --offline -- home --autotest /tmp/render-lab-home.json
-cargo run --release --locked --offline -- --investigation o3de/lighting selftest --report /tmp/render-lab-o3de.json
+cargo run --release --locked --offline -- --package o3de_lighting selftest --report /tmp/render-lab-o3de.json
 ```
 
 The offscreen checks need such a driver. See [Using Render Lab](docs/usage.md#commands) for more commands and snapshots.

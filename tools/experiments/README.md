@@ -5,7 +5,7 @@ experiment file rendered headless; the format is in `lab/src/experiment.rs`, and
 `lab/src/research.rs`.
 
 ```sh
-render-lab --investigation godot/voxelgi experiment godot_voxelgi.experiment/cones-and-bias --out runs/vgi
+render-lab --package godot_voxelgi experiment godot_voxelgi.experiment/cones-and-bias --out runs/vgi
 python3 tools/experiments/report.py runs/vgi           # runs/vgi/report/report.html
 python3 -m unittest tools/experiments/test_report.py
 ```

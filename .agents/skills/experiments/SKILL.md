@@ -48,8 +48,8 @@ reference, one engine setting moved, a wipe, a measurement printed).
 ## 2. As research (headless)
 
 ```sh
-render-lab --investigation godot/voxelgi experiment godot_voxelgi.experiment/cones-and-bias --dry-run   # the runs
-render-lab --investigation godot/voxelgi experiment <file.toml or package key> --out <dir>             # run it
+render-lab --package godot_voxelgi experiment godot_voxelgi.experiment/cones-and-bias --dry-run   # the runs
+render-lab --package godot_voxelgi experiment <file.toml or package key> --out <dir>             # run it
 python3 tools/experiments/report.py <dir>                                                              # <dir>/report/
 ```
 
@@ -59,7 +59,7 @@ Keep the output out of the repository (a scratch folder, or a package's git-igno
 
 ```toml
 name = "probe-rays"
-investigation = "godot/sdfgi"   # checked against --investigation
+investigation = "godot/sdfgi"   # checked against --package's investigation
 demo = "room"                   # the starting demonstration and camera
 resolution = [1280, 720]
 frames = 4                      # frames before measuring (a history converges)
@@ -173,7 +173,7 @@ repetition (a sweep's values computed, a base shared); a user's `.lam` file load
 
 ## 5. Checks, by change
 
-- **An experiment file edited or added** (a parameter, a sweep, a variant): `render-lab --investigation <id>
+- **An experiment file edited or added** (a parameter, a sweep, a variant): `render-lab --package <name>
   experiment <file or key> --dry-run` (the runs, and unknown keys fail here), then the run itself in a scratch folder
   and `tools/experiments/report.py` on it when the numbers are wanted. A shipped file is also declared in the
   package's `resources.toml` and listed by the Experiments tab (`--page viewer-experiments`).

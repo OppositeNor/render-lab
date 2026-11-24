@@ -1,7 +1,7 @@
 """Measure a story's narration for the ear: sentence length, commas, colons, and openings (reports, never fails).
 
-    python3 tools/video/lint.py --investigation godot/ssr
-    python3 tools/video/lint.py --investigation godot/ssr --lang zh-CN --json
+    python3 tools/video/lint.py --package godot_ssr
+    python3 tools/video/lint.py --package godot_ssr --lang zh-CN --json
 
 The rules it measures are new-story's spoken-sentence rules (references/storyboard.md): at most one appended phrase,
 no colons or semicolons, a formula never first, provenance said up front rather than appended, no opening participle.
@@ -174,13 +174,13 @@ def measures_of(cfg: Config, board: Json, root: Path) -> list[Measure]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=(__doc__ or '').split('\n\n')[0])
-    parser.add_argument('--investigation', required=True)
-    parser.add_argument('--investigation-dir', type=Path)
+    parser.add_argument('--package', required=True)
+    parser.add_argument('--package-dir', type=Path)
     parser.add_argument('--lang', choices=LANGS, default='en')
     parser.add_argument('--binary', type=Path, default=lamlet.BINARY)
     parser.add_argument('--json', action='store_true', help='the numbers and every sentence, measured, on stdout')
     args = parser.parse_args()
-    cfg = Config.load(args.investigation, args.lang, args.investigation_dir)
+    cfg = Config.load(args.package, args.lang, args.package_dir)
     lamlet.BINARY = args.binary.resolve()
     root = Path(__file__).resolve().parents[2]
     measures = measures_of(cfg, load_board(cfg), root)

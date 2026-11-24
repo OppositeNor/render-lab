@@ -4,7 +4,7 @@ Load this to write or revise storyboard sentences and their cues, from one cue t
 syntax (headings, cue forms, ranges, motions, the translation's form) is the `render-lab-lamlet` skill's; this file is
 what a story says and shows. Keys written here as timeline keys (`panel`, `record`, `highlight`, `run`, `delay`) are
 written in a storyboard with their vocabulary functions (`{panelValues}`, `{highlightCode "listing" {' "tag"}}`, `{run "name"}`,
-`{delay 0.4}`): `render-lab --investigation <id> story keys` lists them.
+`{delay 0.4}`): `render-lab --package <name> story keys` lists them.
 
 ## Phase 5: the storyboard, a chapter at a time
 
@@ -71,7 +71,7 @@ revising narration): map each chapter's sentences with it and fix what the map s
 - **Re-check every edited sentence** against this list, not only the one a review flagged: a fix often breaks a rule
   elsewhere.
 
-`python3 tools/video/lint.py --investigation <id> [--lang zh-CN]` measures an edition against the rules it can count
+`python3 tools/video/lint.py --package <name> [--lang zh-CN]` measures an edition against the rules it can count
 (length, commas, colons and semicolons, a formula or a participle first, provenance at the end; for zh-CN, 的 and
 length per Chinese sentence) and lists the sentences over its limits. It reports and never fails: read each listed
 sentence and decide. It cannot see a term used before its definition or a pronoun with two referents; the
@@ -147,8 +147,8 @@ after other views have come between.
 After each chapter, run `--prepare-only` and render a few stills across each animated beat:
 
 ```sh
-python3 tools/video/build.py --investigation <id> --prepare-only
-cargo run --release -- --investigation <id> render --timeline <timeline.json> \
+python3 tools/video/build.py --package <name> --prepare-only
+cargo run --release -- --package <name> render --timeline <timeline.json> \
     --snapshot A,B,C --frames A0:C1 --snapshot-dir <scratch>/stills    # A0 a little before A: blends need the frames before
 ```
 

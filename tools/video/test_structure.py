@@ -43,7 +43,7 @@ SECOND = '\n## Another {#c2 number=2 target=0}\n### Another beat {#b2 kind=3d}\n
 class Structure(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.fields = markup.Fields.of(json.loads(lamlet.lab('--investigation', 'godot/ssr', 'story', 'keys')))
+        cls.fields = markup.Fields.of(json.loads(lamlet.lab('--package', 'godot_ssr', 'story', 'keys')))
 
     def load(self, text: str, translation: bool = False) -> Json:
         with tempfile.TemporaryDirectory() as directory:
@@ -203,14 +203,14 @@ class Structure(unittest.TestCase):
 
     def test_caption_width_checks_the_text_before_audio(self) -> None:
         board = self.load(STORY.replace('fps=30', 'fps=30 captionWidth=4'))
-        cfg = Config.load('godot/ssr', 'en')
+        cfg = Config.load('godot_ssr', 'en')
         with self.assertRaises(DiagnosticError) as caught:
             storyboard.validate(cfg, board, {'entries': {}})
         self.assertEqual(caught.exception.diagnostic['code'], 'story.caption.width')
         self.assertEqual(caught.exception.diagnostic['line'], 6)
         translated = self.load(TRANSLATION.replace('locale=zh-CN', 'locale=zh-CN captionWidth=3').replace('正文。', 'Reflection。'), True)
         board = zh.localize(self.load(STORY), translated)
-        cfg = Config.load('godot/ssr', 'zh-CN')
+        cfg = Config.load('godot_ssr', 'zh-CN')
         with self.assertRaises(DiagnosticError) as caught:
             storyboard.validate(cfg, board, {'entries': {}})
         self.assertEqual(caught.exception.diagnostic['code'], 'story.caption.width')
@@ -266,20 +266,20 @@ class Structure(unittest.TestCase):
                     zh.localize(english, self.load(text, True))
 
     def config(self, root: Path, text: str) -> Config:
-        cfg = Config.load('godot/ssr', 'en')
+        cfg = Config.load('godot_ssr', 'en')
         directory = root / 'fixture' / 'video'
         directory.mkdir(parents=True)
         (directory / 'story.lam').write_text(text)
         spec = {**cfg.spec, 'storyboard': 'story.lam', 'sourceIndex': str(cfg.source_index)}
         (directory / 'video.json').write_text(json.dumps(spec))
-        return Config.load(cfg.investigation, 'en', directory.parent)
+        return Config.load(cfg.name, 'en', directory.parent)
 
     def test_json_diagnostics_survive_python_optimization(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             cfg = self.config(Path(directory), STORY + SECOND.replace('#c2 ', '#c1 '))
             for optimize in ([], ['-O']):
                 result = subprocess.run([sys.executable, *optimize, str(LAB / 'tools/video/check.py'),
-                                         '--investigation', cfg.investigation, '--investigation-dir', str(cfg.package), '--json'],
+                                         '--package', cfg.name, '--package-dir', str(cfg.package), '--json'],
                                         text=True, capture_output=True)
                 self.assertEqual(result.returncode, 1, result.stderr)
                 diagnostic = json.loads(result.stdout)['diagnostics'][0]
@@ -293,7 +293,7 @@ class Structure(unittest.TestCase):
                      STORY.replace('fps=30', 'fps=30 captionWidth=4')):
             with self.subTest(text=text), tempfile.TemporaryDirectory() as directory:
                 cfg = self.config(Path(directory), text)
-                with mock.patch.object(sys, 'argv', ['build.py', '--investigation', cfg.investigation, '--binary', str(lamlet.BINARY), '--prepare-only', '--prepare-dir', str(Path(directory) / 'out')]), \
+                with mock.patch.object(sys, 'argv', ['build.py', '--package', cfg.name, '--binary', str(lamlet.BINARY), '--prepare-only', '--prepare-dir', str(Path(directory) / 'out')]), \
                         mock.patch.object(build, 'reexec_in_environment'), \
                         mock.patch.object(build.Config, 'load', return_value=cfg), \
                         mock.patch.object(narration, 'select_device') as device, \

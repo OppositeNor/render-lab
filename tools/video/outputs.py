@@ -144,7 +144,7 @@ def cargo_build(cfg: Config) -> Path:
 
 def lab(binary: Path, cfg: Config, *args: Any) -> list[Any]:
     """A render-lab command line for this investigation."""
-    return [binary, '--investigation', cfg.investigation, '--listing-style', cfg.listing_style, *args]
+    return [binary, '--package', cfg.name, '--listing-style', cfg.listing_style, *args]
 
 
 def nvenc_works(ffmpeg: Path) -> bool:

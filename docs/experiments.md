@@ -39,7 +39,7 @@ The same file runs headless as a research experiment:
 [`tools/experiments`](../tools/experiments/README.md) turns the directory into tables, plots, and an image grid:
 
 ```bash
-cargo run --release -- --investigation godot/voxelgi experiment godot_voxelgi.experiment/cones-and-bias --out runs/vgi
+cargo run --release -- --package godot_voxelgi experiment godot_voxelgi.experiment/cones-and-bias --out runs/vgi
 python3 tools/experiments/report.py runs/vgi        # runs/vgi/report/report.html
 ```
 

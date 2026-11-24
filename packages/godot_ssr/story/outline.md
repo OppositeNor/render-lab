@@ -59,7 +59,7 @@ profile godot_sdfgi uses, minus what this part now teaches for the parts after i
 | `rt-reflection-probes`, `rt-split-sum` | level: recalled in a sentence each (c7-before: what SSR falls back to; c7-brdf: the scale applied after it) | | | |
 
 Taught topics: 505 s of the 965 s budget. `rt-tonemapping` is not needed: the tone compression of chapter 5 is
-explained in place, as a filter trick, not as tone mapping. Check with `render-lab --investigation godot/ssr
+explained in place, as a filter trick, not as tone mapping. Check with `render-lab --package godot_ssr
 knowledge --known …` once the package exists.
 
 ## Chapter 1 | Where SSR runs | 130 s

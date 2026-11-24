@@ -78,7 +78,7 @@ Inputs in `packages/<package>/video/` (tools/video finds the `video.json` whose 
   simplifications). Copy O3DE's and adapt it.
 - **`storyboard.lam`** and **`storyboard.zh-CN.lam`**: Lamlet presentations, their headings, cues, ranges, motions,
   formulas, and the translation's form in the `render-lab-lamlet` skill; the cue vocabulary from `render-lab
-  --investigation <id> story keys`. Groups the storyboard repeats go in the package's story library, `video/story.lam`.
+  --package <name> story keys`. Groups the storyboard repeats go in the package's story library, `video/story.lam`.
 - **`diagrams/*.toml`**: diagrams for `diagram=` beats, boxes and edges whose text is keys of the package's text
   (`tools/video/diagrams.py` has the format; the lab draws them, `lab/src/diagram.rs`; `focus` lights boxes or rows).
   The frame's own map is the frame graph's scene (a beat's `graph=frame`, the package's `graphs/frame.toml`; the
@@ -104,10 +104,10 @@ Build (one GPU job at a time; the full render runs in the background):
 
 ```sh
 bash tools/video/setup.sh --gpu                                                   # once
-python3 tools/video/build.py --investigation <engine>/<feature>                   # narration, timeline, captions, documents (what the viewer plays)
-python3 tools/video/build.py --investigation <engine>/<feature> --snapshots-only  # one still per beat: look at them
-python3 tools/video/build.py --investigation <engine>/<feature> --video           # the full video and its verification
-python3 tools/video/build.py --investigation <engine>/<feature> --lang zh-CN      # after the English edition
+python3 tools/video/build.py --package <name>                   # narration, timeline, captions, documents (what the viewer plays)
+python3 tools/video/build.py --package <name> --snapshots-only  # one still per beat: look at them
+python3 tools/video/build.py --package <name> --video           # the full video and its verification
+python3 tools/video/build.py --package <name> --lang zh-CN      # after the English edition
 ```
 
 Render a few stills across a beat (`render --timeline … --snapshot A,B,C --snapshot-dir D`) to see an animation's

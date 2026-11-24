@@ -83,8 +83,8 @@ selftest reproduces F1, F2, F4, F26, and F27); all of them are listed with their
 ## Verify
 
 ```sh
-cargo run --release -- --investigation godot/sdfgi selftest --report /tmp/sdfgi.json
+cargo run --release -- --package godot_sdfgi selftest --report /tmp/sdfgi.json
 python3 packages/godot_sdfgi/src/godot/sdfgi/source_index.py
-python3 tools/video/build.py --investigation godot/sdfgi --snapshots-only
-python3 tools/video/build.py --investigation godot/sdfgi
+python3 tools/video/build.py --package godot_sdfgi --snapshots-only
+python3 tools/video/build.py --package godot_sdfgi
 ```

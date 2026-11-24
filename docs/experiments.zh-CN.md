@@ -31,7 +31,7 @@
 [`tools/experiments`](../tools/experiments/README.md) 把该目录整理成表格、图表和图像网格：
 
 ```bash
-cargo run --release -- --investigation godot/voxelgi experiment godot_voxelgi.experiment/cones-and-bias --out runs/vgi
+cargo run --release -- --package godot_voxelgi experiment godot_voxelgi.experiment/cones-and-bias --out runs/vgi
 python3 tools/experiments/report.py runs/vgi        # runs/vgi/report/report.html
 ```
 

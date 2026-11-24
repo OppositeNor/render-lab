@@ -10,7 +10,7 @@
 //! | `rl::point key` | an annotation point the investigation publishes |
 //! | `rl::formula tex` | the LaTeX typesets within the lab's limits (`crate::formula::check`) |
 //!
-//! They need an investigation (`render-lab --investigation <id> lamlet …`); without one, each fails with a
+//! They need an investigation (`render-lab --package <name> lamlet …`); without one, each fails with a
 //! message saying so.
 
 use crate::investigation::Investigation;
@@ -24,7 +24,7 @@ fn chosen(
     investigation: Option<&'static dyn Investigation>,
     native: &str,
 ) -> Result<&'static dyn Investigation, String> {
-    investigation.ok_or_else(|| format!("rl::{native} checks against an investigation: run `render-lab --investigation <id> lamlet …`"))
+    investigation.ok_or_else(|| format!("rl::{native} checks against an investigation: run `render-lab --package <name> lamlet …`"))
 }
 
 /// Registers the natives on `engine`, checking against `investigation`.

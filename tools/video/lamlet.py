@@ -36,14 +36,14 @@ def lab(*args: str) -> str:
     return proc.stdout
 
 
-def ir(path: Path, packages: list[tuple[str, Path]], investigation: str | None = None, keys: Path | None = None) -> Any:
+def ir(path: Path, packages: list[tuple[str, Path]], package: str | None = None, keys: Path | None = None) -> Any:
     """A presentation's document IR (`render-lab lamlet ir`, lamlet-doc's JSON): its prose read as CommonMark, its
     regions evaluated, with these packages to import besides std, content, present, and render_lab. The lab's
-    natives (`rl`: callouts, text keys, points, formulas) check the names it gives against `investigation`. With
+    natives (`rl`: callouts, text keys, points, formulas) check the names it gives against the investigation of `package` (a package's name). With
     `keys` (a key list, `render-lab story keys`), every cue attribute is checked against them, each problem
     reported, and the headings' attributes are read by them."""
-    given = [a for name, p in packages for a in ('--package', f'{name}={p}')]
-    chosen = ['--investigation', investigation] if investigation else []
+    given = [a for name, p in packages for a in ('--import', f'{name}={p}')]
+    chosen = ['--package', package] if package else []
     checked = ['--keys', str(keys)] if keys else []
     return json.loads(lab(*chosen, 'lamlet', 'ir', str(path), *given, *checked))
 
@@ -57,11 +57,11 @@ def heading_keys(translation: bool = False) -> Path:
     return path
 
 
-def vocabulary(investigation: str, name: str, out: Path) -> Path:
-    """The investigation's cue vocabulary, the package `name`: its story keys (`render-lab story keys`) as
+def vocabulary(package: str, name: str, out: Path) -> Path:
+    """The cue vocabulary of the investigation of `package` (a package's name), the package `name`: its story keys (`render-lab story keys`) as
     lamlet-present's typed functions (`render-lab lamlet vocab`), written to `out`."""
     out.parent.mkdir(parents=True, exist_ok=True)
     keys = out.with_suffix('.keys.json')
-    keys.write_text(lab('--investigation', investigation, 'story', 'keys'))
+    keys.write_text(lab('--package', package, 'story', 'keys'))
     lab('lamlet', 'vocab', name, str(keys), '-o', str(out))
     return out

@@ -58,13 +58,13 @@ def load_board(cfg: Config) -> Json:
     import zh
     name = cfg.package.name
     # Generate the cue vocabulary from the investigation, then read which of its keys are fields.
-    vocabulary = lamlet.vocabulary(cfg.investigation, name, cfg.package / 'build' / f'{name}.lam')
+    vocabulary = lamlet.vocabulary(cfg.name, name, cfg.package / 'build' / f'{name}.lam')
     keys = vocabulary.with_suffix('.keys.json')
     fields = markup.Fields.of(json.loads(keys.read_text()))
     packages = [(name, vocabulary)]
     if cfg.story_library.exists():
         packages.append((f'{name}_story', cfg.story_library))
-    board = presentation.load(cfg.storyboard, packages, fields, cfg.investigation, keys)
+    board = presentation.load(cfg.storyboard, packages, fields, cfg.name, keys)
     if cfg.zh():
         board = zh.localize(board, presentation.load_translation(cfg.translation))
     return board

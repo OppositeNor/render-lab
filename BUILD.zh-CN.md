@@ -43,7 +43,7 @@ cargo build --release --locked --offline --manifest-path packages/NAME/Cargo.tom
 export CARGO_HOME="$PWD/.cache/cargo"
 cargo test --release --locked --offline --workspace
 cargo run --release --locked --offline -- home --autotest /tmp/render-lab-home.json
-cargo run --release --locked --offline -- --investigation o3de/lighting selftest --report /tmp/render-lab-o3de.json
+cargo run --release --locked --offline -- --package o3de_lighting selftest --report /tmp/render-lab-o3de.json
 ```
 
 离屏检查需要这样的驱动。更多命令与快照入口见[使用 Render Lab](docs/usage.zh-CN.md#命令)。

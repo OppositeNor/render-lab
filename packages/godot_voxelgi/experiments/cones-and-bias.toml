@@ -2,7 +2,7 @@
 # The reference is the High quality setting (6 cones); the runs sweep the
 # node's bias at the default Low quality (4 cones), then ablate the second
 # bounce and the cone count. Run it with:
-#   render-lab --investigation godot/voxelgi experiment godot_voxelgi.experiment/cones-and-bias --out <dir>
+#   render-lab --package godot_voxelgi experiment godot_voxelgi.experiment/cones-and-bias --out <dir>
 name = "cones-and-bias"
 description = "VoxelGI's bias swept at 4 cones, against 6 cones; the second bounce ablated."
 investigation = "godot/voxelgi"

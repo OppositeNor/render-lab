@@ -5,7 +5,7 @@ SSAO's sampling radius swept, with and without its blur, measured against SSAO o
 (lab/src/experiment.rs has the format; the lab reads the binding `ssao` as that TOML document, lab/src/script/data.rs).
 Run it with:
 
-    render-lab --investigation o3de/lighting experiment o3de_lighting.experiment/ssao --out <dir>
+    render-lab --package o3de_lighting experiment o3de_lighting.experiment/ssao --out <dir>
 
 $[Import* std]
 

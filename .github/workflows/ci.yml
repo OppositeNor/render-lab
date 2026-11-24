@@ -50,11 +50,11 @@ jobs:
           $lab packages
           $lab i18n --check
           for ftl in packages/*/text/*.ftl; do $lab formulas --check "$ftl"; done
-          for investigation in $($lab --list | awk '{print $1}'); do
-            echo "::group::$investigation"
-            $lab --investigation "$investigation" script check
-            $lab --investigation "$investigation" knowledge
-            $lab --investigation "$investigation" graph
+          for package in $($lab --list | awk '{print $1}'); do
+            echo "::group::$package"
+            $lab --package "$package" script check
+            $lab --package "$package" knowledge
+            $lab --package "$package" graph
             echo "::endgroup::"
           done
       # Some read the storyboards through the built lab.
@@ -94,9 +94,9 @@ jobs:
           $lab cook
           $lab packages
           $lab i18n --check
-          for investigation in $($lab --list | awk '{print $1}'); do
-            $lab --investigation "$investigation" script check
-            $lab --investigation "$investigation" graph
+          for package in $($lab --list | awk '{print $1}'); do
+            $lab --package "$package" script check
+            $lab --package "$package" graph
           done
       - name: Unit tests
         run: cargo test --release --locked --workspace
@@ -125,10 +125,10 @@ jobs:
           $lab cook
           $lab packages
           $lab i18n --check
-          for investigation in $($lab --list | awk '{print $1}'); do
-            $lab --investigation "$investigation" script check
-            $lab --investigation "$investigation" knowledge
-            $lab --investigation "$investigation" graph
+          for package in $($lab --list | awk '{print $1}'); do
+            $lab --package "$package" script check
+            $lab --package "$package" knowledge
+            $lab --package "$package" graph
           done
       # Direct3D 12 on Microsoft's software renderer (WARP): the runner has no GPU. Before `cargo test`, whose build
       # of the lab's dylib can replace the one the binary links. Not yet proven: it reports, but does not block.
@@ -141,7 +141,7 @@ jobs:
           mkdir -p out
           $lab home --snapshot out/home.png
           $lab home --snapshot out/viewer.png --page viewer
-          $lab --investigation o3de/lighting selftest --report out/o3de.json
+          $lab --package o3de_lighting selftest --report out/o3de.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -170,7 +170,7 @@ jobs:
           $lab home --snapshot out/home.png
           $lab home --snapshot out/viewer.png --page viewer
           $lab home --autotest out/home.json
-          $lab --investigation o3de/lighting selftest --report out/o3de.json
+          $lab --package o3de_lighting selftest --report out/o3de.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

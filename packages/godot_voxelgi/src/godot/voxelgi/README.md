@@ -131,8 +131,8 @@ Read from the code (and, where marked, measured on the lab's port):
 ## Verify
 
 ```sh
-cargo run --release -- --investigation godot/voxelgi selftest --report /tmp/voxelgi.json
+cargo run --release -- --package godot_voxelgi selftest --report /tmp/voxelgi.json
 python3 packages/godot_voxelgi/src/godot/voxelgi/source_index.py
-python3 tools/video/build.py --investigation godot/voxelgi --snapshots-only
-python3 tools/video/build.py --investigation godot/voxelgi
+python3 tools/video/build.py --package godot_voxelgi --snapshots-only
+python3 tools/video/build.py --package godot_voxelgi
 ```

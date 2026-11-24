@@ -150,7 +150,7 @@ Before the storyboard, build what it stands on (`new-investigation`, procedure s
 - a step parameter for every intermediate step the outline shows, each defaulting to "no change", with a slider in the
   dock.
 
-Done when the selftest passes with the new comparisons and `render-lab --investigation <id> values` lists every step
+Done when the selftest passes with the new comparisons and `render-lab --package <name> values` lists every step
 parameter.
 
 ### Phase 8: Translate and build

@@ -87,7 +87,7 @@ selftest check).
 
 Each view is built with the base (Phase 4 provides the passes the views read), then checked before the storyboard:
 offscreen stills of every view (`home --snapshot --page viewer:<demo>` and `viewer-inspect:<node>.<resource>`),
-looked at; the pick round-trip in the selftest; every value above in `render-lab --investigation godot/ssr
+looked at; the pick round-trip in the selftest; every value above in `render-lab --package godot_ssr
 values`. The demonstrations (`demos/*.toml`):
 
 | Demo | Chapter | Shows |

@@ -8,7 +8,7 @@ follows, and what a rewrite may add.
 ## 1. Read the narration as it is heard
 
 Review the spoken text, not the source: cues, ranges, and formulas hide the sentence. For one beat,
-`python3 tools/video/check.py --investigation <id> --explain <beat>` lists its sentences. For a whole story, write
+`python3 tools/video/check.py --package <name> --explain <beat>` lists its sentences. For a whole story, write
 the narration to a file in the scratchpad, one numbered sentence per line under its beat, with its storyboard line:
 
 ```python
@@ -89,7 +89,7 @@ moves timing, so:
 - Change a renamed term everywhere in both editions (once "the probe cube" is the English term, the Chinese edition says
   探针立方体 in every paragraph that means it), and a renamed heading in both.
 
-`python3 tools/video/check.py --investigation <id> --lang zh-CN` fails when a beat's paragraph count differs from the
+`python3 tools/video/check.py --package <name> --lang zh-CN` fails when a beat's paragraph count differs from the
 English one, and names the beat.
 
 ## 5. What a rewrite may add
@@ -114,7 +114,7 @@ After the edits, for each changed story:
 
 1. `python3 tools/lamlet_fmt.py` (tracked files), and the local packages' storyboards by path; then `--check`.
    In zsh, pass several paths through an array (`L=(a b); … "${L[@]}"`), since a string is one word.
-2. `python3 tools/video/check.py --investigation <id>` for `en` and `zh-CN`.
-3. `python3 tools/video/build.py --investigation <id> --prepare-only`, English then `--lang zh-CN`, one at a time.
+2. `python3 tools/video/check.py --package <name>` for `en` and `zh-CN`.
+3. `python3 tools/video/build.py --package <name> --prepare-only`, English then `--lang zh-CN`, one at a time.
 4. The stills of the changed beats (`references/storyboard.md`), looked at.
 5. A new map of every edited sentence and its neighbours: a split often leaves a pronoun pointing at the wrong half.

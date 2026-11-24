@@ -5,7 +5,7 @@
 # screen pass alone: it should not change with the ray count, which makes it
 # a control for the GPU's timing noise. The warm-up lets the GPU's clocks
 # come back up after each CPU build. Run it with:
-#   render-lab --investigation godot/sdfgi experiment godot_sdfgi.experiment/probe-rays --out <dir>
+#   render-lab --package godot_sdfgi experiment godot_sdfgi.experiment/probe-rays --out <dir>
 name = "probe-rays"
 description = "SDFGI's probe_ray_count swept against 128 rays; a short history and no sky ablated."
 investigation = "godot/sdfgi"

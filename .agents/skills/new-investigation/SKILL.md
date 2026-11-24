@@ -149,7 +149,7 @@ snapshot of what it changed (and the public build when it touched a published fi
 
 ```sh
 cargo build --release --locked --offline                                    # no warnings
-cargo run --release -- --investigation <engine>/<feature> selftest --report <scratch>/selftest.json [--timeline …]
+cargo run --release -- --package <name> selftest --report <scratch>/selftest.json [--timeline …]
 cargo run --release -- home --autotest <scratch>/home.json                  # the homepage, offscreen
 cargo run --release -- home --snapshot <scratch>/home.png                   # look at it
 ```

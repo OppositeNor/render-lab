@@ -102,7 +102,7 @@ Lamlet a scene needs".
    stage each, its mechanism shown working, `new-story`), the figure's earlier stages kept in place; the frame's
    moves as `frameKey`s. Derive positions from the figures (a copy flies from the mob it copies, a table goes to the
    corner its box fits), never typed again.
-5. **The check**: `render-lab --investigation <id> script math` until it is clean (below), then look at stills.
+5. **The check**: `render-lab --package <name> script math` until it is clean (below), then look at stills.
 
 Choosing a figure: a **table** for what each case holds; **bars** to compare a few values; an **area square** for
 the chances of combined draws; a **number line** for estimates, their spread, and their mean; a **plot** for a
@@ -128,8 +128,8 @@ function.
 
 | Change | Check |
 |---|---|
-| A scene | `render-lab --investigation <id> script check`; `render-lab --investigation <id> script math --scene <name>` clean (its demonstration's Play sampled 60 times a second: pops, double draws, dead steps, small text, overlaps (and a fill drawn over a label), text under 4.5:1 contrast with what is under it in any installed theme, mobs outside the frame, errors; `--at <seconds>` prints what it draws there); the demonstration's canvas at several stages (`render-lab --investigation <id> home --snapshot <png> --page viewer:<demo>`, and `--page "viewer-animation:<demo>@<clip>=<seconds>"` to scrub its clip to each step), looked at |
-| A math beat | both languages' `--prepare-only`; `render-lab --investigation <id> script math --scene <name> --timeline packages/<package>_narration/build/timelines/en/timeline.json` clean (every frame of the beats, also `fast`: a block of the picture fading by half within 0.1 s; `--at <frame>`); `python3 tools/video/build.py --investigation <id> --preview <beat> --cached-audio-only`, every still looked at; the beat's frames rendered with `--report` (`render-lab --investigation <id> render --timeline … --snapshot … --report …`): smallest text at least 24 px, no label issues |
+| A scene | `render-lab --package <name> script check`; `render-lab --package <name> script math --scene <name>` clean (its demonstration's Play sampled 60 times a second: pops, double draws, dead steps, small text, overlaps (and a fill drawn over a label), text under 4.5:1 contrast with what is under it in any installed theme, mobs outside the frame, errors; `--at <seconds>` prints what it draws there); the demonstration's canvas at several stages (`render-lab --package <name> home --snapshot <png> --page viewer:<demo>`, and `--page "viewer-animation:<demo>@<clip>=<seconds>"` to scrub its clip to each step), looked at |
+| A math beat | both languages' `--prepare-only`; `render-lab --package <name> script math --scene <name> --timeline packages/<package>_narration/build/timelines/en/timeline.json` clean (every frame of the beats, also `fast`: a block of the picture fading by half within 0.1 s; `--at <frame>`); `python3 tools/video/build.py --package <name> --preview <beat> --cached-audio-only`, every still looked at; the beat's frames rendered with `--report` (`render-lab --package <name> render --timeline … --snapshot … --report …`): smallest text at least 24 px, no label issues |
 | The library | `cargo test --release --locked --offline -p render-lab-core -- script::runtime math` (its arithmetic, layouts, and scores), every investigation's `script check` and `script math` (both modes), and their values packages unchanged (`script stubs`: a library name a value key also has drops that key's reader) |
 | The canvas (`lab/src/math/`, the `Math` hook) | `render-lab-lamlet`'s checks for the runtime library, and the frame identity check (AGENTS.md) |
 | Any `.lam` file | `python3 tools/lamlet_fmt.py --check` |

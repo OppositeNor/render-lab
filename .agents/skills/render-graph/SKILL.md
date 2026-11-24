@@ -119,9 +119,9 @@ The bindings do not change: target `i` is `2i` read, `2i + 1` written; `depth` `
 ## 3. Checking it
 
 ```sh
-cargo run --release -- --investigation <id> graph                   # nodes in order, reads and writes, resources and their lifetimes, culled nodes, engine passes
-cargo run --release -- --investigation <id> graph --json            # the same, and the problems, as JSON
-cargo run --release -- --investigation <id> graph --dot g.dot       # the graph in Graphviz's language
+cargo run --release -- --package <name> graph                   # nodes in order, reads and writes, resources and their lifetimes, culled nodes, engine passes
+cargo run --release -- --package <name> graph --json            # the same, and the problems, as JSON
+cargo run --release -- --package <name> graph --dot g.dot       # the graph in Graphviz's language
 ```
 
 It fails on a compile error (an unknown name, a read before any write, a cycle, a name listed twice), on a lint
@@ -170,8 +170,8 @@ program's buffer shows its words row by row.
 
 ```sh
 cargo run --release -- home --snapshot inspect.png --page "viewer-inspect:o3deLightCullingCS.tileData/count?range=0,8&word=3"
-cargo run --release -- --investigation godot/voxelgi home --snapshot vol.png --page "viewer-inspect:voxelgiWriteCS.voxelgiLight/color?slice=0.05&exposure=2"
-cargo run --release -- --investigation godot/sdfgi home --snapshot light.png --page "viewer-inspect:sdfgiDynamicLight.lightData/color?encoding=3&slice=0.4&index=1"
+cargo run --release -- --package godot_voxelgi home --snapshot vol.png --page "viewer-inspect:voxelgiWriteCS.voxelgiLight/color?slice=0.05&exposure=2"
+cargo run --release -- --package godot_sdfgi home --snapshot light.png --page "viewer-inspect:sdfgiDynamicLight.lightData/color?encoding=3&slice=0.4&index=1"
 ```
 
 ### Reading a resource back on the CPU (`lab::fetch`)

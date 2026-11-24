@@ -28,11 +28,17 @@ use run::*;
     about = "Illustrated investigations of game-engine features: homepage, viewer, recorder, and verification"
 )]
 struct Cli {
-    /// The investigation, as engine/feature (default: the first one; `--list` lists them).
-    #[arg(long, global = true)]
-    investigation: Option<String>,
-    /// List the installed investigations (the values `--investigation` takes),
-    /// with their titles and packages, and exit.
+    /// The package whose investigation to use, by name (`godot_voxelgi`; default: the first installed one;
+    /// `--list` lists them). A package that holds several takes `<package>:<engine>/<feature>`.
+    #[arg(
+        long = "package",
+        id = "chosen_package",
+        value_name = "PACKAGE",
+        global = true
+    )]
+    package: Option<String>,
+    /// List the packages that hold investigations (the values `--package` takes), with each
+    /// investigation's path and title, and exit.
     #[arg(long)]
     list: bool,
     /// The lab's root, where its packages are (default:
@@ -340,7 +346,7 @@ enum LamletCommand {
     /// The document's IR as JSON, its prose read as CommonMark (`lamlet build --to ir --prose commonmark`).
     Ir {
         file: PathBuf,
-        #[arg(long = "package", value_name = "NAME=PATH", value_parser = parse_package)]
+        #[arg(long = "import", value_name = "NAME=PATH", value_parser = parse_import)]
         packages: Vec<(String, PathBuf)>,
         /// Check every cue attribute against these keys, and read every heading's attributes by them (lamlet-present's
         /// key list, `--keys` on `lamlet present`'s commands; `render-lab story keys` writes the lab's).
@@ -354,7 +360,7 @@ enum LamletCommand {
     Vocab {
         name: String,
         keys: PathBuf,
-        #[arg(long = "package", value_name = "NAME=PATH", value_parser = parse_package)]
+        #[arg(long = "import", value_name = "NAME=PATH", value_parser = parse_import)]
         packages: Vec<(String, PathBuf)>,
         #[arg(short, long)]
         out: Option<PathBuf>,
@@ -369,12 +375,12 @@ enum LamletCommand {
     },
 }
 
-fn parse_package(value: &str) -> Result<(String, PathBuf), String> {
+fn parse_import(value: &str) -> Result<(String, PathBuf), String> {
     let (name, path) = value.split_once('=').ok_or("expected NAME=PATH")?;
     Ok((name.to_string(), PathBuf::from(path)))
 }
 
-/// `render-lab [--investigation <id>] lamlet …`; an error is a diagnostic (or a file's error) for stderr. The lab's
+/// `render-lab [--package <name>] lamlet …`; an error is a diagnostic (or a file's error) for stderr. The lab's
 /// natives (src/script/natives.rs) check names against `investigation`, the one given.
 fn lamlet(
     command: LamletCommand,
@@ -440,7 +446,7 @@ fn lamlet(
     }
 }
 
-/// `render-lab --investigation <id> script …`.
+/// `render-lab --package <name> script …`.
 fn script(
     command: ScriptCommand,
     investigation: &'static dyn crate::investigation::Investigation,
@@ -557,19 +563,31 @@ pub fn main(app: App) -> Result<()> {
         if all.is_empty() {
             println!("no investigation is installed");
         }
-        let width = all.iter().map(|i| i.path().len()).max().unwrap_or(0);
+        let unavailable = investigations::unavailable();
+        let listed = all.iter().chain(unavailable.iter().map(|(i, _)| i));
+        let width = listed
+            .clone()
+            .map(|i| package_of(*i).len())
+            .max()
+            .unwrap_or(0);
+        let paths = listed.map(|i| i.path().len()).max().unwrap_or(0);
         for i in all {
             println!(
-                "{:width$}  {} ({}, package {})",
+                "{:width$}  {:paths$}  {} ({})",
+                package_of(*i),
                 i.path(),
                 i.title(),
-                i.engine().name,
-                i.package().unwrap_or("render_lab")
+                i.engine().name
             );
         }
-        for (i, why) in investigations::unavailable() {
+        for (i, why) in &unavailable {
             // An investigation whose package requires what this machine lacks: listed, with why it cannot run.
-            println!("{:width$}  {} (unavailable: {why})", i.path(), i.title());
+            println!(
+                "{:width$}  {:paths$}  {} (unavailable: {why})",
+                package_of(*i),
+                i.path(),
+                i.title()
+            );
         }
         return Ok(());
     }
@@ -583,7 +601,7 @@ pub fn main(app: App) -> Result<()> {
     });
     // Lamlet runs before an investigation is chosen, unless one is given for its natives to check against.
     let command = match command {
-        Command::Lamlet(command) if cli.investigation.is_none() => {
+        Command::Lamlet(command) if cli.package.is_none() => {
             if let Err(e) = lamlet(command, None) {
                 eprintln!("{}", e.trim_end());
                 std::process::exit(1);
@@ -592,7 +610,7 @@ pub fn main(app: App) -> Result<()> {
         }
         command => command,
     };
-    let chosen = choose(cli.investigation.as_deref(), command.draws())?;
+    let chosen = choose(cli.package.as_deref(), command.draws())?;
     run(command, chosen, &manifest_dir)
 }
 
@@ -610,33 +628,66 @@ impl Command {
     }
 }
 
-/// The investigation `path` names (the first installed when None), made the current one; one that cannot run
-/// here only for a command that does not `draw`.
-fn choose(path: Option<&str>, draw: bool) -> Result<&'static dyn Investigation> {
-    let known: Vec<String> = investigations::all().iter().map(|i| i.path()).collect();
-    let path = path
-        .map(str::to_string)
-        .or_else(|| known.first().cloned())
-        .context("no investigation is installed")?;
+/// The package an investigation belongs to (render_lab for one without its own).
+fn package_of(i: &dyn Investigation) -> &'static str {
+    i.package().unwrap_or("render_lab")
+}
+
+/// The investigation the package `name` holds (`<package>:<engine>/<feature>` when it holds several; the first
+/// installed when None), made the current one; one that cannot run here only for a command that does not `draw`.
+fn choose(name: Option<&str>, draw: bool) -> Result<&'static dyn Investigation> {
+    let unavailable = investigations::unavailable();
+    let every: Vec<&'static dyn Investigation> = investigations::all()
+        .iter()
+        .copied()
+        .chain(unavailable.iter().map(|(i, _)| *i))
+        .collect();
+    let chosen = match name {
+        None => *investigations::all()
+            .first()
+            .context("no investigation is installed")?,
+        Some(name) => held(name, &every)?,
+    };
     // One that cannot run here says why for a command that draws, and is checked for one that does not.
-    if let Some((i, why)) = investigations::unavailable()
-        .into_iter()
-        .find(|(i, _)| i.path() == path)
-    {
-        if draw {
-            anyhow::bail!("investigation `{path}` cannot run on this machine: it {why}");
-        }
-        investigation::set(i);
-        return Ok(i);
+    if draw && let Some((_, why)) = unavailable.iter().find(|(i, _)| i.path() == chosen.path()) {
+        bail!(
+            "package `{}` cannot run on this machine: it {why}",
+            package_of(chosen)
+        );
     }
-    let chosen = investigations::find(&path).with_context(|| {
-        format!(
-            "unknown investigation `{path}`; known: {} (render-lab --list)",
-            known.join(", ")
-        )
-    })?;
     investigation::set(chosen);
     Ok(chosen)
+}
+
+/// The one investigation of `every` that `name` (a package, or `<package>:<engine>/<feature>`) names.
+fn held(name: &str, every: &[&'static dyn Investigation]) -> Result<&'static dyn Investigation> {
+    let (package, path) = name
+        .split_once(':')
+        .map_or((name, None), |(p, f)| (p, Some(f)));
+    let found: Vec<_> = every
+        .iter()
+        .copied()
+        .filter(|i| package_of(*i) == package && path.is_none_or(|p| i.path() == p))
+        .collect();
+    match found[..] {
+        [one] => Ok(one),
+        [] => {
+            let mut known: Vec<&str> = every.iter().map(|i| package_of(*i)).collect();
+            known.dedup();
+            bail!(
+                "no investigation in package `{name}`; known: {} (render-lab --list)",
+                known.join(", ")
+            )
+        }
+        _ => bail!(
+            "package `{package}` holds several investigations; name one: {}",
+            found
+                .iter()
+                .map(|i| format!("{package}:{}", i.path()))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+    }
 }
 
 /// The `graph` command: print the frame's graph; fail if its declarations

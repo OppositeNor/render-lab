@@ -64,9 +64,9 @@ claim carries over from another version or from how similar systems usually work
 The checks are `new-story`'s for the depth of the change (its "Choose the depth" and Phase 8), with the engine's:
 
 ```sh
-cargo run --release -- --investigation <engine>/<feature> selftest --report <scratch>/selftest.json --timeline <timeline.json>
-python3 tools/video/build.py --investigation <engine>/<feature> --prepare-only
-python3 tools/video/build.py --investigation <engine>/<feature> --snapshots-only   # the stills of every beat; look at them
+cargo run --release -- --package <name> selftest --report <scratch>/selftest.json --timeline <timeline.json>
+python3 tools/video/build.py --package <name> --prepare-only
+python3 tools/video/build.py --package <name> --snapshots-only   # the stills of every beat; look at them
 ```
 
 The full build's verification (`tools/video/verify.py`) compares the checkout's commit with the index's.

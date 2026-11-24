@@ -140,10 +140,10 @@ The checks are `new-story`'s for the depth of the change, with the paper's:
 
 ```sh
 python3 packages/paper_<short>/src/paper/<short>/source_index.py      # rewrite the index from the PDF (asks where it is)
-cargo run --release -- --investigation paper/<short> selftest --report <scratch>/selftest.json
-cargo run --release -- --investigation paper/<short> experiment paper_<short>.experiment/<name> --dry-run
-python3 tools/video/build.py --investigation paper/<short> --prepare-only
-python3 tools/video/build.py --investigation paper/<short> --snapshots-only   # the stills of every beat; look at them
+cargo run --release -- --package paper_<short> selftest --report <scratch>/selftest.json
+cargo run --release -- --package paper_<short> experiment paper_<short>.experiment/<name> --dry-run
+python3 tools/video/build.py --package paper_<short> --prepare-only
+python3 tools/video/build.py --package paper_<short> --snapshots-only   # the stills of every beat; look at them
 ```
 
 The full build's verification (`tools/video/verify.py`) checks the PDF's SHA-256 against the index's `paper.sha256`,

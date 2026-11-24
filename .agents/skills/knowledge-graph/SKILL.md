@@ -104,12 +104,12 @@ The procedure:
    topic at a time, only where a chapter or the story's length does not fit.
 2. Choose K, the topics that viewer knows (only topics some chapter needs: the check names the others), and write
    the audience in one sentence (`profile`).
-3. `render-lab --investigation <id> knowledge --known <k1,k2,…> --levels` prints the level, the carries, what to
+3. `render-lab --package <name> knowledge --known <k1,k2,…> --levels` prints the level, the carries, what to
    teach (per chapter too), and the nearby audiences (one level topic added, one known topic removed) with their
    carry counts.
 4. Among audiences that fit, prefer the lower one, then the one with fewer carries; never make a chapter teach
    nothing (the check fails when a chapter needs nothing beyond the audience).
-5. Write `[audience] known`, and run `render-lab --investigation <id> knowledge` (it fails on any problem).
+5. Write `[audience] known`, and run `render-lab --package <name> knowledge` (it fails on any problem).
 
 ## What it means for the story
 
@@ -138,13 +138,13 @@ The procedure:
 From the lab's root (`CARGO_HOME=$PWD/.cache/cargo`):
 
 ```sh
-cargo run --release -- --investigation godot/sdfgi knowledge                    # check the graph and the audience; print the split
-cargo run --release -- --investigation godot/sdfgi knowledge --known rt-depth,cg-gi --levels   # try an audience; nearby ones
-cargo run --release -- --investigation godot/sdfgi home --snapshot /tmp/p.png --page viewer-prerequisites:field   # the tab and panel
-cargo run --release -- --investigation godot/sdfgi home --snapshot /tmp/s.png --page viewer-knowledge:field          # the panel zoomed onto a level topic
-cargo run --release -- --investigation godot/sdfgi home --snapshot /tmp/g.png --page viewer-knowledge-graph:field     # the graph full screen
-cargo run --release -- --investigation godot/sdfgi home --snapshot /tmp/c.png --page viewer-knowledge-compact:field   # only what its chapters need
-cargo run --release -- --investigation godot/sdfgi home --snapshot /tmp/h.png --page select-knowledge                # over the homepage
+cargo run --release -- --package godot_sdfgi knowledge                    # check the graph and the audience; print the split
+cargo run --release -- --package godot_sdfgi knowledge --known rt-depth,cg-gi --levels   # try an audience; nearby ones
+cargo run --release -- --package godot_sdfgi home --snapshot /tmp/p.png --page viewer-prerequisites:field   # the tab and panel
+cargo run --release -- --package godot_sdfgi home --snapshot /tmp/s.png --page viewer-knowledge:field          # the panel zoomed onto a level topic
+cargo run --release -- --package godot_sdfgi home --snapshot /tmp/g.png --page viewer-knowledge-graph:field     # the graph full screen
+cargo run --release -- --package godot_sdfgi home --snapshot /tmp/c.png --page viewer-knowledge-compact:field   # only what its chapters need
+cargo run --release -- --package godot_sdfgi home --snapshot /tmp/h.png --page select-knowledge                # over the homepage
 cargo test --release --locked --offline --workspace                              # knowledge::tests: the separator, the public graphs
 ```
 

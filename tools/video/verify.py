@@ -141,7 +141,7 @@ def verify(cfg: Config, env: Environment, board: Json, index: Json, timeline: Js
         check('render-lab selftest (with this timeline)', data.get('passed') is True, {'checks': [{'name': c['name'], 'passed': c['passed']} for c in data.get('checks', [])]})
     else:
         check('render-lab selftest (with this timeline)', False, {'missing': str(selftest.relative_to(LAB))})
-    layouts = json.loads(run([LAB / 'target' / 'release' / 'render-lab', '--investigation', cfg.investigation, 'layout', '--json']))
+    layouts = json.loads(run([LAB / 'target' / 'release' / 'render-lab', '--package', cfg.name, 'layout', '--json']))
     check('Rust struct layouts equal the WGSL layouts (naga)', all(c['ok'] for c in layouts['checks']), {'records': [{'record': c['record'], 'ok': c['ok']} for c in layouts['checks']]})
     passed = all(c['passed'] for c in checks)
     toolchain = {'rustc': run(['rustc', '--version']).split()[1], 'ffmpeg': run([env.ffmpeg, '-version']).split()[2], 'python': sys.version.split()[0]}

@@ -4,7 +4,7 @@
 //!
 //! The engine has `std`, `content`, `present`, the lab's natives (`rl`, natives.rs), the lab's own package
 //! `render_lab` (the resource `render_lab.script/render-lab`, its package's `language/render_lab.lam`), and any
-//! package a command names. `render-lab [--investigation <id>] lamlet ir|vocab` (src/cli.rs) are Lamlet's and
+//! package a command names. `render-lab [--package <name>] lamlet ir|vocab` (src/cli.rs) are Lamlet's and
 //! lamlet-present's operations on it; the natives check names against the investigation given. The crates are
 //! re-exported here, so a package's library uses the lab's build of them.
 
@@ -33,7 +33,7 @@ pub struct Package {
 }
 
 impl Package {
-    /// A package from a file (`--package NAME=PATH`).
+    /// A package from a file (`--import NAME=PATH`).
     pub fn read(name: &str, path: &Path) -> Result<Package, String> {
         let source =
             std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -642,10 +642,7 @@ mod tests {
             "{arrowTo {point \"probe.top\"}}",
         ] {
             let e = doc(&format!("${{cue \"key\" {{' {checked}}}}}")).unwrap_err();
-            assert!(
-                e.contains("--investigation") && e.contains("doc.lam:4:"),
-                "{e}"
-            );
+            assert!(e.contains("--package") && e.contains("doc.lam:4:"), "{e}");
         }
     }
 }

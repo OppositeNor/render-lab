@@ -77,7 +77,7 @@ def check_paths(source: Path, text: str, problems: list[str]) -> None:
 
 def check_commands(source: Path, text: str, known: set[str], problems: list[str]) -> None:
     """`render-lab X` and `cargo run --release -- [global options] X` with an X the CLI does not have."""
-    globals_with_value = {'--investigation', '--root', '--listing-style'}
+    globals_with_value = {'--package', '--root', '--listing-style'}
     for line in text.split('\n'):
         for match in re.finditer(r'(?:render-lab|cargo run --release --)((?:\s+\S+)+)', line):
             # Skip the global options (and the values some take); the next word is the subcommand.

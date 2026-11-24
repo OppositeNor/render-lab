@@ -17,7 +17,7 @@
 //! demonstration changes.
 //!
 //! Clips are declared in a package's scripts (runtime.lam's `Clip`, src/script/runtime/clips.rs), checked when
-//! they load, and listed by `render-lab --investigation <id> clips`. A clip is data: playing it is a pure
+//! they load, and listed by `render-lab --package <name> clips`. A clip is data: playing it is a pure
 //! function of the frame, as every other channel of a timeline is (src/shot/eval.rs).
 
 use crate::animation::{Ease, Motion};

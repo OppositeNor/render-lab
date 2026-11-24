@@ -1,8 +1,8 @@
 """Check a storyboard without an audio environment, speech cache, or GPU.
 
-    python3 tools/video/check.py --investigation godot/ssr --binary target/release/render-lab
-    python3 tools/video/check.py --investigation godot/ssr --lang zh-CN --json
-    python3 tools/video/check.py --investigation godot/ssr --explain c1-adds [--json]
+    python3 tools/video/check.py --package godot_ssr --binary target/release/render-lab
+    python3 tools/video/check.py --package godot_ssr --lang zh-CN --json
+    python3 tools/video/check.py --package godot_ssr --explain c1-adds [--json]
 """
 from __future__ import annotations
 
@@ -22,14 +22,14 @@ from storyboard import load_board, validate  # noqa: E402
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=(__doc__ or '').split('\n\n')[0])
-    parser.add_argument('--investigation', required=True)
-    parser.add_argument('--investigation-dir', type=Path)
+    parser.add_argument('--package', required=True)
+    parser.add_argument('--package-dir', type=Path)
     parser.add_argument('--lang', choices=LANGS, default='en')
     parser.add_argument('--binary', type=Path, default=lamlet.BINARY)
     parser.add_argument('--json', action='store_true', help='structured diagnostics on stdout, including on failure')
     parser.add_argument('--explain', metavar='BEAT', help='after the check, explain one beat: its sentences, its cues in source order, what each writes and names, takeovers (explain.py); frames and seconds if the edition is prepared')
     args = parser.parse_args()
-    cfg = Config.load(args.investigation, args.lang, args.investigation_dir)
+    cfg = Config.load(args.package, args.lang, args.package_dir)
     lamlet.BINARY = args.binary.resolve()
     report: dict[str, Any]
     try:

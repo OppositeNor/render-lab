@@ -22,11 +22,11 @@ Json = dict[str, Any]
 class References(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.cfg = Config.load('godot/ssr', 'en')
-        cls.fields = markup.Fields.of(json.loads(lamlet.lab('--investigation', cls.cfg.investigation, 'story', 'keys')))
+        cls.cfg = Config.load('godot_ssr', 'en')
+        cls.fields = markup.Fields.of(json.loads(lamlet.lab('--package', cls.cfg.name, 'story', 'keys')))
         directory = tempfile.TemporaryDirectory()
         cls.addClassCleanup(directory.cleanup)
-        cls.vocabulary = lamlet.vocabulary(cls.cfg.investigation, 'test_vocab', Path(directory.name) / 'test_vocab.lam')
+        cls.vocabulary = lamlet.vocabulary(cls.cfg.name, 'test_vocab', Path(directory.name) / 'test_vocab.lam')
 
     def check(self, *keys: Json) -> Json:
         return preflight.host_check(self.cfg, {'renderLabStory': 1, 'cues': [
@@ -135,7 +135,7 @@ Before ${cue "key" {' ATTRS}}after.
             with self.subTest(attrs=attrs), tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / 'storyboard.lam'
                 path.write_text(template.replace('ATTRS', attrs))
-                board = presentation.load(path, [('test_vocab', self.vocabulary)], self.fields, self.cfg.investigation)
+                board = presentation.load(path, [('test_vocab', self.vocabulary)], self.fields, self.cfg.name)
                 key = preflight.normalized(board)['cues'][0]['key']
                 self.assertEqual(key, expected)
                 self.assertTrue(preflight.check(self.cfg, board)['ok'])

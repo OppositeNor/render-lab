@@ -7,7 +7,7 @@
 //! ```toml
 //! name = "probe-rays"
 //! description = "How the probe ray count trades quality for time."
-//! investigation = "godot/sdfgi"     # optional: checked against --investigation
+//! investigation = "godot/sdfgi"     # optional: checked against --package's
 //! demo = "room"                     # the starting demonstration (default: the first)
 //! resolution = [1280, 720]          # the frame a research run renders
 //! frames = 16                       # frames rendered before measuring (history converges)
@@ -753,7 +753,10 @@ impl Experiment {
         if let Some(path) = &self.investigation {
             let current = investigation::current().path();
             if *path != current {
-                bail!("the experiment is for {path}, not {current} (give --investigation {path})");
+                let package = crate::investigations::find(path)
+                    .and_then(|i| i.package())
+                    .unwrap_or("render_lab");
+                bail!("the experiment is for {path}, not {current} (give --package {package})");
             }
         }
         if let Some(i) = &self.inspect {
