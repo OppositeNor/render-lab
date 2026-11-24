@@ -256,14 +256,13 @@ pub fn record(options: &RecordOptions) -> Result<RecordSummary> {
         tx: writer.is_some().then_some(tx),
         range: (first, last),
         size: [width, height],
-        // A program that records with history (`ShadingProgram::record_history`):
-        // each frame of a beat builds on the one before it, rendered just before;
-        // a beat's first frame, and a frame after a gap, stand alone.
+        // A shading or program that records with history (`SceneShading::record_history`,
+        // `ShadingProgram::record_history`): each frame of a beat builds on the one before it,
+        // rendered just before; a beat's first frame, and a frame after a gap, stand alone.
         record_history: options.output.is_some()
             && investigation::current()
                 .scene_shading()
-                .and_then(|s| s.program)
-                .is_some_and(|p| p.record_history),
+                .is_some_and(|s| s.record_history || s.program.is_some_and(|p| p.record_history)),
         last_drawn: None,
         summary: RecordSummary {
             first_frame: first,

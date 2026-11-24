@@ -118,6 +118,10 @@ pub struct SceneShading {
     /// made again (zero) when the viewport's size changes. A pass may read
     /// one before this frame's writer; the frame graph keeps its writers.
     pub history: &'static [&'static str],
+    /// Whether a recording's frame builds on the one before it, as a live view's does, for a shading whose
+    /// `history` is its temporal filter's (a program says so with its own `record_history`): a beat's first
+    /// frame, and a frame after a gap, stand alone. false: every recorded frame stands alone.
+    pub record_history: bool,
     /// How the frame graph's views show a resource unless told otherwise
     /// (src/graph/): `(resource, "<show>[?<param>=<value>&…]")`, as the
     /// inspector's page takes it (`count?word=3&range=0,8`). The DAG's cards

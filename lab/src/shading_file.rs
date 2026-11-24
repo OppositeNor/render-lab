@@ -34,7 +34,7 @@
 //! The rest is what the nodes use, in kebab case of `SceneShading`'s fields:
 //!
 //! - `module` (required); `data` (a `Data` hook; none: no data), `verify`,
-//!   `history` (lists, empty when left out);
+//!   `history` (lists, empty when left out); `record-history` (false; needs `history`);
 //! - `[[target]]` `name`, `format`, `divisor` (1); `[[buffer]]` `name`,
 //!   `words-per-tile`, `tile`; `[[volume]]` `name`, `format`, `size`, `mips` (1);
 //! - `[resolution]` `targets`, `divisor` (a `Divisor` hook);
@@ -491,15 +491,19 @@ fn program(
         init,
         plan,
         warmup: u32_or(t, "warmup", "[program]", Some(0))?,
-        record_history: t
-            .get("record-history")
-            .map(|v| {
-                v.as_bool()
-                    .ok_or_else(|| "[program]: `record-history` is true or false".to_string())
-            })
-            .transpose()?
-            .unwrap_or(false),
+        record_history: record_history(t, "[program]")?,
     })
+}
+
+/// A table's `record-history` (false when left out).
+fn record_history(t: &dyn TableLike, at: &str) -> Result<bool, String> {
+    t.get("record-history")
+        .map(|v| {
+            v.as_bool()
+                .ok_or_else(|| format!("{at}: `record-history` is true or false"))
+        })
+        .transpose()
+        .map(|v| v.unwrap_or(false))
 }
 
 /// What the `[[node]]` list declares, gathered by kind: the raster passes in their order, the shorthands
@@ -732,6 +736,7 @@ pub fn parse(text: &str, hooks: &Hooks) -> Result<SceneShading, String> {
             "data",
             "verify",
             "history",
+            "record-history",
             "target",
             "buffer",
             "volume",
@@ -776,6 +781,9 @@ pub fn parse(text: &str, hooks: &Hooks) -> Result<SceneShading, String> {
         (None, false) => return Err("program nodes need a `[program]` table (its plan)".into()),
         (Some(x), _) => Some(&*Box::leak(Box::new(program(x, hooks, n.programs)?))),
     };
+    if record_history(t, "the file")? && strings(t, "history", "the file")?.is_empty() {
+        return Err("`record-history` needs `history` (the resources a frame builds on)".into());
+    }
     Ok(SceneShading {
         module: required(t, "module", "the file")?,
         data,
@@ -790,6 +798,7 @@ pub fn parse(text: &str, hooks: &Hooks) -> Result<SceneShading, String> {
         update,
         resolution,
         history: strings(t, "history", "the file")?,
+        record_history: record_history(t, "the file")?,
         shows,
         program,
         nodes: leak_slice(n.order),

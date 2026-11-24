@@ -92,6 +92,7 @@ fn shading(early: &'static [ShadingPass], after: &'static [ShadingPass]) -> &'st
         update: None,
         resolution: None,
         history: &[],
+        record_history: false,
         shows: &[],
         program: None,
         nodes: Box::leak(nodes.into_boxed_slice()),
@@ -523,6 +524,7 @@ fn history_and_repeated_entries() {
     let g = FrameGraph::new(
         Some(Box::leak(Box::new(SceneShading {
             history: &["blur"],
+            record_history: false,
             ..*s
         }))),
         &[],
