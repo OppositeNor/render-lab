@@ -4,6 +4,8 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+## [0.0.9] - 2026-11-23
+
 ### Added
 
 - The homepage downloads a missing narrated video: an investigation whose package names where its narration package
@@ -13,6 +15,24 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
   only plain `https` addresses are taken, kept to HTTPS through redirects. The archive is unpacked safely
   (`lab/src/archive.rs`: no paths out of its folder, no links, CRC-checked, size limits) and installed only if it is
   that investigation's narration package and nothing more: no code, shaders, or overrides.
+- A program's raster pass can draw into images of its own (`targets`, in location order, and a `depth` image tested
+  as the scene pass's), each cleared before every draw; the graph counts them as the pass's writes and the lint
+  checks them. `depth16unorm` is a format.
+- A shading without a `[program]` can record with history: `record-history` at the shading file's top level (it
+  needs `history`) builds each recorded frame of a beat on the one before it, as a program's `record-history` does.
+- The Chinese voice's shared pronunciations (`tools/video/pronunciations-zh.json`, words it misreads in every
+  package); a package's `pronunciationsZh` adds to them and wins.
+
+### Changed
+
+- `--package <name>` replaces `--investigation <engine>/<feature>`, which is removed: the lab and the video tools
+  name an investigation by its package (`--package godot_voxelgi`; `<package>:<engine>/<feature>` when a package
+  holds several). `--list` leads with the package name. `render-lab lamlet ir` and `lamlet vocab` take their
+  imports as `--import NAME=PATH`, and the video tools' `--investigation-dir` is `--package-dir`.
+- Godot VoxelGI runs at run time what Godot does: the light passes and the dynamic object (drawn in six views, lit,
+  shrunk, and plotted on the GPU) are scheduled each frame as `GI::VoxelGIInstance::update` schedules them, and the
+  distance field is an R8 3D texture sampled linearly. Its story is revised to the storytelling standard.
+- Math transforms reshape a rectangle into the box between its forms.
 
 ## [0.0.8] - 2026-11-23
 
@@ -254,7 +274,8 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
 
 First release: Linux (x86_64), Windows (x86_64), and macOS (Apple Silicon) packages.
 
-[Unreleased]: https://github.com/OppositeNor/render-lab/compare/v0.0.8...HEAD
+[Unreleased]: https://github.com/OppositeNor/render-lab/compare/v0.0.9...HEAD
+[0.0.9]: https://github.com/OppositeNor/render-lab/compare/v0.0.8...v0.0.9
 [0.0.8]: https://github.com/OppositeNor/render-lab/compare/v0.0.7...v0.0.8
 [0.0.7]: https://github.com/OppositeNor/render-lab/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/OppositeNor/render-lab/compare/v0.0.5...v0.0.6

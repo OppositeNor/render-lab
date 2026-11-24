@@ -7,9 +7,9 @@ video tools, leaves them out of its platform archives. They are data, the same o
 here, once, and published beside those archives as `<name>_narration-<tag>.zip`, which a user unpacks inside the
 packages folder in the executable's directory.
 
-    python3 tools/publish_narration.py v0.0.8              # build, pack, check, and upload to the release v0.0.8
-    python3 tools/publish_narration.py v0.0.8 --no-upload  # build, pack, and check only
-    python3 tools/publish_narration.py v0.0.8 --skip-build --wait   # the outputs as built; wait for the CI's release
+    python3 tools/publish_narration.py v0.0.9              # build, pack, check, and upload to the release v0.0.9
+    python3 tools/publish_narration.py v0.0.9 --no-upload  # build, pack, and check only
+    python3 tools/publish_narration.py v0.0.9 --skip-build --wait   # the outputs as built; wait for the CI's release
 
 The archives are written to `target/narration/<tag>/`. Only the packages git tracks are published.
 """
