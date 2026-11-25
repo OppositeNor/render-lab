@@ -3,6 +3,7 @@
     python3 tools/video/check.py --package godot_ssr --binary target/release/render-lab
     python3 tools/video/check.py --package godot_ssr --lang zh-CN --json
     python3 tools/video/check.py --package godot_ssr --explain c1-adds [--json]
+    python3 tools/video/check.py --package godot_ssr --animations [--json]
 """
 from __future__ import annotations
 
@@ -28,6 +29,7 @@ def main() -> None:
     parser.add_argument('--binary', type=Path, default=lamlet.BINARY)
     parser.add_argument('--json', action='store_true', help='structured diagnostics on stdout, including on failure')
     parser.add_argument('--explain', metavar='BEAT', help='after the check, explain one beat: its sentences, its cues in source order, what each writes and names, takeovers (explain.py); frames and seconds if the edition is prepared')
+    parser.add_argument('--animations', action='store_true', help='after the check, verify each chapter\'s animations against its beats\' explanation densities and measured lengths (density.py; the prepared timeline); fails when a chapter plays too few or a beat waits too long')
     args = parser.parse_args()
     cfg = Config.load(args.package, args.lang, args.package_dir)
     lamlet.BINARY = args.binary.resolve()
@@ -61,6 +63,13 @@ def main() -> None:
         import explain
         detail = explain.explain(cfg, board, preflight.normalized(board)['cues'], args.explain)
         print(json.dumps(detail, ensure_ascii=False, indent=1) if args.json else explain.text(detail))
+    if args.animations:
+        import density
+        owed = density.report(cfg, lamlet.BINARY)
+        print(json.dumps(owed, ensure_ascii=False, indent=1) if args.json else density.text(owed))
+        # A chapter that plays fewer animations than its beats owe, or a beat that waits too long, fails the check.
+        if not owed['ok']:
+            raise SystemExit(1)
 
 
 if __name__ == '__main__':

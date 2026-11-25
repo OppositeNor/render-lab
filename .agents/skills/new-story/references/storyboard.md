@@ -166,10 +166,39 @@ the motion that counts is the motion that explains.
   reveals, actions (`run`), camera paths. Each is driven by a value the interactive view shows (a slider or a toggle
   in the dock), so a viewer can replay it, stop it anywhere, and change it; a timeline sets only values the dock can
   set. Three rules, all checked per chapter before the review:
-  - *Density*: at least ⌈T / 6 s⌉ supporting animations, T the chapter's narration time (about one a spoken
-    sentence). No cap: a longer chapter needs more.
-  - *No long gaps*: no stretch of narration longer than about 12 s without a supporting animation playing or starting.
+  - *Density*: each beat's heading gives its explanation density, `density=` from 0 to 1 (1 when left out), and a
+    beat of length T owes T · d / 6 s supporting animations: one every 6 s at 1 (about one a spoken sentence), none
+    at 0, linear between. A chapter plays at least the ceiling of what its beats owe; no cap, so a longer chapter
+    needs more. The builder writes each beat's density into the timeline, and `python3 tools/video/check.py
+    --package <name> --animations` verifies the prepared timeline against it: each beat's length, density, share,
+    the animations its keys start, and its longest gap, and each chapter's total; it fails a chapter that plays too
+    few or a beat that waits too long. Its count is an upper bound (every sweep, step, timed clip, camera path, and
+    action, never a sway), so passing it is necessary, not enough: the review still cuts what does not support its
+    sentence.
+  - *No long gaps*: no stretch of a beat's narration longer than about 12 s / d without a supporting animation
+    playing or starting (12 s at 1, no limit at 0).
   - *Coverage*: every sentence that names a mechanism has an animation that shows that mechanism working.
+
+  **Choosing a beat's density.** It says how densely the beat explains, read from its sentences, never chosen to
+  lower a count. Near 1: the beat works a mechanism through step by step (how a global distance field is built from
+  the objects' fields, a reservoir taking its candidates one by one). Around 0.5: it explains, but over a picture
+  already built (what a view shows, a cause read off a result). Near 0: it only narrates, with nothing to work
+  through: a paper's title and authors, credits, a chapter's hand-over, the references. A sentence that names a
+  mechanism belongs to a beat whose density is not near 0; split a beat that both credits and explains. Write it
+  in the English storyboard only (a translation's headings do not take it); the reviews check that each density
+  matches what its beat says. The baseline, with the share a 30 s beat owes:
+
+  | Density | The beat | Examples | 30 s owes |
+  |---|---|---|---|
+  | 0.0 | Only narrates; nothing to work through | the references card; the license and acknowledgements | 0 |
+  | 0.1 to 0.2 | Credits or frames, one picture held | a paper's title, authors, and venue (ReSTIR's opening); an engine's name, version, and commit; "the next chapter turns to …" | 0.5 to 1 |
+  | 0.3 to 0.4 | Orients: says what is there, not how it works | where a pass runs in the frame; the list of a paper's contributions; the related work, one method a sentence; the recap's three takeaways | 1.5 to 2 |
+  | 0.5 to 0.6 | Explains over a picture already built | what a debug view shows; a cause read off a result (the feature off and on); a measured comparison read off its plot | 2.5 to 3 |
+  | 0.7 to 0.8 | Explains a mechanism, partly step by step | what a texel of a probe's map holds and how its channels decode; a formula's terms named over a worked case; why a bias term removes a leak | 3.5 to 4 |
+  | 0.9 to 1.0 | Works a mechanism through, step by step | how Lumen's global distance field is built from the objects' fields; a reservoir streaming its candidates one by one; a ray marching a cascade to its hit; a voxel grid filled and its light injected | 4.5 to 5 |
+
+  Between two rows, choose by how much of the beat's narration says how something works: a beat half credit and
+  half step-by-step mechanism is better split than given 0.5.
 
   A local edit to one beat keeps its chapter inside the three rules. A math beat (`kind=2d math=<scene>`, the
   `render-lab-math` skill) counts as any beat: each step a clip plays under its sentence is an animation.

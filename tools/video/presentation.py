@@ -387,9 +387,9 @@ def load(path: Path, packages: list[tuple[str, Path]], fields: markup.Fields, pa
             if 'math' in props and kind != '2d':
                 raise PresentationError(f'{path}: {beat_id}: a math scene (math=) is a 2d beat\'s')
             # `hold` is lamlet-present's own heading attribute, kept as written (headings.py checks it is a number).
-            for name in ('diagram', 'graph', 'math', 'hold', 'focus', 'sources'):
+            for name in ('diagram', 'graph', 'math', 'hold', 'density', 'focus', 'sources'):
                 if name in props:
-                    beat[name] = markup.number(props[name], at) if name == 'hold' else props[name]
+                    beat[name] = markup.number(props[name], at) if name in ('hold', 'density') else props[name]
             # A 2d beat may show the works the story cites, the source index's references (a paper's story ends on them).
             if props.get('references') in (True, 'true'):
                 beat['references'] = True

@@ -4,6 +4,19 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
 
 ## [Unreleased]
 
+### Added
+
+- A story beat's explanation density (`density=` on its heading, 0 to 1, 1 when left out) scales the supporting
+  animations it needs: one every 6 seconds at 1, none at 0, linear between. The builder writes it into the
+  timeline, and `tools/video/check.py --animations` verifies a prepared timeline against it: the animations each
+  beat's keys start, each chapter's total, and the longest gap in each beat. `--explain` shows a beat's density and
+  share.
+
+### Changed
+
+- The `new-story` guide asks for supporting animations by each beat's explanation density instead of one every 6
+  seconds everywhere, so narration-only beats (credits, a paper's title and authors) need none.
+
 ## [0.0.9] - 2026-11-23
 
 ### Added

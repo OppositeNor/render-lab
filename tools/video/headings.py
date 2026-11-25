@@ -118,6 +118,11 @@ def check(video: Json, chapters: Sections, path: Path, translation: bool) -> Non
             if 'hold' in props:
                 hold = numeric(props, 'hold', beat, path)
                 check_frames(hold, fps, 'hold', beat, path)
+            if 'density' in props:
+                density = numeric(props, 'density', beat, path)
+                # An explanation density is a share of the full rate, between none and all of it.
+                if not 0.0 <= density <= 1.0:
+                    fail('story.heading.number', f'density must be between 0 and 1, not {props["density"]!r}', beat, path, 'density')
 
 
 def check_frames(seconds: float | int, fps: int, name: str, node: Json, path: Path) -> None:

@@ -24,7 +24,7 @@ scenes.
   it stays the formula card (`formulaSaid`).
 - **Float, then focus:** cut in for the detailed step and back out to the scene; a chapter does not live on the
   canvas. The cut is a beat of its own (`### … {#c2-toy kind=2d math=toyMath}`), faded in and out by the lab.
-- A math beat is a beat of its chapter: its supporting animations count toward ⌈T / 6 s⌉, under `new-story`'s
+- A math beat is a beat of its chapter: its supporting animations count toward what its chapter's beats owe (their `density`), under `new-story`'s
   Phase 6 rules, and each is a value the dock shows.
 
 ## The model: progresses moved by clips

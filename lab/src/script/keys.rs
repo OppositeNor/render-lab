@@ -447,6 +447,8 @@ pub fn heading_keys(translation: bool) -> Vec<Value> {
         references["options"] = json!(["true", "false"]);
         references["closed"] = json!(true);
         out.push(references);
+        // How densely a beat explains, 0 to 1 (1 when left out): its share of one supporting animation every 6 s.
+        out.push(heading("density", "float", &[3], None));
     }
     for name in ["engineVersion", "commit", "date"] {
         out.push(heading(name, "any", &[], None));

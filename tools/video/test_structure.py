@@ -124,6 +124,15 @@ class Structure(unittest.TestCase):
                 self.refused(text, translation, f'`{field}` is not an attribute', f'did you mean `{candidate}`?')
         self.refused(TRANSLATION.replace('#b}', '#b kind=3d}'), True, '`kind` is not an attribute of a level-3 heading')
 
+    def test_explanation_density_is_a_share_between_zero_and_one(self) -> None:
+        # A beat's density is kept as a number; left out, the beat has none (read as 1 by density.py).
+        self.assertEqual(self.load(STORY.replace('kind=3d', 'kind=3d density=0.25'))['chapters'][0]['beats'][0]['density'], 0.25)
+        self.assertNotIn('density', self.load(STORY)['chapters'][0]['beats'][0])
+        for value in ('-0.1', '1.5'):
+            with self.subTest(density=value):
+                self.failure(STORY.replace('kind=3d', f'kind=3d density={value}'), 'story.heading.number', False, 'density')
+        self.refused(TRANSLATION.replace('#b}', '#b density=0.5}'), True, '`density` is not an attribute of a level-3 heading')
+
     def test_archival_and_namespaced_metadata_are_allowed(self) -> None:
         text = STORY.replace('fps=30', 'engineVersion="4.7.2-stable" commit=abcdef date=2026-11-04 meta.review=approved fps=30')
         text = text.replace('target=10', 'target=10 meta.owner=author').replace('kind=3d', 'kind=3d meta.note=example')

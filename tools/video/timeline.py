@@ -359,6 +359,9 @@ def build_timeline(board: Board, durations: Durations, cfg: Config) -> tuple[Jso
                 'id': beat['id'], 'chapter': chapter['number'], 'kind': beat['kind'], 'startFrame': beat_start,
                 'frames': beat_end - beat_start, 'headline': beat['headline'], 'captions': captions, 'sources': beat.get('sources', []),
             }
+            if 'density' in beat:
+                # How densely the beat explains, which tools/video/density.py checks its animations against.
+                entry['density'] = beat['density']
             if beat.get('references'):
                 # The closing card of a paper's story: the works it cites (lab/src/ui/panel.rs).
                 entry['references'] = True

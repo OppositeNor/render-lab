@@ -254,7 +254,7 @@ An investigation keeps its video in its package, `packages/<package>/video/` (th
   3D frame) or `2d` (a page in its place: the image `diagram=` names, the frame graph `graph=` names, with its
   `focus="A, B"` nodes, the math scene `math=` names (a `Math` hook of the package's scripts, drawn on the canvas,
   lab/src/math/; its cues set values as a 3D beat's, the `render-lab-math` skill), or without any of these the
-  sources card of its `sources=`), with `diagram`, `graph`, `math`, `focus`, `sources`, `hold` attributes (a quoted value may hold spaces, not quotes or braces). Only `3d` and `2d` are
+  sources card of its `sources=`), with `diagram`, `graph`, `math`, `focus`, `sources`, `hold`, `density` attributes (a quoted value may hold spaces, not quotes or braces; `density`, 0 to 1 and 1 when left out, is the beat's explanation density, written to the timeline's beat, against which `check.py --animations` verifies the animations each chapter plays, density.py). Only `3d` and `2d` are
   accepted as scene types in storyboards and timelines; a paused timeline keeps a 2D scene on screen. Before the
   first sentence, a paragraph of cues sets the beat's keys, one per cue. Then each paragraph is one sentence: its
   prose is CommonMark (`$` is written `$$`), with its cues (below); a cue before its first word fires at the

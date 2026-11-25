@@ -110,7 +110,7 @@ def explain(cfg: Config, board: Json, cues: list[Json], beat_id: str) -> Json:
         out_cues.append(entry)
     return {
         'renderLabExplain': 1, 'investigation': cfg.investigation, 'lang': cfg.lang, 'chapter': chapter['id'], 'beat': beat_id,
-        'kind': beat.get('kind'), 'headline': beat.get('headline'), 'at': _at(beat.get('source') or {}),
+        'kind': beat.get('kind'), 'headline': beat.get('headline'), 'at': _at(beat.get('source') or {}), 'density': beat.get('density', 1.0),
         'timing': ({'measured': True, 'startFrame': tl_beat['startFrame'], 'frames': tl_beat['frames'], 'fps': fps} if tl_beat
                    else {'measured': False, 'note': 'not measured: prepare the edition (build.py --prepare-only) for frames and seconds'}),
         'sentences': sentences, 'cues': out_cues,
@@ -119,9 +119,14 @@ def explain(cfg: Config, board: Json, cues: list[Json], beat_id: str) -> Json:
 
 
 def text(report: Json) -> str:
-    lines = [f'{report["beat"]} ({report["kind"]}, chapter {report["chapter"]}) at {report["at"]}: {report["headline"]}']
+    lines = [f'{report["beat"]} ({report["kind"]}, chapter {report["chapter"]}, density {report["density"]:g}) at {report["at"]}: {report["headline"]}']
     t = report['timing']
-    lines.append(f'  frames {t["startFrame"]}..{t["startFrame"] + t["frames"]} at {t["fps"]} fps' if t['measured'] else f'  {t["note"]}')
+    if t['measured']:
+        # A measured beat owes a sixth of its seconds, scaled by its density, in supporting animations (density.py).
+        owes = t['frames'] / t['fps'] * report['density'] / 6.0
+        lines.append(f'  frames {t["startFrame"]}..{t["startFrame"] + t["frames"]} at {t["fps"]} fps, owes {owes:.2f} supporting animations')
+    else:
+        lines.append(f'  {t["note"]}')
     for s in report['sentences']:
         lines.append(f'  [{s["paragraph"]}] {s["at"]}: {s["shown"]}')
         if s['spoken'] != s['shown']:

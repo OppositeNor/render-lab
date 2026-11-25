@@ -132,13 +132,14 @@ cargo run --release -- --package o3de_lighting selftest --report /path/to/o3de.j
 O3DE_SOURCE_DIR=/path/to/o3de python3 packages/o3de_lighting/src/o3de/lighting/source_index.py   # O3DE: rewrite its package's source-index.json from the source (asks where it is without the variable)
 python3 tools/video/build.py --package o3de_lighting --snapshots-only   # the video's timeline and one still per beat; look at them
 python3 tools/video/check.py --package godot_ssr --explain c1-adds      # one beat: its sentences, cues in source order, the channels each writes and takes over (frames once prepared)
+python3 tools/video/check.py --package godot_ssr --animations          # its prepared timeline's animations against each beat's explanation density (`density=`): each chapter's count, each beat's longest gap
 python3 tools/video/lint.py --package godot_ssr --lang zh-CN           # the narration measured for the ear (length, commas, colons, openings; 的 for zh-CN): a report, the sentences over its limits
 python3 tools/video/build.py --package godot_ssr --preview c1-adds --cached-audio-only   # one beat's stills: each cue, the frame before it, motion and blend ends
 python3 tools/video/build.py --package o3de_lighting                    # the narration and timeline the viewer plays (no video)
 python3 tools/video/build.py --package o3de_lighting --video            # also the full video (~15 min, GPU; run it in the background)
 python3 tools/video/build.py --all [--video]                                  # every package's narration (or video), in all its languages, one after another (GPU; background)
 python3 tools/publish_narration.py v<version>                                 # a release's narration packages: built, checked, uploaded to the tag's release (after the CI publishes it)
-python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py tools/video/test_compare.py tools/video/test_lint.py tools/video/test_speech_zh.py   # cue attributes, the storyboard format (a Lamlet presentation; the lab built first), the comparison, the narration lint, the Chinese narration's timing
+python3 -m unittest tools/video/test_markup.py tools/video/test_presentation.py tools/video/test_compare.py tools/video/test_lint.py tools/video/test_speech_zh.py tools/video/test_density.py   # cue attributes, the storyboard format (a Lamlet presentation; the lab built first), the comparison, the narration lint, the Chinese narration's timing, the animation check by density
 python3 tools/video/compare.py save /tmp/before; python3 tools/video/compare.py /tmp/before /tmp/after   # every edition's prepared outputs unchanged by a change (after build.py --all --prepare-only each time)
 cargo run --release -- lamlet toml packages/render_lab/scenes/study-room.lam studyRoom   # a Lamlet content file's binding as the TOML the lab reads
 python3 tools/lamlet_fmt.py --check                                           # every tracked .lam file laid out (without --check: lays them out)

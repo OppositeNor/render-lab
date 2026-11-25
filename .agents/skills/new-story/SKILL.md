@@ -48,9 +48,12 @@ These do not relax for a small change:
 - Every factual sentence is backed by a callout or its chapter's `sources`; numbers about the lab's scene come from the
   lab's code, never typed in.
 - Each sentence has a visual that shows it; a listing highlight changes the scene; a view is explained when it appears.
-- Every chapter, of an engine's story or a paper's, plays at least ⌈T / 6 s⌉ supporting animations (T its narration
-  time), with no stretch of narration over about 12 s without one, and every mechanism a sentence names shown working
-  (`references/storyboard.md`, Phase 6: what counts, and what is filler). Camera sways and floats never count.
+- Every beat has an explanation density d, 0 to 1 (its heading's `density=`, 1 when left out): high where it
+  explains a mechanism densely, low where it only narrates (a paper's title and authors, a credit, a hand-over). A
+  beat of length T owes T · d / 6 s supporting animations, and a chapter plays at least ⌈the sum over its beats⌉,
+  with no stretch of a beat over about 12 s / d without one (no limit at d = 0); every mechanism a sentence names is
+  shown working (`references/storyboard.md`, Phase 6: the density, what counts, and what is filler). Camera sways and
+  floats never count.
 - The narration is clear and in-depth: written for the ear (`references/storyboard.md`, "Written for the ear"), built
   and checked sentence by sentence with the sentence map (`references/storytelling.md`), and
   each changed chapter passes the cold-listener review and the native-language review, one reviewer per language,
@@ -135,7 +138,7 @@ code, say) is asked when the phase reaches it, not saved for a gate.
 | 3. Demonstrations | `story/demonstrations.md`, the views and their interactions | `references/demonstrations.md`, the variant's notes on data | the data mirrored as its source keeps it, every view interactive, the interaction review answered, every taught topic demonstrated, pick round-trip in the selftest; gate |
 | 4. The base | index entries, port, mirror, selftest, listings, formulas, step parameters | `new-investigation` (procedure steps 3 to 6) | below |
 | 5. Storyboard | `storyboard.lam`, chapter by chapter | `references/storyboard.md`, `references/storytelling.md` | each chapter's sentences mapped with no fault left, the chapter prepared, its stills looked at |
-| 6. Showing the data | animations, interactions, views | `references/storyboard.md`, Phase 6 | each chapter's supporting animations at least ⌈T / 6 s⌉, no gap over about 12 s, every named mechanism shown (a replay only with a reason the narration gives), its per-beat checks passed |
+| 6. Showing the data | animations, interactions, views | `references/storyboard.md`, Phase 6 | each beat's density set, each chapter's supporting animations at least what its beats owe (`check.py --animations`), no gap over about 12 s / d, every named mechanism shown (a replay only with a reason the narration gives), its per-beat checks passed |
 | 7. Review | `story/reviews/`, revisions | `references/review.md`, `references/storytelling.md`, the variant's fact check | every review row (the interaction review's included) fixed or answered, every fact verified or a stated simplification |
 | 8. Translate and build | `storyboard.zh-CN.lam`, both editions | below | the checks below pass, the user asked to watch |
 
