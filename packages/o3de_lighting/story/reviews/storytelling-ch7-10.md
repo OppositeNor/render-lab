@@ -1,0 +1,78 @@
+# Storytelling review, English narration, chapters 7 to 10
+
+Method: every sentence of c7 to c10 mapped (known | new | job) against `storytelling.md` and the ear rules; only faulty sentences are listed. Constants stated as the engine's choice are not flagged. Rewrites keep every fact; SPLIT parts are separated by " / ". NEEDS FACT marks a fix that needs a reason or purpose the narration does not give.
+
+Flagged sentences: 42.
+
+## Flagged sentences
+
+| Beat | # | First six words | Map (known / new / job) | Fault | Rewrite |
+|---|---|---|---|---|---|
+| c7-why | 3 | Screen-space ambient occlusion, or SSAO, | known: the hidden sky (2) / new: the name, plus "on by default" / name | Name before the act (the act comes in 4); a default fact with no consequence | SPLIT: One pass darkens where nearby geometry hides the sky, and it uses nothing but the depth buffer. / It is called screen-space ambient occlusion, or SSAO, and it is on by default. |
+| c7-why | 4 | It darkens where nearby geometry | known: SSAO / new: what it darkens + depth-only input / act | Two new parts ("X, and Y") | SPLIT: It darkens where nearby geometry hides the sky. / It uses nothing but the depth buffer. |
+| c7-why | 6 | It reads a half-resolution copy | known: SSAO / new: its input copy + its output target / act | Two new parts, no purpose | SPLIT: It reads a half-resolution copy of the linear depth. / It writes an eight bit target. (why half resolution: NEEDS FACT) |
+| c7-why | 10 | There, many of the samples | known: darker creases / new: samples (never defined here), depths, other surface / act | Overloaded; term "samples" before its meaning (c7-samples defines it); two appended phrases | SPLIT: There, the pass reads depths around a pixel from the depth buffer. / Many of those samples land on the other surface, above the pixel's own surface. |
+| c7-samples | 9 | The first twelve are fixed, | known: depth samples (8) / new: fixed set, distances, cross and diagonals / act | Two new parts | SPLIT: The first twelve samples sit in a fixed pattern, a cross and its diagonals. / They lie four and eight pixels from the point. |
+| c7-samples | 11 | The spiral is shared between the | known: the spiral (10) / new: sharing across a four by four block / none clear | Fact with no why or consequence | NEEDS FACT: say what the sharing changes (the noise the blur later removes, c7-output 3). Else cut from narration. |
+| c7-samples | 15 | So samples on the teapot occlude | known: the weight (14) / new: teapot vs floor outcome / act | A "so" with the wrong cause: the outcome comes from the cosine (12, 13), not the weight (14) | SPLIT: A sample on the teapot rises high above the point's surface, so it occludes the point. / A sample on the floor does not rise, so it does not. |
+| c7-output | 2 | That value is raised to | known: stored value (1), "that value" could be the occlusion, the strength product, or one minus it / new: power 2.2, eight bits / act | Pronoun with two referents; fact with no purpose | One minus the occlusion is then raised to the power two point two. / It is kept in eight bits. (purpose of the power: NEEDS FACT) |
+| c7-output | 4 | It reaches eight pixels each | known: the blur (3) / new: reach + stops at edges / act | Two new parts; "depth-aware" is named in 3 before 4 explains it | SPLIT: It reaches eight pixels each way. / It stops at depth edges, which is why it is called depth-aware. |
+| c7-recap | 3 | But it darkens direct light | known: the screen's occlusion (2) / new: darkens direct light + ignores off-screen / contrast | Two new parts; "it" could be occlusion, screen, or material | SPLIT: But the screen's occlusion darkens direct light too. / And since it reads only the depth buffer, it ignores what lies off screen. |
+| c8-thick | 1 | The thick object mode, after | known: transmission modes (c8-which 5) / new: the source + what it does / act | Provenance appended mid-sentence | SPLIT: Thick object mode follows Barré-Brisebois and Bouchard. / It brightens where the eye looks toward the light through the object. |
+| c8-thick | 2 | The model measures how directly | known: thick mode / new: the measure + the bent direction / act | Two new parts | SPLIT: The model measures how directly the eye looks toward the light. / Before measuring, it bends the light's direction a little by the normal. (why bend: NEEDS FACT) |
+| c8-thick | 5 | The glow fades as the | known: glow (4) / new: fade by thickness / act | "Thickness" used before sentence 6 defines it | SPLIT: The glow also depends on the thickness, the depth of the object between the point and the sun, which a later beat measures. / It fades as the object gets thicker, by the exponential of minus four times the thickness. (then drop 6) |
+| c8-thin | 1 | The thin model, after Jimenez, | known: the thin mode (c8-which) / new: source + start point / act | Provenance appended mid-sentence | SPLIT: The thin model follows Jimenez. / It starts from the light falling on the object's far side, its back face. |
+| c8-thin | 3 | The thin model then weakens | known: back-face light (2) / new: falloff, two dependencies, scatter distance / act | Overloaded: three new parts | SPLIT: The thin model then weakens that light with a falloff. / The falloff depends on the measured thickness. / It also depends on the scatter distance, how far light travels inside the material. |
+| c8-thin | 7 | As the sun moves from | known: orange glow (6) / new: sun movement, back face turns away / check | "it" could be the sun or the teapot | As the sun moves from behind the teapot to its side, the back face turns away from the sun and the glow fades. |
+| c8-thickness | 4 | The depth stored there belongs | known: the ring (3) / new: two depths / point | "X, and Y": second new idea hung on a comma | SPLIT: The depth stored there belongs to the side facing the sun. / The point's own depth is that of the far side. |
+| c8-thickness | 8 | With the default biases, the | known: two shifts (7) / new: names of both shifts + cancelling / act | Two new parts; one shift ("into the surface") never explained | SPLIT: One shift is the normal offset of chapter five. / The other is the thin mode's shift into the surface. / With the default biases, they nearly cancel. (why thin mode shifts: NEEDS FACT) |
+| c8-thickness | 11 | The transmitted light is tinted, | known: the glow (9) / new: tint + where it is added / act | Two new parts; "tinted" by what is never said | SPLIT: The transmitted light is tinted. / It is then added to the diffuse light after the material's occlusion. (the tint's source: NEEDS FACT) |
+| c8-thickness | 12 | So that occlusion never darkens | known: where the glow is added (11) / new: consequence / consequence | "that occlusion" can mean the material's or SSAO (c7-where: SSAO multiplies all diffuse) | So the material's occlusion never darkens it. |
+| c8-foliage | 3 | A plain leaf is StandardPBR, | known: leaf (2) / new: the material, cutout by alpha, double-sided / act | Two appended facts ("cut out by its alpha", "double-sided") | SPLIT: A plain leaf is StandardPBR. / It is cut out by its alpha and drawn double-sided. |
+| c8-foliage | 5 | O3DE's own leaf-like test material | known: leaf (3) / new: material, double-sided, thin mode, green tint / act | Four new parts in one sentence | SPLIT: O3DE's own leaf-like test material is EnhancedPBR. / It is double-sided, and it uses thin mode with a green tint. |
+| c8-foliage | 9 | Transmission and the shadow offset | known: flipped vs unflipped normal (8) / new: which things use it / none clear | Fact with no consequence | NEEDS FACT: say what the unflipped normal changes for the glow or the offset; otherwise cut from narration. |
+| c8-sss | 6 | That integer is stored in | known: the pack (5) / new: half float, its 2048 limit, rounding / act | Overloaded: gloss and consequence in one sentence | SPLIT: That integer is stored in a half float. / A half float holds integers exactly only up to two thousand and forty-eight, so larger packs come back rounded. |
+| c8-skin | 2 | It also offers a second | known: Skin (1) / new: second specular lobe / none clear | Fact with no why or consequence | NEEDS FACT: what the second lobe adds to skin (or cut). |
+| c8-skin | 3 | Skin takes the sky's light | known: Skin / new: sky's light inside the forward pass + skin profile for thin transmission / act | Two new parts; "a human skin profile" unexplained | SPLIT: Skin takes the sky's light inside the forward pass. / For thin transmission, it uses a human skin profile. (what the profile is: NEEDS FACT) |
+| c8-recap | 3 | That keeps transmission cheap, but | known: reuse of shadow map (2) / new: cheap + approximate scale / compress | "it" has two referents; "cheap" is a purpose not given earlier | SPLIT: That reuse makes the thickness scale approximate. / (the "keeps it cheap" reason: NEEDS FACT) |
+| c9-own | 11 | These compute passes are off | known: compute passes (8, 9) / new: off by default / none clear | Fact with no consequence | These compute passes are off by default, so a default frame has none of them. |
+| c9-own | 12 | The terrain casts and receives | known: the shared passes (6, 7) / new: casts and receives + same buffer / act | Two new parts | SPLIT: The terrain casts and receives the sun's shadows like any opaque surface. / It reads the same shadow buffer. |
+| c9-fixed | 7 | Even so, the multiscatter flag | known: no compensation (5, 6) / new: flag, where it sits, what it still asks / contrast | Overloaded: location, chapter recall and effect in one | SPLIT: Even so, the hills still carry the multiscatter flag in the normal target's alpha, from chapter one. / It still asks the sky's reflection pass for compensation. |
+| c9-fixed | 13 | The lab's hills have no | known: detail materials (11, 12) / new: "the ring" / point | Known part from nowhere: no ring was introduced in this beat | The lab's hills have no detail materials, so the ring on screen only marks where they would apply. |
+| c9-normal | 1 | The terrain's normals are computed | known: terrain shader (c9-fixed) / new: CPU, per vertex, central differences / act | Unglossed term, three appended phrases | SPLIT: The CPU computes a normal at each vertex of the terrain. / It takes central differences of the heights, the height difference between the neighbours on either side. |
+| c9-normal | 2 | Each axis's slope is normalised | known: the slopes (1) / new: separate normalisation / act | Fact with no why | NEEDS FACT: why each slope is normalised separately; or state it as the engine's choice. |
+| c9-hair | 2 | Hair, from the AtomTressFX gem, | known: "one more kind" (1) / new: gem, own passes, after the opaque frame, composite / act | Provenance appended mid-sentence, two acts | SPLIT: Hair comes from the AtomTressFX gem. / Its own passes draw it after the opaque frame, and composite it over that frame. |
+| c9-hair | 8 | It also tilts the cuticle, | known: the model (3, 7) / new: cuticle, tilt amount, attribution / act | Three appended phrases; no consequence | SPLIT: It also tilts the cuticle, the strand's scaly surface. / The tilt is zero point zero eight radians, the engine's choice. (what the tilt changes: NEEDS FACT) |
+| c10-map | 2 | We follow one pixel through | known: the frame (1) / new: P, its place / point | "P" separated from "pixel" by "through it" | We follow one pixel, P, low on the teapot, through the frame. |
+| c10-trace | 1 | First the depth pre-pass wrote | known: the frame / new: depth + depth bin / act | Two new parts | SPLIT: First the depth pre-pass wrote P's depth. / That depth chose P's depth bin inside its tile. |
+| c10-trace | 3 | The forward pass built P's | known: P / new: surface + walk of lights / act | Two acts; "its bin" could mean the pass's or P's | SPLIT: The forward pass built P's surface. / It then walked the lights of P's bin and the sun. |
+| c10-trace | 6 | P's reflection came from the | known: P / new: cubemap, mip, scale, formula / act | Overloaded; the formula "scaled by ... F zero times A, plus B" is ambiguous in grouping | SPLIT: P's reflection came from the specular cubemap, at the mip of P's roughness. / It was scaled by the look-up texture's factor, which is F zero times A, plus B. |
+| c10-trace | 7 | SSAO darkened P's diffuse light | known: P / new: samples / act | "it" could be P or its light | SSAO darkened P's diffuse light from fifty-two samples around P, twelve fixed and forty on the spiral. |
+| c10-takeaways | 9 | The occlusion's radius is a | known: trade-offs (7, 8) / new: radius + darkens direct light / act | Two new parts; "the occlusion" is SSAO or the material's | SPLIT: SSAO's radius is a share of the screen, not a distance. / SSAO also darkens direct light. |
+| c10-takeaways | 11 | Each of these trades accuracy | known: the list / new: the claim that each gives accuracy for speed / compress | A motive (speed) the narration never gave | NEEDS FACT: the reason each choice saves time. Safe version: "Each of these makes the light less accurate." |
+
+## (1) Drifting terms
+
+- Occlusion: "SSAO", "the screen's occlusion" (c7-recap), "the occlusion" (c7-where, c10-takeaways 9), "the material's occlusion" (c7-material), and "that occlusion" (c8-thickness 12) name two different things. Name SSAO and the material's occlusion each time.
+- Thickness: "thickness" in c8-thick (5, 7) is used before c8-thick 6 defines it. In c8-thickness it becomes "difference", "share", and "result". Use "the thickness" for the depth and keep "the share" only for the stored fraction.
+- Alignment: c8-thick 3 says "alignment" for "how directly the eye looks toward the light"; use one noun.
+- Pack: c8-sss uses "pack", "integer", and "packed alpha" for one value.
+- Macro: "macro colour" (c9-own 5) is used before "macro material" is defined in c9-fixed 1, and then redefined as "the coarse one"; define once at c9-own 5.
+- Standard: "StandardPBR" (material type), "Standard" (c8-foliage 4, a lighting model), and "the Standard model"; likewise "Enhanced" and "EnhancedPBR". Keep material type and lighting model apart.
+- Sky's light vs image-based light: c7-why 1 says "Image-based light" while the rest of c7 to c10 says "the sky's light".
+- Samples vs depth samples vs spiral: c7-why 10 uses "samples" before c7-samples defines them; c7-samples 9 and 10 then use "samples", "cross", and "spiral" for one set.
+- Target vs view vs map: "target" (c7-why 6, 7, 8, 9) is used for the SSAO target, the view of it, and the result; "the result" and "that value" are used for three quantities in c7-output.
+- Tinted vs glow vs transmitted light: c8-thickness 9 to 12 uses "glow" and "transmitted light" for one thing.
+
+## (2) The ten most important fixes
+
+1. c8-thickness 8: split the two shifts into named sentences before they cancel (two new parts and an unexplained shift).
+2. c7-samples 15: correct the wrong-cause "so" (the cosine, not the weight, separates teapot from floor).
+3. c7-why 10: split and move the samples' meaning before the sentence that uses it.
+4. c8-thick 5 and 6: define the thickness before the fade that uses it.
+5. c8-thin 3: split the falloff, its two dependencies, and the new term "scatter distance".
+6. c10-takeaways 9 and 11: fix "the occlusion" (SSAO or material?) and the unstated motive in "trades accuracy for speed".
+7. c8-thickness 11 and 12: say what tints the light, and name "the material's occlusion" instead of "that occlusion".
+8. c10-trace 6 and 7: make the formula grouping and the pronoun "it" unambiguous.
+9. c7-why 3 and 4: act before name (SSAO), and split the double new part.
+10. c8-thick 1, c8-thin 1, and c9-hair 2: take the provenance out of the middle of the sentence and put it first.
