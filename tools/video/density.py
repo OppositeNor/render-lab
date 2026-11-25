@@ -4,9 +4,11 @@ length. A beat of density d and length T owes T * d / 6 s animations; a chapter 
 and a beat goes at most 12 s / d without an animation playing or starting (no limit at 0).
 
 What it counts, from the timeline's keys, is each animation a key starts: values blended over time (a sweep, a
-range over words, a camera move), a value switched at once after the beat's first frame (a step revealed), a clip
-that takes time (`play`, `playOver`), a camera path or orbit, an action (`run`). A camera wave (a sway or float)
-never counts, nor do the values the beat's first frame sets up. Keys on one frame are one animation. The count is an upper bound: whether each animation supports its sentence is the review's call
+range over words, a camera move, an inset's parameters), a value switched at once after the beat's first frame (a
+step revealed), a clip that takes time (`play`, `playOver`), a camera path or orbit, an action (`run`). A camera wave
+(a sway) never counts, nor a camera path that runs from the beat's first frame through all of it (a float), nor do
+the values the beat's first frame sets up. Keys on one frame are one animation. The count is an upper bound: whether
+each animation supports its sentence is the review's call
 (new-story, Phase 6), so a story that passes here can still fail there, but one that fails here fails there too.
 
     python3 tools/video/check.py --package paper_restir --animations
@@ -46,18 +48,22 @@ def span(key: Json, fps: int, clips: dict[str, float], beat: tuple[int, int]) ->
     """How many frames the animation a key starts runs (0 for a step), or None when it starts none."""
     rest = beat[1] - key['frame']
     lengths = []
-    if key.get('blend', 0) > 0 and (key.get('params') or key.get('camera') or key.get('playOver')):
+    if key.get('blend', 0) > 0 and (key.get('params') or key.get('imageParams') or key.get('camera') or key.get('playOver')):
         lengths.append(key['blend'])
-    elif key.get('params') and key['frame'] > beat[0]:
+    elif (key.get('params') or key.get('imageParams')) and key['frame'] > beat[0]:
         # A value switched at once mid-beat reveals a step; the beat's first frame only sets the scene up.
         lengths.append(0)
     if clips.get(key.get('play') or '', 0.0) > 0:
         lengths.append(round(clips[key['play']] * fps))
     for motion in key.get('animate') or []:
-        # A path or orbit takes the camera or a value somewhere; a wave only sways it.
+        # A path or orbit takes the camera or a value somewhere; a wave only sways it, and a camera path from the
+        # beat's first frame through its whole length only floats it.
         kind, body = next(iter(motion.items()))
-        if kind != 'wave':
-            lengths.append(_frames(body.get('seconds'), fps, rest))
+        frames = _frames(body.get('seconds'), fps, rest)
+        camera = all(name.startswith('camera.') for name in body.get('params') or ['camera'])
+        floats = kind == 'path' and camera and key['frame'] == beat[0] and frames >= rest - 1
+        if kind != 'wave' and not floats:
+            lengths.append(frames)
     if key.get('run'):
         lengths.append(_frames((key['run'].get('args') or {}).get('seconds'), fps, rest))
     return max(lengths) if lengths else None

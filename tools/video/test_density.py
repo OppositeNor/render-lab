@@ -27,6 +27,12 @@ class DensityTest(unittest.TestCase):
         self.assertIsNone(span({'play': 'jump'}))                               # a clip that only jumps
         self.assertEqual(span({'animate': [{'path': {'seconds': 2.0}}]}), 60)   # a camera path
         self.assertIsNone(span({'animate': [{'wave': {'seconds': 2.0}}]}))      # a sway never counts
+        # A path through the whole beat from its first frame only floats the camera.
+        self.assertIsNone(density.span({'frame': 0, 'animate': [{'path': {'params': ['camera.yaw'], 'seconds': 10.0}}]}, FPS, clips, BEAT))
+        # A value's path through the whole beat (a light moving) still counts, as does an inset's parameters blended.
+        self.assertEqual(density.span({'frame': 0, 'animate': [{'path': {'params': ['sunYaw'], 'seconds': 10.0}}]}, FPS, clips, BEAT), 300)
+        self.assertEqual(span({'blend': 45, 'imageParams': {'far': 12.0}}), 45)
+        self.assertEqual(density.span({'frame': 0, 'animate': [{'path': {'seconds': 2.0}}]}, FPS, clips, BEAT), 60)
         self.assertEqual(span({'run': {'name': 'march'}}), 270)                 # an action, to the beat's end
         self.assertIsNone(span({'callout': 'x'}))
         # The beat's first frame only sets the scene up.

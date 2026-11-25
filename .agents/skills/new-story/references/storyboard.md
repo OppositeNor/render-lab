@@ -172,9 +172,9 @@ the motion that counts is the motion that explains.
     needs more. The builder writes each beat's density into the timeline, and `python3 tools/video/check.py
     --package <name> --animations` verifies the prepared timeline against it: each beat's length, density, share,
     the animations its keys start, and its longest gap, and each chapter's total; it fails a chapter that plays too
-    few or a beat that waits too long. Its count is an upper bound (every sweep, step, timed clip, camera path, and
-    action, never a sway), so passing it is necessary, not enough: the review still cuts what does not support its
-    sentence.
+    few or a beat that waits too long. Its count is an upper bound (every sweep, step, inset blend, timed clip,
+    camera path, and action; never a sway, nor a float: a camera path from the beat's first frame through all of
+    it), so passing it is necessary, not enough: the review still cuts what does not support its sentence.
   - *No long gaps*: no stretch of a beat's narration longer than about 12 s / d without a supporting animation
     playing or starting (12 s at 1, no limit at 0).
   - *Coverage*: every sentence that names a mechanism has an animation that shows that mechanism working.
@@ -198,7 +198,9 @@ the motion that counts is the motion that explains.
   | 0.9 to 1.0 | Works a mechanism through, step by step | how Lumen's global distance field is built from the objects' fields; a reservoir streaming its candidates one by one; a ray marching a cascade to its hit; a voxel grid filled and its light injected | 4.5 to 5 |
 
   Between two rows, choose by how much of the beat's narration says how something works: a beat half credit and
-  half step-by-step mechanism is better split than given 0.5.
+  half step-by-step mechanism is better split than given 0.5. A beat that only orients (a frame map's stop, a
+  recap, a list of settings, nothing explained or shown working) is 0.3; one explaining sentence lifts it to 0.4,
+  and a recap that replays the steps to tie them together to 0.5.
 
   A local edit to one beat keeps its chapter inside the three rules. A math beat (`kind=2d math=<scene>`, the
   `render-lab-math` skill) counts as any beat: each step a clip plays under its sentence is an animation.

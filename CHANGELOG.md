@@ -16,6 +16,10 @@ Notable changes to Render Lab. The format follows [Keep a Changelog](https://kee
 
 - The `new-story` guide asks for supporting animations by each beat's explanation density instead of one every 6
   seconds everywhere, so narration-only beats (credits, a paper's title and authors) need none.
+- Every story's beats carry an explanation density, and each story's animations follow it: filler cut where a beat
+  only orients, animations added where a beat works a mechanism through.
+- `check.py --animations` counts an inset's parameters blended or stepped, and leaves out a camera path that floats
+  through a whole beat from its first frame.
 
 ## [0.0.9] - 2026-11-23
 
